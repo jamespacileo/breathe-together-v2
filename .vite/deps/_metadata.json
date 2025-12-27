@@ -1,8 +1,73 @@
 {
-  "hash": "59202832",
+  "hash": "2aac3398",
   "configHash": "b1aa334e",
-  "lockfileHash": "e3b0c442",
-  "browserHash": "7465a912",
-  "optimized": {},
-  "chunks": {}
+  "lockfileHash": "f7c9ea25",
+  "browserHash": "fe040975",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "71fdf877",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "cf90964a",
+      "needsInterop": true
+    },
+    "@tanstack/react-query": {
+      "src": "../../node_modules/@tanstack/react-query/build/modern/index.js",
+      "file": "@tanstack_react-query.js",
+      "fileHash": "75f140d2",
+      "needsInterop": false
+    },
+    "@react-three/fiber": {
+      "src": "../../node_modules/@react-three/fiber/dist/react-three-fiber.esm.js",
+      "file": "@react-three_fiber.js",
+      "fileHash": "060672ad",
+      "needsInterop": false
+    },
+    "koota": {
+      "src": "../../node_modules/koota/dist/index.js",
+      "file": "koota.js",
+      "fileHash": "04b5b62d",
+      "needsInterop": false
+    },
+    "koota/react": {
+      "src": "../../node_modules/koota/dist/react.js",
+      "file": "koota_react.js",
+      "fileHash": "e12a37d4",
+      "needsInterop": false
+    },
+    "gsap": {
+      "src": "../../node_modules/gsap/index.js",
+      "file": "gsap.js",
+      "fileHash": "de158ada",
+      "needsInterop": false
+    },
+    "three": {
+      "src": "../../node_modules/three/build/three.module.js",
+      "file": "three.js",
+      "fileHash": "e99618e2",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-JBU6HCGV": {
+      "file": "chunk-JBU6HCGV.js"
+    },
+    "chunk-P6RTVJOB": {
+      "file": "chunk-P6RTVJOB.js"
+    },
+    "chunk-R7BYZDU7": {
+      "file": "chunk-R7BYZDU7.js"
+    },
+    "chunk-NX37MWYD": {
+      "file": "chunk-NX37MWYD.js"
+    },
+    "chunk-G3PMV62Z": {
+      "file": "chunk-G3PMV62Z.js"
+    }
+  }
 }

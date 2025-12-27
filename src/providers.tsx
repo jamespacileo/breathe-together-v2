@@ -6,6 +6,7 @@ import { cameraFollowFocused } from "../src/entities/camera/systems";
 import { velocityTowardsTarget } from "../src/entities/controller/systems";
 import { useCursorPositionFromLand } from "../src/entities/land/systems";
 import { meshFromPosition, positionFromVelocity } from "../src/shared/systems";
+import { breathSystem } from "./entities/breath/systems";
 
 export function RootProviders({ children }: { children: ReactNode }) {
   const world = useMemo(() => createWorld(), []);
@@ -16,12 +17,14 @@ export function RootProviders({ children }: { children: ReactNode }) {
 const NestedCheck = createContext(false);
 
 export function KootaSystems({
+  breathSystemEnabled = true,
   cameraFollowFocusedSystem = true,
   children,
   cursorPositionFromLandSystem = true,
   positionFromVelocitySystem = true,
   velocityTowardsTargetSystem = true,
 }: {
+  breathSystemEnabled?: boolean;
   cameraFollowFocusedSystem?: boolean;
   children: ReactNode;
   cursorPositionFromLandSystem?: boolean;
@@ -37,6 +40,11 @@ export function KootaSystems({
       // This turns off the systems if they are already running in a parent component.
       // This can happen when running inside Triplex as the systems are running in the CanvasProvider.
       return;
+    }
+
+    // Breath system runs first to provide state for all animations
+    if (breathSystemEnabled) {
+      breathSystem(world, delta);
     }
 
     if (cursorPositionFromLandSystem) {

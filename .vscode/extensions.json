@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "triplex.triplex",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode"
+  ]
+}
