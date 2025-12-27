@@ -3,7 +3,6 @@
  * Uses UTC time for global synchronization
  */
 import type { World } from 'koota';
-import { getBreathEntity } from './index';
 import { breathPhase, phaseType, orbitRadius, sphereScale, crystallization } from './traits';
 import { calculateBreathState } from '../../lib/breathCalc';
 
@@ -14,7 +13,7 @@ import { calculateBreathState } from '../../lib/breathCalc';
  * This ensures all users worldwide see the same breathing cycle
  */
 export function breathSystem(world: World, _delta: number) {
-	const breathEntity = getBreathEntity(world);
+	const breathEntity = world.queryFirst(breathPhase);
 	if (!breathEntity) {
 		// Entity not spawned yet, skip this frame
 		return;

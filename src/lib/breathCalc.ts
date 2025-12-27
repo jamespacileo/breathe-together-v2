@@ -1,18 +1,4 @@
-/**
- * Pure breath calculation logic
- * Box Breathing: 4s inhale, 4s hold, 4s exhale, 4s hold (16s total)
- * UTC-synced - all users globally synchronized via Date.now()
- */
-
-// Box Breathing: 4s per phase, 16s total
-const PHASE_DURATION = 4;
-const TOTAL_CYCLE = 16;
-
-// Visual ranges
-const ORBIT_RADIUS_MIN = 1.8; // Particles contract (inhale) - safely outside max sphere 1.4
-const ORBIT_RADIUS_MAX = 3.5; // Particles expand (exhale) - greater spread for breathing emphasis
-const SPHERE_SCALE_MIN = 0.6; // Sphere small (exhale)
-const SPHERE_SCALE_MAX = 1.4; // Sphere large (inhale)
+import { BREATH_PHASE_DURATION, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 
 /**
  * Easing function: easeInOutQuad for smooth breathing motion
@@ -43,11 +29,11 @@ export interface BreathState {
  */
 export function calculateBreathState(elapsedTime: number): BreathState {
 	// Position in the 16-second cycle
-	const cycleTime = elapsedTime % TOTAL_CYCLE;
+	const cycleTime = elapsedTime % BREATH_TOTAL_CYCLE;
 
 	// Determine phase (0-3)
-	const phaseIndex = Math.floor(cycleTime / PHASE_DURATION);
-	const phaseProgress = (cycleTime % PHASE_DURATION) / PHASE_DURATION;
+	const phaseIndex = Math.floor(cycleTime / BREATH_PHASE_DURATION);
+	const phaseProgress = (cycleTime % BREATH_PHASE_DURATION) / BREATH_PHASE_DURATION;
 	const easedProgress = easeInOutQuad(phaseProgress);
 
 	// Calculate breathPhase (0 = exhaled, 1 = inhaled)
@@ -76,11 +62,11 @@ export function calculateBreathState(elapsedTime: number): BreathState {
 	// Calculate derived visual values based on breathPhase
 	// Particle orbit radius: exhaled (0) = max (expanded), inhaled (1) = min (contracted)
 	const orbitRadius =
-		ORBIT_RADIUS_MAX - breathPhase * (ORBIT_RADIUS_MAX - ORBIT_RADIUS_MIN);
+		VISUALS.PARTICLE_ORBIT_MAX - breathPhase * (VISUALS.PARTICLE_ORBIT_MAX - VISUALS.PARTICLE_ORBIT_MIN);
 
 	// Sphere scale: exhaled (0) = min (small), inhaled (1) = max (large)
 	const sphereScale =
-		SPHERE_SCALE_MIN + breathPhase * (SPHERE_SCALE_MAX - SPHERE_SCALE_MIN);
+		VISUALS.SPHERE_SCALE_MIN + breathPhase * (VISUALS.SPHERE_SCALE_MAX - VISUALS.SPHERE_SCALE_MIN);
 
 	return {
 		breathPhase,

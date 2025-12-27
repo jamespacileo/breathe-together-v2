@@ -8,13 +8,11 @@ import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { useWorld } from 'koota/react';
-import { getBreathEntity } from '../breath';
 import { orbitRadius, breathPhase } from '../breath/traits';
 import { usePresence } from '../../hooks/usePresence';
 import { getMoodColorCounts } from '../../lib/colors';
 import { generateFibonacciSphere, sphericalToCartesian } from '../../lib/fibonacciSphere';
-
-const MAX_PARTICLES = 300;
+import { VISUALS } from '../../constants';
 
 interface ParticleSystemProps {
 	/**
@@ -41,17 +39,16 @@ interface ParticleSystemProps {
 }
 
 export function ParticleSystem({
-	totalCount = 300,
-	particleSize = 0.05,
-	fillerColor = '#6B8A9C',
+	totalCount = VISUALS.PARTICLE_COUNT,
+	particleSize = VISUALS.PARTICLE_SIZE,
+	fillerColor = VISUALS.PARTICLE_FILLER_COLOR,
 }: ParticleSystemProps) {
 	const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
 	const world = useWorld();
 
 	// Get presence data from API (simulated: true for dev, false for production with backend)
-	// In dev mode, generates 75 simulated users with diverse mood distribution
-	// When backend is available, change to simulated: false
-	const { moods } = usePresence({ simulated: true, pollInterval: 5000 });
+	// In dev mode, MSW mocks the API with a stateful simulation of ~50 users
+	const { moods } = usePresence({ simulated: false, pollInterval: 5000 });
 	const colorCounts = useMemo(() => getMoodColorCounts(moods), [moods]);
 
 	// Generate particle layout (Fibonacci sphere) - only recalculate when count changes
@@ -81,13 +78,15 @@ export function ParticleSystem({
 		return colors;
 	}, [colorCounts, fillerColor, totalCount]);
 
-	// Orbit angles (persists across frames for smooth animation)
-	const anglesRef = useRef(new Float32Array(totalCount));
+	// Global orbit angle for synchronized particle rotation
+	const globalAngleRef = useRef(0);
 	// Store opacity values for smooth pulsing
 	const opacityRef = useRef(new Float32Array(totalCount).fill(0.8));
 	// Track current and target colors for smooth transitions
 	const currentColorsRef = useRef<THREE.Color[]>([]);
 	const gsapTimelineRef = useRef<gsap.core.Timeline | null>(null);
+	// Reuse matrix object to avoid creating 300 new objects per frame
+	const matrixRef = useRef(new THREE.Matrix4());
 
 	// Initialize colors on first render
 	if (currentColorsRef.current.length === 0) {
@@ -139,51 +138,54 @@ export function ParticleSystem({
 		};
 	}, [particleColors]);
 
+	// Set WebGL usage hint for frequently updated instance matrices
+	useEffect(() => {
+		if (instancedMeshRef.current) {
+			instancedMeshRef.current.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+		}
+	}, []);
+
 	useFrame((state) => {
 		if (!instancedMeshRef.current) return;
 
-		// Get current breath state from entity
-		const breathEntity = getBreathEntity(world);
-		const radius = breathEntity?.get(orbitRadius)?.value ?? 2.8;
-		const phase = breathEntity?.get(breathPhase)?.value ?? 0;
+		// Get current breath state from entity via query
+		const breathEntity = world.queryFirst(orbitRadius, breathPhase);
+		if (!breathEntity) return;
+
+		const radius = breathEntity.get(orbitRadius)?.value ?? VISUALS.PARTICLE_ORBIT_MAX;
+		const phase = breathEntity.get(breathPhase)?.value ?? 0;
 		const delta = state.clock.getDelta();
-		const time = state.clock.getElapsedTime();
 
 		// Calculate base opacity: pulse between 0.5 and 1.0 with breath phase
 		// At inhale (phase=1): bright (1.0), at exhale (phase=0): dim (0.5)
 		const baseOpacity = 0.5 + phase * 0.5;
 
-		const matrix = new THREE.Matrix4();
+		// Update global orbit angle for synchronized particle rotation
+		// 15 rpm = π/2 rad/s = one complete rotation every 4 seconds
+		globalAngleRef.current += (Math.PI / 2) * delta;
+
+		const matrix = matrixRef.current;
 
 		for (let i = 0; i < particles.length; i++) {
 			const p = particles[i];
 
-			// Update orbit angle (continuous rotation)
-			// 0.5 rad/s = ~86 rev/min base speed, clearly visible orbit, modulated by particle speed
-			anglesRef.current[i] += 0.5 * p.orbitSpeed * delta;
-
 			// Convert spherical to cartesian coordinates
-			// Uses original theta + orbit rotation to maintain 3D distribution while orbiting
+			// Uses original theta + global orbit rotation to maintain 3D distribution while orbiting
+			// All particles use same angle for fluid, synchronized rotation
 			const [x, y, z] = sphericalToCartesian(
-				p.theta + anglesRef.current[i],
+				p.theta + globalAngleRef.current,
 				p.phi,
 				radius
 			);
-
-			// Add subtle random drift using sine waves with different frequencies per particle
-			// Reduced amplitude to let orbit motion be primary - drift enhances but doesn't overpower
-			const driftX = Math.sin(time * 0.3 + i * 0.5) * 0.04;
-			const driftY = Math.cos(time * 0.25 + i * 0.7) * 0.04;
-			const driftZ = Math.sin(time * 0.2 + i * 1.2) * 0.04;
 
 			// Calculate scale: particles closer to sphere (during inhale) are slightly larger
 			// Base scale + breathing modulation (0.9x to 1.1x)
 			const scaleModulation = 0.9 + phase * 0.2;
 			const scale = p.size * particleSize * scaleModulation;
 
-			// Update instance transformation matrix with drift
+			// Update instance transformation matrix
 			matrix.makeScale(scale, scale, scale);
-			matrix.setPosition(x + driftX, y + driftY, z + driftZ);
+			matrix.setPosition(x, y, z);
 
 			// Smooth opacity interpolation
 			opacityRef.current[i] += (baseOpacity - opacityRef.current[i]) * 0.1;

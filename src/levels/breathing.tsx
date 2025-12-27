@@ -4,29 +4,38 @@
  */
 import { BreathingSphere } from '../entities/breathingSphere';
 import { ParticleSystem } from '../entities/particleSystem';
+import { Environment } from '../entities/environment';
+import { VISUALS } from '../constants';
+import { Bloom, EffectComposer } from '@react-three/postprocessing';
 
 export function BreathingLevel() {
 	return (
 		<>
-			<color attach="background" args={['#050514']} />
-			<ambientLight intensity={0.5} />
+			<color attach="background" args={[VISUALS.BG_COLOR]} />
+			<ambientLight intensity={VISUALS.AMBIENT_LIGHT_INTENSITY} />
 
-			<BreathingSphere color="#7ec8d4" opacity={0.15} segments={64} />
-			<ParticleSystem totalCount={300} particleSize={0.05} fillerColor="#6B8A9C" />
+			<Environment />
 
-			{/* Optional: Bloom effect can be added by installing @react-three/postprocessing
-				and wrapping scene with EffectComposer:
+			<BreathingSphere
+				color={VISUALS.SPHERE_COLOR_INHALE}
+				opacity={VISUALS.SPHERE_OPACITY}
+				segments={VISUALS.SPHERE_SEGMENTS}
+			/>
+			<ParticleSystem
+				totalCount={VISUALS.PARTICLE_COUNT}
+				particleSize={VISUALS.PARTICLE_SIZE}
+				fillerColor={VISUALS.PARTICLE_FILLER_COLOR}
+			/>
 
-				import { Bloom, EffectComposer } from '@react-three/postprocessing';
-
-				<EffectComposer>
-					<Bloom
-						intensity={1.2}
-						luminanceThreshold={0.7}
-						luminanceSmoothing={0.9}
-						mipmapBlur
-					/>
-				</EffectComposer>
+			{/* Temporarily disabled to debug flickering issues
+			<EffectComposer multisampling={4} stencilBuffer={false}>
+				<Bloom
+					intensity={1.0}
+					luminanceThreshold={1.0}
+					luminanceSmoothing={0.9}
+					mipmapBlur
+				/>
+			</EffectComposer>
 			*/}
 		</>
 	);
