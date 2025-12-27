@@ -3,16 +3,27 @@
  * Combines breathing sphere and user presence visualization
  */
 import { BreathingSphere } from '../entities/breathingSphere';
-import { ParticleSystem } from '../entities/particleSystem';
+import { ParticleSpawner, ParticleRenderer } from '../entities/particle';
 import { Environment } from '../entities/environment';
+import { Lighting } from '../entities/lighting';
 import { VISUALS } from '../constants';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 
-export function BreathingLevel() {
+interface BreathingLevelProps {
+	/**
+	 * Scene background color
+	 * @type color
+	 */
+	backgroundColor?: string;
+}
+
+export function BreathingLevel({ backgroundColor = VISUALS.BG_COLOR }: BreathingLevelProps = {}) {
 	return (
 		<>
-			<color attach="background" args={[VISUALS.BG_COLOR]} />
-			<ambientLight intensity={VISUALS.AMBIENT_LIGHT_INTENSITY} />
+			<color attach="background" args={[backgroundColor]} />
+
+			{/* Refined layered lighting (all props editable in Triplex) */}
+			<Lighting />
 
 			<Environment />
 
@@ -21,11 +32,9 @@ export function BreathingLevel() {
 				opacity={VISUALS.SPHERE_OPACITY}
 				segments={VISUALS.SPHERE_SEGMENTS}
 			/>
-			<ParticleSystem
-				totalCount={VISUALS.PARTICLE_COUNT}
-				particleSize={VISUALS.PARTICLE_SIZE}
-				fillerColor={VISUALS.PARTICLE_FILLER_COLOR}
-			/>
+			
+			<ParticleSpawner totalCount={VISUALS.PARTICLE_COUNT} />
+			<ParticleRenderer totalCount={VISUALS.PARTICLE_COUNT} />
 
 			{/* Temporarily disabled to debug flickering issues
 			<EffectComposer multisampling={4} stencilBuffer={false}>

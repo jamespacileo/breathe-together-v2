@@ -302,25 +302,27 @@ That's it! Triplex automatically discovers components with JSDoc annotations.
 
 ## Configuration Reference
 
-**File:** `triplex.config.ts`
+**File:** `.triplex/config.json`
 
-```typescript
+```json
 {
-  devServer: {
-    command: "npm run dev",     // How to start dev server
-    port: 5173,                 // Dev server port
-    baseURL: "/breathe-together-v2",  // URL path
+  "devServer": {
+    "command": "npm run dev",     // How to start dev server
+    "port": 5173,                 // Dev server port
+    "baseURL": "/breathe-together-v2"  // URL path
   },
 
-  files: [
-    "src/levels/**/*.tsx",      // Editable level files
-    "src/entities/**/*.tsx",    // Editable entity files
-    "src/components/**/*.tsx",  // Editable component files
+  "files": [
+    "../src/levels/**/*.tsx",      // Editable level files
+    "../src/entities/**/*.tsx",    // Editable entity files
+    "../src/components/**/*.tsx"   // Editable component files
   ],
 
-  canvas: {
-    entry: "src/index.tsx",     // Entry point
-  }
+  "canvas": {
+    "entry": "../src/index.tsx"     // Entry point
+  },
+
+  "provider": "./providers.tsx"     // Custom providers
 }
 ```
 

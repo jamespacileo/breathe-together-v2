@@ -1,10 +1,19 @@
 /**
  * BreathingHUD - Overlay UI showing breathing phase, timer, and user count
- * Displays current breathing state and presence information
+ * Refined with golden ratio typography, color temperature journey, and layered shadows
+ * Minimal masterclass design with precision mathematics
  */
 import { useEffect, useState } from 'react';
 import { calculateBreathState, type BreathState } from '../lib/breathCalc';
 import { usePresence } from '../hooks/usePresence';
+import { BASE_COLORS } from '../lib/colors';
+
+interface BreathingHUDProps {
+	/**
+	 * Show debug information (e.g., breath calculations)
+	 */
+	debug?: boolean;
+}
 
 const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'];
 const PHASE_DESCRIPTIONS = [
@@ -14,8 +23,10 @@ const PHASE_DESCRIPTIONS = [
 	'Resting',
 ];
 
-export function BreathingHUD() {
+export function BreathingHUD({ debug = false }: BreathingHUDProps = {}) {
 	const [breathState, setBreathState] = useState<BreathState | null>(null);
+	const [prevPhaseType, setPrevPhaseType] = useState<number>(-1);
+	const [phaseTransitionKey, setPhaseTransitionKey] = useState(0);
 	const { count: userCount } = usePresence({ simulated: false, pollInterval: 5000 });
 
 	// Update breathing state every frame
@@ -38,6 +49,14 @@ export function BreathingHUD() {
 		return () => cancelAnimationFrame(animationId);
 	}, []);
 
+	// Track phase transitions
+	useEffect(() => {
+		if (breathState && breathState.phaseType !== prevPhaseType) {
+			setPrevPhaseType(breathState.phaseType);
+			setPhaseTransitionKey((k) => k + 1);
+		}
+	}, [breathState?.phaseType, prevPhaseType]);
+
 	if (!breathState) return null;
 
 	const phaseName = PHASE_NAMES[breathState.phaseType];
@@ -49,8 +68,9 @@ export function BreathingHUD() {
 		<div className="breathing-hud">
 			{/* Top left - Breathing Phase */}
 			<div className="hud-panel phase-panel">
-				<div className="phase-name">{phaseName}</div>
-				<div className="phase-desc">{phaseDesc}</div>
+				<div className="phase-label">Breathing Phase</div>
+				<div key={`phase-name-${phaseTransitionKey}`} className="phase-name">{phaseName}</div>
+				<div key={`phase-desc-${phaseTransitionKey}`} className="phase-desc">{phaseDesc}</div>
 				<div className="phase-timer">{phaseTimer}s</div>
 			</div>
 
@@ -65,24 +85,82 @@ export function BreathingHUD() {
 				<div
 					className="progress-fill"
 					style={{ width: `${cycleProgress * 100}%` }}
+					role="progressbar"
+					aria-valuenow={Math.round(cycleProgress * 100)}
+					aria-valuemin={0}
+					aria-valuemax={100}
+					aria-label="Breathing cycle progress"
 				/>
 				<div className="progress-markers">
-					<div className="marker" style={{ left: '0%' }} title="Inhale">
+					<div className="marker" style={{ left: '0%' }} title="Inhale" aria-label="Inhale phase">
 						I
 					</div>
-					<div className="marker" style={{ left: '25%' }} title="Hold">
+					<div className="marker" style={{ left: '25%' }} title="Hold" aria-label="Hold phase">
 						H
 					</div>
-					<div className="marker" style={{ left: '50%' }} title="Exhale">
+					<div className="marker" style={{ left: '50%' }} title="Exhale" aria-label="Exhale phase">
 						E
 					</div>
-					<div className="marker" style={{ left: '75%' }} title="Hold">
+					<div className="marker" style={{ left: '75%' }} title="Hold" aria-label="Hold phase">
 						H
 					</div>
 				</div>
 			</div>
 
 			<style>{`
+				/**
+				 * Minimal Masterclass Design Refinement
+				 * Golden Ratio: 8, 13, 21, 34, 55, 89 (fibonacci)
+				 * Typography: 10px → 13px → 21px → 34px → 55px (golden ratio 1.618)
+				 * Colors: Warmer backgrounds, temperature-aware palette
+				 * Shadows: Layered, colored for depth
+				 * Motion: Entrance animations + phase transitions with choreography
+				 */
+
+				@keyframes hudEnterTop {
+					from {
+						opacity: 0;
+						transform: translateY(-20px);
+					}
+					to {
+						opacity: 1;
+						transform: translateY(0);
+					}
+				}
+
+				@keyframes hudEnterBottom {
+					from {
+						opacity: 0;
+						transform: translateY(20px);
+					}
+					to {
+						opacity: 1;
+						transform: translateY(0);
+					}
+				}
+
+				@keyframes phaseNameExit {
+					from {
+						opacity: 1;
+						transform: translateY(0);
+					}
+					to {
+						opacity: 0;
+						transform: translateY(-5px);
+					}
+				}
+
+				@keyframes phaseNameEnter {
+					from {
+						opacity: 0;
+						transform: translateY(5px);
+					}
+					to {
+						opacity: 1;
+						transform: translateY(0);
+					}
+				}
+
 				.breathing-hud {
 					position: fixed;
 					top: 0;
@@ -90,142 +168,188 @@ export function BreathingHUD() {
 					right: 0;
 					bottom: 0;
 					pointer-events: none;
-					font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+					font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
 					z-index: 100;
 				}
 
 				.hud-panel {
 					position: absolute;
-					background: rgba(5, 5, 20, 0.75);
-					backdrop-filter: blur(10px);
-					border: 1px solid rgba(126, 200, 212, 0.3);
-					border-radius: 12px;
-					padding: 20px;
-					color: #7ec8d4;
-					font-size: 14px;
-					line-height: 1.5;
+					background: ${BASE_COLORS.panelBg};
+					backdrop-filter: blur(20px);
+					border: 1px solid ${BASE_COLORS.panelBorder};
+					border-radius: 13px;
+					padding: 21px 34px;
+					color: ${BASE_COLORS.textAccent};
+					font-size: 13px;
+					line-height: 1.6;
 					min-width: 140px;
-					box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+					box-shadow:
+						0 2px 8px rgba(10, 8, 22, 0.4),
+						0 8px 24px rgba(74, 144, 226, 0.08),
+						0 16px 48px rgba(10, 8, 22, 0.6);
 				}
 
 				.phase-panel {
-					top: 30px;
-					left: 30px;
+					top: 34px;
+					left: 34px;
+					animation: hudEnterTop 600ms 600ms ease-out forwards;
+				}
+
+				.phase-label {
+					font-size: 10px;
+					color: ${BASE_COLORS.textSecondary};
+					opacity: 0.75;
+					text-transform: uppercase;
+					letter-spacing: 0.08em;
+					margin-bottom: 8px;
+					font-weight: 500;
 				}
 
 				.phase-name {
-					font-size: 24px;
-					font-weight: bold;
-					margin-bottom: 8px;
-					color: #fff;
-					letter-spacing: 0.5px;
+					font-size: 21px;
+					font-weight: 450;
+					margin-bottom: 13px;
+					color: ${BASE_COLORS.textPrimary};
+					letter-spacing: -0.01em;
+					animation: phaseNameEnter 300ms 100ms ease-out forwards;
 				}
 
 				.phase-desc {
-					font-size: 11px;
-					color: #7ec8d4;
-					opacity: 0.8;
+					font-size: 10px;
+					color: ${BASE_COLORS.textSecondary};
+					opacity: 0.75;
 					text-transform: uppercase;
-					letter-spacing: 1px;
-					margin-bottom: 12px;
+					letter-spacing: 0.08em;
+					margin-bottom: 13px;
+					font-weight: 500;
+					animation: phaseNameEnter 300ms 100ms ease-out forwards;
 				}
 
 				.phase-timer {
-					font-size: 32px;
-					font-weight: bold;
+					font-size: 34px;
+					font-weight: 400;
 					font-variant-numeric: tabular-nums;
-					color: #7ec8d4;
+					color: ${BASE_COLORS.textAccent};
+					letter-spacing: -0.03em;
+					transform: translateY(-0.05em);
 				}
 
 				.users-panel {
-					top: 30px;
-					right: 30px;
+					top: 34px;
+					right: 34px;
 					text-align: right;
+					animation: hudEnterTop 600ms 700ms ease-out forwards;
 				}
 
 				.users-label {
-					font-size: 11px;
-					color: #7ec8d4;
-					opacity: 0.8;
+					font-size: 10px;
+					color: ${BASE_COLORS.textSecondary};
+					opacity: 0.75;
 					text-transform: uppercase;
-					letter-spacing: 1px;
-					margin-bottom: 8px;
+					letter-spacing: 0.08em;
+					margin-bottom: 13px;
+					font-weight: 500;
 				}
 
 				.users-count {
-					font-size: 40px;
-					font-weight: bold;
-					color: #fff;
+					font-size: 55px;
+					font-weight: 300;
+					color: ${BASE_COLORS.textPrimary};
 					font-variant-numeric: tabular-nums;
+					letter-spacing: -0.04em;
+					transform: translateY(-0.08em);
 				}
 
 				.cycle-progress-bar {
 					position: absolute;
-					bottom: 30px;
-					left: 30px;
-					right: 30px;
-					height: 6px;
+					bottom: 34px;
+					left: 34px;
+					right: 34px;
+					height: 8px;
 					background: rgba(126, 200, 212, 0.1);
-					border-radius: 3px;
+					border-radius: 4px;
 					overflow: hidden;
-					border: 1px solid rgba(126, 200, 212, 0.2);
+					border: 1px solid rgba(126, 200, 212, 0.15);
+					animation: hudEnterBottom 600ms 800ms ease-out forwards;
 				}
 
 				.progress-fill {
 					height: 100%;
-					background: linear-gradient(90deg, #7ec8d4, #4a90e2);
-					transition: width 0.05s linear;
-					border-radius: 3px;
+					background: linear-gradient(90deg, #4a90e2 0%, #7ec8d4 50%, #9fd9e8 100%);
+					transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+					border-radius: 4px;
+					position: relative;
+				}
+
+				.progress-fill::after {
+					content: '';
+					position: absolute;
+					right: 0;
+					top: 0;
+					width: 20px;
+					height: 100%;
+					background: linear-gradient(90deg, transparent, rgba(159, 217, 232, 0.6));
+					filter: blur(8px);
+					animation: progressPulse 1.5s ease-in-out infinite;
+				}
+
+				@keyframes progressPulse {
+					0%, 100% { opacity: 0.4; }
+					50% { opacity: 1; }
 				}
 
 				.progress-markers {
-					position: relative;
+					position: absolute;
+					top: 0;
+					left: 0;
+					right: 0;
 					height: 100%;
+					pointer-events: none;
 				}
 
 				.marker {
 					position: absolute;
-					top: -8px;
+					top: -10px;
 					width: 1px;
-					height: 22px;
-					background: rgba(126, 200, 212, 0.4);
-					font-size: 8px;
-					color: rgba(126, 200, 212, 0.6);
+					height: 28px;
+					background: rgba(126, 200, 212, 0.3);
+					font-size: 9px;
+					color: rgba(126, 200, 212, 0.5);
 					text-align: center;
 					transform: translateX(-50%);
-					line-height: 10px;
+					line-height: 14px;
 					letter-spacing: 0.5px;
-					font-weight: bold;
+					font-weight: 500;
 				}
 
-				/* Dark mode adjustments */
-				@media (prefers-color-scheme: dark) {
-					.hud-panel {
-						background: rgba(5, 5, 20, 0.8);
-						border-color: rgba(126, 200, 212, 0.4);
+				@media (prefers-reduced-motion: reduce) {
+					.progress-fill,
+					.progress-fill::after {
+						transition: none;
+						animation: none;
 					}
 				}
 
-				/* Mobile responsiveness */
 				@media (max-width: 768px) {
 					.hud-panel {
-						padding: 16px;
+						padding: 13px 21px;
 						font-size: 12px;
 						min-width: 120px;
 					}
 
 					.phase-panel {
-						top: 20px;
-						left: 20px;
+						top: 21px;
+						left: 21px;
 					}
 
 					.users-panel {
-						top: 20px;
-						right: 20px;
+						top: 21px;
+						right: 21px;
 					}
 
 					.phase-name {
-						font-size: 20px;
+						font-size: 18px;
+						margin-bottom: 8px;
 					}
 
 					.phase-timer {
@@ -233,20 +357,21 @@ export function BreathingHUD() {
 					}
 
 					.users-count {
-						font-size: 32px;
+						font-size: 44px;
 					}
 
 					.cycle-progress-bar {
-						bottom: 20px;
-						left: 20px;
-						right: 20px;
+						bottom: 21px;
+						left: 21px;
+						right: 21px;
+						height: 6px;
 					}
 
 					.marker {
-						font-size: 7px;
-						top: -6px;
-						height: 18px;
-						line-height: 9px;
+						font-size: 8px;
+						top: -8px;
+						height: 24px;
+						line-height: 12px;
 					}
 				}
 			`}</style>

@@ -51,9 +51,16 @@ export const EMPTY_MOODS: Record<MoodId, number> = {
 };
 
 /**
- * Breathing Cycle Constants (Box Breathing)
+ * Breathing Cycle Constants (Asymmetric for natural feel)
+ * Total cycle remains 16 seconds for global sync
  */
-export const BREATH_PHASE_DURATION = 4; // seconds
+export const BREATH_PHASES = {
+	INHALE: 3,
+	HOLD_IN: 5,
+	EXHALE: 5,
+	HOLD_OUT: 3,
+} as const;
+
 export const BREATH_TOTAL_CYCLE = 16; // seconds
 
 /**
@@ -74,8 +81,25 @@ export const VISUALS = {
 	PARTICLE_COUNT: 300,
 	PARTICLE_SIZE: 0.05,
 	PARTICLE_FILLER_COLOR: '#6B8A9C',
+	PARTICLE_COLOR_DAMPING: 1.5,
 
-	// Environment
-	BG_COLOR: '#050514',
-	AMBIENT_LIGHT_INTENSITY: 0.5,
+	// Physics Tunables
+	PARTICLE_DRAG: 0.8,
+	SPRING_STIFFNESS: 5.0,
+	JITTER_STRENGTH: 0.1,
+	REPULSION_POWER: 2.0,
+	REPULSION_STRENGTH: 1.5,
+
+	// Environment - Refined with warmer, richer tones
+	BG_COLOR: '#0a0816', // Was #050514 - warmer with purple undertone
+	AMBIENT_LIGHT_INTENSITY: 0.3, // Was 0.5 - reduced for layered lighting
+
+	// Lighting - Layered directional lights (key + fill + rim)
+	KEY_LIGHT_INTENSITY_MIN: 0.4,
+	KEY_LIGHT_INTENSITY_MAX: 0.7, // Modulates with breath phase
+	KEY_LIGHT_COLOR: '#9fd9e8', // Warm cyan
+	FILL_LIGHT_INTENSITY: 0.2,
+	FILL_LIGHT_COLOR: '#4a5d7e', // Cool blue
+	RIM_LIGHT_INTENSITY: 0.15,
+	RIM_LIGHT_COLOR: '#d4e8f0', // Pale cyan
 };

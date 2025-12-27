@@ -74,20 +74,45 @@ export function getMoodGradient(moodId: MoodId): string {
 	return `linear-gradient(135deg, ${mood.color}, ${mood.secondaryColor || mood.color})`;
 }
 
+/**
+ * Refined color system with warmth journey
+ * Background: Warmer, richer darks with purple undertone
+ * Temperature: Cool exhale → Warm inhale
+ */
 export const BASE_COLORS = {
 	primary: '#7EC8D4', // Soft Cyan (matches 'moment' mood)
-	background: '#0f1723',
-	backgroundMid: '#1a2634',
+	// Warmer backgrounds (refined from #0f1723, #1a2634)
+	background: '#0a0816', // Was #0f1723 - warmer, richer with purple undertone
+	backgroundMid: '#161225', // Was #1a2634 - more purple warmth
+	backgroundLight: '#241a34', // Additional warm light option
+
+	// HUD Colors
+	panelBg: 'rgba(10, 8, 22, 0.65)', // Warmer dark, slightly less opaque
+	panelBorder: 'rgba(126, 200, 212, 0.2)', // Subtler border (was 0.3)
+	textPrimary: '#f5f5f7', // Slight warm tint (not pure white)
+	textSecondary: '#a8b8c8', // Muted blue-gray
+	textAccent: '#7ec8d4', // Cyan accent
 };
 
 /**
  * Phase-specific colors for the breathing sphere
+ * Refined with temperature journey: Cool exhale → Warm inhale
  */
 export const SPHERE_PHASE_COLORS = {
-	inhale: { r: 0.49, g: 0.78, b: 0.83 }, // Soft Cyan
-	holdIn: { r: 0.55, g: 0.85, b: 0.9 }, // Brighter Cyan
-	exhale: { r: 0.4, g: 0.7, b: 0.75 }, // Deeper Cyan
-	holdOut: { r: 0.35, g: 0.65, b: 0.7 }, // Muted Cyan
+	inhale: { r: 0.49, g: 0.78, b: 0.83 }, // Soft Cyan (#7ec8d4)
+	holdIn: { r: 0.55, g: 0.85, b: 0.9 }, // Brighter Cyan (#8dd9e5)
+	exhale: { r: 0.4, g: 0.7, b: 0.75 }, // Deeper Cyan (#6ab3c0)
+	holdOut: { r: 0.35, g: 0.65, b: 0.7 }, // Muted Cyan (#5aa6b3)
+};
+
+/**
+ * Temperature color accents for warmth injection during inhale
+ * Very subtle overlay to add warmth without being obvious
+ */
+export const WARMTH_ACCENT = {
+	exhale: '#1a4d6d', // Cool deep blue
+	inhale: '#9fd9e8', // Warm light cyan with peachy undertone
+	warmthOverlay: '#ffd9b3', // Warm peach (opacity: 0.08 for subtlety)
 };
 
 /**

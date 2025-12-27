@@ -4,7 +4,17 @@
  */
 import { useEffect } from 'react';
 import { useWorld } from 'koota/react';
-import { breathPhase, phaseType, orbitRadius, sphereScale, crystallization } from './traits';
+import {
+	breathPhase,
+	targetBreathPhase,
+	phaseType,
+	orbitRadius,
+	targetOrbitRadius,
+	sphereScale,
+	targetSphereScale,
+	crystallization,
+	targetCrystallization,
+} from './traits';
 
 /**
  * Component that spawns the breath entity once on mount
@@ -19,10 +29,14 @@ export function BreathEntity() {
 		if (!existing) {
 			world.spawn(
 				breathPhase,
+				targetBreathPhase,
 				phaseType,
 				orbitRadius,
+				targetOrbitRadius,
 				sphereScale,
+				targetSphereScale,
 				crystallization,
+				targetCrystallization
 			);
 		}
 	}, [world]);

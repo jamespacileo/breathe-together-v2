@@ -3,8 +3,19 @@
  * Uses UTC time for global synchronization
  */
 import type { World } from 'koota';
-import { breathPhase, phaseType, orbitRadius, sphereScale, crystallization } from './traits';
+import {
+	breathPhase,
+	targetBreathPhase,
+	phaseType,
+	orbitRadius,
+	targetOrbitRadius,
+	sphereScale,
+	targetSphereScale,
+	crystallization,
+	targetCrystallization,
+} from './traits';
 import { calculateBreathState } from '../../lib/breathCalc';
+import { easing } from 'maath';
 
 /**
  * Main breath system - runs every frame to update breath state
@@ -12,22 +23,59 @@ import { calculateBreathState } from '../../lib/breathCalc';
  *
  * This ensures all users worldwide see the same breathing cycle
  */
-export function breathSystem(world: World, _delta: number) {
-	const breathEntity = world.queryFirst(breathPhase);
+export function breathSystem(world: World, delta: number) {
+	const breathEntity = world.queryFirst(
+		breathPhase,
+		targetBreathPhase,
+		phaseType,
+		orbitRadius,
+		targetOrbitRadius,
+		sphereScale,
+		targetSphereScale,
+		crystallization,
+		targetCrystallization
+	);
+
 	if (!breathEntity) {
 		// Entity not spawned yet, skip this frame
 		return;
 	}
 
 	// Use Date.now() for true UTC sync
-	// All users in all timezones see the same cycle based on absolute time
 	const elapsed = Date.now() / 1000;
 	const state = calculateBreathState(elapsed);
 
-	// Update breath entity traits with new state
-	breathEntity.set(breathPhase, { value: state.breathPhase });
+	// 1. Update discrete traits and targets
+	breathEntity.set(targetBreathPhase, { value: state.breathPhase });
 	breathEntity.set(phaseType, { value: state.phaseType });
-	breathEntity.set(orbitRadius, { value: state.orbitRadius });
-	breathEntity.set(sphereScale, { value: state.sphereScale });
-	breathEntity.set(crystallization, { value: state.crystallization });
+	breathEntity.set(targetOrbitRadius, { value: state.orbitRadius });
+	breathEntity.set(targetSphereScale, { value: state.sphereScale });
+	breathEntity.set(targetCrystallization, { value: state.crystallization });
+
+	// 2. Damp current values toward targets using maath/easing
+	// This provides smooth, frame-rate independent transitions
+
+	// Phase damping
+	const phaseTemp = { value: breathEntity.get(breathPhase)?.value ?? 0 };
+	const targetPhaseValue = breathEntity.get(targetBreathPhase)?.value ?? 0;
+	easing.damp(phaseTemp, 'value', targetPhaseValue, 0.1, delta);
+	breathEntity.set(breathPhase, { value: phaseTemp.value });
+
+	// Orbit Radius damping
+	const orbitTemp = { value: breathEntity.get(orbitRadius)?.value ?? 3.5 };
+	const targetOrbitValue = breathEntity.get(targetOrbitRadius)?.value ?? 3.5;
+	easing.damp(orbitTemp, 'value', targetOrbitValue, 0.4, delta);
+	breathEntity.set(orbitRadius, { value: orbitTemp.value });
+
+	// Sphere Scale damping (The "Meaty" feel)
+	const scaleTemp = { value: breathEntity.get(sphereScale)?.value ?? 0.6 };
+	const targetScaleValue = breathEntity.get(targetSphereScale)?.value ?? 0.6;
+	easing.damp(scaleTemp, 'value', targetScaleValue, 0.25, delta);
+	breathEntity.set(sphereScale, { value: scaleTemp.value });
+
+	// Crystallization damping
+	const crystTemp = { value: breathEntity.get(crystallization)?.value ?? 0 };
+	const targetCrystValue = breathEntity.get(targetCrystallization)?.value ?? 0;
+	easing.damp(crystTemp, 'value', targetCrystValue, 0.5, delta);
+	breathEntity.set(crystallization, { value: crystTemp.value });
 }

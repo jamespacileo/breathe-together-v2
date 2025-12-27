@@ -147,7 +147,7 @@ Triplex is a visual 3D component editor integrated into the dev server.
 - Drag components to place them
 - Inspect and edit props in the sidebar
 - Changes hot-reload
-- Use `triplex.config.ts` to add custom controls
+- Use `.triplex/config.json` to configure the editor
 
 ## Important Implementation Details
 

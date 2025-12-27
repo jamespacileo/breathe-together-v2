@@ -1,5 +1,18 @@
 {
   "$schema": "https://triplex.dev/config.schema.json",
-  "files": ["../src/levels/*.tsx", "../src/app.tsx"],
-  "provider": "./providers.tsx"
+  "files": [
+    "../src/levels/*.tsx",
+    "../src/entities/**/*.tsx",
+    "../src/components/**/*.tsx",
+    "../src/app.tsx"
+  ],
+  "provider": "./providers.tsx",
+  "devServer": {
+    "command": "npm run dev",
+    "port": 5173,
+    "baseURL": "/breathe-together-v2"
+  },
+  "canvas": {
+    "entry": "../src/index.tsx"
+  }
 }

@@ -7,6 +7,7 @@ import { velocityTowardsTarget } from "../src/entities/controller/systems";
 import { useCursorPositionFromLand } from "../src/entities/land/systems";
 import { meshFromPosition, positionFromVelocity } from "../src/shared/systems";
 import { breathSystem } from "./entities/breath/systems";
+import { particlePhysicsSystem } from "./entities/particle/systems";
 
 export function RootProviders({ children }: { children: ReactNode }) {
   const world = useMemo(() => createWorld(), []);
@@ -23,6 +24,7 @@ export function KootaSystems({
   cursorPositionFromLandSystem = true,
   positionFromVelocitySystem = true,
   velocityTowardsTargetSystem = true,
+  particlePhysicsSystemEnabled = true,
 }: {
   breathSystemEnabled?: boolean;
   cameraFollowFocusedSystem?: boolean;
@@ -30,12 +32,14 @@ export function KootaSystems({
   cursorPositionFromLandSystem?: boolean;
   positionFromVelocitySystem?: boolean;
   velocityTowardsTargetSystem?: boolean;
+  particlePhysicsSystemEnabled?: boolean;
 }) {
   const isNested = use(NestedCheck);
   const world = useWorld();
   const cursorPositionFromLand = useCursorPositionFromLand();
+  const particlePhysics = useMemo(() => particlePhysicsSystem(world), [world]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (isNested) {
       // This turns off the systems if they are already running in a parent component.
       // This can happen when running inside Triplex as the systems are running in the CanvasProvider.
@@ -45,6 +49,10 @@ export function KootaSystems({
     // Breath system runs first to provide state for all animations
     if (breathSystemEnabled) {
       breathSystem(world, delta);
+    }
+
+    if (particlePhysicsSystemEnabled) {
+      particlePhysics(delta, state.clock.elapsedTime);
     }
 
     if (cursorPositionFromLandSystem) {
