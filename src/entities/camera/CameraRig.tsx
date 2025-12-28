@@ -4,6 +4,7 @@ import { OrbitControls } from 'three-stdlib';
 import * as THREE from 'three';
 import { useRef } from 'react';
 import { useWorld } from 'koota/react';
+import { damp3 } from 'maath/easing';
 import { breathPhase } from '../breath/traits';
 
 interface CameraRigProps {
@@ -113,8 +114,8 @@ export function CameraRig({
 			baseDistance - zoomOffset
 		);
 
-		// Smoothly interpolate camera position
-		currentPosition.current.lerp(targetPosition.current, Math.min(delta * lerpSpeed, 1));
+		// Smoothly interpolate camera position (frame-rate independent)
+		damp3(currentPosition.current, targetPosition.current, lerpSpeed, delta);
 		camera.position.copy(currentPosition.current);
 
 		// Always look at center
