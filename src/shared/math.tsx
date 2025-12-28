@@ -1,5 +1,5 @@
-import { MathUtils } from "three";
-import { type Vector3 } from "../types";
+import { MathUtils } from 'three';
+import type { Vector3 } from '../types';
 
 /** Multiplies all values of a vector by an amount. */
 export function multiply(v: Vector3, scalar: number | undefined = 1): Vector3 {
@@ -58,12 +58,7 @@ export function normalize(v: Vector3): Vector3 {
  * for frame rate independent updates, meaning the same distances is covered
  * over the same time regardless of a high or low frame rate.
  */
-export function damp(
-  fromV: Vector3,
-  toV: Vector3,
-  lambda: number,
-  delta: number,
-): Vector3 {
+export function damp(fromV: Vector3, toV: Vector3, lambda: number, delta: number): Vector3 {
   return {
     x: MathUtils.damp(fromV.x, toV.x, lambda, delta),
     y: MathUtils.damp(fromV.y, toV.y, lambda, delta),

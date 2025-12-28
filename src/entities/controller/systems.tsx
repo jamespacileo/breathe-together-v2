@@ -1,7 +1,7 @@
-import { distance, multiply, normalize, subtract } from "../../shared/math";
-import { Position, Target, Velocity } from "../../shared/traits";
-import { type ECSSystem } from "../../types";
-import { Controllable, Speed } from "./traits";
+import { distance, multiply, normalize, subtract } from '../../shared/math';
+import { Position, Target, Velocity } from '../../shared/traits';
+import type { ECSSystem } from '../../types';
+import { Controllable, Speed } from './traits';
 
 /**
  * Sets the velocity of controllable entities towards the direction of the

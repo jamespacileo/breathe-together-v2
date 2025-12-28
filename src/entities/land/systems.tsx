@@ -1,9 +1,9 @@
-import { useThree } from "@react-three/fiber";
-import { useCallback } from "react";
-import { Mesh, Position } from "../../shared/traits";
-import { type ECSSystemHook } from "../../types";
-import { Cursor } from "../cursor/traits";
-import { Land } from "./traits";
+import { useThree } from '@react-three/fiber';
+import { useCallback } from 'react';
+import { Mesh, Position } from '../../shared/traits';
+import type { ECSSystemHook } from '../../types';
+import { Cursor } from '../cursor/traits';
+import { Land } from './traits';
 
 /**
  * Updates the cursor trait position based on where the React Three Fiber
@@ -24,9 +24,7 @@ export const useCursorPositionFromLand: ECSSystemHook = () => {
 
       raycaster.setFromCamera(pointer, raycaster.camera);
 
-      const objects = lands
-        .map((land) => land.get(Mesh))
-        .filter((mesh) => !!mesh);
+      const objects = lands.map((land) => land.get(Mesh)).filter((mesh) => !!mesh);
 
       const intersects = raycaster.intersectObjects(objects).at(0);
 

@@ -12,16 +12,16 @@
  * ```
  */
 
-import { createContext, useContext, ReactNode } from 'react';
+import { createContext, type ReactNode, useContext } from 'react';
 
 export type CurveType = 'phase-based' | 'rounded-wave';
 
 export interface BreathCurveConfig {
-	/** Which breathing algorithm to use */
-	curveType: CurveType;
+  /** Which breathing algorithm to use */
+  curveType: CurveType;
 
-	/** Rounded wave pause sharpness (only affects rounded-wave type) */
-	waveDelta?: number;
+  /** Rounded wave pause sharpness (only affects rounded-wave type) */
+  waveDelta?: number;
 }
 
 /**
@@ -29,7 +29,7 @@ export interface BreathCurveConfig {
  * Defaults to phase-based if not provided
  */
 const BreathCurveContext = createContext<BreathCurveConfig>({
-	curveType: 'phase-based',
+  curveType: 'phase-based',
 });
 
 /**
@@ -37,7 +37,7 @@ const BreathCurveContext = createContext<BreathCurveConfig>({
  * Returns phase-based config as fallback
  */
 export function useBreathCurveConfig(): BreathCurveConfig {
-	return useContext(BreathCurveContext);
+  return useContext(BreathCurveContext);
 }
 
 /**
@@ -45,15 +45,11 @@ export function useBreathCurveConfig(): BreathCurveConfig {
  * Wrap scenes with this to enable curve type switching
  */
 export function BreathCurveProvider({
-	children,
-	config,
+  children,
+  config,
 }: {
-	children: ReactNode;
-	config: BreathCurveConfig;
+  children: ReactNode;
+  config: BreathCurveConfig;
 }) {
-	return (
-		<BreathCurveContext.Provider value={config}>
-			{children}
-		</BreathCurveContext.Provider>
-	);
+  return <BreathCurveContext.Provider value={config}>{children}</BreathCurveContext.Provider>;
 }

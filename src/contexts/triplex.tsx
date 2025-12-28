@@ -1,16 +1,13 @@
-import { createContext, useContext, type ReactNode, useMemo } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { KootaSystems, RootProviders } from "../providers";
-import { BreathEntity } from "../entities/breath";
-import type {
-  SphereConfig,
-  LightingConfig,
-} from "../constants";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createContext, type ReactNode, useContext, useMemo } from 'react';
+import type { SphereConfig } from '../constants';
 import {
   DEFAULT_SPHERE_CONFIG,
-  LOW_QUALITY_SPHERE_CONFIG,
   HIGH_QUALITY_SPHERE_CONFIG,
-} from "../constants";
+  LOW_QUALITY_SPHERE_CONFIG,
+} from '../constants';
+import { BreathEntity } from '../entities/breath';
+import { KootaSystems, RootProviders } from '../providers';
 
 /**
  * Triplex Configuration Context
@@ -65,7 +62,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
           },
         },
       }),
-    []
+    [],
   );
 
   return (
@@ -101,7 +98,7 @@ export function CanvasProvider({
   positionFromVelocitySystem = false,
   velocityTowardsTargetSystem = false,
   particleScale = 1.0,
-  qualityPreset = "medium",
+  qualityPreset = 'medium',
 }: {
   /**
    * Enable breath system (UTC-synced breathing animation)
@@ -177,18 +174,18 @@ export function CanvasProvider({
    *
    * @default "medium"
    */
-  qualityPreset?: "low" | "medium" | "high";
+  qualityPreset?: 'low' | 'medium' | 'high';
 }) {
   // Map quality preset to scale factor (low: 0.5x, medium: 1x, high: 2x)
   const particleScaleFromPreset =
-    qualityPreset === "low" ? 0.5 : qualityPreset === "high" ? 2.0 : 1.0;
+    qualityPreset === 'low' ? 0.5 : qualityPreset === 'high' ? 2.0 : 1.0;
   const finalParticleScale = particleScale * particleScaleFromPreset;
 
   // Map quality preset to sphere configuration
   const sphereConfig =
-    qualityPreset === "low"
+    qualityPreset === 'low'
       ? LOW_QUALITY_SPHERE_CONFIG
-      : qualityPreset === "high"
+      : qualityPreset === 'high'
         ? HIGH_QUALITY_SPHERE_CONFIG
         : DEFAULT_SPHERE_CONFIG;
 

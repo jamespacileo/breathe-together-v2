@@ -1,5 +1,5 @@
-import { trait } from "koota";
-import { Object3D } from "three";
+import { trait } from 'koota';
+import { Object3D } from 'three';
 
 export const Position = trait({ x: 0, y: 0, z: 0 });
 

@@ -20,8 +20,8 @@
  * @returns Eased phase value
  */
 export const particleExhaleEase = (t: number): number => {
-	const normalized = 1 - t;
-	return 1 - (1 - Math.pow(1 - normalized, 2.5));
+  const normalized = 1 - t;
+  return 1 - (1 - (1 - normalized) ** 2.5);
 };
 
 /**
@@ -36,7 +36,7 @@ export const particleExhaleEase = (t: number): number => {
  * @returns Eased phase value
  */
 export const particleInhaleEase = (t: number): number => {
-	return Math.pow(t, 2.2);
+  return t ** 2.2;
 };
 
 /**
@@ -53,21 +53,21 @@ export const particleInhaleEase = (t: number): number => {
  * @returns Eased phase value
  */
 export const sphereInhaleEase = (t: number): number => {
-	if (t < 0.1) {
-		// Very slow start (resistance phase)
-		// Quadratic ease-in: resistance to initial inflation
-		return 2 * t * t;
-	} else if (t < 0.8) {
-		// Accelerated middle section (expansion phase)
-		// Ease-out-quad: rapid expansion as air flows in
-		const adjusted = (t - 0.1) / 0.7;
-		return 0.02 + 0.78 * (1 - Math.pow(1 - adjusted, 2));
-	} else {
-		// Gentle settling at peak (equilibrium phase)
-		// Ease-out power 1.5: natural settling to final size
-		const adjusted = (t - 0.8) / 0.2;
-		return 0.8 + 0.2 * (1 - Math.pow(1 - adjusted, 1.5));
-	}
+  if (t < 0.1) {
+    // Very slow start (resistance phase)
+    // Quadratic ease-in: resistance to initial inflation
+    return 2 * t * t;
+  } else if (t < 0.8) {
+    // Accelerated middle section (expansion phase)
+    // Ease-out-quad: rapid expansion as air flows in
+    const adjusted = (t - 0.1) / 0.7;
+    return 0.02 + 0.78 * (1 - (1 - adjusted) ** 2);
+  } else {
+    // Gentle settling at peak (equilibrium phase)
+    // Ease-out power 1.5: natural settling to final size
+    const adjusted = (t - 0.8) / 0.2;
+    return 0.8 + 0.2 * (1 - (1 - adjusted) ** 1.5);
+  }
 };
 
 /**
@@ -83,7 +83,7 @@ export const sphereInhaleEase = (t: number): number => {
  * @returns Eased phase value
  */
 export const sphereExhaleEase = (t: number): number => {
-	const normalized = 1 - t;
-	// Steep initial descent then gentle finish
-	return 1 - (1 - Math.pow(normalized, 1.8));
+  const normalized = 1 - t;
+  // Steep initial descent then gentle finish
+  return 1 - (1 - normalized ** 1.8);
 };

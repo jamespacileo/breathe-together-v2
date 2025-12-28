@@ -10,7 +10,7 @@
  * Follows the same pattern as BreathDebugContext for consistency.
  */
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, type ReactNode, useContext } from 'react';
 import type { ParticleVisualConfig } from '../entities/particle/config';
 
 /**
@@ -84,9 +84,5 @@ export function ParticleDebugProvider({
   children: ReactNode;
   config: ParticleDebugConfig | null;
 }) {
-  return (
-    <ParticleDebugContext.Provider value={config}>
-      {children}
-    </ParticleDebugContext.Provider>
-  );
+  return <ParticleDebugContext.Provider value={config}>{children}</ParticleDebugContext.Provider>;
 }

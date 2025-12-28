@@ -1,8 +1,8 @@
-import { useWorld } from "koota/react";
-import { useEffect, useRef } from "react";
-import { type Object3D } from "three";
-import { Focused, Mesh, Position, Velocity } from "../../shared/traits";
-import { Controllable, Speed } from "./traits";
+import { useWorld } from 'koota/react';
+import { useEffect, useRef } from 'react';
+import type { Object3D } from 'three';
+import { Focused, Mesh, Position, Velocity } from '../../shared/traits';
+import { Controllable, Speed } from './traits';
 
 export function Controller({
   children,

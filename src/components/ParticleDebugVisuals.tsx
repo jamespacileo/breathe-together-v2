@@ -6,12 +6,12 @@
  * - Particle type visualization (wireframe orbit indicators)
  */
 
+import { Html } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useRef, useMemo, useEffect, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Html } from '@react-three/drei';
-import { index, active, ownerId } from '../entities/particle/traits';
+import { active, index, ownerId } from '../entities/particle/traits';
 
 interface ParticleStats {
   totalParticles: number;
@@ -135,11 +135,7 @@ export function ParticleDebugVisuals({
       {showParticleTypes && (
         <group ref={wireframeGroupRef}>
           {/* User particle orbit (green) */}
-          <lineSegments
-            ref={userWireframeRef}
-            geometry={userWireframeGeom}
-            position={[0, 0, 0]}
-          >
+          <lineSegments ref={userWireframeRef} geometry={userWireframeGeom} position={[0, 0, 0]}>
             <lineBasicMaterial color={0x00ff00} transparent opacity={0.3} />
           </lineSegments>
 
@@ -185,9 +181,7 @@ export function ParticleDebugVisuals({
               PARTICLE DEBUG
             </div>
 
-            <div style={{ color: '#ccc', marginBottom: '4px' }}>
-              Total: {stats.totalParticles}
-            </div>
+            <div style={{ color: '#ccc', marginBottom: '4px' }}>Total: {stats.totalParticles}</div>
 
             <div style={{ color: '#00ff00' }}>
               User: {stats.userParticles} ({stats.userActive} active)
@@ -202,9 +196,7 @@ export function ParticleDebugVisuals({
             </div>
 
             {stats.activeParticles < stats.totalParticles && (
-              <div style={{ color: '#ff6666', fontSize: '11px' }}>
-                ⚠️ Quality throttled
-              </div>
+              <div style={{ color: '#ff6666', fontSize: '11px' }}>⚠️ Quality throttled</div>
             )}
           </div>
         </Html>

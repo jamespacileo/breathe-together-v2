@@ -115,19 +115,19 @@ export const FRESNEL_FRAGMENT_SHADER = `
 `;
 
 export const createFresnelMaterial = (noiseIntensity: number = 0.05) =>
-	new THREE.ShaderMaterial({
-		transparent: true,
-		depthWrite: false,
-		side: THREE.DoubleSide,
-		uniforms: {
-			uColor: { value: new THREE.Color() },
-			uOpacity: { value: 0.15 },
-			uFresnelIntensity: { value: 1.0 },
-			uTime: { value: 0 },
-			uNoiseIntensity: { value: noiseIntensity },
-			uBreathPhase: { value: 0 },
-			uChromaticAberration: { value: 0.02 },
-		},
-		vertexShader: FRESNEL_VERTEX_SHADER,
-		fragmentShader: FRESNEL_FRAGMENT_SHADER,
-	});
+  new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    uniforms: {
+      uColor: { value: new THREE.Color() },
+      uOpacity: { value: 0.15 },
+      uFresnelIntensity: { value: 1.0 },
+      uTime: { value: 0 },
+      uNoiseIntensity: { value: noiseIntensity },
+      uBreathPhase: { value: 0 },
+      uChromaticAberration: { value: 0.02 },
+    },
+    vertexShader: FRESNEL_VERTEX_SHADER,
+    fragmentShader: FRESNEL_FRAGMENT_SHADER,
+  });

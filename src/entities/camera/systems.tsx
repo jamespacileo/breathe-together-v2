@@ -1,7 +1,7 @@
-import { damp } from "../../shared/math";
-import { Focused, Position } from "../../shared/traits";
-import { type ECSSystem, type Vector3 } from "../../types";
-import { Camera } from "./traits";
+import { damp } from '../../shared/math';
+import { Focused, Position } from '../../shared/traits';
+import type { ECSSystem, Vector3 } from '../../types';
+import { Camera } from './traits';
 
 /**
  * Updates the camera entities position trait based on the focused entity

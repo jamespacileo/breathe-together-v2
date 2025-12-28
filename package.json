@@ -5,7 +5,13 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "lint": "biome lint ./src ./worker",
+    "format": "biome format --write ./src ./worker",
+    "format:check": "biome format ./src ./worker",
+    "check": "biome check --write ./src ./worker",
+    "check:ci": "biome ci ./src ./worker",
+    "prepare": "husky"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.6",
@@ -29,7 +35,15 @@
     "vite": "^6.0.7"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.3.10",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.12",
     "msw": "^2.12.6"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json}": [
+      "biome check --write --no-errors-on-unmatched"
+    ]
   },
   "msw": {
     "workerDirectory": [

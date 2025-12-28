@@ -1,14 +1,14 @@
-import { Canvas } from "@react-three/fiber";
-import { BreathingLevel } from "./levels/breathing";
-import { KootaSystems } from "./providers";
-import { BreathEntity } from "./entities/breath";
-import { BreathingHUD } from "./components/BreathingHUD";
-import { CameraRig } from "./entities/camera/CameraRig";
-import { useHeartbeat } from "./hooks/usePresence";
-import { useMemo, useEffect } from "react";
-import { QualityProvider, useQuality } from "./contexts/QualityContext";
-import { QualitySettings } from "./components/QualitySettings";
-import { usePerformanceMonitor } from "./hooks/usePerformanceMonitor";
+import { Canvas } from '@react-three/fiber';
+import { useEffect, useMemo } from 'react';
+import { BreathingHUD } from './components/BreathingHUD';
+import { QualitySettings } from './components/QualitySettings';
+import { QualityProvider, useQuality } from './contexts/QualityContext';
+import { BreathEntity } from './entities/breath';
+import { CameraRig } from './entities/camera/CameraRig';
+import { usePerformanceMonitor } from './hooks/usePerformanceMonitor';
+import { useHeartbeat } from './hooks/usePresence';
+import { BreathingLevel } from './levels/breathing';
+import { KootaSystems } from './providers';
 
 /**
  * Component that bridges R3F performance monitoring (inside Canvas)

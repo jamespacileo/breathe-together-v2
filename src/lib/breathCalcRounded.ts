@@ -21,13 +21,13 @@
 import { VISUALS } from '../constants';
 
 export interface BreathState {
-	breathPhase: number;        // 0-1, position in cycle
-	phaseType: number;          // 0=inhale, 1=hold-in, 2=exhale, 3=hold-out
-	rawProgress: number;        // 0-1, raw time progress
-	easedProgress: number;      // 0-1, eased progress
-	crystallization: number;    // 0-1, holds effect intensity
-	sphereScale: number;        // visual sphere scale
-	orbitRadius: number;        // particle orbit radius
+  breathPhase: number; // 0-1, position in cycle
+  phaseType: number; // 0=inhale, 1=hold-in, 2=exhale, 3=hold-out
+  rawProgress: number; // 0-1, raw time progress
+  easedProgress: number; // 0-1, eased progress
+  crystallization: number; // 0-1, holds effect intensity
+  sphereScale: number; // visual sphere scale
+  orbitRadius: number; // particle orbit radius
 }
 
 /**
@@ -44,41 +44,36 @@ export interface BreathState {
  * @param frequency - Wave cycles per unit time (typically 1.0 for one cycle per period)
  * @returns Wave value from -amplitude to +amplitude
  */
-function roundedSquareWave(
-	t: number,
-	delta: number,
-	amplitude: number,
-	frequency: number
-): number {
-	// Clamp to avoid division issues
-	const safeDelta = Math.max(delta, 0.001);
+function roundedSquareWave(t: number, delta: number, amplitude: number, frequency: number): number {
+  // Clamp to avoid division issues
+  const safeDelta = Math.max(delta, 0.001);
 
-	// Base sine wave to feed into arctangent
-	const sine = Math.sin(2 * Math.PI * t * frequency);
+  // Base sine wave to feed into arctangent
+  const sine = Math.sin(2 * Math.PI * t * frequency);
 
-	// Arctangent smoothing: creates S-curve that looks like square wave
-	// When |sin(x)| is large: atan(sin/δ) ≈ ±π/2 (saturates at ±amplitude)
-	// When |sin(x)| is small: atan(sin/δ) ≈ sin/δ (linear)
-	const wave = (2 * amplitude / Math.PI) * Math.atan(sine / safeDelta);
+  // Arctangent smoothing: creates S-curve that looks like square wave
+  // When |sin(x)| is large: atan(sin/δ) ≈ ±π/2 (saturates at ±amplitude)
+  // When |sin(x)| is small: atan(sin/δ) ≈ sin/δ (linear)
+  const wave = ((2 * amplitude) / Math.PI) * Math.atan(sine / safeDelta);
 
-	return wave;
+  return wave;
 }
 
 export interface RoundedWaveConfig {
-	/** Pause sharpness (0.01-0.2, lower = sharper pauses) */
-	delta: number;
+  /** Pause sharpness (0.01-0.2, lower = sharper pauses) */
+  delta: number;
 
-	/** Wave amplitude (keep at 1.0 for standard breathing) */
-	amplitude: number;
+  /** Wave amplitude (keep at 1.0 for standard breathing) */
+  amplitude: number;
 
-	/** Total cycle duration in seconds (typically 16s for box breathing) */
-	cycleSeconds: number;
+  /** Total cycle duration in seconds (typically 16s for box breathing) */
+  cycleSeconds: number;
 }
 
 export const DEFAULT_ROUNDED_WAVE_CONFIG: RoundedWaveConfig = {
-	delta: 0.05,        // Balanced sharpness - natural feeling pauses
-	amplitude: 1.0,     // Full range
-	cycleSeconds: 16,   // Standard box breathing cycle
+  delta: 0.05, // Balanced sharpness - natural feeling pauses
+  amplitude: 1.0, // Full range
+  cycleSeconds: 16, // Standard box breathing cycle
 };
 
 /**
@@ -92,60 +87,58 @@ export const DEFAULT_ROUNDED_WAVE_CONFIG: RoundedWaveConfig = {
  * @returns BreathState with all necessary visual parameters
  */
 export function calculateBreathStateRounded(
-	elapsedTime: number,
-	config: RoundedWaveConfig = DEFAULT_ROUNDED_WAVE_CONFIG
+  elapsedTime: number,
+  config: RoundedWaveConfig = DEFAULT_ROUNDED_WAVE_CONFIG,
 ): BreathState {
-	const { delta, amplitude, cycleSeconds } = config;
+  const { delta, amplitude, cycleSeconds } = config;
 
-	// Normalize time to 0-1 over complete breathing cycle
-	const t = (elapsedTime % cycleSeconds) / cycleSeconds;
+  // Normalize time to 0-1 over complete breathing cycle
+  const t = (elapsedTime % cycleSeconds) / cycleSeconds;
 
-	// Frequency: how many wave cycles in this period (we want 1 complete cycle)
-	const frequency = 1.0 / cycleSeconds;
+  // Frequency: how many wave cycles in this period (we want 1 complete cycle)
+  const frequency = 1.0 / cycleSeconds;
 
-	// Calculate wave position (-amplitude to +amplitude)
-	const wave = roundedSquareWave(t, delta, amplitude, frequency);
+  // Calculate wave position (-amplitude to +amplitude)
+  const wave = roundedSquareWave(t, delta, amplitude, frequency);
 
-	// Map wave to breathPhase (0-1)
-	const breathPhase = (wave / amplitude + 1) / 2;
+  // Map wave to breathPhase (0-1)
+  const breathPhase = (wave / amplitude + 1) / 2;
 
-	// Detect current phase type based on wave position
-	// We define "holds" as times when velocity is low (near peaks/troughs)
-	const holdThreshold = 0.7 * amplitude;
-	let phaseType: number;
-	if (wave > holdThreshold) {
-		phaseType = 1; // hold-in (inhale peak)
-	} else if (wave < -holdThreshold) {
-		phaseType = 3; // hold-out (exhale peak)
-	} else if (wave > 0) {
-		phaseType = 0; // inhale (rising)
-	} else {
-		phaseType = 2; // exhale (falling)
-	}
+  // Detect current phase type based on wave position
+  // We define "holds" as times when velocity is low (near peaks/troughs)
+  const holdThreshold = 0.7 * amplitude;
+  let phaseType: number;
+  if (wave > holdThreshold) {
+    phaseType = 1; // hold-in (inhale peak)
+  } else if (wave < -holdThreshold) {
+    phaseType = 3; // hold-out (exhale peak)
+  } else if (wave > 0) {
+    phaseType = 0; // inhale (rising)
+  } else {
+    phaseType = 2; // exhale (falling)
+  }
 
-	// Crystallization: intensity of pause effect
-	// High when velocity approaches zero (near peaks)
-	// Low during active transitions
-	const cosineVelocity = Math.cos(2 * Math.PI * t * frequency);
-	const crystallization = 1 - Math.abs(cosineVelocity);
+  // Crystallization: intensity of pause effect
+  // High when velocity approaches zero (near peaks)
+  // Low during active transitions
+  const cosineVelocity = Math.cos(2 * Math.PI * t * frequency);
+  const crystallization = 1 - Math.abs(cosineVelocity);
 
-	// Visual parameter scaling (same as phase-based system)
-	const sphereScale =
-		VISUALS.SPHERE_SCALE_MIN +
-		breathPhase * (VISUALS.SPHERE_SCALE_MAX - VISUALS.SPHERE_SCALE_MIN);
+  // Visual parameter scaling (same as phase-based system)
+  const sphereScale =
+    VISUALS.SPHERE_SCALE_MIN + breathPhase * (VISUALS.SPHERE_SCALE_MAX - VISUALS.SPHERE_SCALE_MIN);
 
-	const orbitRadius =
-		VISUALS.PARTICLE_ORBIT_MAX -
-		breathPhase *
-			(VISUALS.PARTICLE_ORBIT_MAX - VISUALS.PARTICLE_ORBIT_MIN);
+  const orbitRadius =
+    VISUALS.PARTICLE_ORBIT_MAX -
+    breathPhase * (VISUALS.PARTICLE_ORBIT_MAX - VISUALS.PARTICLE_ORBIT_MIN);
 
-	return {
-		breathPhase,
-		phaseType,
-		rawProgress: t,
-		easedProgress: breathPhase, // For rounded wave, eased = breathPhase
-		crystallization,
-		sphereScale,
-		orbitRadius,
-	};
+  return {
+    breathPhase,
+    phaseType,
+    rawProgress: t,
+    easedProgress: breathPhase, // For rounded wave, eased = breathPhase
+    crystallization,
+    sphereScale,
+    orbitRadius,
+  };
 }

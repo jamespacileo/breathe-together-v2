@@ -1,8 +1,8 @@
-import { useWorld } from "koota/react";
-import { useEffect, useRef, useState } from "react";
-import { type Object3D, type Vector3Tuple } from "three";
-import { Mesh, Position, Target } from "../../shared/traits";
-import { Cursor as CursorTrait } from "./traits";
+import { useWorld } from 'koota/react';
+import { useEffect, useRef, useState } from 'react';
+import type { Object3D, Vector3Tuple } from 'three';
+import { Mesh, Position, Target } from '../../shared/traits';
+import { Cursor as CursorTrait } from './traits';
 
 export function Cursor() {
   const world = useWorld();
@@ -26,10 +26,7 @@ export function Cursor() {
       return;
     }
 
-    const entity = world.spawn(
-      Target,
-      Position({ x: target[0], y: target[1], z: target[2] }),
-    );
+    const entity = world.spawn(Target, Position({ x: target[0], y: target[1], z: target[2] }));
 
     return () => {
       entity.destroy();
@@ -46,14 +43,20 @@ export function Cursor() {
   };
 
   return (
-    <mesh onClick={handleCursorClick} ref={ref}>
+    // biome-ignore lint/a11y/useSemanticElements: Three.js mesh element, not HTML
+    <mesh
+      onClick={handleCursorClick}
+      ref={ref}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          handleCursorClick();
+        }
+      }}
+    >
       <sphereGeometry args={[0.1]} />
-      <meshBasicMaterial
-        color="white"
-        depthTest={false}
-        opacity={0.5}
-        transparent
-      />
+      <meshBasicMaterial color="white" depthTest={false} opacity={0.5} transparent />
     </mesh>
   );
 }

@@ -1,7 +1,7 @@
-import { Camera } from "../entities/camera";
-import { Controller } from "../entities/controller";
-import { Cursor } from "../entities/cursor";
-import { Land } from "../entities/land";
+import { Camera } from '../entities/camera';
+import { Controller } from '../entities/controller';
+import { Cursor } from '../entities/cursor';
+import { Land } from '../entities/land';
 
 export function DebugLevel() {
   return (

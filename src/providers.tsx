@@ -1,13 +1,13 @@
-import { useFrame } from "@react-three/fiber";
-import { createWorld } from "koota";
-import { useWorld, WorldProvider } from "koota/react";
-import { createContext, use, useMemo, type ReactNode } from "react";
-import { cameraFollowFocused } from "../src/entities/camera/systems";
-import { velocityTowardsTarget } from "../src/entities/controller/systems";
-import { useCursorPositionFromLand } from "../src/entities/land/systems";
-import { meshFromPosition, positionFromVelocity } from "../src/shared/systems";
-import { breathSystem } from "./entities/breath/systems";
-import { particlePhysicsSystem } from "./entities/particle/systems";
+import { useFrame } from '@react-three/fiber';
+import { createWorld } from 'koota';
+import { useWorld, WorldProvider } from 'koota/react';
+import { createContext, type ReactNode, use, useMemo } from 'react';
+import { cameraFollowFocused } from '../src/entities/camera/systems';
+import { velocityTowardsTarget } from '../src/entities/controller/systems';
+import { useCursorPositionFromLand } from '../src/entities/land/systems';
+import { meshFromPosition, positionFromVelocity } from '../src/shared/systems';
+import { breathSystem } from './entities/breath/systems';
+import { particlePhysicsSystem } from './entities/particle/systems';
 
 export function RootProviders({ children }: { children: ReactNode }) {
   const world = useMemo(() => createWorld(), []);

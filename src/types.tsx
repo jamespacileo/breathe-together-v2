@@ -1,4 +1,4 @@
-import { type World } from "koota";
+import type { World } from 'koota';
 
 export type ECSSystem = (world: World, delta: number) => void;
 

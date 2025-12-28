@@ -1,9 +1,9 @@
-import { OrthographicCamera } from "@react-three/drei";
-import { useWorld } from "koota/react";
-import { useEffect, useRef } from "react";
-import { type OrthographicCamera as OrthographicCameraImpl } from "three";
-import { Mesh, Position } from "../../shared/traits";
-import { Camera as CameraTrait } from "./traits";
+import { OrthographicCamera } from '@react-three/drei';
+import { useWorld } from 'koota/react';
+import { useEffect, useRef } from 'react';
+import type { OrthographicCamera as OrthographicCameraImpl } from 'three';
+import { Mesh, Position } from '../../shared/traits';
+import { Camera as CameraTrait } from './traits';
 
 export function Camera({
   position = [0, 0, 0],
@@ -21,18 +21,12 @@ export function Camera({
       return;
     }
 
-    const entity = world.spawn(
-      CameraTrait,
-      Position({ x, y, z }),
-      Mesh(ref.current),
-    );
+    const entity = world.spawn(CameraTrait, Position({ x, y, z }), Mesh(ref.current));
 
     return () => {
       entity.destroy();
     };
   }, [world, x, y, z]);
 
-  return (
-    <OrthographicCamera makeDefault ref={ref} rotation={rotation} zoom={100} />
-  );
+  return <OrthographicCamera makeDefault ref={ref} rotation={rotation} zoom={100} />;
 }

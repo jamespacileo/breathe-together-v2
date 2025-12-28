@@ -1,0 +1,117 @@
+{
+  "name": "breathe-together-v2-hooks",
+  "version": "1.0.0",
+  "description": "Essential safety hooks for breathe-together-v2 ECS architecture and breath synchronization",
+  "hooks": [
+    {
+      "name": "breath-calc-guard",
+      "description": "Validates breath calculation logic before changes to breathCalc.ts or constants.ts",
+      "event": "PreToolUse",
+      "matcher": ["Edit", "Write"],
+      "filePatterns": ["**/breathCalc.ts", "**/constants.ts"],
+      "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/breath-calc-guard.sh",
+      "enabled": true,
+      "phase": "essential",
+      "priority": "critical",
+      "timeout": 5000,
+      "documentation": {
+        "purpose": "Prevent breaking the global UTC-synchronized 16-second breathing cycle",
+        "validates": [
+          "16-second cycle integrity",
+          "UTC synchronization for global sync",
+          "Inverse motion (sphere vs particles)",
+          "Easing functions"
+        ],
+        "impact": "Highest - core app synchronization",
+        "executionTime": "~100ms"
+      }
+    },
+    {
+      "name": "system-order-guard",
+      "description": "Validates ECS system execution order in providers.tsx remains unchanged",
+      "event": "PreToolUse",
+      "matcher": ["Edit"],
+      "filePatterns": ["**/providers.tsx"],
+      "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/system-order-guard.sh",
+      "enabled": true,
+      "phase": "essential",
+      "priority": "critical",
+      "timeout": 3000,
+      "documentation": {
+        "purpose": "Prevent reordering of critical 7-phase ECS system execution sequence",
+        "validates": [
+          "breathSystem (LOGIC)",
+          "particlePhysics (PHYSICS)",
+          "cursorPositionFromLand (INPUT)",
+          "velocityTowardsTarget (FORCES)",
+          "positionFromVelocity (INTEGRATION)",
+          "meshFromPosition (RENDER SYNC)",
+          "cameraFollowFocused (CAMERA)"
+        ],
+        "impact": "Critical - prevents race conditions and data dependency violations",
+        "executionTime": "~50ms"
+      }
+    },
+    {
+      "name": "typecheck",
+      "description": "Validates TypeScript strict mode passes for all code changes",
+      "event": "PostToolUse",
+      "matcher": ["Edit", "Write"],
+      "filePatterns": ["**/*.ts", "**/*.tsx"],
+      "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/typecheck.sh",
+      "enabled": true,
+      "phase": "essential",
+      "priority": "high",
+      "timeout": 10000,
+      "documentation": {
+        "purpose": "Maintain TypeScript strict mode type safety",
+        "validates": [
+          "No type errors",
+          "Strict mode compliance",
+          "Type inference correctness"
+        ],
+        "impact": "High - prevents runtime errors",
+        "executionTime": "~1-2 seconds"
+      }
+    },
+    {
+      "name": "biome-format",
+      "description": "Validates Biome formatting and linting rules for all source files",
+      "event": "PostToolUse",
+      "matcher": ["Edit", "Write"],
+      "filePatterns": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.json"],
+      "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/biome-check.sh",
+      "enabled": true,
+      "phase": "essential",
+      "priority": "high",
+      "timeout": 15000,
+      "documentation": {
+        "purpose": "Maintain code quality through automated linting and formatting",
+        "validates": [
+          "Biome formatting compliance (2-space indent, single quotes)",
+          "No unused variables or imports",
+          "React hook dependencies are exhaustive",
+          "No accessibility violations",
+          "Security and performance rules",
+          "Complexity limits for ECS systems"
+        ],
+        "impact": "High - ensures consistent code style and catches common errors",
+        "executionTime": "~200ms"
+      }
+    }
+  ],
+  "metadata": {
+    "createdAt": "2025-12-28",
+    "projectType": "ECS-based 3D React Three Fiber application",
+    "technologies": ["React", "Three.js", "Koota ECS", "Triplex", "Vite"],
+    "criticalFiles": [
+      "src/lib/breathCalc.ts - Core breath calculation",
+      "src/providers.tsx - System execution order (lines 49-120)",
+      "src/constants.ts - Magic numbers and configuration"
+    ],
+    "testFiles": [
+      "test-breath-calc.js - Breath validation",
+      "test-presence-integration.js - Presence validation"
+    ]
+  }
+}

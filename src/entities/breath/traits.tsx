@@ -44,8 +44,8 @@ export const targetCrystallization = trait({ value: 0 });
  * Updated by BreathEntity when context changes
  */
 export const breathCurveConfig = trait({
-	curveType: 'phase-based' as 'phase-based' | 'rounded-wave',
-	waveDelta: 0.05,
+  curveType: 'phase-based' as 'phase-based' | 'rounded-wave',
+  waveDelta: 0.05,
 });
 
 /**
@@ -58,8 +58,8 @@ export const breathCurveConfig = trait({
  * When enabled, completely overrides UTC-based calculation
  */
 export const debugPhaseOverride = trait({
-	enabled: false,
-	value: 0,
+  enabled: false,
+  value: 0,
 });
 
 /**
@@ -69,9 +69,9 @@ export const debugPhaseOverride = trait({
  * - manualTime: Frozen time value when paused
  */
 export const debugTimeControl = trait({
-	isPaused: false,
-	timeScale: 1.0,
-	manualTime: 0,
+  isPaused: false,
+  timeScale: 1.0,
+  manualTime: 0,
 });
 
 /**
@@ -80,5 +80,5 @@ export const debugTimeControl = trait({
  * Automatically resets to -1 after applying
  */
 export const debugPhaseJump = trait({
-	targetPhase: -1,
+  targetPhase: -1,
 });

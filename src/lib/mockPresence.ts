@@ -6,8 +6,8 @@
 import type { MoodId } from '../constants';
 
 export interface MockPresenceData {
-	count: number;
-	moods: Record<MoodId, number>;
+  count: number;
+  moods: Record<MoodId, number>;
 }
 
 /**
@@ -24,18 +24,18 @@ export interface MockPresenceData {
  * - 5% celebrating (joy)
  */
 export function generateMockPresence(userCount: number): MockPresenceData {
-	const moods: Record<MoodId, number> = {
-		moment: Math.floor(userCount * 0.25),
-		grateful: Math.floor(userCount * 0.20),
-		anxious: Math.floor(userCount * 0.15),
-		processing: Math.floor(userCount * 0.15),
-		preparing: Math.floor(userCount * 0.10),
-		here: Math.floor(userCount * 0.10),
-		celebrating: Math.floor(userCount * 0.05),
-	};
+  const moods: Record<MoodId, number> = {
+    moment: Math.floor(userCount * 0.25),
+    grateful: Math.floor(userCount * 0.2),
+    anxious: Math.floor(userCount * 0.15),
+    processing: Math.floor(userCount * 0.15),
+    preparing: Math.floor(userCount * 0.1),
+    here: Math.floor(userCount * 0.1),
+    celebrating: Math.floor(userCount * 0.05),
+  };
 
-	return {
-		count: userCount,
-		moods,
-	};
+  return {
+    count: userCount,
+    moods,
+  };
 }
