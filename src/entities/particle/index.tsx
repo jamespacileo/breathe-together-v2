@@ -5,9 +5,10 @@ import { useWorld } from 'koota/react';
 import type { Entity } from 'koota';
 import { easing } from 'maath';
 import { Position, Velocity, Acceleration, Mass } from '../../shared/traits';
-import { restPosition, offset, color, targetColor, size, ownerId, seed, index } from './traits';
+import { restPosition, offset, color, targetColor, size, ownerId, seed, index, active } from './traits';
 import { breathPhase } from '../breath/traits';
 import { usePresence } from '../../hooks/usePresence';
+import { usePerformanceMonitor } from '../../hooks/usePerformanceMonitor';
 import { useTriplexConfig } from '../../contexts/triplex';
 import { getMoodColorCounts } from '../../lib/colors';
 import { generateFibonacciSphere, sphericalToCartesian } from '../../lib/fibonacciSphere';
@@ -18,14 +19,21 @@ import { VISUALS } from '../../constants';
  *
  * Reads particleScale from Triplex context if available for performance tuning.
  * Falls back to totalCount prop if context is unavailable (production builds).
+ *
+ * Adaptive quality: Spawns all particles but selectively activates based on
+ * performance monitoring. Allows smooth scaling without creating/destroying entities.
  */
-export function ParticleSpawner({ totalCount = VISUALS.PARTICLE_COUNT }) {
+export function ParticleSpawner({ totalCount = VISUALS.PARTICLE_COUNT, adaptiveQuality = true }) {
 	const world = useWorld();
 	const { moods } = usePresence({ simulated: false, pollInterval: 5000 });
 	const triplexConfig = useTriplexConfig?.();
+	const performance = adaptiveQuality ? usePerformanceMonitor() : null;
 
 	// Apply Triplex particle scale if available, otherwise use prop as-is
 	const finalCount = Math.round(totalCount * (triplexConfig?.particleScale ?? 1.0));
+
+	// Determine active particle count based on performance
+	const activeCount = performance ? performance.recommendedParticleCount : finalCount;
 
 	// Generate base layout
 	const layout = useMemo(() => generateFibonacciSphere(finalCount), [finalCount]);
@@ -50,7 +58,9 @@ export function ParticleSpawner({ totalCount = VISUALS.PARTICLE_COUNT }) {
 				size({ value: p.size }),
 				seed({ value: Math.random() * 1000 }),
 				ownerId({ value: 'filler' }),
-				index({ value: i })
+				index({ value: i }),
+				// Pre-activate particles; will be selectively deactivated by adaptive quality system
+				active({ value: i < activeCount })
 			);
 			entities.push(entity);
 		}
@@ -58,7 +68,19 @@ export function ParticleSpawner({ totalCount = VISUALS.PARTICLE_COUNT }) {
 		return () => {
 			entities.forEach(e => { e.destroy(); });
 		};
-	}, [world, layout, finalCount]);
+	}, [world, layout, finalCount, activeCount]);
+
+	// Update active status based on performance (adaptive quality)
+	useEffect(() => {
+		if (!adaptiveQuality) return;
+
+		const particles = world.query(index, active);
+		particles.forEach((entity) => {
+			const particleIndex = entity.get(index)?.value ?? 0;
+			const isActive = particleIndex < activeCount;
+			entity.set(active, { value: isActive });
+		});
+	}, [world, activeCount, adaptiveQuality]);
 
 	// Update target colors based on moods
 	useEffect(() => {
@@ -121,7 +143,7 @@ export function ParticleRenderer({ totalCount = VISUALS.PARTICLE_COUNT }) {
 	useFrame((_, delta) => {
 		if (!meshRef.current) return;
 
-		const particles = world.query(Position, color, targetColor, size, index);
+		const particles = world.query(Position, color, targetColor, size, index, active);
 		const breath = world.queryFirst(breathPhase);
 		const phase = breath?.get(breathPhase)?.value ?? 0;
 
@@ -133,11 +155,13 @@ export function ParticleRenderer({ totalCount = VISUALS.PARTICLE_COUNT }) {
 			const tc = entity.get(targetColor);
 			const sizeTrait = entity.get(size);
 			const indexTrait = entity.get(index);
+			const activeTrait = entity.get(active);
 
 			if (!pos || !c || !tc || !sizeTrait || !indexTrait) return;
 
 			const s = sizeTrait.value;
 			const i = indexTrait.value;
+			const isActive = activeTrait?.value ?? true;
 
 			// 1. Smooth color bleeding
 			if (c.r !== tc.r || c.g !== tc.g || c.b !== tc.b) {
@@ -147,9 +171,10 @@ export function ParticleRenderer({ totalCount = VISUALS.PARTICLE_COUNT }) {
 				colorNeedsUpdate = true;
 			}
 
-			// 2. Calculate scale with breath pulse
+			// 2. Calculate scale with breath pulse (inactive particles have 0 scale to hide them)
 			const pulse = 1.0 + phase * 0.2;
-			const finalScale = s * VISUALS.PARTICLE_SIZE * pulse;
+			const baseScale = isActive ? s * VISUALS.PARTICLE_SIZE : 0;
+			const finalScale = baseScale * pulse;
 
 			matrix.makeScale(finalScale, finalScale, finalScale);
 			matrix.setPosition(pos.x, pos.y, pos.z);

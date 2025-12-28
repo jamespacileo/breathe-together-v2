@@ -367,3 +367,27 @@ export const PARTICLE_PHYSICS = {
 	// Noise threshold (avoid computing forces below this strength)
 	FORCE_THRESHOLD: 0.001,
 } as const;
+
+/**
+ * Quality presets for adaptive rendering
+ * Maps quality levels to particle counts and visual settings
+ */
+export const QUALITY_PRESETS = {
+	low: {
+		particleCount: 100,
+		sphereSegments: 32,
+		description: 'Low: ~100 particles, minimal effects',
+	},
+	medium: {
+		particleCount: 200,
+		sphereSegments: 64,
+		description: 'Medium: ~200 particles, full effects',
+	},
+	high: {
+		particleCount: 300,
+		sphereSegments: 128,
+		description: 'High: ~300 particles, enhanced effects',
+	},
+} as const;
+
+export type QualityLevel = keyof typeof QUALITY_PRESETS;

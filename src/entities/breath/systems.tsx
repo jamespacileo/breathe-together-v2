@@ -18,10 +18,14 @@ import {
 	crystallization,
 	targetCrystallization,
 	breathCurveConfig,
+	debugPhaseOverride,
+	debugTimeControl,
+	debugPhaseJump,
 } from './traits';
 import { calculateBreathState } from '../../lib/breathCalc';
 import { calculateBreathStateRounded } from '../../lib/breathCalcRounded';
 import { easing } from 'maath';
+import { BREATH_TOTAL_CYCLE, BREATH_PHASES } from '../../constants';
 
 /**
  * Damping configuration for breath traits
@@ -51,8 +55,62 @@ export function breathSystem(world: World, delta: number) {
 		return;
 	}
 
-	// Use Date.now() for true UTC sync
-	const elapsed = Date.now() / 1000;
+	// ============================================================
+	// DEBUG OVERRIDE SECTION
+	// Checks for debug traits and applies overrides with priority:
+	// 1. debugPhaseOverride.enabled → manual phase value
+	// 2. debugTimeControl.isPaused → frozen time
+	// 3. debugTimeControl.timeScale !== 1.0 → scaled time
+	// 4. debugPhaseJump.targetPhase >= 0 → jump to phase
+	// 5. Normal UTC-based calculation
+	// ============================================================
+
+	let elapsed: number;
+
+	const phaseOverride = breathEntity.get(debugPhaseOverride);
+	const timeControl = breathEntity.get(debugTimeControl);
+	const phaseJump = breathEntity.get(debugPhaseJump);
+
+	// Handle manual phase override (highest priority)
+	if (phaseOverride?.enabled) {
+		elapsed = phaseOverride.value * BREATH_TOTAL_CYCLE;
+	}
+	// Handle paused time
+	else if (timeControl?.isPaused) {
+		elapsed = timeControl.manualTime;
+	}
+	// Handle time scale multiplier
+	else if (timeControl && timeControl.timeScale !== 1.0) {
+		const realTime = Date.now() / 1000;
+		const scaledTime = realTime * timeControl.timeScale;
+		elapsed = scaledTime;
+
+		// Update manualTime for when pausing
+		if (timeControl.manualTime !== elapsed) {
+			breathEntity.set(debugTimeControl, {
+				...timeControl,
+				manualTime: elapsed,
+			});
+		}
+	}
+	// Handle phase jump
+	else if (phaseJump && phaseJump.targetPhase >= 0) {
+		// Calculate time offset for target phase
+		const phaseStartTimes = [
+			0,
+			BREATH_PHASES.INHALE,
+			BREATH_PHASES.INHALE + BREATH_PHASES.HOLD_IN,
+			BREATH_PHASES.INHALE + BREATH_PHASES.HOLD_IN + BREATH_PHASES.EXHALE,
+		];
+		elapsed = phaseStartTimes[phaseJump.targetPhase];
+
+		// Reset jump after applying
+		breathEntity.set(debugPhaseJump, { targetPhase: -1 });
+	}
+	// Normal UTC-based calculation (production)
+	else {
+		elapsed = Date.now() / 1000;
+	}
 
 	// Read curve config from entity trait (defaults to phase-based)
 	const config = breathEntity.get(breathCurveConfig);

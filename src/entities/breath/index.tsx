@@ -1,6 +1,8 @@
 /**
  * Breath entity - central state container for all breathing animations
  * Following Koota pattern where entities are composed of traits
+ *
+ * Also supports optional debug traits for manual breathing control in Triplex
  */
 import { useEffect } from 'react';
 import { useWorld } from 'koota/react';
@@ -15,8 +17,12 @@ import {
 	crystallization,
 	targetCrystallization,
 	breathCurveConfig,
+	debugPhaseOverride,
+	debugTimeControl,
+	debugPhaseJump,
 } from './traits';
 import { useBreathCurveConfig } from '../../contexts/BreathCurveContext';
+import { useBreathDebug } from '../../contexts/breathDebug';
 
 /**
  * Component that spawns the breath entity once on mount
@@ -26,6 +32,7 @@ import { useBreathCurveConfig } from '../../contexts/BreathCurveContext';
 export function BreathEntity() {
 	const world = useWorld();
 	const curveConfig = useBreathCurveConfig();
+	const debugConfig = useBreathDebug();
 
 	useEffect(() => {
 		// Check if it already exists
@@ -60,7 +67,48 @@ export function BreathEntity() {
 				waveDelta: curveConfig.waveDelta ?? 0.05,
 			});
 		}
-	}, [world, curveConfig.curveType, curveConfig.waveDelta]);
+
+		// ============================================================
+		// DEBUG TRAIT MANAGEMENT
+		// Add/update debug traits when debug context is present
+		// ============================================================
+		if (debugConfig) {
+			// Add debug traits if they don't exist
+			if (!entity.has(debugPhaseOverride)) entity.add(debugPhaseOverride);
+			if (!entity.has(debugTimeControl)) entity.add(debugTimeControl);
+			if (!entity.has(debugPhaseJump)) entity.add(debugPhaseJump);
+
+			// Update debug traits from context
+			if (debugConfig.manualPhaseOverride !== undefined) {
+				entity.set(debugPhaseOverride, {
+					enabled: true,
+					value: Math.max(0, Math.min(1, debugConfig.manualPhaseOverride)),
+				});
+			}
+
+			if (
+				debugConfig.isPaused !== undefined ||
+				debugConfig.timeScale !== undefined
+			) {
+				const current = entity.get(debugTimeControl) || {
+					isPaused: false,
+					timeScale: 1.0,
+					manualTime: 0,
+				};
+				entity.set(debugTimeControl, {
+					isPaused: debugConfig.isPaused ?? current.isPaused,
+					timeScale: debugConfig.timeScale ?? current.timeScale,
+					manualTime: current.manualTime,
+				});
+			}
+
+			if (debugConfig.jumpToPhase !== undefined) {
+				entity.set(debugPhaseJump, {
+					targetPhase: debugConfig.jumpToPhase,
+				});
+			}
+		}
+	}, [world, curveConfig.curveType, curveConfig.waveDelta, debugConfig]);
 
 	return null; // This component renders nothing
 }
