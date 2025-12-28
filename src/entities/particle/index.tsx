@@ -8,8 +8,7 @@ import { Position, Velocity, Acceleration, Mass } from '../../shared/traits';
 import { restPosition, offset, color, targetColor, size, ownerId, seed, index } from './traits';
 import { breathPhase } from '../breath/traits';
 import { usePresence } from '../../hooks/usePresence';
-// @ts-ignore - Triplex providers at root level, imported for dev/visual editing only
-import { useTriplexConfig } from '../../.triplex/providers';
+import { useTriplexConfig } from '../../contexts/triplex';
 import { getMoodColorCounts } from '../../lib/colors';
 import { generateFibonacciSphere, sphericalToCartesian } from '../../lib/fibonacciSphere';
 import { VISUALS } from '../../constants';
