@@ -18,8 +18,10 @@ import {
   debugPhaseJump,
   debugPhaseOverride,
   debugTimeControl,
+  easedProgress,
   orbitRadius,
   phaseType,
+  rawProgress,
   sphereScale,
   targetBreathPhase,
   targetCrystallization,
@@ -40,6 +42,7 @@ const DAMP_CONFIG = [
 /**
  * Main breath system - runs every frame to update breath state
  * Uses Date.now() for UTC-based synchronization (not local elapsed time)
+ * Debug time control switches to a local clock for pause/scale.
  *
  * This ensures all users worldwide see the same breathing cycle
  *
@@ -59,10 +62,10 @@ export function breathSystem(world: World, delta: number) {
   // DEBUG OVERRIDE SECTION
   // Checks for debug traits and applies overrides with priority:
   // 1. debugPhaseOverride.enabled → manual phase value
-  // 2. debugTimeControl.isPaused → frozen time
-  // 3. debugTimeControl.timeScale !== 1.0 → scaled time
-  // 4. debugPhaseJump.targetPhase >= 0 → jump to phase
-  // 5. Normal UTC-based calculation
+  // 2. debugPhaseJump.targetPhase >= 0 → jump to phase
+  // 3. debugTimeControl.isPaused → frozen time (debug only)
+  // 4. debugTimeControl.timeScale → local scaled time (debug only)
+  // 5. Normal UTC-based calculation (production)
   // ============================================================
 
   let elapsed: number;
@@ -75,24 +78,6 @@ export function breathSystem(world: World, delta: number) {
   if (phaseOverride?.enabled) {
     elapsed = phaseOverride.value * BREATH_TOTAL_CYCLE;
   }
-  // Handle paused time
-  else if (timeControl?.isPaused) {
-    elapsed = timeControl.manualTime;
-  }
-  // Handle time scale multiplier
-  else if (timeControl && timeControl.timeScale !== 1.0) {
-    const realTime = Date.now() / 1000;
-    const scaledTime = realTime * timeControl.timeScale;
-    elapsed = scaledTime;
-
-    // Update manualTime for when pausing
-    if (timeControl.manualTime !== elapsed) {
-      breathEntity.set(debugTimeControl, {
-        ...timeControl,
-        manualTime: elapsed,
-      });
-    }
-  }
   // Handle phase jump
   else if (phaseJump && phaseJump.targetPhase >= 0) {
     // Calculate time offset for target phase
@@ -104,8 +89,29 @@ export function breathSystem(world: World, delta: number) {
     ];
     elapsed = phaseStartTimes[phaseJump.targetPhase];
 
-    // Reset jump after applying
+    // Reset jump after applying and keep debug clock in sync
     breathEntity.set(debugPhaseJump, { targetPhase: -1 });
+    if (timeControl) {
+      breathEntity.set(debugTimeControl, {
+        ...timeControl,
+        manualTime: elapsed,
+      });
+    }
+  }
+  // Handle debug time control (local clock)
+  else if (timeControl) {
+    if (timeControl.isPaused) {
+      elapsed = timeControl.manualTime;
+    } else {
+      const nextElapsed = timeControl.manualTime + delta * timeControl.timeScale;
+      elapsed = nextElapsed;
+      if (timeControl.manualTime !== nextElapsed) {
+        breathEntity.set(debugTimeControl, {
+          ...timeControl,
+          manualTime: nextElapsed,
+        });
+      }
+    }
   }
   // Normal UTC-based calculation (production)
   else {
@@ -123,29 +129,28 @@ export function breathSystem(world: World, delta: number) {
       ? calculateBreathStateRounded(elapsed, {
           delta: waveDelta,
           amplitude: 1.0,
-          cycleSeconds: 16,
+          cycleSeconds: BREATH_TOTAL_CYCLE,
         })
       : calculateBreathState(elapsed);
 
   // 1. Update discrete traits and targets
   breathEntity.set(targetBreathPhase, { value: state.breathPhase });
   breathEntity.set(phaseType, { value: state.phaseType });
+  breathEntity.set(rawProgress, { value: state.rawProgress });
+  breathEntity.set(easedProgress, { value: state.easedProgress });
   breathEntity.set(targetOrbitRadius, { value: state.orbitRadius });
   breathEntity.set(targetSphereScale, { value: state.sphereScale });
   breathEntity.set(targetCrystallization, { value: state.crystallization });
 
   // 2. Damp current values toward targets using maath/easing
-  // We use a temporary object to avoid replacing the trait object with entity.set()
-  // This allows easing.damp to maintain velocity state internally
+  // Reuse the existing trait object so easing.damp can keep velocity state.
   DAMP_CONFIG.forEach(({ trait, targetTrait, speed }) => {
     const current = breathEntity.get(trait);
     const target = breathEntity.get(targetTrait);
     if (current && target) {
-      // Create temp object for damping to maintain velocity state
-      const temp = { value: current.value };
-      easing.damp(temp, 'value', target.value, speed, delta);
+      easing.damp(current, 'value', target.value, speed, delta);
       // Update trait with damped value
-      breathEntity.set(trait, { value: temp.value });
+      breathEntity.set(trait, current);
     }
   });
 }

@@ -16,8 +16,10 @@ import {
   debugPhaseJump,
   debugPhaseOverride,
   debugTimeControl,
+  easedProgress,
   orbitRadius,
   phaseType,
+  rawProgress,
   sphereScale,
   targetBreathPhase,
   targetCrystallization,
@@ -45,6 +47,8 @@ export function BreathEntity() {
         breathPhase,
         targetBreathPhase,
         phaseType,
+        rawProgress,
+        easedProgress,
         orbitRadius,
         targetOrbitRadius,
         sphereScale,
@@ -56,6 +60,8 @@ export function BreathEntity() {
     } else {
       // Ensure all new traits are added to existing entity (for hot-reloading/updates)
       if (!entity.has(targetBreathPhase)) entity.add(targetBreathPhase);
+      if (!entity.has(rawProgress)) entity.add(rawProgress);
+      if (!entity.has(easedProgress)) entity.add(easedProgress);
       if (!entity.has(targetOrbitRadius)) entity.add(targetOrbitRadius);
       if (!entity.has(targetSphereScale)) entity.add(targetSphereScale);
       if (!entity.has(targetCrystallization)) entity.add(targetCrystallization);
@@ -89,15 +95,12 @@ export function BreathEntity() {
       }
 
       if (debugConfig.isPaused !== undefined || debugConfig.timeScale !== undefined) {
-        const current = entity.get(debugTimeControl) || {
-          isPaused: false,
-          timeScale: 1.0,
-          manualTime: 0,
-        };
+        const current = entity.get(debugTimeControl);
+        const manualTime = current?.manualTime ?? Date.now() / 1000;
         entity.set(debugTimeControl, {
-          isPaused: debugConfig.isPaused ?? current.isPaused,
-          timeScale: debugConfig.timeScale ?? current.timeScale,
-          manualTime: current.manualTime,
+          isPaused: debugConfig.isPaused ?? current?.isPaused ?? false,
+          timeScale: debugConfig.timeScale ?? current?.timeScale ?? 1.0,
+          manualTime,
         });
       }
 

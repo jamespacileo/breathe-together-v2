@@ -1,7 +1,7 @@
 import { useWorld } from 'koota/react';
 import { useEffect, useRef } from 'react';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
-import { breathPhase, phaseType } from '../entities/breath/traits';
+import { phaseType, rawProgress } from '../entities/breath/traits';
 
 export const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'];
 export const PHASE_DESCRIPTIONS = ['Breathing In', 'Holding Breath', 'Breathing Out', 'Resting'];
@@ -78,7 +78,7 @@ export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
     let frameId = 0;
     const updateLoop = () => {
       // Query breath entity from Koota world
-      const breathEntity = world.queryFirst(breathPhase, phaseType);
+      const breathEntity = world.queryFirst(phaseType, rawProgress);
       if (!breathEntity) {
         frameId = requestAnimationFrame(updateLoop);
         return;
@@ -86,15 +86,12 @@ export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
 
       // Get current breath state from ECS (single source of truth)
       const currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
-
-      // Calculate rawProgress (0-1 within current phase)
-      const elapsed = Date.now() / 1000;
-      const cycleTime = elapsed % BREATH_TOTAL_CYCLE;
+      const currentRawProgress = Math.min(
+        1,
+        Math.max(0, breathEntity.get(rawProgress)?.value ?? 0),
+      );
       const phaseStartTime = phaseStartTimes[currentPhaseType] ?? 0;
       const phaseDuration = phaseDurations[currentPhaseType] ?? phaseDurations[0] ?? 1;
-      let phaseTime = cycleTime - phaseStartTime;
-      if (phaseTime < 0) phaseTime += BREATH_TOTAL_CYCLE;
-      const rawProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
 
       // Update phase text only on transition
       if (currentPhaseType !== prevPhaseRef.current) {
@@ -103,8 +100,8 @@ export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
       }
 
       // Update timer and progress bar every frame
-      updateTimer(rawProgress, phaseDuration);
-      updateProgressBar(phaseStartTime, rawProgress, phaseDuration);
+      updateTimer(currentRawProgress, phaseDuration);
+      updateProgressBar(phaseStartTime, currentRawProgress, phaseDuration);
 
       // Schedule next frame
       frameId = requestAnimationFrame(updateLoop);

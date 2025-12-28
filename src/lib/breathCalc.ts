@@ -52,20 +52,34 @@ const PHASES = [
   },
 ];
 
-/**
- * Calculate all breathing values for a given UTC time
- * Returns a snapshot of the current breath state
- */
-export function calculateBreathState(elapsedTime: number): BreathState {
-  // Position in the 16-second cycle
-  const cycleTime = elapsedTime % BREATH_TOTAL_CYCLE;
+export interface PhaseTiming {
+  phaseIndex: number;
+  phaseProgress: number;
+  cycleTime: number;
+}
 
-  // Determine phase using data-driven loop
+/**
+ * Compute phase timing from elapsed time using BREATH_PHASES
+ * Optionally scales durations to fit a custom cycle length.
+ */
+export function getPhaseTiming(
+  elapsedTime: number,
+  cycleSeconds: number = BREATH_TOTAL_CYCLE,
+): PhaseTiming {
+  const scale = cycleSeconds / BREATH_TOTAL_CYCLE;
+  const phaseDurations = [
+    BREATH_PHASES.INHALE * scale,
+    BREATH_PHASES.HOLD_IN * scale,
+    BREATH_PHASES.EXHALE * scale,
+    BREATH_PHASES.HOLD_OUT * scale,
+  ];
+
+  const cycleTime = elapsedTime % cycleSeconds;
   let accumulatedTime = 0;
   let phaseIndex = 0;
 
-  for (let i = 0; i < PHASES.length; i++) {
-    const { duration } = PHASES[i];
+  for (let i = 0; i < phaseDurations.length; i++) {
+    const duration = phaseDurations[i] ?? 0;
     if (cycleTime < accumulatedTime + duration) {
       phaseIndex = i;
       break;
@@ -73,9 +87,20 @@ export function calculateBreathState(elapsedTime: number): BreathState {
     accumulatedTime += duration;
   }
 
-  const phase = PHASES[phaseIndex];
+  const phaseDuration = phaseDurations[phaseIndex] ?? 1;
   const phaseTime = cycleTime - accumulatedTime;
-  const phaseProgress = Math.min(1, Math.max(0, phaseTime / phase.duration));
+  const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+
+  return { phaseIndex, phaseProgress, cycleTime };
+}
+
+/**
+ * Calculate all breathing values for a given UTC time
+ * Returns a snapshot of the current breath state
+ */
+export function calculateBreathState(elapsedTime: number): BreathState {
+  const { phaseIndex, phaseProgress } = getPhaseTiming(elapsedTime);
+  const phase = PHASES[phaseIndex];
   const easedProgress = phase.ease(phaseProgress);
 
   const breathPhase = phase.target(easedProgress);

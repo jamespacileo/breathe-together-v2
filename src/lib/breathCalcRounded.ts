@@ -20,6 +20,7 @@
 
 import { VISUALS } from '../constants';
 import type { BreathState } from '../types';
+import { getPhaseTiming } from './breathCalc';
 
 /**
  * Rounded square wave function
@@ -86,8 +87,8 @@ export function calculateBreathStateRounded(
   // Normalize time to 0-1 over complete breathing cycle
   const t = (elapsedTime % cycleSeconds) / cycleSeconds;
 
-  // Frequency: how many wave cycles in this period (we want 1 complete cycle)
-  const frequency = 1.0 / cycleSeconds;
+  // Frequency: one complete wave cycle across normalized time
+  const frequency = 1.0;
 
   // Calculate wave position (-amplitude to +amplitude)
   const wave = roundedSquareWave(t, delta, amplitude, frequency);
@@ -95,19 +96,8 @@ export function calculateBreathStateRounded(
   // Map wave to breathPhase (0-1)
   const breathPhase = (wave / amplitude + 1) / 2;
 
-  // Detect current phase type based on wave position
-  // We define "holds" as times when velocity is low (near peaks/troughs)
-  const holdThreshold = 0.7 * amplitude;
-  let phaseType: number;
-  if (wave > holdThreshold) {
-    phaseType = 1; // hold-in (inhale peak)
-  } else if (wave < -holdThreshold) {
-    phaseType = 3; // hold-out (exhale peak)
-  } else if (wave > 0) {
-    phaseType = 0; // inhale (rising)
-  } else {
-    phaseType = 2; // exhale (falling)
-  }
+  // Phase timing derived from the centralized breath clock
+  const { phaseIndex, phaseProgress } = getPhaseTiming(elapsedTime, cycleSeconds);
 
   // Crystallization: intensity of pause effect
   // High when velocity approaches zero (near peaks)
@@ -125,8 +115,8 @@ export function calculateBreathStateRounded(
 
   return {
     breathPhase,
-    phaseType,
-    rawProgress: t,
+    phaseType: phaseIndex,
+    rawProgress: phaseProgress,
     easedProgress: breathPhase, // For rounded wave, eased = breathPhase
     crystallization,
     sphereScale,

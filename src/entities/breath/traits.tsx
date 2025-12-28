@@ -18,6 +18,18 @@ export const targetBreathPhase = trait({ value: 0 });
 export const phaseType = trait({ value: 0 });
 
 /**
+ * Progress within the current phase (0-1)
+ * Derived from the centralized breath clock
+ */
+export const rawProgress = trait({ value: 0 });
+
+/**
+ * Eased progress for the current phase (0-1)
+ * Used for UI/visual smoothing without recomputing locally
+ */
+export const easedProgress = trait({ value: 0 });
+
+/**
  * Particle orbit radius: 3.5 (exhale) → 1.8 (inhale)
  * Particles spread when exhaling, contract when inhaling
  */
