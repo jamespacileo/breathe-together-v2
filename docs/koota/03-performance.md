@@ -192,9 +192,11 @@ class ParticlePool {
 }
 ```
 
-### Project Example
+### Project Note
 
-In **breathe-together-v2**, 300 particles are pre-spawned and selectively activated based on quality level.
+In **breathe-together-v2**, we pre-spawn a fixed particle count for MVP and
+avoid activation gating. Pooling remains a useful pattern if we add dynamic
+spawns later.
 
 ---
 

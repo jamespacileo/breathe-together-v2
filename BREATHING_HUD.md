@@ -15,8 +15,8 @@ The BreathingHUD component displays real-time breathing information and user pre
 
 ### 2. User Count (Top Right)
 - **Label:** "Users Breathing"
-- **Count:** Number of connected users (from presence API)
-- **Updates:** Every 5 seconds via TanStack Query
+- **Count:** Simulated users (MVP)
+- **Updates:** Simulated data via `usePresence()`
 
 ### 3. Cycle Progress Bar (Bottom)
 - **Visual:** Horizontal bar showing position in 16s cycle
@@ -50,7 +50,7 @@ export function App() {
 
 ### State Management
 - **Breathing State:** Updates via `requestAnimationFrame` for smooth timer
-- **User Count:** Fetched from `usePresence` hook (5s polling)
+- **User Count:** Simulated via `usePresence`
 - **UTC Sync:** Uses same `calculateBreathState()` as 3D visualization
 
 ---
@@ -197,9 +197,9 @@ Render: Phase name, timer, progress
 ```
 
 ```
-TanStack Query (5s polling)
+Simulated Presence
   ↓
-usePresence({ simulated: false })
+usePresence()
   ↓
 { count: number }
   ↓
@@ -212,7 +212,7 @@ Render: User count
 
 ### Current
 - No animations for phase transitions (could add fade/slide)
-- User count shows 0 in dev (no backend API)
+- User count is simulated (no backend API)
 - No mobile optimizations for portrait mode
 - No dark/light theme toggle
 
@@ -306,7 +306,7 @@ Render: User count
 
 Check browser console for:
 - Breathing state updates (via console.log if added)
-- User count fetches
+- User count updates
 - Any React errors
 
 ### Common Issues
@@ -317,9 +317,8 @@ Check browser console for:
 - Check browser console for errors
 
 **Q: User count shows 0?**
-- Expected in dev without backend API
-- Will show real count when API connected
-- Check TanStack Query dev tools
+- Simulated data may be configured in `usePresence`
+- No backend API in MVP
 
 **Q: UI not visible?**
 - Check z-index (should be 100)

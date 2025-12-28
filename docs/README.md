@@ -15,7 +15,7 @@ A comprehensive collection of pro tips, advanced patterns, common gotchas, and p
 - **[Shaders & GLSL](./shaders/)** - GLSL optimization, TSL introduction, custom shader patterns
 
 ### 🎯 Project-Specific
-- **[breathe-together-v2 Patterns](./project-specific/)** - 7-phase system pipeline, adaptive quality, particle physics, UTC sync
+- **[breathe-together-v2 Patterns](./project-specific/)** - Minimal system pipeline, particle physics, UTC sync
 
 ---
 
@@ -58,7 +58,7 @@ docs/
 │   └── 03-custom-shaders.md
 └── project-specific/            # breathe-together-v2 specific
     ├── 01-system-pipeline.md
-    ├── 02-adaptive-quality.md
+    ├── 02-adaptive-quality.md (deferred)
     ├── 03-particle-physics.md
     └── 04-breath-sync.md
 ```
@@ -102,7 +102,7 @@ docs/
 2. **Factory System Pattern** - Create systems with closures for performance
 3. **Selective Trait Updates** - Query multiple traits but update only specific ones
 4. **Zero-Scale Hiding** - Deactivate instances without destroy/spawn
-5. **Hysteresis Quality Switching** - Prevent visual thrashing with debounced level changes
+5. **Debug Overlay Gating** - Keep diagnostics in debug scenes only
 
 ---
 
@@ -117,11 +117,11 @@ docs/
 | **R3F (Patterns)** | `react-three-fiber/06-declarative-patterns.md` | attach, extend(), args, declarative vs imperative |
 | **Drei** | `drei/01-shader-materials.md` | shaderMaterial, MeshTransmissionMaterial |
 | **Drei (Lighting)** | `drei/04-lighting-and-shadows.md` | ContactShadows, SoftShadows, BakeShadows, Caustics, Lightformer |
-| **Triplex** | `triplex/02-configuration-patterns.md` | Prop/context hierarchy, quality presets |
+| **Triplex** | `triplex/02-configuration-patterns.md` | Prop defaults, system toggles, debug scenes |
 | **Triplex (Pro Tips)** | `triplex/05-best-practices.md` | Component design, debug scenes, workflows, gotchas |
 | **ECS** | `ecs-architecture/02-data-flow.md` | System pipeline, execution order |
 | **Shaders** | `shaders/01-glsl-optimization.md` | Performance tips, precision, branching |
-| **Project** | `project-specific/01-system-pipeline.md` | 7-phase pipeline, visual diagrams |
+| **Project** | `project-specific/01-system-pipeline.md` | Minimal pipeline, visual diagrams |
 
 ---
 
@@ -156,7 +156,7 @@ Avoid React's state system in animation frames. Use refs and direct mutation for
 Create materials, geometries, and lights once and reuse them. Each new object triggers compilation/initialization.
 
 ### 4. System Execution Order is Critical
-The order systems run determines correctness. See `project-specific/01-system-pipeline.md` for breathe-together-v2's 7-phase pipeline.
+The order systems run determines correctness. See `project-specific/01-system-pipeline.md` for breathe-together-v2's minimal pipeline.
 
 ### 5. Performance First, Optimization Later (But Measure)
 Use Triplex's performance metrics to identify bottlenecks. Don't prematurely optimize without data.

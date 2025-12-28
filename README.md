@@ -7,14 +7,14 @@
 
 ## Introduction
 
-This point & click starter template is built on-top of Koota, a state management library that encourages you to separate behavior from your React component markup and is a great way to build components that needs to know about all other "things" in the world in a structured way without relying on traditional React composition patterns.
+This breathing visualization is built on top of Koota, a state management library that encourages you to separate behavior from React component markup and keep global simulation state in ECS traits.
 
 ### React Components as entities
 
-You'll find most of the React components in this template are very light-weight. For example the `Controller` React component found in `src/entities/controller/index.tsx` only:
+You'll find most React components in this app are light-weight. For example, the breathing entities only:
 
-- Renders a Three.js group; then
-- Spawns itself as an entity in the Koota world with a bunch of "traits" (in an effect)
+- Render Three.js primitives; then
+- Spawn themselves as entities in the Koota world with "traits" (in an effect)
 
 If these React components were rendered by themselves, well, nothing happens! That's where "system" functions come into play.
 
@@ -22,10 +22,10 @@ If these React components were rendered by themselves, well, nothing happens! Th
 
 The core behavior loop is defined in the `KootaSystems` React component found in `src/providers.tsx`. Every frame each system function is called in sequence meaning the order of functions are important!
 
-Going back to the `Controller` React component, the point and click behavior is spread into a few different system functions:
+The breathing loop is intentionally small for MVP:
 
-- `velocityTowardsTarget(world, delta)` — Given a target entity found in the world, update all entities that have Controllable, Position, and Velocity traits to have their velocity move towards the target.
-- `positionFromVelocity(world, delta)` — Update all entities that have Position and Velocity traits to have their position updated based on their current velocity.
+- `breathSystem(world, delta)` — Calculates breath phase, orbit radius, sphere scale
+- `particlePhysicsSystem(world, delta)` — Applies forces and integrates particle motion
 
 Each system function is made to be small and composable so you can easily build up behavior by adding (or removing) traits on entities.
 
@@ -38,7 +38,7 @@ Try modifying some and see what happens!
 - `/src`
   - `/entities` — React components that are registered as entities in the Koota world. These components can be used in the scene and will be updated every frame.
   - `/levels` — React components that are considered "levels" in the game sense. These are the primary ones you'll be developing against inside Triplex.
-  - `/shared` — Shared Koota systems, traits, and math functions.
+- `/shared` — Shared Koota traits.
   - `app.tsx` — Root of the React app.
   - `providers.tsx` — Providers declared here are used in both `app.tsx `and `/.triplex/providers.tsx`.
 

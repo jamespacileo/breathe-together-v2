@@ -212,23 +212,11 @@ function EnemyView({ entity }: { entity: Entity }) {
 
 `useQuery()` creates a new array each time the matching entities change. For rendering large lists, consider using a virtual scroller (react-window, tanstack-virtual, etc.).
 
-### Project Example
+### Project Note
 
-In **breathe-together-v2** (`src/entities/particleSystem/index.tsx`), particles are rendered from presence data:
-
-```typescript
-function ParticleSystem() {
-  // Query all active particles
-  const particles = useQuery(Position, ParticlePhysics, ParticleColor)
-
-  return (
-    <instancedMesh args={[null, null, particles.length]}>
-      <sphereGeometry args={[0.1, 16, 16]} />
-      <meshStandardMaterial />
-    </instancedMesh>
-  )
-}
-```
+In **breathe-together-v2**, the hot path uses `world.query` inside `useFrame`
+(`src/entities/particle/index.tsx`) to avoid `useQuery()` re-renders for hundreds
+of particles. Prefer `useQuery()` for UI lists and small counts.
 
 ---
 
@@ -386,13 +374,6 @@ In **breathe-together-v2** (potential future use):
 
 ```typescript
 const breatheActions = createActions((world) => ({
-  setQualityLevel: (level: 'low' | 'medium' | 'high') => {
-    world.query(ParticlePhysics).forEach((entity) => {
-      const physics = entity.get(ParticlePhysics)
-      physics.quality = level
-    })
-  },
-
   toggleBreath: () => {
     const breath = world.queryFirst(BreathEntity)
     if (breath?.has(Paused)) {

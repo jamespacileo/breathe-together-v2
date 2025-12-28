@@ -194,23 +194,11 @@ function setupFrustumTracking(world, camera) {
 }
 ```
 
-### breathe-together-v2 Integration
+### breathe-together-v2 Note
 
-```typescript
-// Track active particles based on quality
-function setupQualityTracking(world) {
-  const highQuality = world.query(Particle, Quality)
-    .filter((entity) => entity.get(Quality).level === 'high')
-
-  highQuality.onAdd((entity) => {
-    particleSystem.addParticle(entity.id(), { quality: 'high' })
-  })
-
-  highQuality.onRemove((entity) => {
-    particleSystem.removeParticle(entity.id())
-  })
-}
-```
+For MVP, we avoid quality-based observers and keep particle rendering fixed.
+Use observers only for clear event-driven needs (e.g., input, analytics, debug
+overlays).
 
 ---
 

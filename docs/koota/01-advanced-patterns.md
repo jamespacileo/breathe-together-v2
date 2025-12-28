@@ -336,19 +336,11 @@ world.query(Active, Position, Velocity).updateEach(
 )
 ```
 
-### Project Example
+### Project Note
 
-In **breathe-together-v2**, particles use this pattern for adaptive quality:
-
-```typescript
-const Quality = trait({ level: 'high' })
-const Inactive = trait({ hidden: true })
-
-// 300 particles pre-spawned but only 100 active
-const particles = world.query(Position, Velocity, Quality)
-  .exclude(Inactive)  // Only active particles
-  .updateEach(...)
-```
+In **breathe-together-v2**, adaptive quality is deferred for MVP. We currently
+spawn a fixed particle count and render them all. Keep this pattern in mind for
+future scaling, but it is not active in the current codebase.
 
 ---
 
@@ -436,8 +428,6 @@ In **breathe-together-v2** (`src/providers.tsx`), Triplex can toggle systems for
 const systemToggles = {
   breathSystemEnabled: true,
   particlePhysicsSystemEnabled: true,
-  cursorPositionFromLandEnabled: true,
-  // ... more toggles
 }
 
 // Systems only run if enabled
@@ -561,19 +551,6 @@ activeParticles.onRemove((entity) => {
   activeParticleCount--
   updateParticleCountUI(activeParticleCount)
 })
-
-// In breathe-together-v2: Track visible particles based on quality
-const visibleParticles = world.query(Particle, Quality).filter(
-  (entity) => entity.get(Quality).level !== 'hidden'
-)
-
-visibleParticles.onAdd((entity) => {
-  renderer.addParticle(entity.id())
-})
-
-visibleParticles.onRemove((entity) => {
-  renderer.removeParticle(entity.id())
-})
 ```
 
 ### Pro Tip: Memory Management
@@ -634,35 +611,11 @@ world.query(Position, GameSettings).updateEach(
 )
 ```
 
-### Project Example: breathe-together-v2
+### Project Note: breathe-together-v2
 
-```typescript
-// Define quality and performance settings as world traits
-const QualitySetting = trait({
-  particleCount: 300,
-  resolution: 1.0,
-  shadowsEnabled: true
-})
-
-const PerformanceState = trait({
-  fps: 60,
-  gpuLoad: 0.5,
-  lastQualityChangeTime: 0
-})
-
-// Spawn as world state
-const perfWorld = world.spawn(QualitySetting, PerformanceState)
-
-// Systems use global quality
-world.query(Position, Velocity, QualitySetting).updateEach(
-  ([pos, vel, quality]) => {
-    // Skip some particles if quality is low
-    if (quality.particleCount < 100) {
-      // Reduce simulation complexity
-    }
-  }
-)
-```
+For MVP, we avoid world-level quality traits and keep defaults in component props
+and `sceneDefaults.ts`. Revisit global traits only if multiple systems need shared
+configuration.
 
 ### Key Benefits
 

@@ -59,13 +59,13 @@ Once the Triplex panel opens, you'll see:
 ```
 BreathingLevel
 ├── BreathingSphere
-├── ParticleSystem
+├── ParticleRenderer
 └── BreathingHUD
 
 Entities
 ├── breath/
 ├── breathingSphere/
-├── particleSystem/
+├── particle/
 └── [others]
 ```
 
@@ -89,9 +89,9 @@ Entities
 4. Changes apply **live** to the 3D viewport
 5. Changes **auto-save** to source file
 
-### Example: Edit ParticleSystem
+### Example: Edit ParticleRenderer
 
-1. Click **ParticleSystem** in Triplex panel
+1. Click **ParticleRenderer** in Triplex panel
 2. See props:
    - `totalCount` → Slider 50-500 (change particle count)
    - `particleSize` → Slider 0.02-0.3
@@ -288,7 +288,7 @@ That's it! Triplex automatically discovers components with JSDoc annotations.
 
 ### Test 2: Change Particle Count
 1. Open Triplex
-2. Select **ParticleSystem**
+2. Select **ParticleRenderer**
 3. Change `totalCount` from 300 to 500
 4. See more particles orbit
 
@@ -360,7 +360,7 @@ That's it! Triplex automatically discovers components with JSDoc annotations.
 4. ✅ Open Triplex editor (sidebar icon)
 5. ✅ Try editing **BreathingSphere** props
 6. ✅ Watch changes appear live
-7. ✅ Adjust **ParticleSystem** particle count
+7. ✅ Adjust **ParticleRenderer** particle count
 8. ✅ Experiment with colors and sizes
 
 ---

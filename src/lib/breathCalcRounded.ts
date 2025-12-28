@@ -19,16 +19,7 @@
  */
 
 import { VISUALS } from '../constants';
-
-export interface BreathState {
-  breathPhase: number; // 0-1, position in cycle
-  phaseType: number; // 0=inhale, 1=hold-in, 2=exhale, 3=hold-out
-  rawProgress: number; // 0-1, raw time progress
-  easedProgress: number; // 0-1, eased progress
-  crystallization: number; // 0-1, holds effect intensity
-  sphereScale: number; // visual sphere scale
-  orbitRadius: number; // particle orbit radius
-}
+import type { BreathState } from '../types';
 
 /**
  * Rounded square wave function

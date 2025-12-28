@@ -33,7 +33,7 @@ App
 │   │       ├── color (background)
 │   │       ├── ambientLight
 │   │       ├── BreathingSphere (central orb)
-│   │       └── ParticleSystem (300 particles)
+│   │       └── ParticleRenderer + ParticleSpawner (300 particles)
 ```
 
 ### State Flow
@@ -42,9 +42,9 @@ breathSystem() [Koota ECS]
     ↓
   Updates breathEntity with BreathState
     ↓
-BreathingSphere & ParticleSystem read state via useFrame
+BreathingSphere & ParticleRenderer read state via useFrame
     ↓
-  GSAP animates sphere, particles orbit
+  ECS + maath easing animate sphere and particles
 ```
 
 ---
@@ -56,7 +56,7 @@ BreathingSphere & ParticleSystem read state via useFrame
 Pure functions for breathing state. No dependencies on React/Three.js.
 
 ```typescript
-// 16-second cycle: 4s inhale, 4s hold, 4s exhale, 4s hold
+// 16-second cycle with asymmetric phases (3/5/5/3)
 const state = calculateBreathState(elapsedTime);
 
 // Returns:
@@ -125,12 +125,12 @@ export function breathSystem(world: World, delta: number) {
 
 **Animation:**
 - Reads `sphereScale` from breath entity
-- GSAP smooths transitions (0.1s duration)
+- maath easing smooths transitions
 - Double-sided material for visibility
 - Additive blending for glow effect
 
-### ParticleSystem
-**File:** `src/entities/particleSystem/index.tsx`
+### ParticleRenderer + ParticleSpawner
+**File:** `src/entities/particle/index.tsx`
 
 **Props:**
 - `totalCount: number` - Particle count (Triplex editable)
@@ -150,24 +150,21 @@ export function breathSystem(world: World, delta: number) {
 ### usePresence
 **File:** `src/hooks/usePresence.ts`
 
-Fetches user presence data from API.
+Returns simulated presence data for MVP (no backend).
 
 ```typescript
-const { moods, isLoading, isError } = usePresence({
-  simulated: false,        // Set to true for dev without backend
-  pollInterval: 5000,      // Fetch every 5 seconds
-  simulationSnapshot: null // For synthetic data in dev
-});
-
-// moods = { calm: 10, energetic: 5, ... }
+const { moods } = usePresence({ userCount: 75 });
+// moods = { moment: 20, anxious: 12, ... }
 ```
 
 **Mood Types:**
-- `calm` → #4a90e2 (blue)
-- `energetic` → #f5a623 (orange)
-- `anxious` → #e91e63 (pink)
-- `focused` → #7ed321 (green)
-- `tired` → #bd10e0 (purple)
+- `moment` → Soft Cyan
+- `anxious` → Lavender
+- `processing` → Soft Teal
+- `preparing` → Sky Blue
+- `grateful` → Soft Gold
+- `celebrating` → Soft Gold
+- `here` → Soft Cyan
 - `happy` → #ffb400 (yellow)
 
 ---
@@ -179,7 +176,7 @@ const { moods, isLoading, isError } = usePresence({
 1. **Open Triplex in VSCode** (if installed)
 2. **Navigate to a component:**
    - `BreathingSphere` in `src/entities/breathingSphere/index.tsx`
-   - `ParticleSystem` in `src/entities/particleSystem/index.tsx`
+- `ParticleRenderer` / `ParticleSpawner` in `src/entities/particle/index.tsx`
 3. **Edit props in the UI:**
    - Props appear as controls based on JSDoc annotations
    - Changes update live in the viewport
@@ -208,7 +205,7 @@ interface ComponentProps {
 
 ✅ **Float32Array:** Angle storage pre-allocated, no per-frame allocations
 
-✅ **No React state updates in animation loop:** GSAP handles it
+✅ **No React state updates in animation loop:** ECS + direct DOM updates handle it
 
 ✅ **Additive blending:** Efficient blend mode for particles
 
@@ -276,15 +273,7 @@ console.log('Particle orbit radius:', state.orbitRadius);
 
 ### Unit Tests
 
-**Breathing calculations:**
-```bash
-node test-breath-calc.js
-```
-
-**Presence integration:**
-```bash
-node test-presence-integration.js
-```
+No automated unit tests (legacy scripts removed during pruning).
 
 ### Manual Testing Checklist
 
@@ -316,23 +305,21 @@ src/
 │   │   └── systems.tsx       # breathSystem()
 │   ├── breathingSphere/
 │   │   └── index.tsx         # Sphere component
-│   ├── particleSystem/
-│   │   └── index.tsx         # Particle component
-│   └── [camera, controller, cursor, land]/  # Starter examples
+│   ├── particle/
+│   │   └── index.tsx         # Particle components
+│   └── camera/
+│       └── CameraRig.tsx     # Camera motion (non-ECS)
 ├── hooks/
-│   └── usePresence.ts        # API data fetching
+│   └── usePresence.ts        # Simulated presence data
 ├── lib/
 │   ├── breathCalc.ts         # Pure calculations
 │   ├── colors.ts             # Mood→color mapping
 │   ├── fibonacciSphere.ts    # Particle distribution
 │   └── [other starter libs]/
 └── shared/
-    ├── traits.tsx            # Koota traits
-    └── systems.tsx           # Koota systems
+    └── traits.tsx            # Koota traits
 
-worker/                        # Backend (Hono)
 dist/                          # Build output
-test-*.js                      # Test scripts
 ```
 
 ---
@@ -341,19 +328,30 @@ test-*.js                      # Test scripts
 
 ### Change Breathing Cycle Duration
 
-Edit `src/lib/breathCalc.ts`:
+Edit `src/constants.ts`:
 ```typescript
-const TOTAL_CYCLE = 16;  // Change to 20, 24, etc.
-const PHASE_DURATION = 4;  // Adjust phases accordingly
+export const BREATH_PHASES = {
+  INHALE: 3,
+  HOLD_IN: 5,
+  EXHALE: 5,
+  HOLD_OUT: 3,
+} as const;
+
+export const BREATH_TOTAL_CYCLE = 16; // seconds
 ```
 
 ### Add New Mood Color
 
-Edit `src/lib/colors.ts` and `test-presence-integration.js`:
+Edit `src/constants.ts` (add to `MOOD_IDS`) and `src/lib/colors.ts`:
 ```typescript
-const MOOD_COLORS = {
+export const MOOD_IDS = [
   // ... existing moods
-  peaceful: '#9c27b0',  // New mood
+  'peaceful',
+] as const;
+
+export const MOOD_METADATA = {
+  // ... existing moods
+  peaceful: { id: 'peaceful', label: 'Peaceful', hasDetail: false, color: '#9c27b0' },
 };
 ```
 
@@ -362,7 +360,7 @@ const MOOD_COLORS = {
 Props are Triplex-editable, but for default:
 Edit `src/levels/breathing.tsx`:
 ```typescript
-<ParticleSystem totalCount={500} />  // Was 300
+<ParticleRenderer totalCount={500} />  // Was 300
 ```
 
 ### Change Sphere Color
@@ -378,7 +376,7 @@ Edit `src/levels/breathing.tsx`:
 ## Known Issues & Limitations
 
 ### Current
-- API endpoints not available in dev (simulated: false will retry gracefully)
+- Presence is simulated (no backend API)
 - No mobile testing yet
 - No analytics or error tracking
 
@@ -395,8 +393,6 @@ Edit `src/levels/breathing.tsx`:
 - **Koota ECS:** https://github.com/hmans/koota
 - **Three.js:** https://threejs.org
 - **React Three Fiber:** https://docs.pmnd.rs/react-three-fiber
-- **GSAP:** https://gsap.com
-- **TanStack Query:** https://tanstack.com/query
 
 ---
 

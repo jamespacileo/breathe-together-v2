@@ -2,7 +2,7 @@
  * Particle Debug Visualizations
  *
  * Renders overlay diagnostics for particle debugging:
- * - Particle stats overlay (user/filler counts, active status)
+ * - Particle stats overlay (user/filler counts)
  * - Particle type visualization (wireframe orbit indicators)
  */
 
@@ -11,15 +11,12 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { active, index, ownerId } from '../entities/particle/traits';
+import { index, ownerId } from '../entities/particle/traits';
 
 interface ParticleStats {
   totalParticles: number;
   userParticles: number;
   fillerParticles: number;
-  activeParticles: number;
-  userActive: number;
-  fillerActive: number;
 }
 
 interface ParticleDebugVisualsProps {
@@ -37,7 +34,6 @@ interface ParticleDebugVisualsProps {
  *
  * **Stats Overlay:**
  * - Total particles, user/filler split
- * - Active particle count (respects adaptive quality)
  * - Updates every frame
  *
  * **Type Visualization:**
@@ -57,9 +53,6 @@ export function ParticleDebugVisuals({
     totalParticles: 0,
     userParticles: 0,
     fillerParticles: 0,
-    activeParticles: 0,
-    userActive: 0,
-    fillerActive: 0,
   });
 
   const wireframeGroupRef = useRef<THREE.Group>(null);
@@ -83,44 +76,32 @@ export function ParticleDebugVisuals({
 
   // Update particle stats every frame
   useFrame(() => {
-    if (!showParticleStats && !showParticleTypes) return;
+    if (!showParticleStats) return;
 
-    const particles = world.query(index, ownerId, active);
+    const particles = world.query(index, ownerId);
 
     let totalCount = 0;
     let userCount = 0;
     let fillerCount = 0;
-    let activeCount = 0;
-    let userActiveCount = 0;
-    let fillerActiveCount = 0;
-
     particles.forEach((entity) => {
       const ownerIdTrait = entity.get(ownerId);
-      const activeTrait = entity.get(active);
 
       if (!ownerIdTrait) return;
 
       const isUser = ownerIdTrait.value === 'user';
-      const isActive = activeTrait?.value ?? true;
 
       totalCount++;
       if (isUser) {
         userCount++;
-        if (isActive) userActiveCount++;
       } else {
         fillerCount++;
-        if (isActive) fillerActiveCount++;
       }
-      if (isActive) activeCount++;
     });
 
     setStats({
       totalParticles: totalCount,
       userParticles: userCount,
       fillerParticles: fillerCount,
-      activeParticles: activeCount,
-      userActive: userActiveCount,
-      fillerActive: fillerActiveCount,
     });
   });
 
@@ -183,21 +164,9 @@ export function ParticleDebugVisuals({
 
             <div style={{ color: '#ccc', marginBottom: '4px' }}>Total: {stats.totalParticles}</div>
 
-            <div style={{ color: '#00ff00' }}>
-              User: {stats.userParticles} ({stats.userActive} active)
-            </div>
+            <div style={{ color: '#00ff00' }}>User: {stats.userParticles}</div>
 
-            <div style={{ color: '#ff6666' }}>
-              Filler: {stats.fillerParticles} ({stats.fillerActive} active)
-            </div>
-
-            <div style={{ color: '#ffff00', marginTop: '4px', marginBottom: '4px' }}>
-              Active: {stats.activeParticles}/{stats.totalParticles}
-            </div>
-
-            {stats.activeParticles < stats.totalParticles && (
-              <div style={{ color: '#ff6666', fontSize: '11px' }}>⚠️ Quality throttled</div>
-            )}
+            <div style={{ color: '#ff6666' }}>Filler: {stats.fillerParticles}</div>
           </div>
         </Html>
       )}

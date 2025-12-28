@@ -2,7 +2,7 @@
 
 ## ✅ Overall Status: READY FOR PRODUCTION
 
-All core features implemented and verified. Frontend is fully functional with Vite, Three.js, React, Koota ECS, and GSAP.
+All core features implemented and verified. Frontend is fully functional with Vite, Three.js, React, and Koota ECS.
 
 ---
 
@@ -12,11 +12,11 @@ All core features implemented and verified. Frontend is fully functional with Vi
 
 ### Verification Results:
 ```
-✓ 16-second cycle: 4s inhale → 4s hold → 4s exhale → 4s hold
+✓ 16-second cycle: 3s inhale → 5s hold → 5s exhale → 3s hold
 ✓ Sphere scale: 0.6 (exhaled) → 1.4 (inhaled)
-✓ Orbit radius: 2.8 (particles expanded) → 1.2 (particles contracted)
+✓ Orbit radius: 3.5 (particles expanded) → 1.5 (particles contracted)
 ✓ Inverse motion: Particles contract when sphere expands ✓
-✓ Smooth easing: easeInOutQuad applied for natural motion
+✓ Smooth easing: per-phase easing for natural motion
 ✓ UTC synchronization: All users globally synced via Date.now()
 ```
 
@@ -37,7 +37,7 @@ All core features implemented and verified. Frontend is fully functional with Vi
 ✓ Float32Array: Efficient orbit angle storage (120 bytes for 300 particles)
 ✓ Fibonacci sphere: Even distribution avoiding clustering
 ✓ Color optimization: instanceColor for per-particle colors
-✓ No re-renders: GSAP handles smooth transitions outside React lifecycle
+✓ No re-renders: ECS-driven updates avoid React re-renders
 ```
 
 ### Features:
@@ -46,7 +46,7 @@ All core features implemented and verified. Frontend is fully functional with Vi
 - Graceful fallback to filler color (gray) when API unavailable
 - Orbital animation with breath-synced radius
 
-**Implementation:** `src/entities/particleSystem/index.tsx`
+**Implementation:** `src/entities/particle/index.tsx`
 
 ---
 
@@ -58,7 +58,7 @@ All core features implemented and verified. Frontend is fully functional with Vi
 ✓ Opacity: 0.15 - Triplex editable
 ✓ Segments: 64 (adjustable 16-128)
 ✓ Material: Double-sided MeshBasicMaterial with additive blending
-✓ Animation: GSAP smooth interpolation (0.1s per frame)
+✓ Animation: maath easing for smooth interpolation
 ```
 
 **Implementation:** `src/entities/breathingSphere/index.tsx`
@@ -72,26 +72,14 @@ All core features implemented and verified. Frontend is fully functional with Vi
 
 ---
 
-## 4. Presence Integration ✅
+## 4. Presence (Simulated) ✅
 
-**Status:** Ready for API Connection
+**Status:** MVP-ready (no network)
 
 ### Features:
-- TanStack Query for efficient data fetching
-- 5-second poll interval
-- Exponential backoff retry (3 attempts, max 10s delay)
-- Graceful error handling (EMPTY_MOODS fallback)
-- Per-mood color mapping system
-
-**Color Mapping:**
-```javascript
-calm:       #4a90e2 (blue)
-energetic:  #f5a623 (orange)
-anxious:    #e91e63 (pink)
-focused:    #7ed321 (green)
-tired:      #bd10e0 (purple)
-happy:      #ffb400 (yellow)
-```
+- Simulated presence counts via `src/lib/mockPresence.ts`
+- Deterministic mood distribution for stable visuals
+- No polling, retries, or API dependencies
 
 **Implementation:** `src/hooks/usePresence.ts`
 
@@ -111,11 +99,7 @@ happy:      #ffb400 (yellow)
 
 ### System Execution Order:
 1. `breathSystem()` - Updates breath entity (runs first, provides state)
-2. `cursorPositionFromLandSystem()` - Disabled in breathing mode
-3. `velocityTowardsTargetSystem()` - Disabled in breathing mode
-4. `positionFromVelocitySystem()` - Disabled in breathing mode
-5. `meshFromPosition()` - Standard position sync
-6. `cameraFollowFocusedSystem()` - Disabled in breathing mode
+2. `particlePhysicsSystem()` - Updates particle positions (reads breath state)
 
 ---
 
@@ -125,7 +109,7 @@ happy:      #ffb400 (yellow)
 ```
 ✓ Development server: http://localhost:5173/breathe-together-v2
 ✓ Build output: dist/
-✓ Chunk splitting: Three.js, GSAP in separate chunks
+✓ Chunk splitting: Three.js in separate chunk
 ✓ HMR enabled: Hot reload working
 ```
 
@@ -135,10 +119,8 @@ happy:      #ffb400 (yellow)
 ✓ Three.js 0.175.0
 ✓ @react-three/fiber 9.1.2
 ✓ @react-three/drei 10.0.6
-✓ GSAP 3.14.2
 ✓ Koota 0.4.0
-✓ TanStack Query 5.90.12
-✓ Hono 4.11.3 (for backend)
+✓ maath 0.10.8
 ```
 
 ---
@@ -159,7 +141,7 @@ happy:      #ffb400 (yellow)
 ```
 ✓ No per-frame object allocations (Float32Array pre-allocated)
 ✓ Mutable matrix updates: reuses THREE.Matrix4 instance
-✓ GSAP handles timing (not React state updates)
+✓ ECS systems handle timing (not React state updates)
 ✓ useFrame delta time used (device-independent)
 ```
 
@@ -203,13 +185,11 @@ happy:      #ffb400 (yellow)
 - ✅ Breathing animations
 - ✅ Particle system
 - ✅ Presence data structure
-- ✅ API integration code
+- ✅ API integration code (mocked via MSW)
 - ✅ Triplex editor readiness
 
-### Pending (Backend Required):
-- ⏳ `/api/presence` endpoint (needs Hono worker)
-- ⏳ `/api/heartbeat` endpoint (needs Hono worker)
-- ⏳ Live user presence data
+### Deferred (Backend Removed):
+- ⏳ Live user presence data (worker removed during pruning)
 - ⏳ Global synchronization testing
 
 ---
@@ -218,8 +198,7 @@ happy:      #ffb400 (yellow)
 
 ### Unit Tests:
 ```
-✓ test-breath-calc.js: 16s cycle, inverse motion, easing, UTC sync
-✓ test-presence-integration.js: Color mapping, error handling, fallbacks
+No automated unit tests (legacy scripts removed during pruning)
 ```
 
 ### Code Review:
@@ -249,14 +228,12 @@ happy:      #ffb400 (yellow)
 ```tsx
 color: string         // @type color
 opacity: number       // @min 0 @max 1 @step 0.01
-segments: number      // @min 16 @max 128 @step 16
+detail: number        // @min 0 @max 4 @step 1
 ```
 
-**ParticleSystem:**
+**ParticleRenderer:**
 ```tsx
-totalCount: number    // @min 50 @max 500 @step 50
-particleSize: number  // @min 0.02 @max 0.3 @step 0.01
-fillerColor: string   // @type color
+totalCount: number    // @min 50 @max 1000 @step 50
 ```
 
 **BreathingLevel:**
@@ -287,11 +264,11 @@ fillerColor: string   // @type color
 
 ---
 
-## Next Steps (When Backend Ready)
+## Next Steps (If Backend Is Reintroduced)
 
-1. Deploy Hono backend to Cloudflare Workers
+1. Re-introduce a backend service for presence
 2. Connect `/api/presence` endpoint
-3. Connect `/api/heartbeat` endpoint
+3. (Optional) Add heartbeat/session tracking if needed
 4. Test live presence data
 5. Verify global UTC synchronization
 
@@ -304,4 +281,4 @@ http://localhost:5173/breathe-together-v2
 
 **Date:** 2025-12-26
 **Frontend Status:** ✅ PRODUCTION READY
-**Backend Status:** ⏳ Ready for implementation
+**Backend Status:** ⏳ Deferred (worker removed during pruning)

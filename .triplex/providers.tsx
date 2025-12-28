@@ -8,7 +8,4 @@
 export {
   GlobalProvider,
   CanvasProvider,
-  useTriplexConfig,
-  TriplexConfig,
-  type TriplexConfigContext,
 } from '../src/contexts/triplex';

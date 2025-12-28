@@ -47,9 +47,4 @@ export const seed = trait({ value: 0 });
  */
 export const index = trait({ value: 0 });
 
-/**
- * Whether this particle is actively rendered
- * Used for adaptive quality: particles are pre-spawned but selectively activated
- * based on performance monitoring
- */
-export const active = trait({ value: true });
+// (No active flag; all spawned particles render)

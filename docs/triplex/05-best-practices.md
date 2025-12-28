@@ -112,9 +112,9 @@ interface ComponentProps {
   // Dropdown select
   /**
    * @type select
-   * @options low,medium,high
+   * @options subtle,balanced,bold
    */
-  quality?: string
+  mode?: string
 }
 ```
 

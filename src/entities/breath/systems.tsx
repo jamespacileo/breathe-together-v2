@@ -31,7 +31,7 @@ import {
  * Damping configuration for breath traits
  */
 const DAMP_CONFIG = [
-  { trait: breathPhase, targetTrait: targetBreathPhase, speed: 0.1 },
+  { trait: breathPhase, targetTrait: targetBreathPhase, speed: 0.3 },
   { trait: orbitRadius, targetTrait: targetOrbitRadius, speed: 0.4 },
   { trait: sphereScale, targetTrait: targetSphereScale, speed: 0.25 },
   { trait: crystallization, targetTrait: targetCrystallization, speed: 0.5 },

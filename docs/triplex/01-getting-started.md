@@ -46,26 +46,23 @@ npm run dev
 
 ### The Pattern
 
-In **breathe-together-v2** (`src/.triplex/providers.tsx`):
+In **breathe-together-v2** (`.triplex/providers.tsx`):
 
 ```typescript
 // Re-export providers so Triplex can access them
-export { CanvasProvider as default } from '@/providers'
-export * from '@/contexts/triplex'
+export { GlobalProvider, CanvasProvider } from '../src/contexts/triplex'
 ```
 
-The Triplex config references this to provide context.
+Triplex wraps the scene with these providers so ECS systems and shared state are available.
 
-### Multi-Level Configuration
+### Simple Configuration
+
+Props override component defaults directly:
 
 ```typescript
-// Context (default values)
-<TriplexConfigContext.Provider value={{ quality: 'high' }}>
-  {children}
-</TriplexConfigContext.Provider>
-
-// Props override context
-<MyComponent quality="low" />  {/* Props take precedence */}
+<CanvasProvider breathSystemEnabled>
+  <BreathingLevel sphereColor="#ff0000" />
+</CanvasProvider>
 ```
 
 ---
@@ -125,9 +122,9 @@ enabled?: boolean
 
 // Select dropdown
 /** @type select
- *  @options low,medium,high
+ *  @options subtle,balanced,bold
  */
-quality?: string
+mode?: string
 ```
 
 ---
@@ -139,14 +136,12 @@ quality?: string
 In **breathe-together-v2**, Triplex exposes system toggles as props:
 
 ```typescript
-interface KootaSystemsProps {
+interface CanvasProviderProps {
   breathSystemEnabled?: boolean
   particlePhysicsSystemEnabled?: boolean
-  cursorPositionFromLandEnabled?: boolean
-  // ...
 }
 
-function KootaSystems({ breathSystemEnabled = true }: KootaSystemsProps) {
+function CanvasProvider({ breathSystemEnabled = true }: CanvasProviderProps) {
   useFrame(() => {
     if (breathSystemEnabled) breathSystem()
     // ...
@@ -157,7 +152,6 @@ function KootaSystems({ breathSystemEnabled = true }: KootaSystemsProps) {
 Then in Triplex, you can toggle these on/off to debug:
 - Disable breathSystem → see particles without animation
 - Disable physics → see particles freeze at rest
-- Disable rendering → see if rendering is the bottleneck
 
 ---
 

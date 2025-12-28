@@ -1,315 +1,121 @@
 # Triplex: Configuration Patterns
 
-Master advanced configuration techniques for Triplex.
+Keep Triplex configuration simple, predictable, and MVP-friendly.
 
 ## Quick Reference
 
-Configuration Hierarchy (highest to lowest priority):
+Configuration priority (highest to lowest):
 1. **Props** - Component instance props
-2. **Context** - TriplexConfigContext value
-3. **Defaults** - Component default values
+2. **Defaults** - Component default values
 
 ---
 
-## Pattern 1: Configuration Hierarchy
+## Pattern 1: Defaults + Prop Overrides
 
-### Setup
-
-```typescript
-// contexts/triplex.tsx
-export const TriplexConfigContext = createContext<TriplexConfig>({
-  quality: 'high',
-  performanceMode: false,
-  debugMode: false
-})
-
-export function TriplexConfigProvider({ children }) {
-  const [config, setConfig] = useState<TriplexConfig>({
-    quality: 'high',
-    performanceMode: false,
-    debugMode: false
-  })
-
-  return (
-    <TriplexConfigContext.Provider value={config}>
-      {children}
-    </TriplexConfigContext.Provider>
-  )
-}
-```
-
-### Usage
+Use local defaults in each component and allow props to override them.
 
 ```typescript
-function Component({ quality }: { quality?: 'low' | 'medium' | 'high' }) {
-  const contextConfig = useContext(TriplexConfigContext)
-
-  // Props override context
-  const effectiveQuality = quality ?? contextConfig.quality
-
-  return <div>Quality: {effectiveQuality}</div>
-}
-
-// In code: quality prop takes precedence
-<Component quality="low" />  {/* Uses 'low' */}
-
-// In Triplex: context value is default, can override
-// Slider shows 'high', but can be changed to 'low'
-```
-
----
-
-## Pattern 2: Quality Presets
-
-Define quality levels that affect multiple systems:
-
-```typescript
-type QualityLevel = 'low' | 'medium' | 'high'
-
-const QUALITY_PRESETS: Record<QualityLevel, QualityConfig> = {
-  low: {
-    particleCount: 100,
-    shadowMapSize: 512,
-    fov: 75,
-    dpr: 0.5,
-    renderScale: 0.5,
-  },
-  medium: {
-    particleCount: 200,
-    shadowMapSize: 1024,
-    fov: 75,
-    dpr: 1,
-    renderScale: 0.75,
-  },
-  high: {
-    particleCount: 300,
-    shadowMapSize: 2048,
-    fov: 75,
-    dpr: 1,
-    renderScale: 1,
-  },
-}
-
-function Canvas({ quality = 'high' }: { quality?: QualityLevel }) {
-  const preset = QUALITY_PRESETS[quality]
-
-  return (
-    <canvas
-      dpr={preset.dpr}
-      style={{ width: '100%', height: '100%' }}
-    >
-      <ParticleSystem count={preset.particleCount} />
-      <Lighting shadowMapSize={preset.shadowMapSize} />
-    </canvas>
-  )
+function BreathingLevel({
+  sphereColor = '#4dd9e8',
+  sphereOpacity = 0.15,
+  particleCount = 300,
+}: {
+  sphereColor?: string
+  sphereOpacity?: number
+  particleCount?: number
+}) {
+  // Use props directly
+  return <Scene sphereColor={sphereColor} particleCount={particleCount} />
 }
 ```
 
 ---
 
-## Pattern 3: System Toggle Flags
+## Pattern 2: System Toggle Flags
 
-Expose debugging controls via props:
+Expose ECS system toggles on the Canvas provider so you can isolate behavior.
 
 ```typescript
-interface KootaSystemsProps {
+interface CanvasProviderProps {
   /** @type toggle */
   breathSystemEnabled?: boolean
-
   /** @type toggle */
   particlePhysicsSystemEnabled?: boolean
-
-  /** @type toggle */
-  cursorPositionFromLandEnabled?: boolean
-
-  /** @type toggle */
-  velocityTowardsTargetEnabled?: boolean
-
-  /** @type toggle */
-  meshFromPositionEnabled?: boolean
-
-  /** @type toggle */
-  cameraFollowFocusedEnabled?: boolean
 }
 
-function KootaSystems({
-  breathSystemEnabled = true,
-  particlePhysicsSystemEnabled = true,
-  cursorPositionFromLandEnabled = true,
-  velocityTowardsTargetEnabled = true,
-  meshFromPositionEnabled = true,
-  cameraFollowFocusedEnabled = true,
-}: KootaSystemsProps) {
-  useFrame((state) => {
-    if (breathSystemEnabled) breathSystem(world, state.clock.elapsedTime)
-    if (particlePhysicsSystemEnabled) physicsSystem(world, state.clock.getDelta())
-    if (cursorPositionFromLandEnabled) cursorSystem(world)
-    if (velocityTowardsTargetEnabled) velocitySystem(world)
-    if (meshFromPositionEnabled) meshSystem(world)
-    if (cameraFollowFocusedEnabled) cameraSystem(world)
+function CanvasProvider({ breathSystemEnabled = true }: CanvasProviderProps) {
+  useFrame(() => {
+    if (breathSystemEnabled) breathSystem()
+    // ...
   })
 }
 ```
 
-In Triplex, you can toggle each system individually to see its effect.
+In Triplex, toggle systems to debug in isolation.
 
 ---
 
-## Pattern 4: Context + Props Merging
+## Pattern 3: Debug vs Production Scenes
 
-Combine context defaults with instance props:
+Use the debug scene only when you need diagnostics.
 
 ```typescript
-function Component(props: ComponentProps) {
-  const contextConfig = useContext(TriplexConfigContext)
+// Production
+<BreathingLevel particleCount={300} />
 
-  // Merge with sensible defaults
-  const config = useMemo(
-    () => ({
-      color: props.color ?? contextConfig.color ?? 'blue',
-      scale: props.scale ?? contextConfig.scale ?? 1,
-      speed: props.speed ?? contextConfig.speed ?? 5,
-    }),
-    [props, contextConfig]
-  )
+// Triplex / debug
+<BreathingDebugScene showTraitValues showParticleStats />
+```
 
-  // Use merged config
-  return <mesh scale={config.scale} />
+---
+
+## Pattern 4: JSDoc for Prop Documentation
+
+Document props so Triplex can surface useful controls.
+
+```typescript
+interface BreathingSceneProps {
+  /** @type color */
+  backgroundColor?: string
+
+  /** @type slider @min 0 @max 1 @step 0.01 */
+  sphereOpacity?: number
+
+  /** @type slider @min 50 @max 600 @step 50 */
+  particleCount?: number
+
+  /** @type toggle */
+  enableStars?: boolean
 }
 ```
 
 ---
 
-## Pattern 5: Dynamic Configuration
+## Pattern 5: Validate Ranges
 
-Change configuration based on device or performance:
-
-```typescript
-function AdaptiveCanvas() {
-  const [quality, setQuality] = useState<QualityLevel>('high')
-
-  useEffect(() => {
-    // Detect device capabilities
-    const isLowEnd = /Android|webOS|iPhone|iPad|iPod|BlackBerry/i.test(
-      navigator.userAgent
-    )
-
-    if (isLowEnd) {
-      setQuality('low')
-    }
-  }, [])
-
-  return (
-    <Canvas>
-      <KootaSystems quality={quality} />
-    </Canvas>
-  )
-}
-```
-
----
-
-## Pattern 6: Development vs Production
-
-### Development Config
+Clamp values to keep inputs safe.
 
 ```typescript
-const DEV_CONFIG = {
-  debugMode: true,
-  showStats: true,
-  showHelpers: true,
-  breathSystemEnabled: true,
-  particlePhysicsSystemEnabled: true,
-  // All systems enabled
-}
-```
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value))
 
-### Production Config
-
-```typescript
-const PROD_CONFIG = {
-  debugMode: false,
-  showStats: false,
-  showHelpers: false,
-  // Only essential systems
-  breathSystemEnabled: true,
-  particlePhysicsSystemEnabled: true,
-}
-
-const config = process.env.NODE_ENV === 'development' ? DEV_CONFIG : PROD_CONFIG
-```
-
----
-
-## Pattern 7: JSDoc for Prop Documentation
-
-Document props for Triplex discovery:
-
-```typescript
-/**
- * Breathing meditation visualization
- *
- * @component
- *
- * @param {Object} props
- * @param {string} props.backgroundColor - @type color - Scene background
- * @param {number} props.particleSize - @type slider @min 0.1 @max 5 @step 0.1 - Size of particles
- * @param {'low'|'medium'|'high'} props.quality - @type select @options low,medium,high - Visual quality level
- * @param {boolean} props.showDebug - @type toggle - Show debug overlays
- *
- * @example
- * <BreathingScene quality="high" particleSize={2} />
- */
-function BreathingScene({
-  backgroundColor = '#000000',
-  particleSize = 1,
-  quality = 'high',
-  showDebug = false,
-}: BreathingSceneProps) {
-  // ...
-}
-```
-
----
-
-## Pattern 8: Configuration Validation
-
-Validate configuration values:
-
-```typescript
-function validateConfig(config: TriplexConfig): TriplexConfig {
-  return {
-    quality: ['low', 'medium', 'high'].includes(config.quality)
-      ? config.quality
-      : 'high',
-
-    particleCount: Math.max(0, Math.min(1000, config.particleCount ?? 300)),
-
-    speed: Math.max(0.1, Math.min(10, config.speed ?? 1)),
-  }
-}
-
-// Use validated config
-const validConfig = validateConfig(rawConfig)
+const safeOpacity = clamp(sphereOpacity ?? 0.15, 0, 1)
+const safeParticleCount = clamp(particleCount ?? 300, 50, 600)
 ```
 
 ---
 
 ## Pro Tips
 
-1. Use context for global settings, props for instance overrides
-2. Create quality presets for common configurations
-3. Expose system toggles for debugging
-4. Use JSDoc annotations for prop discovery in Triplex
-5. Validate configuration to prevent invalid states
-6. Separate dev and production configs
-7. Make quality levels progressive (low → medium → high)
+1. Keep props minimal; add more only when you need them.
+2. Prefer a single default path; avoid multiple presets during MVP.
+3. Use debug scenes for diagnostics instead of production flags.
+4. Document props with JSDoc so Triplex stays usable.
 
 ---
 
 ## Related Resources
 
 - [Triplex Configuration](https://triplex.dev/docs/config)
-- [React Context API](https://react.dev/reference/react/useContext)
 - [Previous: Getting Started](./01-getting-started.md)
 - [Next: Koota Integration](./03-koota-integration.md)

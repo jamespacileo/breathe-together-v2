@@ -68,7 +68,7 @@ The following files are editable in Triplex (inside the main scene):
 
 **3D Components:**
 - `src/entities/breathingSphere/index.tsx` — Central sphere (color, opacity, detail)
-- `src/entities/particleSystem/index.tsx` — Particle orbit system (particle count, size, color)
+- `src/entities/particle/index.tsx` — Particle orbit system (particle count, size, color)
 - `src/entities/environment/index.tsx` — Sky stars, floor, and lighting
 
 **UI Components:**
@@ -117,7 +117,7 @@ Open `src/entities/breathingSphere/index.tsx` and click the CodeLens link above 
 2. Click the **"Open in Triplex"** link above `export function BreathingLevel()`
 3. **Navigate in the component tree** (left sidebar):
    - Expand `BreathingSphere` → See sphere meshes and props
-   - Expand `ParticleSystem` → See particle instance mesh
+   - Expand `ParticleRenderer` → See particle instance mesh
    - Expand `Environment` → See stars, floor, lights
 4. **Select a component** → Props appear in the sidebar
 5. **Edit props** → Changes appear instantly in the 3D viewport
@@ -173,7 +173,7 @@ The central sphere pulses with breathing. You can customize:
 
 ### 2️⃣ Edit the Particle System (User Presence)
 
-**File:** `src/entities/particleSystem/index.tsx`
+**File:** `src/entities/particle/index.tsx`
 
 300+ particles represent users breathing together. Customize the particle behavior:
 
@@ -281,7 +281,7 @@ If these are missing, animations won't run and scene will appear dark.
 ```typescript
 <KootaSystems
   breathSystemEnabled={true}  // ← Must be true
-  cameraFollowFocusedSystem={false}
+  particlePhysicsSystemEnabled={true}
   // ...
 >
   <BreathEntity />  {/* ← Must be present */}
@@ -329,8 +329,8 @@ code --enable-coi
 
 ### Quick Wins (1-2 minutes each)
 
-1. **Edit ParticleSystem Density:**
-   - Open `src/entities/particleSystem/index.tsx` in Triplex
+1. **Edit ParticleRenderer Density:**
+   - Open `src/entities/particle/index.tsx` in Triplex
    - Change `totalCount` from 300 to 500
    - Watch the particle cloud become denser
    - Reset to 300 when done
@@ -349,7 +349,7 @@ code --enable-coi
    - Watch the entire scene brighten
 
 4. **Make Particles Bigger:**
-   - Open `src/entities/particleSystem/index.tsx` in Triplex
+   - Open `src/entities/particle/index.tsx` in Triplex
    - Change `particleSize` from 0.05 to 0.1
    - Particles become twice as large
 

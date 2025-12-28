@@ -35,32 +35,13 @@ export function BreathingLevel({
   backgroundColor = DEFAULT_PROPS.backgroundColor,
   sphereColor = DEFAULT_PROPS.sphereColor,
   sphereOpacity = DEFAULT_PROPS.sphereOpacity,
-  sphereSegments = DEFAULT_PROPS.sphereSegments,
+  sphereDetail = DEFAULT_PROPS.sphereDetail,
 
-  // Lighting - Ambient defaults
+  // Lighting defaults
   ambientIntensity = DEFAULT_PROPS.ambientIntensity,
   ambientColor = DEFAULT_PROPS.ambientColor,
-
-  // Lighting - Key defaults
-  keyPosition = DEFAULT_PROPS.keyPosition,
   keyIntensity = DEFAULT_PROPS.keyIntensity,
   keyColor = DEFAULT_PROPS.keyColor,
-
-  // Lighting - Fill defaults
-  fillPosition = DEFAULT_PROPS.fillPosition,
-  fillIntensity = DEFAULT_PROPS.fillIntensity,
-  fillColor = DEFAULT_PROPS.fillColor,
-
-  // Lighting - Rim defaults
-  rimPosition = DEFAULT_PROPS.rimPosition,
-  rimIntensity = DEFAULT_PROPS.rimIntensity,
-  rimColor = DEFAULT_PROPS.rimColor,
-
-  // Lighting - Toggle defaults
-  enableAmbient = DEFAULT_PROPS.enableAmbient,
-  enableKey = DEFAULT_PROPS.enableKey,
-  enableFill = DEFAULT_PROPS.enableFill,
-  enableRim = DEFAULT_PROPS.enableRim,
 
   // Environment defaults
   starsCount = DEFAULT_PROPS.starsCount,
@@ -81,21 +62,10 @@ export function BreathingLevel({
 
       {/* Refined layered lighting (all props editable in Triplex) */}
       <Lighting
-        enableAmbient={enableAmbient}
-        enableKey={enableKey}
-        enableFill={enableFill}
-        enableRim={enableRim}
         ambientIntensity={ambientIntensity}
         ambientColor={ambientColor}
-        keyPosition={keyPosition}
         keyIntensity={keyIntensity}
         keyColor={keyColor}
-        fillPosition={fillPosition}
-        fillIntensity={fillIntensity}
-        fillColor={fillColor}
-        rimPosition={rimPosition}
-        rimIntensity={rimIntensity}
-        rimColor={rimColor}
       />
 
       <Environment
@@ -109,7 +79,7 @@ export function BreathingLevel({
         lightIntensityRange={lightIntensityRange}
       />
 
-      <BreathingSphere color={sphereColor} opacity={sphereOpacity} segments={sphereSegments} />
+      <BreathingSphere color={sphereColor} opacity={sphereOpacity} detail={sphereDetail} />
 
       <ParticleSpawner totalCount={particleCount} />
       <ParticleRenderer totalCount={particleCount} />

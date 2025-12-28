@@ -33,19 +33,15 @@ This codebase uses **Entity-Component-System (ECS)** via Koota for decoupling be
 **Systems:**
 - Pure functions called every frame in sequence (order matters!)
 - Query entities by trait combinations and update them
-- Defined in `src/shared/systems.tsx` and entity-specific files
-- Execution order is critical and defined in `src/providers.tsx` → `KootaSystems` component
+- Defined in entity-specific files (e.g. `src/entities/breath/systems.tsx`)
+- Execution order is defined in `src/providers.tsx` → `KootaSystems` component
 
 ### Core Behavior Loop
 
 Systems run in this sequence each frame (see `src/providers.tsx`):
 
 1. **breathSystem** — Updates breath phase, radius, scale based on UTC time
-2. **cursorPositionFromLandSystem** — Ray-cast cursor from camera to land
-3. **velocityTowardsTargetSystem** — Move entities toward their targets
-4. **positionFromVelocity** — Update positions based on velocity
-5. **meshFromPosition** — Sync Three.js transforms with position traits
-6. **cameraFollowFocusedSystem** — Move camera to follow focused entity
+2. **particlePhysicsSystem** — Updates particle positions and velocities
 
 ## Project Structure
 
@@ -54,18 +50,13 @@ src/
 ├── entities/              # ECS entities (React components + trait spawning)
 │   ├── breath/           # Central breathing state (traits + breathSystem)
 │   ├── breathingSphere/  # Visual 3D sphere (scales with breathing phase)
-│   ├── particleSystem/   # 300 particles (user presence, mood colors)
-│   ├── camera/           # Follows focused entity
-│   ├── controller/       # Point-and-click movement
-│   ├── cursor/           # Cursor position tracking
-│   └── land/             # Terrain
+│   ├── particle/         # Presence particles (mood colors)
+│   └── camera/           # CameraRig (non-ECS)
 ├── levels/               # "Level" scenes (breathing.tsx is main, debug.tsx for testing)
 ├── components/           # React UI components (BreathingHUD overlay)
-├── hooks/               # usePresence — fetches user presence data
+├── hooks/               # usePresence — simulated presence data
 ├── shared/
-│   ├── traits.tsx       # Common traits (Position, Velocity, etc.)
-│   ├── systems.tsx      # Common systems (meshFromPosition, camera, velocity)
-│   └── math.tsx         # Utilities (easeInOutQuad, etc.)
+│   └── traits.tsx       # Common traits (Position, Velocity, etc.)
 ├── lib/
 │   ├── breathCalc.ts    # Pure breath calculation (returns phase, radius, scale)
 │   ├── fibonacciSphere.ts  # Even particle distribution on sphere
@@ -84,11 +75,11 @@ tsconfig.json               # Strict TypeScript
 
 Located in `src/lib/breathCalc.ts`, this is a pure function that returns the current breath state based on UTC time. It's called by `breathSystem` each frame.
 
-**Box breathing cycle (16 seconds total):**
-- 0-4s: Inhale
-- 4-8s: Hold
-- 8-12s: Exhale
-- 12-16s: Hold
+**Box breathing cycle (16 seconds total, asymmetric phases):**
+- 0-3s: Inhale
+- 3-8s: Hold-in
+- 8-13s: Exhale
+- 13-16s: Hold-out
 
 **Outputs:**
 - `breathPhase` (0-1): Position in current phase
@@ -102,10 +93,6 @@ Located in `src/lib/breathCalc.ts`, this is a pure function that returns the cur
 ## Testing
 
 **Status:** No automated test framework configured. TypeScript typecheck is the primary validation.
-
-Manual test files exist:
-- `/test-breath-calc.js` — Breath calculation tests
-- `/test-presence-integration.js` — Presence API tests
 
 To add automated testing, consider Vitest (integrates with Vite).
 
@@ -124,13 +111,13 @@ GitHub Actions (`.github/workflows/pages.yml`) auto-deploys on every push to `ma
 
 ## Presence & User Data
 
-**Fetching:**
-- `src/hooks/usePresence.ts` — TanStack React Query hook
-- Queries a presence endpoint (or uses mock data in `src/lib/mockPresence.ts`)
-- Returns array of { userId, mood, avatarId, participantCount }
+**Presence (MVP):**
+- `src/hooks/usePresence.ts` — simulated presence data only
+- Uses `src/lib/mockPresence.ts` to generate counts
+- No network calls or heartbeats
 
 **Particles:**
-- `src/entities/particleSystem/index.tsx` uses presence data
+- `src/entities/particle/index.tsx` uses presence data
 - 300 particles distributed on Fibonacci sphere (even coverage)
 - Colors map moods to RGB (see `src/lib/colors.ts`)
 - Animations: orbit radius and scale driven by breathing phase
@@ -149,50 +136,32 @@ Triplex is a visual 3D component editor integrated into the dev server.
 - Changes hot-reload
 - Use `.triplex/config.json` to configure the editor
 
-### Triplex Integration: Quality Presets & Progressive Disclosure
+### Triplex Integration: Focused Controls
 
-The codebase uses a **quality preset system** to reduce cognitive load in Triplex from 54 simultaneous props down to 8 commonly-used controls.
+The MVP keeps Triplex props intentionally small and high-signal. Defaults live in
+`src/config/sceneDefaults.ts`, and types are centralized in `src/types/sceneProps.ts`.
 
-**Quality Presets:**
-- **low** — Mobile-friendly (100 particles, basic lighting, reduced visual effects)
-- **medium** — Production default (300 particles, balanced lighting, standard visuals)
-- **high** — High-end visuals (500 particles, enhanced lighting, premium effects)
-- **custom** — Manual control (unlock all 54+ props for advanced tuning)
+**Primary controls (most used):**
+- `backgroundColor`, `sphereColor`, `sphereOpacity`, `sphereDetail`
+- `particleCount`
+- `ambientIntensity`, `ambientColor`, `keyIntensity`, `keyColor`
 
-**Using Presets:**
+**Environment toggles:**
+- `enableStars`, `starsCount`
+- `enableFloor`, `floorColor`, `floorOpacity`
+- `enablePointLight`, `lightIntensityMin`, `lightIntensityRange`
+
+**Debug-only (debug scene):**
+- Manual controls: `enableManualControl`, `manualPhase`, `isPaused`, `timeScale`, `jumpToPhase`
+- Visual overlays: `showOrbitBounds`, `showPhaseMarkers`, `showTraitValues`
+- Particle debug: `showParticleTypes`, `showParticleStats`
+- Experimental: `curveType`, `waveDelta`, `showCurveInfo`
+
+**Examples:**
 ```typescript
-// Production scene with medium preset (default)
-<BreathingLevel qualityPreset="medium" />
-
-// Mobile-friendly configuration
-<BreathingLevel qualityPreset="low" sphereColor="#ff0000" />
-
-// Manual override (preset + prop)
-<BreathingLevel qualityPreset="medium" sphereOpacity={0.8} />
+<BreathingLevel sphereColor="#ff0000" particleCount={200} />
+<BreathingDebugScene showParticleStats enableManualControl />
 ```
-
-### Prop Organization: 4-Tier System
-
-Props are organized hierarchically to avoid overwhelming the editor UI:
-
-**Tier 1: Preset Selection (1 prop)**
-- `qualityPreset` — Switches between predefined configurations
-- Use when you want to quickly change overall visual style
-
-**Tier 2: Primary Controls (7-8 props)**
-- Always visible: `backgroundColor`, `sphereColor`, `ambientIntensity`, `particleCount`
-- Most frequently adjusted during prototyping
-- Example: Changing background color or sphere hue
-
-**Tier 3: Advanced Tuning (20-25 props)**
-- Only visible when `qualityPreset = "custom"`
-- Fine-grained control: fresnel power, crystallization, individual light colors, particle geometry
-- Example: Fine-tuning lighting ratio or particle physics
-
-**Tier 4: Debug Overlays (15-20 props)**
-- Only in debug/experimental scenes (not production)
-- Visualization toggles: axes, grids, orbit bounds, trait values
-- Zero production impact
 
 ### Shared Types & Centralized Defaults
 
@@ -207,7 +176,6 @@ All visual and lighting props are defined once for consistency:
 **Defaults & metadata:** `src/config/sceneDefaults.ts`
 - `VISUAL_DEFAULTS` — Visual defaults with "when to adjust" guidance
 - `LIGHTING_DEFAULTS` — Lighting setup with interaction hints
-- `QUALITY_PRESETS` — Predefined configurations (low/medium/high)
 - `getDefaultValues()` — Helper to extract values for prop spreading
 
 **Why centralized?**
@@ -272,34 +240,18 @@ All 171+ entity props follow this standardized format for consistent help text:
 - Inconsistent help text ("glow" vs. "intensity" vs. "pulsing")
 - Hard to find production baseline
 
-**After:** Progressive disclosure + standardized help
-- Default view shows 8 primary props (background, sphere, lights, particles)
-- Custom mode unlocks full 54 props when needed
+**After:** Focused controls + standardized help
+- Default view shows core props (background, sphere, lights, particles)
+- Debug/experimental props live only in debug scenes
 - "When to adjust" contextual guidance answers "why would I change this?"
 - "Typical range" with visual landmarks (Dim/Standard/Bright) makes tuning intuitive
 - "Interacts with" hints show related props
 - All props link back to `sceneDefaults.ts` for single source of truth
 
-### Extending Presets
+### Adjusting Defaults
 
-To create a custom preset in `src/config/sceneDefaults.ts`:
-
-```typescript
-export const QUALITY_PRESETS = {
-  // ... existing low/medium/high
-  custom_mobile: {
-    particleCount: 50,
-    ambientIntensity: 0.6,
-    keyIntensity: 1.0,
-    // Override any props from VISUAL_DEFAULTS or LIGHTING_DEFAULTS
-  },
-};
-```
-
-Then use in scenes:
-```typescript
-<BreathingLevel qualityPreset="custom_mobile" />
-```
+To adjust Triplex defaults, edit `src/config/sceneDefaults.ts` and update the relevant
+`*_DEFAULTS` value. For runtime defaults, use `src/constants.ts` and component defaults.
 
 ## Important Implementation Details
 
@@ -307,10 +259,10 @@ Then use in scenes:
 All breathing state is derived from `Date.now()` % cycle length. This ensures every user breathes in sync globally without needing real-time communication.
 
 ### Easing
-Box breathing uses `easeInOutQuad` for smooth, natural-feeling transitions. See `src/shared/math.tsx`.
+Box breathing uses `easeInOutQuad` for smooth, natural-feeling transitions. See `src/lib/breathCalc.ts`.
 
 ### Instanced Rendering
-ParticleSystem uses Three.js instanced mesh for performance (300 particles = 1 draw call).
+ParticleRenderer uses two instanced meshes (user + filler) for 2 draw calls.
 
 ### Fresnel Shader
 BreathingSphere uses Three.js `Fresnel` shader for edge glow that intensifies during inhale.
@@ -324,7 +276,7 @@ Branch: `main` (no uncommitted changes in tracked files)
 
 Modified but staged changes:
 - `src/entities/breathingSphere/index.tsx`
-- `src/entities/particleSystem/index.tsx`
+- `src/entities/particle/index.tsx`
 
 ## Common Development Patterns
 
@@ -361,9 +313,9 @@ Modified but staged changes:
 - `typescript` 5.8 — Type safety
 
 **Important:**
-- `gsap` — Animation tweens
-- `@tanstack/react-query` — Server state (presence data)
 - `@react-three/drei` — Three.js helpers (Fresnel shader, etc.)
+- `maath` — Easing helpers
+- `simplex-noise` — Particle wind noise
 - `vite` — Build tool
 
 See `package.json` for full dependency tree and versions.

@@ -7,7 +7,7 @@
  * - Removed useState from RAF loop (was causing 60fps React re-renders)
  * - Now reads breath state directly from Koota world (single source of truth)
  * - Updates DOM directly via useRef (no React reconciliation)
- * - User count still uses usePresence hook (optimized with 5s polling)
+ * - User count uses simulated presence data for MVP
  */
 
 import { useRef } from 'react';
@@ -31,7 +31,7 @@ export function BreathingHUD() {
   });
 
   // Get user count from presence (optimized with 5s polling)
-  const { count: userCount } = usePresence({ simulated: false, pollInterval: 5000 });
+  const { count: userCount } = usePresence();
 
   return (
     <div className="breathing-hud">

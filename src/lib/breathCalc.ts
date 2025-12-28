@@ -1,4 +1,5 @@
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
+import type { BreathState } from '../types';
 
 /**
  * Easing functions for different breath energies
@@ -16,20 +17,10 @@ function easeInOutQuad(t: number): number {
 }
 
 /**
- * Breath state interface
  * Breath Phase Convention:
  * - breathPhase: 0 = fully exhaled (particles expanded, orb contracted)
  *                1 = fully inhaled (particles contracted, orb expanded)
  */
-export interface BreathState {
-  breathPhase: number; // 0-1 (Target)
-  phaseType: number; // 0-3: inhale, hold-in, exhale, hold-out
-  rawProgress: number; // 0-1 within phase
-  easedProgress: number; // Smoothed progress
-  crystallization: number; // Stillness during holds (Target)
-  sphereScale: number;
-  orbitRadius: number;
-}
 
 /**
  * Phase configuration for data-driven calculation

@@ -22,10 +22,8 @@ import { Html } from '@react-three/drei';
 import { useMemo } from 'react';
 import { BreathDebugVisuals } from '../components/BreathDebugVisuals';
 import { ParticleDebugVisuals } from '../components/ParticleDebugVisuals';
-import { PresetIndicator } from '../components/PresetIndicator';
 import {
   BREATHING_DEBUG_DEFAULTS,
-  createParticleConfigs,
   ENVIRONMENT_DEFAULTS,
   EXPERIMENTAL_DEFAULTS,
   getDefaultValues,
@@ -34,8 +32,6 @@ import {
   VISUAL_DEFAULTS,
 } from '../config/sceneDefaults';
 import { type BreathDebugConfig, BreathDebugProvider } from '../contexts/breathDebug';
-import { type ParticleDebugConfig, ParticleDebugProvider } from '../contexts/particleDebug';
-import type { ParticleVisualConfig } from '../entities/particle/config';
 import type { BreathingDebugSceneProps } from '../types/sceneProps';
 import { BreathingLevel } from './breathing';
 
@@ -73,32 +69,13 @@ export function BreathingDebugScene({
   backgroundColor = DEFAULT_PROPS.backgroundColor,
   sphereColor = DEFAULT_PROPS.sphereColor,
   sphereOpacity = DEFAULT_PROPS.sphereOpacity,
-  sphereSegments = DEFAULT_PROPS.sphereSegments,
+  sphereDetail = DEFAULT_PROPS.sphereDetail,
 
-  // Lighting - Ambient
+  // Lighting
   ambientIntensity = DEFAULT_PROPS.ambientIntensity,
   ambientColor = DEFAULT_PROPS.ambientColor,
-
-  // Lighting - Key
-  keyPosition = DEFAULT_PROPS.keyPosition,
   keyIntensity = DEFAULT_PROPS.keyIntensity,
   keyColor = DEFAULT_PROPS.keyColor,
-
-  // Lighting - Fill
-  fillPosition = DEFAULT_PROPS.fillPosition,
-  fillIntensity = DEFAULT_PROPS.fillIntensity,
-  fillColor = DEFAULT_PROPS.fillColor,
-
-  // Lighting - Rim
-  rimPosition = DEFAULT_PROPS.rimPosition,
-  rimIntensity = DEFAULT_PROPS.rimIntensity,
-  rimColor = DEFAULT_PROPS.rimColor,
-
-  // Lighting - Toggle defaults
-  enableAmbient = DEFAULT_PROPS.enableAmbient,
-  enableKey = DEFAULT_PROPS.enableKey,
-  enableFill = DEFAULT_PROPS.enableFill,
-  enableRim = DEFAULT_PROPS.enableRim,
 
   // Environment
   starsCount = DEFAULT_PROPS.starsCount,
@@ -113,15 +90,6 @@ export function BreathingDebugScene({
   // Particles
   particleCount = DEFAULT_PROPS.particleCount,
 
-  // Particle Debug Controls
-  userParticleGeometry = DEFAULT_PROPS.userParticleGeometry,
-  userParticleDetail = DEFAULT_PROPS.userParticleDetail,
-  userParticleScale = DEFAULT_PROPS.userParticleScale,
-  userParticlePulse = DEFAULT_PROPS.userParticlePulse,
-  fillerParticleGeometry = DEFAULT_PROPS.fillerParticleGeometry,
-  fillerParticleDetail = DEFAULT_PROPS.fillerParticleDetail,
-  fillerParticleScale = DEFAULT_PROPS.fillerParticleScale,
-  fillerParticlePulse = DEFAULT_PROPS.fillerParticlePulse,
   showParticleTypes = DEFAULT_PROPS.showParticleTypes,
   showParticleStats = DEFAULT_PROPS.showParticleStats,
 }: Partial<BreathingDebugSceneProps> = {}) {
@@ -164,161 +132,84 @@ export function BreathingDebugScene({
     showTraitValues,
   ]);
 
-  // Build particle debug config from props
-  const particleDebugConfig = useMemo<ParticleDebugConfig | null>(() => {
-    // Only create config if we have at least one particle debug property set
-    const hasParticleProps =
-      userParticleGeometry !== DEFAULT_PROPS.userParticleGeometry ||
-      userParticleDetail !== DEFAULT_PROPS.userParticleDetail ||
-      userParticleScale !== DEFAULT_PROPS.userParticleScale ||
-      userParticlePulse !== DEFAULT_PROPS.userParticlePulse ||
-      fillerParticleGeometry !== DEFAULT_PROPS.fillerParticleGeometry ||
-      fillerParticleDetail !== DEFAULT_PROPS.fillerParticleDetail ||
-      fillerParticleScale !== DEFAULT_PROPS.fillerParticleScale ||
-      fillerParticlePulse !== DEFAULT_PROPS.fillerParticlePulse ||
-      showParticleTypes ||
-      showParticleStats;
-
-    if (!hasParticleProps) {
-      return null;
-    }
-
-    // Use default configs as base, then override with current values
-    const defaultConfigs = createParticleConfigs();
-
-    const userConfig: ParticleVisualConfig = {
-      geometry: {
-        type: userParticleGeometry,
-        size: 1,
-        detail: userParticleDetail,
-      },
-      material: defaultConfigs.userConfig.material,
-      size: {
-        baseScale: userParticleScale,
-        breathPulseIntensity: userParticlePulse,
-      },
-    };
-
-    const fillerConfig: ParticleVisualConfig = {
-      geometry: {
-        type: fillerParticleGeometry,
-        size: 1,
-        detail: fillerParticleDetail,
-      },
-      material: defaultConfigs.fillerConfig.material,
-      size: {
-        baseScale: fillerParticleScale,
-        breathPulseIntensity: fillerParticlePulse,
-      },
-    };
-
-    return {
-      userConfig,
-      fillerConfig,
-      showParticleTypes,
-      showParticleStats,
-    };
-  }, [
-    userParticleGeometry,
-    userParticleDetail,
-    userParticleScale,
-    userParticlePulse,
-    fillerParticleGeometry,
-    fillerParticleDetail,
-    fillerParticleScale,
-    fillerParticlePulse,
-    showParticleTypes,
-    showParticleStats,
-  ]);
-
   return (
-    <ParticleDebugProvider config={particleDebugConfig}>
-      <BreathDebugProvider config={debugConfig}>
-        {/* Show active preset indicator */}
-        <PresetIndicator activePreset="medium" />
+    <BreathDebugProvider config={debugConfig}>
+      <BreathingLevel
+        backgroundColor={backgroundColor}
+        sphereColor={sphereColor}
+        sphereOpacity={sphereOpacity}
+        sphereDetail={sphereDetail}
+        ambientIntensity={ambientIntensity}
+        ambientColor={ambientColor}
+        keyIntensity={keyIntensity}
+        keyColor={keyColor}
+        starsCount={starsCount}
+        floorColor={floorColor}
+        enableStars={enableStars}
+        enableFloor={enableFloor}
+        floorOpacity={floorOpacity}
+        enablePointLight={enablePointLight}
+        lightIntensityMin={lightIntensityMin}
+        lightIntensityRange={lightIntensityRange}
+        particleCount={particleCount}
+      />
 
-        <BreathingLevel
-          backgroundColor={backgroundColor}
-          sphereColor={sphereColor}
-          sphereOpacity={sphereOpacity}
-          sphereSegments={sphereSegments}
-          enableAmbient={enableAmbient}
-          enableKey={enableKey}
-          enableFill={enableFill}
-          enableRim={enableRim}
-          ambientIntensity={ambientIntensity}
-          ambientColor={ambientColor}
-          keyPosition={keyPosition}
-          keyIntensity={keyIntensity}
-          keyColor={keyColor}
-          fillPosition={fillPosition}
-          fillIntensity={fillIntensity}
-          fillColor={fillColor}
-          rimPosition={rimPosition}
-          rimIntensity={rimIntensity}
-          rimColor={rimColor}
-          starsCount={starsCount}
-          floorColor={floorColor}
-          particleCount={particleCount}
-        />
+      {/* Debug Visualizations */}
+      <BreathDebugVisuals
+        showOrbitBounds={showOrbitBounds}
+        showPhaseMarkers={showPhaseMarkers}
+        showTraitValues={showTraitValues}
+      />
 
-        {/* Debug Visualizations */}
-        <BreathDebugVisuals
-          showOrbitBounds={showOrbitBounds}
-          showPhaseMarkers={showPhaseMarkers}
-          showTraitValues={showTraitValues}
-        />
+      {/* Particle Debug Visualizations */}
+      <ParticleDebugVisuals
+        showParticleTypes={showParticleTypes}
+        showParticleStats={showParticleStats}
+      />
 
-        {/* Particle Debug Visualizations */}
-        <ParticleDebugVisuals
-          showParticleTypes={showParticleTypes}
-          showParticleStats={showParticleStats}
-        />
-
-        {/* Debug Control Info Overlay */}
-        {(enableManualControl || isPaused || timeScale !== 1.0 || jumpToPhase !== undefined) && (
-          <Html position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
+      {/* Debug Control Info Overlay */}
+      {(enableManualControl || isPaused || timeScale !== 1.0 || jumpToPhase !== undefined) && (
+        <Html position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
+          <div
+            style={{
+              position: 'fixed',
+              top: 20,
+              left: 20,
+              background: 'rgba(0, 0, 0, 0.85)',
+              border: '1px solid rgba(255, 200, 0, 0.6)',
+              borderRadius: 8,
+              padding: 16,
+              color: '#ffc800',
+              fontFamily: 'monospace',
+              fontSize: 12,
+              zIndex: 1000,
+              lineHeight: 1.6,
+              maxWidth: 300,
+            }}
+          >
+            <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Breath Debug Controls</div>
+            {enableManualControl && <div>Phase: {manualPhase.toFixed(3)}</div>}
+            {isPaused && <div>Status: ⏸ PAUSED</div>}
+            {timeScale !== 1.0 && <div>Speed: {timeScale.toFixed(1)}x</div>}
+            {jumpToPhase !== undefined && (
+              <div>Jump: {['Inhale', 'Hold-in', 'Exhale', 'Hold-out'][jumpToPhase]}</div>
+            )}
             <div
               style={{
-                position: 'fixed',
-                top: 20,
-                left: 20,
-                background: 'rgba(0, 0, 0, 0.85)',
-                border: '1px solid rgba(255, 200, 0, 0.6)',
-                borderRadius: 8,
-                padding: 16,
-                color: '#ffc800',
-                fontFamily: 'monospace',
-                fontSize: 12,
-                zIndex: 1000,
-                lineHeight: 1.6,
-                maxWidth: 300,
+                fontSize: 10,
+                marginTop: 8,
+                opacity: 0.7,
+                color: '#ffcc99',
               }}
             >
-              <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Breath Debug Controls</div>
-              {enableManualControl && <div>Phase: {manualPhase.toFixed(3)}</div>}
-              {isPaused && <div>Status: ⏸ PAUSED</div>}
-              {timeScale !== 1.0 && <div>Speed: {timeScale.toFixed(1)}x</div>}
-              {jumpToPhase !== undefined && (
-                <div>Jump: {['Inhale', 'Hold-in', 'Exhale', 'Hold-out'][jumpToPhase]}</div>
-              )}
-              <div
-                style={{
-                  fontSize: 10,
-                  marginTop: 8,
-                  opacity: 0.7,
-                  color: '#ffcc99',
-                }}
-              >
-                Debug traits active.
-                <br />
-                Production app unaffected.
-              </div>
+              Debug traits active.
+              <br />
+              Production app unaffected.
             </div>
-          </Html>
-        )}
-      </BreathDebugProvider>
-    </ParticleDebugProvider>
+          </div>
+        </Html>
+      )}
+    </BreathDebugProvider>
   );
 }
 
