@@ -61,37 +61,46 @@ export const BREATH_TOTAL_CYCLE = 16; // seconds
  */
 export const VISUALS = {
   // Sphere - Organic warmth with saturated cool-warm color journey
-  SPHERE_SCALE_MIN: 0.6,
-  SPHERE_SCALE_MAX: 1.4,
-  SPHERE_COLOR_EXHALE: '#a8d8e0', // Saturated cool blue (exhale = calm, releasing)
-  SPHERE_COLOR_INHALE: '#ffe8c8', // Saturated warm cream (inhale = energizing, receiving)
-  SPHERE_OPACITY: 0.15,
+  SPHERE_SCALE_MIN: 0.3, // Significantly reduced (was 0.6)
+  SPHERE_SCALE_MAX: 0.7, // Significantly reduced (was 1.4)
+  SPHERE_COLOR_EXHALE: '#b8e2e8', // Softer, lighter cool blue (was #a8d8e0)
+  SPHERE_COLOR_INHALE: '#ffe0b0', // Deeper pastel warm cream (was #fff0db)
+  SPHERE_OPACITY: 0.12, // Slightly more ethereal (was 0.15)
 
   // Particles
-  PARTICLE_ORBIT_MIN: 1.5, // Closer to surface on inhale
-  PARTICLE_ORBIT_MAX: 3.5,
+  PARTICLE_ORBIT_MIN: 0.8, // Tighter to small sphere surface (was 1.1)
+  PARTICLE_ORBIT_MAX: 6.0, // Much wider expansion (was 4.5)
   PARTICLE_COUNT: 300,
   PARTICLE_SIZE: 0.05,
   PARTICLE_FILLER_COLOR: '#6B8A9C',
   PARTICLE_COLOR_DAMPING: 1.5,
 
-  // Physics Tunables
+  // Physics Tunables (Static - legacy)
   PARTICLE_DRAG: 0.8,
   SPRING_STIFFNESS: 5.0,
+
+  // Reactive Physics (Phase 2 & 3)
+  // Inhale: Tight and fast (higher stiffness, lower drag for energy)
+  // Exhale: Loose and viscous (lower stiffness, higher drag for relaxation)
+  PARTICLE_DRAG_INHALE: 0.7,
+  PARTICLE_DRAG_EXHALE: 0.9,
+  SPRING_STIFFNESS_INHALE: 12.0, // Snappier gathering (was 8.0)
+  SPRING_STIFFNESS_EXHALE: 3.0,
+
   JITTER_STRENGTH: 0.1,
   REPULSION_POWER: 2.0,
   REPULSION_STRENGTH: 1.5,
 
   // Environment - Organic & Natural with atmospheric depth
-  AMBIENT_LIGHT_INTENSITY: 0.3,
+  AMBIENT_LIGHT_INTENSITY: 0.45, // More grounded, less harsh contrast (was 0.3)
 
   // Lighting - Warm-cool balance with organic color journey
-  KEY_LIGHT_INTENSITY_MIN: 0.3, // Subtler, less harsh (was 0.4)
-  KEY_LIGHT_COLOR: '#e8c4a4', // Warm peach-sand during inhale (was cool cyan)
-  FILL_LIGHT_INTENSITY: 0.2,
-  FILL_LIGHT_COLOR: '#6ba8a8', // Cool teal-green (was cool blue)
-  RIM_LIGHT_INTENSITY: 0.15,
-  RIM_LIGHT_COLOR: '#d4e8f0', // Pale cyan
+  KEY_LIGHT_INTENSITY_MIN: 0.5, // Doubled from 0.25 for better visibility (was 0.3 originally)
+  KEY_LIGHT_COLOR: '#f0d8c0', // Softer peach-sand (was #e8c4a4)
+  FILL_LIGHT_INTENSITY: 0.3, // Doubled from 0.15 for better visibility (was 0.2 originally)
+  FILL_LIGHT_COLOR: '#8ababa', // Slightly more muted teal (was #6ba8a8)
+  RIM_LIGHT_INTENSITY: 0.2, // Doubled from 0.1 for better visibility (was 0.15 originally)
+  RIM_LIGHT_COLOR: '#e0f0f8', // Even paler cyan (was #d4e8f0)
 };
 
 /**
@@ -173,7 +182,7 @@ export const DEFAULT_SPHERE_CONFIG: SphereConfig = {
  */
 export const PARTICLE_PHYSICS = {
   // Wind / Turbulence
-  WIND_BASE_STRENGTH: 0.2, // Base wind effect (dampened by crystallization)
+  WIND_BASE_STRENGTH: 0.45, // Stronger wind feel (was 0.2)
   WIND_FREQUENCY_SCALE: 0.5, // Frequency multiplier for Simplex noise
   WIND_TIME_SCALE: 0.2, // Time scale for wind animation
 

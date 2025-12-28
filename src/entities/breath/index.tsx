@@ -25,6 +25,10 @@ import {
   targetCrystallization,
   targetOrbitRadius,
   targetSphereScale,
+  velocityBreathPhase,
+  velocityCrystallization,
+  velocityOrbitRadius,
+  velocitySphereScale,
 } from './traits';
 
 /**
@@ -55,16 +59,24 @@ export function BreathEntity() {
         targetSphereScale,
         crystallization,
         targetCrystallization,
+        velocityBreathPhase,
+        velocityOrbitRadius,
+        velocitySphereScale,
+        velocityCrystallization,
         breathCurveConfig,
       );
     } else {
       // Ensure all new traits are added to existing entity (for hot-reloading/updates)
       if (!entity.has(targetBreathPhase)) entity.add(targetBreathPhase);
+      if (!entity.has(velocityBreathPhase)) entity.add(velocityBreathPhase);
       if (!entity.has(rawProgress)) entity.add(rawProgress);
       if (!entity.has(easedProgress)) entity.add(easedProgress);
       if (!entity.has(targetOrbitRadius)) entity.add(targetOrbitRadius);
+      if (!entity.has(velocityOrbitRadius)) entity.add(velocityOrbitRadius);
       if (!entity.has(targetSphereScale)) entity.add(targetSphereScale);
+      if (!entity.has(velocitySphereScale)) entity.add(velocitySphereScale);
       if (!entity.has(targetCrystallization)) entity.add(targetCrystallization);
+      if (!entity.has(velocityCrystallization)) entity.add(velocityCrystallization);
       if (!entity.has(breathCurveConfig)) entity.add(breathCurveConfig);
     }
 

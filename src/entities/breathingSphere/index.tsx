@@ -47,7 +47,7 @@ interface BreathingSphereProps {
 export function BreathingSphere({
   color,
   opacity = VISUALS.SPHERE_OPACITY,
-  detail = DEFAULT_SPHERE_CONFIG.geometry.mainGeometryDetail,
+  detail = 3, // Smoother (was 2)
 }: BreathingSphereProps = {}) {
   const config = useMemo(
     () => ({
@@ -72,12 +72,13 @@ export function BreathingSphere({
 
   const materialRef = useRef(createFresnelMaterial(0.05));
   const coreMaterialRef = useRef(
-    new THREE.MeshPhongMaterial({
+    new THREE.MeshStandardMaterial({
       transparent: true,
-      opacity: 0.75,
-      emissive: new THREE.Color('#a8d8e0'),
-      emissiveIntensity: 0.4,
-      shininess: 100,
+      opacity: 0.6, // Slightly more transparent (was 0.7)
+      emissive: new THREE.Color('#98ccd6'), // Slightly darker (was #b8e2e8)
+      emissiveIntensity: 0.08, // Significantly reduced (was 0.2)
+      roughness: 0.4, // Matte-soft feel
+      metalness: 0.1,
       blending: THREE.NormalBlending,
     }),
   );
@@ -96,8 +97,8 @@ export function BreathingSphere({
       return {
         exhaleColor: new THREE.Color(VISUALS.SPHERE_COLOR_EXHALE),
         inhaleColor: new THREE.Color(VISUALS.SPHERE_COLOR_INHALE),
-        coreColorExhale: new THREE.Color('#a8d8e0'), // Saturated cool blue
-        coreColorInhale: new THREE.Color('#ffe8c8'), // Saturated warm cream
+        coreColorExhale: new THREE.Color('#b8e2e8'), // Matches SPHERE_COLOR_EXHALE
+        coreColorInhale: new THREE.Color('#ffe0b0'), // Matches SPHERE_COLOR_INHALE
       };
     }
 
@@ -107,8 +108,8 @@ export function BreathingSphere({
     return {
       exhaleColor: exhale,
       inhaleColor: inhale,
-      coreColorExhale: new THREE.Color('#a8d8e0'),
-      coreColorInhale: new THREE.Color('#ffe8c8'),
+      coreColorExhale: new THREE.Color('#b8e2e8'),
+      coreColorInhale: new THREE.Color('#ffe0b0'),
     };
   }, [color]);
 
@@ -183,8 +184,9 @@ export function BreathingSphere({
     materialRef.current.uniforms.uFresnelIntensity.value = fresnelValue;
     materialRef.current.uniforms.uOpacity.value = config.visuals.opacity;
 
-    // 1. Core: Solid, dense center. Stiff expansion (late bloom).
-    const coreCurve = 0.7 + 0.3 * breathPhaseValue ** 2.5;
+    // 1. Core: Solid, dense center. Stiffer, less expansion (hard core feel).
+    // Starts smaller on exhale, minimal expansion on inhale.
+    const coreCurve = 0.5 + 0.15 * breathPhaseValue ** 3.0;
     const finalCoreScale = VISUALS.SPHERE_SCALE_MIN * coreCurve * config.layers.coreScale;
 
     if (coreRef.current) {
@@ -196,14 +198,17 @@ export function BreathingSphere({
       const coreColor = coreColorExhale.clone().lerp(coreColorInhale, breathPhaseValue);
       coreMaterialRef.current.color.copy(coreColor);
       coreMaterialRef.current.emissive.copy(coreColor);
-      coreMaterialRef.current.emissiveIntensity = 0.3 + breathPhaseValue * 0.3;
+      coreMaterialRef.current.emissiveIntensity = 0.01; // Virtually off
     }
 
     // 2. Main: Standard response.
-    meshRef.current.scale.setScalar(targetScale * entranceScale);
+    if (meshRef.current) {
+      meshRef.current.scale.setScalar(targetScale * entranceScale);
+    }
 
-    // 3. Aura: Elastic, airy outer shell. Early expansion (filling up).
-    const auraCurve = 1.0 + 1.2 * breathPhaseValue ** 0.5;
+    // 3. Aura: Elastic, airy outer shell. Very large early expansion (balloon fill).
+    // Much larger multiplier for that "balloon" feel.
+    const auraCurve = 0.8 + 2.5 * breathPhaseValue ** 0.5;
     const finalAuraScale = VISUALS.SPHERE_SCALE_MIN * auraCurve * config.layers.auraScale;
 
     if (auraRef.current) {
@@ -225,13 +230,13 @@ export function BreathingSphere({
     <group>
       {/* Main Sphere with organic displacement */}
       <mesh ref={meshRef}>
-        <icosahedronGeometry args={[1, detail]} />
+        <sphereGeometry args={[1, 64, 64]} />
         <primitive object={materialRef.current} attach="material" />
       </mesh>
 
       {/* Inner Core - Glowing center */}
       <mesh ref={coreRef}>
-        <sphereGeometry args={[1, 32, 32]} />
+        <sphereGeometry args={[1, 64, 64]} />
         <primitive object={coreMaterialRef.current} attach="material" />
       </mesh>
 

@@ -90,17 +90,17 @@ export const FRESNEL_FRAGMENT_SHADER = `
 		vec3 viewDir = normalize(cameraPosition - vWorldPosition + 0.00001);
 		float dotProduct = dot(viewDir, vNormal);
 
-		// Dual-layer fresnel for nuanced edge glow
-		float fresnelSoft = pow(1.0 - clamp(abs(dotProduct), 0.0, 1.0), 2.0);   // Wider, softer
-		float fresnelSharp = pow(1.0 - clamp(abs(dotProduct), 0.0, 1.0), 5.0);  // Tighter, sharper
-		float fresnel = mix(fresnelSoft, fresnelSharp, 0.3);                     // 70% soft + 30% sharp
+		// Dual-layer fresnel for nuanced edge glow (lowered exponents for softness)
+		float fresnelSoft = pow(1.0 - clamp(abs(dotProduct), 0.0, 1.0), 1.5);   // Softer (was 2.0)
+		float fresnelSharp = pow(1.0 - clamp(abs(dotProduct), 0.0, 1.0), 3.5);  // Softer (was 5.0)
+		float fresnel = mix(fresnelSoft, fresnelSharp, 0.4);                     // More soft mix (was 0.3)
 
 		// Subtle shimmer based on noise
 		float shimmer = vNoise * 0.1;
 
 		// Procedural chromatic aberration (RGB channel offset)
 		// Mix toward saturated base color (not white) to preserve color saturation
-		vec3 glowTarget = uColor * 1.5;
+		vec3 glowTarget = uColor * 1.1; // Reduced boost (was 1.5)
 		vec3 chromaticColor;
 		chromaticColor.r = mix(uColor, glowTarget, fresnel * uFresnelIntensity * 0.5 * (1.0 + uChromaticAberration)).r;
 		chromaticColor.g = mix(uColor, glowTarget, fresnel * uFresnelIntensity * 0.5).g;
@@ -123,7 +123,7 @@ export const createFresnelMaterial = (noiseIntensity: number = 0.05) =>
     side: THREE.DoubleSide,
     uniforms: {
       uColor: { value: new THREE.Color() },
-      uOpacity: { value: 0.15 },
+      uOpacity: { value: 0.05 }, // Much more ethereal (was 0.15)
       uFresnelIntensity: { value: 1.0 },
       uTime: { value: 0 },
       uNoiseIntensity: { value: noiseIntensity },

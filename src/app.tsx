@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { BreathingHUD } from './components/BreathingHUD';
+import { RadialBreathingHUD } from './components/RadialBreathingHUD';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
 import { BreathingLevel } from './levels/breathing';
@@ -15,7 +15,7 @@ export function App() {
           <BreathingLevel />
         </KootaSystems>
       </Canvas>
-      <BreathingHUD />
+      <RadialBreathingHUD />
     </>
   );
 }

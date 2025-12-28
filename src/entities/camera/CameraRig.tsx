@@ -95,35 +95,34 @@ export function CameraRig({
   enableDamping = true,
   dampingFactor = 0.05,
 }: CameraRigProps = {}) {
-  const { camera, mouse } = useThree();
+  const { mouse } = useThree();
   const world = useWorld();
   const controlsRef = useRef<OrbitControls>(null);
-  const targetPosition = useRef(new THREE.Vector3(0, 0, baseDistance));
-  const currentPosition = useRef(new THREE.Vector3(0, 0, baseDistance));
+  const parallaxOffset = useRef(new THREE.Vector3());
+  const targetOffset = useRef(new THREE.Vector3());
 
   useFrame((_state, delta) => {
     // Get breath phase for subtle camera breathing
     const breathEntity = world.queryFirst(breathPhase);
     const phase = breathEntity?.get(breathPhase)?.value ?? 0;
 
-    // Calculate target position based on mouse and breathing
-    const zoomOffset = phase * breathZoomIntensity;
-    targetPosition.current.set(
-      mouse.x * parallaxIntensity,
-      mouse.y * parallaxIntensity,
-      baseDistance - zoomOffset,
-    );
+    // 1. Breathing Zoom
+    // We adjust min/max distance to force OrbitControls to the target distance
+    const activeDistance = baseDistance - phase * breathZoomIntensity;
+    if (controlsRef.current) {
+      controlsRef.current.minDistance = activeDistance;
+      controlsRef.current.maxDistance = activeDistance;
+    }
 
-    // Smoothly interpolate camera position (frame-rate independent)
-    damp3(currentPosition.current, targetPosition.current, lerpSpeed, delta);
-    camera.position.copy(currentPosition.current);
+    // 2. Mouse Parallax
+    // We update the controls target to create a panned parallax effect
+    targetOffset.current.set(mouse.x * parallaxIntensity, mouse.y * parallaxIntensity, 0);
+    damp3(parallaxOffset.current, targetOffset.current, lerpSpeed, delta);
 
-    // Always look at center
-    camera.lookAt(0, 0, 0);
-
-    // Update OrbitControls if present
-    if (controlsRef.current && 'update' in controlsRef.current) {
-      (controlsRef.current as any).update();
+    if (controlsRef.current) {
+      controlsRef.current.target.copy(parallaxOffset.current);
+      // OrbitControls.update() calculates the new camera position based on target and distance
+      controlsRef.current.update();
     }
   });
 
@@ -139,7 +138,6 @@ export function CameraRig({
       maxPolarAngle={maxPolarAngle}
       enableDamping={enableDamping}
       dampingFactor={dampingFactor}
-      target={new THREE.Vector3(0, 0, 0)}
     />
   );
 }

@@ -30,7 +30,7 @@ export const VISUAL_DEFAULTS = {
     value: '#0a0a0a' as const,
     meta: {
       whenToAdjust: 'Set scene mood and contrast against the sphere',
-      typicalRange: 'Very dark (#000000) → Dark (#0a0a0a) → Medium (#404040)',
+      typicalRange: 'Deep Indigo (#0a0a1a) → Dark (#0a0a0a) → Medium (#404040)',
     } as PropMetadata,
   },
   sphereColor: {
@@ -129,7 +129,7 @@ export const ENVIRONMENT_DEFAULTS = {
     value: '#0a0a1a' as const,
     meta: {
       whenToAdjust: 'Match background or add subtle grounding',
-      typicalRange: 'Very dark (#000000) → Dark (#0a0a1a)',
+      typicalRange: 'Dark Indigo (#0a0a1a) → Deep Night (#050510)',
     } as PropMetadata,
   },
   floorOpacity: {

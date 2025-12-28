@@ -10,6 +10,7 @@ import { trait } from 'koota';
  */
 export const breathPhase = trait({ value: 0 });
 export const targetBreathPhase = trait({ value: 0 });
+export const velocityBreathPhase = trait({ value: 0 });
 
 /**
  * Current phase type: 0-3
@@ -35,6 +36,7 @@ export const easedProgress = trait({ value: 0 });
  */
 export const orbitRadius = trait({ value: 3.5 });
 export const targetOrbitRadius = trait({ value: 3.5 });
+export const velocityOrbitRadius = trait({ value: 0 });
 
 /**
  * Central sphere scale: 0.6 (exhale) → 1.4 (inhale)
@@ -42,6 +44,7 @@ export const targetOrbitRadius = trait({ value: 3.5 });
  */
 export const sphereScale = trait({ value: 0.6 });
 export const targetSphereScale = trait({ value: 0.6 });
+export const velocitySphereScale = trait({ value: 0 });
 
 /**
  * Crystallization effect: 0-1
@@ -49,6 +52,7 @@ export const targetSphereScale = trait({ value: 0.6 });
  */
 export const crystallization = trait({ value: 0 });
 export const targetCrystallization = trait({ value: 0 });
+export const velocityCrystallization = trait({ value: 0 });
 
 /**
  * Breath curve configuration

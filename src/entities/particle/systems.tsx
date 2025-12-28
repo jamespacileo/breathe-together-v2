@@ -1,10 +1,11 @@
 import type { World } from 'koota';
+import { easing } from 'maath';
 import { createNoise3D } from 'simplex-noise';
 import { Vector3 } from 'three';
 import { PARTICLE_PHYSICS, VISUALS } from '../../constants';
 import { Acceleration, Mass, Position, Velocity } from '../../shared/traits';
-import { crystallization, orbitRadius, sphereScale } from '../breath/traits';
-import { restPosition, seed } from './traits';
+import { breathPhase, crystallization, orbitRadius, sphereScale } from '../breath/traits';
+import { color, restPosition, seed, targetColor } from './traits';
 
 const tempVec3 = new Vector3();
 const tempForce = new Vector3();
@@ -36,10 +37,23 @@ export function particlePhysicsSystem(world: World) {
     const currentCryst = crystallizationTrait.value;
 
     // Physics constants from VISUALS and PARTICLE_PHYSICS
-    const springStiffness = VISUALS.SPRING_STIFFNESS;
-    const drag = VISUALS.PARTICLE_DRAG ** (dt * 60);
+    // Reactive Physics: Lerp parameters based on breath phase
+    // Inhale (phase -> 1): Tight/Fast
+    // Exhale (phase -> 0): Loose/Viscous
+    const phase = breathEntity.get(breathPhase)?.value ?? 0;
+
+    const targetStiffness =
+      phase * VISUALS.SPRING_STIFFNESS_INHALE + (1 - phase) * VISUALS.SPRING_STIFFNESS_EXHALE;
+    const targetDrag =
+      phase * VISUALS.PARTICLE_DRAG_INHALE + (1 - phase) * VISUALS.PARTICLE_DRAG_EXHALE;
+
+    const springStiffness = targetStiffness;
+    const drag = targetDrag ** (dt * 60);
     const windStrength = PARTICLE_PHYSICS.WIND_BASE_STRENGTH * (1 - currentCryst); // Wind dies down as things crystallize
     const jitterStrength = currentCryst * VISUALS.JITTER_STRENGTH;
+
+    // Subtle upward buoyancy that follows the breath (stronger on inhale)
+    const buoyancyStrength = phase * 0.05;
 
     const repulsionRadius = currentSphereScale + PARTICLE_PHYSICS.REPULSION_RADIUS_OFFSET; // Tighter repulsion to allow particles closer
     const repulsionRadiusSq = repulsionRadius * repulsionRadius;
@@ -122,6 +136,9 @@ export function particlePhysicsSystem(world: World) {
         tempForce.z += (pos.z / dist) * push;
       }
 
+      // 4.5. Breath Buoyancy (Subtle vertical drift)
+      tempForce.y += buoyancyStrength;
+
       // 5. Integration
       acc.x = tempForce.x / mass;
       acc.y = tempForce.y / mass;
@@ -138,6 +155,28 @@ export function particlePhysicsSystem(world: World) {
       // Update Koota with new position and velocity for rendering
       entity.set(Position, pos);
       entity.set(Velocity, vel);
+    });
+  };
+}
+
+/**
+ * System that handles particle color damping
+ * Moves logic out of the React renderer component
+ */
+export function particleColorSystem(world: World) {
+  const particles = world.query(color, targetColor);
+
+  return (dt: number) => {
+    particles.forEach((entity) => {
+      const c = entity.get(color);
+      const tc = entity.get(targetColor);
+
+      if (c && tc && (c.r !== tc.r || c.g !== tc.g || c.b !== tc.b)) {
+        easing.damp(c, 'r', tc.r, VISUALS.PARTICLE_COLOR_DAMPING, dt);
+        easing.damp(c, 'g', tc.g, VISUALS.PARTICLE_COLOR_DAMPING, dt);
+        easing.damp(c, 'b', tc.b, VISUALS.PARTICLE_COLOR_DAMPING, dt);
+        entity.set(color, c);
+      }
     });
   };
 }

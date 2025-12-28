@@ -27,16 +27,40 @@ import {
   targetCrystallization,
   targetOrbitRadius,
   targetSphereScale,
+  velocityBreathPhase,
+  velocityCrystallization,
+  velocityOrbitRadius,
+  velocitySphereScale,
 } from './traits';
 
 /**
  * Damping configuration for breath traits
  */
 const DAMP_CONFIG = [
-  { trait: breathPhase, targetTrait: targetBreathPhase, speed: 0.3 },
-  { trait: orbitRadius, targetTrait: targetOrbitRadius, speed: 0.4 },
-  { trait: sphereScale, targetTrait: targetSphereScale, speed: 0.25 },
-  { trait: crystallization, targetTrait: targetCrystallization, speed: 0.5 },
+  {
+    trait: breathPhase,
+    targetTrait: targetBreathPhase,
+    velocityTrait: velocityBreathPhase,
+    speed: 0.3,
+  },
+  {
+    trait: orbitRadius,
+    targetTrait: targetOrbitRadius,
+    velocityTrait: velocityOrbitRadius,
+    speed: 0.4,
+  },
+  {
+    trait: sphereScale,
+    targetTrait: targetSphereScale,
+    velocityTrait: velocitySphereScale,
+    speed: 0.25,
+  },
+  {
+    trait: crystallization,
+    targetTrait: targetCrystallization,
+    velocityTrait: velocityCrystallization,
+    speed: 0.5,
+  },
 ] as const;
 
 /**
@@ -143,13 +167,13 @@ export function breathSystem(world: World, delta: number) {
   breathEntity.set(targetCrystallization, { value: state.crystallization });
 
   // 2. Damp current values toward targets using maath/easing
-  // Reuse the existing trait object so easing.damp can keep velocity state.
-  DAMP_CONFIG.forEach(({ trait, targetTrait, speed }) => {
+  // Use explicit velocity traits to maintain damping state across frames.
+  DAMP_CONFIG.forEach(({ trait, targetTrait, velocityTrait, speed }) => {
     const current = breathEntity.get(trait);
     const target = breathEntity.get(targetTrait);
     if (current && target) {
       easing.damp(current, 'value', target.value, speed, delta);
-      // Update trait with damped value
+      // Update trait with damped value (velocity state is kept inside 'current' object)
       breathEntity.set(trait, current);
     }
   });

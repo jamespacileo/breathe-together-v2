@@ -18,9 +18,8 @@
  * - Subjectively feels more natural for some users
  */
 
-import { VISUALS } from '../constants';
 import type { BreathState } from '../types';
-import { getPhaseTiming } from './breathCalc';
+import { deriveVisualsFromPhase, getPhaseTiming } from './breathCalc';
 
 /**
  * Rounded square wave function
@@ -105,13 +104,8 @@ export function calculateBreathStateRounded(
   const cosineVelocity = Math.cos(2 * Math.PI * t * frequency);
   const crystallization = 1 - Math.abs(cosineVelocity);
 
-  // Visual parameter scaling (same as phase-based system)
-  const sphereScale =
-    VISUALS.SPHERE_SCALE_MIN + breathPhase * (VISUALS.SPHERE_SCALE_MAX - VISUALS.SPHERE_SCALE_MIN);
-
-  const orbitRadius =
-    VISUALS.PARTICLE_ORBIT_MAX -
-    breathPhase * (VISUALS.PARTICLE_ORBIT_MAX - VISUALS.PARTICLE_ORBIT_MIN);
+  // Visual parameter scaling using centralized helper
+  const { sphereScale, orbitRadius } = deriveVisualsFromPhase(breathPhase);
 
   return {
     breathPhase,

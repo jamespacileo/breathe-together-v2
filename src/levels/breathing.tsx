@@ -11,15 +11,17 @@
  * Uses centralized defaults from src/config/sceneDefaults.ts for single source of truth.
  */
 
+import { Bloom, EffectComposer } from '@react-three/postprocessing';
+import { HalfFloatType } from 'three';
 import {
   ENVIRONMENT_DEFAULTS,
   getDefaultValues,
   LIGHTING_DEFAULTS,
   VISUAL_DEFAULTS,
 } from '../config/sceneDefaults';
+import { VISUALS } from '../constants';
 import { BreathingSphere } from '../entities/breathingSphere';
 import { Environment } from '../entities/environment';
-import { Lighting } from '../entities/lighting';
 import { ParticleRenderer, ParticleSpawner } from '../entities/particle';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -61,11 +63,22 @@ export function BreathingLevel({
       <color attach="background" args={[backgroundColor]} />
 
       {/* Refined layered lighting (all props editable in Triplex) */}
-      <Lighting
-        ambientIntensity={ambientIntensity}
-        ambientColor={ambientColor}
-        keyIntensity={keyIntensity}
-        keyColor={keyColor}
+      {/* Replaced Lighting component with direct light elements */}
+      <ambientLight intensity={VISUALS.AMBIENT_LIGHT_INTENSITY} />
+      <pointLight
+        position={[10, 10, 10]}
+        intensity={VISUALS.KEY_LIGHT_INTENSITY_MIN}
+        color={VISUALS.KEY_LIGHT_COLOR}
+      />
+      <pointLight
+        position={[-10, 5, -10]}
+        intensity={VISUALS.FILL_LIGHT_INTENSITY}
+        color={VISUALS.FILL_LIGHT_COLOR}
+      />
+      <pointLight
+        position={[0, -5, 5]}
+        intensity={VISUALS.RIM_LIGHT_INTENSITY}
+        color={VISUALS.RIM_LIGHT_COLOR}
       />
 
       <Environment
@@ -84,16 +97,14 @@ export function BreathingLevel({
       <ParticleSpawner totalCount={particleCount} />
       <ParticleRenderer totalCount={particleCount} />
 
-      {/* Temporarily disabled to debug flickering issues
-			<EffectComposer multisampling={4} stencilBuffer={false}>
-				<Bloom
-					intensity={1.0}
-					luminanceThreshold={1.0}
-					luminanceSmoothing={0.9}
-					mipmapBlur
-				/>
-			</EffectComposer>
-			*/}
+      <EffectComposer multisampling={4} stencilBuffer={false} frameBufferType={HalfFloatType}>
+        <Bloom
+          intensity={0.15} // Slightly stronger, now that threshold is lower (was 0.1)
+          luminanceThreshold={0.75} // Allows Fresnel glow to bloom (was 1.0)
+          luminanceSmoothing={0.9}
+          mipmapBlur
+        />
+      </EffectComposer>
     </>
   );
 }

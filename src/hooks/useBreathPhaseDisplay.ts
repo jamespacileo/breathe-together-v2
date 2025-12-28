@@ -8,9 +8,10 @@ export const PHASE_DESCRIPTIONS = ['Breathing In', 'Holding Breath', 'Breathing 
 
 interface PhaseDisplayRefs {
   phaseNameRef: React.RefObject<HTMLDivElement | null>;
-  phaseDescRef: React.RefObject<HTMLDivElement | null>;
+  phaseDescRef?: React.RefObject<HTMLDivElement | null>;
   timerRef: React.RefObject<HTMLDivElement | null>;
-  progressBarRef: React.RefObject<HTMLDivElement | null>;
+  progressBarRef?: React.RefObject<HTMLDivElement | null>;
+  progressArcRef?: React.RefObject<SVGCircleElement | null>;
 }
 
 /**
@@ -20,7 +21,7 @@ interface PhaseDisplayRefs {
 export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
   const world = useWorld();
   const prevPhaseRef = useRef<number>(-1);
-  const { phaseNameRef, phaseDescRef, timerRef, progressBarRef } = refs;
+  const { phaseNameRef, phaseDescRef, timerRef, progressBarRef, progressArcRef } = refs;
 
   useEffect(() => {
     const phaseDurations = [
@@ -46,7 +47,7 @@ export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
         phaseNameRef.current.style.animation = 'phaseNameEnter 300ms 100ms ease-out forwards';
       }
 
-      if (phaseDescRef.current) {
+      if (phaseDescRef?.current) {
         phaseDescRef.current.innerText = PHASE_DESCRIPTIONS[phaseTypeValue];
         phaseDescRef.current.style.animation = 'none';
         // eslint-disable-next-line @typescript-eslint/no-unused-expressions
@@ -69,9 +70,24 @@ export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
       rawProgress: number,
       phaseDuration: number,
     ) => {
-      if (progressBarRef.current) {
+      if (progressBarRef?.current) {
         const cycleProgress = (phaseStartTime + rawProgress * phaseDuration) / BREATH_TOTAL_CYCLE;
         progressBarRef.current.style.width = `${cycleProgress * 100}%`;
+      }
+    };
+
+    // Helper: Update SVG arc progress ring for radial HUD
+    const updateProgressArc = (
+      phaseStartTime: number,
+      rawProgress: number,
+      phaseDuration: number,
+    ) => {
+      if (progressArcRef?.current) {
+        const cycleProgress = (phaseStartTime + rawProgress * phaseDuration) / BREATH_TOTAL_CYCLE;
+        const radius = 90;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - cycleProgress * circumference;
+        progressArcRef.current.style.strokeDashoffset = `${offset}`;
       }
     };
 
@@ -99,9 +115,10 @@ export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
         updatePhaseText(currentPhaseType);
       }
 
-      // Update timer and progress bar every frame
+      // Update timer and progress bar/arc every frame
       updateTimer(currentRawProgress, phaseDuration);
       updateProgressBar(phaseStartTime, currentRawProgress, phaseDuration);
+      updateProgressArc(phaseStartTime, currentRawProgress, phaseDuration);
 
       // Schedule next frame
       frameId = requestAnimationFrame(updateLoop);
@@ -115,5 +132,5 @@ export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
         cancelAnimationFrame(frameId);
       }
     };
-  }, [world, phaseNameRef, phaseDescRef, timerRef, progressBarRef]);
+  }, [world, phaseNameRef, phaseDescRef, timerRef, progressBarRef, progressArcRef]);
 }

@@ -1,7 +1,6 @@
 import { useFrame } from '@react-three/fiber';
 import type { Entity } from 'koota';
 import { useWorld } from 'koota/react';
-import { easing } from 'maath';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { VISUALS } from '../../constants';
@@ -68,23 +67,17 @@ export function ParticleSpawner({
   // Update target colors based on moods
   useEffect(() => {
     const colorCounts = getMoodColorCounts(moods);
-    const particles = world.query(targetColor, ownerId, index);
-
-    // Sort by index to ensure stable mapping
-    const sortedParticles = [...particles].sort((a, b) => {
-      const indexA = a.get(index)?.value ?? 0;
-      const indexB = b.get(index)?.value ?? 0;
-      return indexA - indexB;
-    });
+    const particles = world.query(targetColor, ownerId);
 
     let particleIdx = 0;
     const fillerColor = new THREE.Color(VISUALS.PARTICLE_FILLER_COLOR);
+    const particleList = [...particles]; // Stable snapshot for this update
 
     // Assign user colors
     for (const [hexColor, count] of Object.entries(colorCounts)) {
       const c = new THREE.Color(hexColor);
-      for (let i = 0; i < count && particleIdx < finalCount; i++) {
-        const entity = sortedParticles[particleIdx];
+      for (let i = 0; i < count && particleIdx < particleList.length; i++) {
+        const entity = particleList[particleIdx];
         if (entity) {
           entity.set(targetColor, { r: c.r, g: c.g, b: c.b });
           entity.set(ownerId, { value: 'user' });
@@ -94,15 +87,15 @@ export function ParticleSpawner({
     }
 
     // Assign filler colors
-    while (particleIdx < finalCount) {
-      const entity = sortedParticles[particleIdx];
+    while (particleIdx < particleList.length) {
+      const entity = particleList[particleIdx];
       if (entity) {
         entity.set(targetColor, { r: fillerColor.r, g: fillerColor.g, b: fillerColor.b });
         entity.set(ownerId, { value: 'filler' });
       }
       particleIdx++;
     }
-  }, [moods, world, finalCount]);
+  }, [moods, world]);
 
   return null;
 }
@@ -140,47 +133,31 @@ export function ParticleRenderer({
   const matrix = useMemo(() => new THREE.Matrix4(), []);
   const colorObj = useMemo(() => new THREE.Color(), []);
 
-  useFrame((_, delta) => {
+  useFrame((_, _delta) => {
     if (!userMeshRef.current || !fillerMeshRef.current) return;
 
     const particles = world.query(Position, color, targetColor, size, index, ownerId);
     const breath = world.queryFirst(breathPhase);
     const phase = breath?.get(breathPhase)?.value ?? 0;
 
-    let userColorNeedsUpdate = false;
-    let fillerColorNeedsUpdate = false;
     let userIdx = 0;
     let fillerIdx = 0;
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Particle state synchronization with multiple trait assignments
+    // Sync instanced meshes with entity state
     particles.forEach((entity) => {
       const pos = entity.get(Position);
       const c = entity.get(color);
-      const tc = entity.get(targetColor);
       const sizeTrait = entity.get(size);
-      const indexTrait = entity.get(index);
       const ownerIdTrait = entity.get(ownerId);
 
-      if (!pos || !c || !tc || !sizeTrait || !indexTrait || !ownerIdTrait) return;
+      if (!pos || !c || !sizeTrait || !ownerIdTrait) return;
 
       const s = sizeTrait.value;
       const isUser = ownerIdTrait.value === 'user';
       const baseScale = isUser ? 1.2 : 0.8;
       const pulseIntensity = isUser ? 0.6 : 0.3;
 
-      // 1. Smooth color bleeding
-      if (c.r !== tc.r || c.g !== tc.g || c.b !== tc.b) {
-        easing.damp(c, 'r', tc.r, VISUALS.PARTICLE_COLOR_DAMPING, delta);
-        easing.damp(c, 'g', tc.g, VISUALS.PARTICLE_COLOR_DAMPING, delta);
-        easing.damp(c, 'b', tc.b, VISUALS.PARTICLE_COLOR_DAMPING, delta);
-        if (isUser) {
-          userColorNeedsUpdate = true;
-        } else {
-          fillerColorNeedsUpdate = true;
-        }
-      }
-
-      // 2. Calculate scale with breath pulse
+      // Calculate scale with breath pulse
       const pulse = 1.0 + phase * pulseIntensity;
       const finalScale = s * VISUALS.PARTICLE_SIZE * baseScale * pulse;
 
@@ -192,19 +169,17 @@ export function ParticleRenderer({
 
       meshRef.current?.setMatrixAt(instanceIdx, matrix);
 
-      if (isUser ? userColorNeedsUpdate : fillerColorNeedsUpdate) {
-        colorObj.setRGB(c.r, c.g, c.b);
-        meshRef.current?.setColorAt(instanceIdx, colorObj);
-      }
+      colorObj.setRGB(c.r, c.g, c.b);
+      meshRef.current?.setColorAt(instanceIdx, colorObj);
     });
 
     userMeshRef.current.instanceMatrix.needsUpdate = true;
     fillerMeshRef.current.instanceMatrix.needsUpdate = true;
 
-    if (userColorNeedsUpdate && userMeshRef.current.instanceColor) {
+    if (userMeshRef.current.instanceColor) {
       userMeshRef.current.instanceColor.needsUpdate = true;
     }
-    if (fillerColorNeedsUpdate && fillerMeshRef.current.instanceColor) {
+    if (fillerMeshRef.current.instanceColor) {
       fillerMeshRef.current.instanceColor.needsUpdate = true;
     }
   });

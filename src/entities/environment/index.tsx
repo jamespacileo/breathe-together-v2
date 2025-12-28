@@ -6,8 +6,9 @@ import { Stars } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useRef } from 'react';
-import type * as THREE from 'three';
-import { breathPhase } from '../breath/traits';
+import * as THREE from 'three';
+import { Color } from 'three';
+import { breathPhase, crystallization } from '../breath/traits';
 
 interface EnvironmentProps {
   /**
@@ -100,43 +101,69 @@ export function Environment({
   starsCount = 5000,
   floorColor = '#0a0a1a',
   floorOpacity = 0.5,
-  lightIntensityMin = 0.5,
-  lightIntensityRange = 1.5,
+  lightIntensityMin = 1.0, // Doubled from 0.5
+  lightIntensityRange = 3.0, // Doubled from 1.5 (total range: 1.0-4.0)
 }: EnvironmentProps = {}) {
   const lightRef = useRef<THREE.PointLight>(null);
+  const nebulaRef = useRef<THREE.Mesh>(null);
+  const starsRef = useRef<any>(null); // Drei Stars doesn't export its type easily
   const world = useWorld();
 
-  useFrame(() => {
-    if (!lightRef.current) return;
+  const colorInhale = new Color(LIGHT_COLOR_INHALE);
+  const colorExhale = new Color(LIGHT_COLOR_EXHALE);
 
-    const breathEntity = world.queryFirst(breathPhase);
+  useFrame((_state, delta) => {
+    const breathEntity = world.queryFirst(breathPhase, crystallization);
     const phase = breathEntity?.get(breathPhase)?.value ?? 0;
+    const cryst = breathEntity?.get(crystallization)?.value ?? 0;
 
-    // Animate light intensity with breathing
-    lightRef.current.intensity = lightIntensityMin + phase * lightIntensityRange;
+    // 1. Animate light intensity and color
+    if (lightRef.current) {
+      lightRef.current.intensity = lightIntensityMin + phase * lightIntensityRange;
+      // Smooth color lerp (Inhale = Warm, Exhale = Cool)
+      lightRef.current.color.copy(colorExhale).lerp(colorInhale, phase);
+    }
 
-    // Animate light color with breathing phase (cool exhale → warm inhale)
-    lightRef.current.color.setStyle(phase < 0.5 ? LIGHT_COLOR_EXHALE : LIGHT_COLOR_INHALE);
+    // 2. Animate Nebula (Pulse scale and opacity)
+    if (nebulaRef.current) {
+      const nebulaScale = NEBULA_SCALE * (1 + phase * 0.1); // 10% pulse
+      nebulaRef.current.scale.set(nebulaScale, nebulaScale, 1);
+      if (nebulaRef.current.material instanceof THREE.MeshBasicMaterial) {
+        nebulaRef.current.material.opacity = 0.4 + phase * 0.2; // 0.4 -> 0.6
+      }
+    }
+
+    // 3. Modulate Star speed based on stillness (crystallization)
+    // Less movement during "Hold" phases
+    if (starsRef.current) {
+      // starsRef.current is the group containing the points
+      // Drei stars update logic is internal, but we can scale their time if we were using a custom shader.
+      // Since it's a Drei component, we might just be limited to the speed prop.
+      // However, starsRef.current.rotation.y is a simple way to add some motion.
+      starsRef.current.rotation.y += delta * 0.05 * (1 - cryst);
+    }
   });
 
   return (
     <>
       {/* Organic nebula background with subtle atmospheric depth */}
-      <mesh position={[0, 0, NEBULA_POSITION_Z]} scale={NEBULA_SCALE}>
+      <mesh ref={nebulaRef} position={[0, 0, NEBULA_POSITION_Z]} scale={NEBULA_SCALE}>
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial color="#1a2830" transparent opacity={0.5} />
       </mesh>
 
       {enableStars && (
-        <Stars
-          radius={STARS_RADIUS}
-          depth={STARS_DEPTH}
-          count={starsCount}
-          factor={STARS_FACTOR}
-          saturation={0.2}
-          fade
-          speed={1}
-        />
+        <group ref={starsRef}>
+          <Stars
+            radius={STARS_RADIUS}
+            depth={STARS_DEPTH}
+            count={starsCount}
+            factor={STARS_FACTOR}
+            saturation={0.2}
+            fade
+            speed={1}
+          />
+        </group>
       )}
 
       {enablePointLight && (
