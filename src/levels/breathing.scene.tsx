@@ -18,17 +18,23 @@
  */
 
 import { Html } from '@react-three/drei';
-import { BreathingLevel } from './breathing';
+import {
+  ENVIRONMENT_DEFAULTS,
+  EXPERIMENTAL_DEFAULTS,
+  getDefaultValues,
+  LIGHTING_DEFAULTS,
+  VISUAL_DEFAULTS,
+} from '../config/sceneDefaults';
 import { BreathCurveProvider } from '../contexts/BreathCurveContext';
 import type { BreathingSceneProps } from '../types/sceneProps';
-import { getDefaultValues, VISUAL_DEFAULTS, LIGHTING_DEFAULTS, ENVIRONMENT_DEFAULTS, EXPERIMENTAL_DEFAULTS } from '../config/sceneDefaults';
+import { BreathingLevel } from './breathing';
 
 // Merge all defaults for convenient spreading
 const DEFAULT_PROPS = {
-	...getDefaultValues(VISUAL_DEFAULTS),
-	...getDefaultValues(LIGHTING_DEFAULTS),
-	...getDefaultValues(ENVIRONMENT_DEFAULTS),
-	...getDefaultValues(EXPERIMENTAL_DEFAULTS),
+  ...getDefaultValues(VISUAL_DEFAULTS),
+  ...getDefaultValues(LIGHTING_DEFAULTS),
+  ...getDefaultValues(ENVIRONMENT_DEFAULTS),
+  ...getDefaultValues(EXPERIMENTAL_DEFAULTS),
 } as const;
 
 /**
@@ -38,125 +44,133 @@ const DEFAULT_PROPS = {
  * into the breath system. Allows visual experimentation and comparison.
  */
 export function BreathingScene({
-	// Experimental curve props
-	curveType = DEFAULT_PROPS.curveType,
-	waveDelta = DEFAULT_PROPS.waveDelta,
-	showCurveInfo = DEFAULT_PROPS.showCurveInfo,
+  // Experimental curve props
+  curveType = DEFAULT_PROPS.curveType,
+  waveDelta = DEFAULT_PROPS.waveDelta,
+  showCurveInfo = DEFAULT_PROPS.showCurveInfo,
 
-	// Visual defaults
-	backgroundColor = DEFAULT_PROPS.backgroundColor,
-	sphereColor = DEFAULT_PROPS.sphereColor,
-	sphereOpacity = DEFAULT_PROPS.sphereOpacity,
-	sphereSegments = DEFAULT_PROPS.sphereSegments,
+  // Visual defaults
+  backgroundColor = DEFAULT_PROPS.backgroundColor,
+  sphereColor = DEFAULT_PROPS.sphereColor,
+  sphereOpacity = DEFAULT_PROPS.sphereOpacity,
+  sphereSegments = DEFAULT_PROPS.sphereSegments,
 
-	// Lighting - Ambient defaults
-	ambientIntensity = DEFAULT_PROPS.ambientIntensity,
-	ambientColor = DEFAULT_PROPS.ambientColor,
+  // Lighting - Ambient defaults
+  ambientIntensity = DEFAULT_PROPS.ambientIntensity,
+  ambientColor = DEFAULT_PROPS.ambientColor,
 
-	// Lighting - Key defaults
-	keyPosition = DEFAULT_PROPS.keyPosition,
-	keyIntensity = DEFAULT_PROPS.keyIntensity,
-	keyColor = DEFAULT_PROPS.keyColor,
+  // Lighting - Key defaults
+  keyPosition = DEFAULT_PROPS.keyPosition,
+  keyIntensity = DEFAULT_PROPS.keyIntensity,
+  keyColor = DEFAULT_PROPS.keyColor,
 
-	// Lighting - Fill defaults
-	fillPosition = DEFAULT_PROPS.fillPosition,
-	fillIntensity = DEFAULT_PROPS.fillIntensity,
-	fillColor = DEFAULT_PROPS.fillColor,
+  // Lighting - Fill defaults
+  fillPosition = DEFAULT_PROPS.fillPosition,
+  fillIntensity = DEFAULT_PROPS.fillIntensity,
+  fillColor = DEFAULT_PROPS.fillColor,
 
-	// Lighting - Rim defaults
-	rimPosition = DEFAULT_PROPS.rimPosition,
-	rimIntensity = DEFAULT_PROPS.rimIntensity,
-	rimColor = DEFAULT_PROPS.rimColor,
+  // Lighting - Rim defaults
+  rimPosition = DEFAULT_PROPS.rimPosition,
+  rimIntensity = DEFAULT_PROPS.rimIntensity,
+  rimColor = DEFAULT_PROPS.rimColor,
 
-	// Environment defaults
-	starsCount = DEFAULT_PROPS.starsCount,
-	floorColor = DEFAULT_PROPS.floorColor,
-	enableStars = DEFAULT_PROPS.enableStars,
-	enableFloor = DEFAULT_PROPS.enableFloor,
-	floorOpacity = DEFAULT_PROPS.floorOpacity,
-	enablePointLight = DEFAULT_PROPS.enablePointLight,
-	lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
-	lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
+  // Lighting - Toggle defaults
+  enableAmbient = DEFAULT_PROPS.enableAmbient,
+  enableKey = DEFAULT_PROPS.enableKey,
+  enableFill = DEFAULT_PROPS.enableFill,
+  enableRim = DEFAULT_PROPS.enableRim,
 
-	// Particle defaults
-	particleCount = DEFAULT_PROPS.particleCount,
+  // Environment defaults
+  starsCount = DEFAULT_PROPS.starsCount,
+  floorColor = DEFAULT_PROPS.floorColor,
+  enableStars = DEFAULT_PROPS.enableStars,
+  enableFloor = DEFAULT_PROPS.enableFloor,
+  floorOpacity = DEFAULT_PROPS.floorOpacity,
+  enablePointLight = DEFAULT_PROPS.enablePointLight,
+  lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
+  lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
+
+  // Particle defaults
+  particleCount = DEFAULT_PROPS.particleCount,
 }: Partial<BreathingSceneProps> = {}) {
-	return (
-		<BreathCurveProvider config={{ curveType, waveDelta }}>
-			<BreathingLevel
-				backgroundColor={backgroundColor}
-				sphereColor={sphereColor}
-				sphereOpacity={sphereOpacity}
-				sphereSegments={sphereSegments}
-				ambientIntensity={ambientIntensity}
-				ambientColor={ambientColor}
-				keyPosition={keyPosition}
-				keyIntensity={keyIntensity}
-				keyColor={keyColor}
-				fillPosition={fillPosition}
-				fillIntensity={fillIntensity}
-				fillColor={fillColor}
-				rimPosition={rimPosition}
-				rimIntensity={rimIntensity}
-				rimColor={rimColor}
-				starsCount={starsCount}
-				floorColor={floorColor}
-				enableStars={enableStars}
-				enableFloor={enableFloor}
-				floorOpacity={floorOpacity}
-				enablePointLight={enablePointLight}
-				lightIntensityMin={lightIntensityMin}
-				lightIntensityRange={lightIntensityRange}
-				particleCount={particleCount}
-			/>
+  return (
+    <BreathCurveProvider config={{ curveType, waveDelta }}>
+      <BreathingLevel
+        backgroundColor={backgroundColor}
+        sphereColor={sphereColor}
+        sphereOpacity={sphereOpacity}
+        sphereSegments={sphereSegments}
+        enableAmbient={enableAmbient}
+        enableKey={enableKey}
+        enableFill={enableFill}
+        enableRim={enableRim}
+        ambientIntensity={ambientIntensity}
+        ambientColor={ambientColor}
+        keyPosition={keyPosition}
+        keyIntensity={keyIntensity}
+        keyColor={keyColor}
+        fillPosition={fillPosition}
+        fillIntensity={fillIntensity}
+        fillColor={fillColor}
+        rimPosition={rimPosition}
+        rimIntensity={rimIntensity}
+        rimColor={rimColor}
+        starsCount={starsCount}
+        floorColor={floorColor}
+        enableStars={enableStars}
+        enableFloor={enableFloor}
+        floorOpacity={floorOpacity}
+        enablePointLight={enablePointLight}
+        lightIntensityMin={lightIntensityMin}
+        lightIntensityRange={lightIntensityRange}
+        particleCount={particleCount}
+      />
 
-			{/* Optional: Debug overlay showing current curve type and configuration */}
-			{showCurveInfo && (
-			<Html position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
-				<div
-					style={{
-						position: 'fixed',
-						top: 20,
-						right: 20,
-						background: 'rgba(0, 0, 0, 0.8)',
-						border: '1px solid rgba(100, 200, 255, 0.5)',
-						borderRadius: 8,
-						padding: 16,
-						color: '#64c8ff',
-						fontFamily: 'monospace',
-						fontSize: 12,
-						zIndex: 1000,
-						lineHeight: 1.6,
-					}}
-				>
-					<div style={{ fontWeight: 'bold', marginBottom: 8 }}>
-						Breathing Curve Config
-					</div>
-					<div>Type: {curveType}</div>
-					<div>Wave Delta: {waveDelta.toFixed(3)}</div>
-					<div style={{ fontSize: 10, marginTop: 8, opacity: 0.6 }}>
-						{curveType === 'phase-based' && (
-							<>
-								Phase-based: Production curve
-								<br />
-								Discrete phases, custom easing
-							</>
-						)}
-						{curveType === 'rounded-wave' && (
-							<>
-								Rounded-wave: Experimental curve
-								<br />
-								Continuous arctangent smoothing
-								<br />
-								{waveDelta < 0.03 && 'Sharp pauses (δ < 0.03)'}
-								{waveDelta >= 0.03 && waveDelta < 0.08 && 'Balanced pauses (δ ~ 0.05)'}
-								{waveDelta >= 0.08 && 'Smooth transitions (δ > 0.08)'}
-							</>
-						)}
-					</div>
-				</div>
-			</Html>
-			)}
-		</BreathCurveProvider>
-	);
+      {/* Optional: Debug overlay showing current curve type and configuration */}
+      {showCurveInfo && (
+        <Html position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
+          <div
+            style={{
+              position: 'fixed',
+              top: 20,
+              right: 20,
+              background: 'rgba(0, 0, 0, 0.8)',
+              border: '1px solid rgba(100, 200, 255, 0.5)',
+              borderRadius: 8,
+              padding: 16,
+              color: '#64c8ff',
+              fontFamily: 'monospace',
+              fontSize: 12,
+              zIndex: 1000,
+              lineHeight: 1.6,
+            }}
+          >
+            <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Breathing Curve Config</div>
+            <div>Type: {curveType}</div>
+            <div>Wave Delta: {waveDelta.toFixed(3)}</div>
+            <div style={{ fontSize: 10, marginTop: 8, opacity: 0.6 }}>
+              {curveType === 'phase-based' && (
+                <>
+                  Phase-based: Production curve
+                  <br />
+                  Discrete phases, custom easing
+                </>
+              )}
+              {curveType === 'rounded-wave' && (
+                <>
+                  Rounded-wave: Experimental curve
+                  <br />
+                  Continuous arctangent smoothing
+                  <br />
+                  {waveDelta < 0.03 && 'Sharp pauses (δ < 0.03)'}
+                  {waveDelta >= 0.03 && waveDelta < 0.08 && 'Balanced pauses (δ ~ 0.05)'}
+                  {waveDelta >= 0.08 && 'Smooth transitions (δ > 0.08)'}
+                </>
+              )}
+            </div>
+          </div>
+        </Html>
+      )}
+    </BreathCurveProvider>
+  );
 }

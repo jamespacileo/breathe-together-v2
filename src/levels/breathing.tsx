@@ -10,99 +10,111 @@
  *
  * Uses centralized defaults from src/config/sceneDefaults.ts for single source of truth.
  */
+
+import {
+  ENVIRONMENT_DEFAULTS,
+  getDefaultValues,
+  LIGHTING_DEFAULTS,
+  VISUAL_DEFAULTS,
+} from '../config/sceneDefaults';
 import { BreathingSphere } from '../entities/breathingSphere';
-import { ParticleSpawner, ParticleRenderer } from '../entities/particle';
 import { Environment } from '../entities/environment';
 import { Lighting } from '../entities/lighting';
+import { ParticleRenderer, ParticleSpawner } from '../entities/particle';
 import type { BreathingLevelProps } from '../types/sceneProps';
-import { getDefaultValues, VISUAL_DEFAULTS, LIGHTING_DEFAULTS, ENVIRONMENT_DEFAULTS } from '../config/sceneDefaults';
 
 // Merge all visual, lighting, and environment defaults for convenient spreading
 const DEFAULT_PROPS = {
-	...getDefaultValues(VISUAL_DEFAULTS),
-	...getDefaultValues(LIGHTING_DEFAULTS),
-	...getDefaultValues(ENVIRONMENT_DEFAULTS),
+  ...getDefaultValues(VISUAL_DEFAULTS),
+  ...getDefaultValues(LIGHTING_DEFAULTS),
+  ...getDefaultValues(ENVIRONMENT_DEFAULTS),
 } as const;
 
 export function BreathingLevel({
-	// Visual defaults
-	backgroundColor = DEFAULT_PROPS.backgroundColor,
-	sphereColor = DEFAULT_PROPS.sphereColor,
-	sphereOpacity = DEFAULT_PROPS.sphereOpacity,
-	sphereSegments = DEFAULT_PROPS.sphereSegments,
+  // Visual defaults
+  backgroundColor = DEFAULT_PROPS.backgroundColor,
+  sphereColor = DEFAULT_PROPS.sphereColor,
+  sphereOpacity = DEFAULT_PROPS.sphereOpacity,
+  sphereSegments = DEFAULT_PROPS.sphereSegments,
 
-	// Lighting - Ambient defaults
-	ambientIntensity = DEFAULT_PROPS.ambientIntensity,
-	ambientColor = DEFAULT_PROPS.ambientColor,
+  // Lighting - Ambient defaults
+  ambientIntensity = DEFAULT_PROPS.ambientIntensity,
+  ambientColor = DEFAULT_PROPS.ambientColor,
 
-	// Lighting - Key defaults
-	keyPosition = DEFAULT_PROPS.keyPosition,
-	keyIntensity = DEFAULT_PROPS.keyIntensity,
-	keyColor = DEFAULT_PROPS.keyColor,
+  // Lighting - Key defaults
+  keyPosition = DEFAULT_PROPS.keyPosition,
+  keyIntensity = DEFAULT_PROPS.keyIntensity,
+  keyColor = DEFAULT_PROPS.keyColor,
 
-	// Lighting - Fill defaults
-	fillPosition = DEFAULT_PROPS.fillPosition,
-	fillIntensity = DEFAULT_PROPS.fillIntensity,
-	fillColor = DEFAULT_PROPS.fillColor,
+  // Lighting - Fill defaults
+  fillPosition = DEFAULT_PROPS.fillPosition,
+  fillIntensity = DEFAULT_PROPS.fillIntensity,
+  fillColor = DEFAULT_PROPS.fillColor,
 
-	// Lighting - Rim defaults
-	rimPosition = DEFAULT_PROPS.rimPosition,
-	rimIntensity = DEFAULT_PROPS.rimIntensity,
-	rimColor = DEFAULT_PROPS.rimColor,
+  // Lighting - Rim defaults
+  rimPosition = DEFAULT_PROPS.rimPosition,
+  rimIntensity = DEFAULT_PROPS.rimIntensity,
+  rimColor = DEFAULT_PROPS.rimColor,
 
-	// Environment defaults
-	starsCount = DEFAULT_PROPS.starsCount,
-	floorColor = DEFAULT_PROPS.floorColor,
-	enableStars = DEFAULT_PROPS.enableStars,
-	enableFloor = DEFAULT_PROPS.enableFloor,
-	floorOpacity = DEFAULT_PROPS.floorOpacity,
-	enablePointLight = DEFAULT_PROPS.enablePointLight,
-	lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
-	lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
+  // Lighting - Toggle defaults
+  enableAmbient = DEFAULT_PROPS.enableAmbient,
+  enableKey = DEFAULT_PROPS.enableKey,
+  enableFill = DEFAULT_PROPS.enableFill,
+  enableRim = DEFAULT_PROPS.enableRim,
 
-	// Particle defaults
-	particleCount = DEFAULT_PROPS.particleCount,
+  // Environment defaults
+  starsCount = DEFAULT_PROPS.starsCount,
+  floorColor = DEFAULT_PROPS.floorColor,
+  enableStars = DEFAULT_PROPS.enableStars,
+  enableFloor = DEFAULT_PROPS.enableFloor,
+  floorOpacity = DEFAULT_PROPS.floorOpacity,
+  enablePointLight = DEFAULT_PROPS.enablePointLight,
+  lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
+  lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
+
+  // Particle defaults
+  particleCount = DEFAULT_PROPS.particleCount,
 }: Partial<BreathingLevelProps> = {}) {
-	return (
-		<>
-			<color attach="background" args={[backgroundColor]} />
+  return (
+    <>
+      <color attach="background" args={[backgroundColor]} />
 
-			{/* Refined layered lighting (all props editable in Triplex) */}
-			<Lighting
-				ambientIntensity={ambientIntensity}
-				ambientColor={ambientColor}
-				keyPosition={keyPosition}
-				keyIntensity={keyIntensity}
-				keyColor={keyColor}
-				fillPosition={fillPosition}
-				fillIntensity={fillIntensity}
-				fillColor={fillColor}
-				rimPosition={rimPosition}
-				rimIntensity={rimIntensity}
-				rimColor={rimColor}
-			/>
+      {/* Refined layered lighting (all props editable in Triplex) */}
+      <Lighting
+        enableAmbient={enableAmbient}
+        enableKey={enableKey}
+        enableFill={enableFill}
+        enableRim={enableRim}
+        ambientIntensity={ambientIntensity}
+        ambientColor={ambientColor}
+        keyPosition={keyPosition}
+        keyIntensity={keyIntensity}
+        keyColor={keyColor}
+        fillPosition={fillPosition}
+        fillIntensity={fillIntensity}
+        fillColor={fillColor}
+        rimPosition={rimPosition}
+        rimIntensity={rimIntensity}
+        rimColor={rimColor}
+      />
 
-			<Environment
-			starsCount={starsCount}
-			floorColor={floorColor}
-			enableStars={enableStars}
-			enableFloor={enableFloor}
-			floorOpacity={floorOpacity}
-			enablePointLight={enablePointLight}
-			lightIntensityMin={lightIntensityMin}
-			lightIntensityRange={lightIntensityRange}
-		/>
+      <Environment
+        starsCount={starsCount}
+        floorColor={floorColor}
+        enableStars={enableStars}
+        enableFloor={enableFloor}
+        floorOpacity={floorOpacity}
+        enablePointLight={enablePointLight}
+        lightIntensityMin={lightIntensityMin}
+        lightIntensityRange={lightIntensityRange}
+      />
 
-			<BreathingSphere
-				color={sphereColor}
-				opacity={sphereOpacity}
-				segments={sphereSegments}
-			/>
+      <BreathingSphere color={sphereColor} opacity={sphereOpacity} segments={sphereSegments} />
 
-			<ParticleSpawner totalCount={particleCount} />
-			<ParticleRenderer totalCount={particleCount} />
+      <ParticleSpawner totalCount={particleCount} />
+      <ParticleRenderer totalCount={particleCount} />
 
-			{/* Temporarily disabled to debug flickering issues
+      {/* Temporarily disabled to debug flickering issues
 			<EffectComposer multisampling={4} stencilBuffer={false}>
 				<Bloom
 					intensity={1.0}
@@ -112,6 +124,6 @@ export function BreathingLevel({
 				/>
 			</EffectComposer>
 			*/}
-		</>
-	);
+    </>
+  );
 }
