@@ -4,7 +4,7 @@ import { Position, Velocity, Acceleration, Mass } from '../../shared/traits';
 import { orbitRadius, sphereScale, crystallization } from '../breath/traits';
 import { Vector3 } from 'three';
 import { createNoise3D } from 'simplex-noise';
-import { VISUALS } from '../../constants';
+import { VISUALS, PARTICLE_PHYSICS } from '../../constants';
 
 const tempVec3 = new Vector3();
 const tempForce = new Vector3();
@@ -35,13 +35,13 @@ export function particlePhysicsSystem(world: World) {
 		const currentSphereScale = sphereScaleTrait.value;
 		const currentCryst = crystallizationTrait.value;
 
-		// Physics constants from VISUALS
+		// Physics constants from VISUALS and PARTICLE_PHYSICS
 		const springStiffness = VISUALS.SPRING_STIFFNESS;
 		const drag = Math.pow(VISUALS.PARTICLE_DRAG, dt * 60);
-		const windStrength = 0.2 * (1 - currentCryst); // Wind dies down as things crystallize
+		const windStrength = PARTICLE_PHYSICS.WIND_BASE_STRENGTH * (1 - currentCryst); // Wind dies down as things crystallize
 		const jitterStrength = currentCryst * VISUALS.JITTER_STRENGTH;
 
-		const repulsionRadius = currentSphereScale + 0.4;  // Tighter repulsion to allow particles closer
+		const repulsionRadius = currentSphereScale + PARTICLE_PHYSICS.REPULSION_RADIUS_OFFSET;  // Tighter repulsion to allow particles closer
 		const repulsionRadiusSq = repulsionRadius * repulsionRadius;
 
 		particles.forEach((entity) => {
@@ -67,20 +67,20 @@ export function particlePhysicsSystem(world: World) {
 			tempForce.z += (tempVec3.z - pos.z) * springStiffness;
 
 			// 2. Wind / Turbulence (Simplex noise)
-			if (windStrength > 0.001) {
-				const nx = noise3D(pos.x * 0.5, pos.y * 0.5, time * 0.2 + s) * windStrength;
-				const ny = noise3D(pos.y * 0.5, pos.z * 0.5, time * 0.2 + s + 100) * windStrength;
-				const nz = noise3D(pos.z * 0.5, pos.x * 0.5, time * 0.2 + s + 200) * windStrength;
+			if (windStrength > PARTICLE_PHYSICS.FORCE_THRESHOLD) {
+				const nx = noise3D(pos.x * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE, pos.y * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE, time * PARTICLE_PHYSICS.WIND_TIME_SCALE + s) * windStrength;
+				const ny = noise3D(pos.y * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE, pos.z * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE, time * PARTICLE_PHYSICS.WIND_TIME_SCALE + s + PARTICLE_PHYSICS.WIND_NOISE_OFFSET_X) * windStrength;
+				const nz = noise3D(pos.z * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE, pos.x * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE, time * PARTICLE_PHYSICS.WIND_TIME_SCALE + s + PARTICLE_PHYSICS.WIND_NOISE_OFFSET_Y) * windStrength;
 				tempForce.x += nx;
 				tempForce.y += ny;
 				tempForce.z += nz;
 			}
 
 			// 3. Jitter / Shiver (High frequency vibration during holds)
-			if (jitterStrength > 0.001) {
-				const jx = Math.sin(time * 60 + s) * jitterStrength;
-				const jy = Math.sin(time * 61 + s + 10) * jitterStrength;
-				const jz = Math.sin(time * 59 + s + 20) * jitterStrength;
+			if (jitterStrength > PARTICLE_PHYSICS.FORCE_THRESHOLD) {
+				const jx = Math.sin(time * PARTICLE_PHYSICS.JITTER_FREQUENCY_X + s) * jitterStrength;
+				const jy = Math.sin(time * PARTICLE_PHYSICS.JITTER_FREQUENCY_Y + s + PARTICLE_PHYSICS.JITTER_PHASE_OFFSET_Y) * jitterStrength;
+				const jz = Math.sin(time * PARTICLE_PHYSICS.JITTER_FREQUENCY_Z + s + PARTICLE_PHYSICS.JITTER_PHASE_OFFSET_Z) * jitterStrength;
 				tempForce.x += jx;
 				tempForce.y += jy;
 				tempForce.z += jz;
@@ -92,7 +92,7 @@ export function particlePhysicsSystem(world: World) {
 				const dist = Math.sqrt(distSq);
 				const repulsion = (repulsionRadius - dist) / repulsionRadius;
 				// Power-based curve for "harder" feel
-				const push = Math.pow(repulsion, VISUALS.REPULSION_POWER) * VISUALS.REPULSION_STRENGTH * 20;
+				const push = Math.pow(repulsion, VISUALS.REPULSION_POWER) * VISUALS.REPULSION_STRENGTH * PARTICLE_PHYSICS.REPULSION_STRENGTH_MULTIPLIER;
 				tempForce.x += (pos.x / dist) * push;
 				tempForce.y += (pos.y / dist) * push;
 				tempForce.z += (pos.z / dist) * push;

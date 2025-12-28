@@ -2,9 +2,16 @@
  * BreathingHUD - Overlay UI showing breathing phase, timer, and user count
  * Refined with golden ratio typography, color temperature journey, and layered shadows
  * Minimal masterclass design with precision mathematics
+ *
+ * Performance Optimization (Dec 2024):
+ * - Removed useState from RAF loop (was causing 60fps React re-renders)
+ * - Now reads breath state directly from Koota world (single source of truth)
+ * - Updates DOM directly via useRef (no React reconciliation)
+ * - User count still uses usePresence hook (optimized with 5s polling)
  */
-import { useEffect, useState } from 'react';
-import { calculateBreathState, type BreathState } from '../lib/breathCalc';
+import { useEffect, useRef } from 'react';
+import { useWorld } from 'koota/react';
+import { breathPhase, phaseType } from '../entities/breath/traits';
 import { usePresence } from '../hooks/usePresence';
 import { BASE_COLORS } from '../lib/colors';
 
@@ -24,54 +31,99 @@ const PHASE_DESCRIPTIONS = [
 ];
 
 export function BreathingHUD({ debug = false }: BreathingHUDProps = {}) {
-	const [breathState, setBreathState] = useState<BreathState | null>(null);
-	const [prevPhaseType, setPrevPhaseType] = useState<number>(-1);
-	const [phaseTransitionKey, setPhaseTransitionKey] = useState(0);
+	// Refs for DOM elements (no React state, direct DOM updates)
+	const phaseNameRef = useRef<HTMLDivElement>(null);
+	const phaseDescRef = useRef<HTMLDivElement>(null);
+	const timerRef = useRef<HTMLDivElement>(null);
+	const progressBarRef = useRef<HTMLDivElement>(null);
+
+	// Track previous phase for transition detection (doesn't trigger re-renders)
+	const prevPhaseRef = useRef<number>(-1);
+	const mounted = useRef(false);
+
+	// Get Koota world for reading breath state
+	const world = useWorld();
 	const { count: userCount } = usePresence({ simulated: false, pollInterval: 5000 });
 
-	// Update breathing state every frame
+	// RAF loop that updates DOM directly (no React re-renders)
 	useEffect(() => {
-		const updateBreath = () => {
+		mounted.current = true;
+
+		const updateLoop = () => {
+			// Query breath entity from Koota world
+			const breathEntity = world.queryFirst(breathPhase, phaseType);
+			if (!breathEntity) {
+				// Breath entity not spawned yet, schedule next frame
+				requestAnimationFrame(updateLoop);
+				return;
+			}
+
+			// Get current breath state from ECS (single source of truth)
+			const currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
+			const currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
+
+			// Recalculate rawProgress locally (0-1 within current phase)
+			// Phase is 4 seconds long, so rawProgress = elapsed time within phase
 			const elapsed = Date.now() / 1000;
-			const state = calculateBreathState(elapsed);
-			setBreathState(state);
+			const cycleTime = elapsed % 16; // 16-second breathing cycle
+			const phaseStartTime = currentPhaseType * 4;
+			const rawProgress = (cycleTime - phaseStartTime + 16) % 4 / 4;
+
+			// A. Update Phase Name & Description (only on transition to avoid unnecessary DOM writes)
+			if (currentPhaseType !== prevPhaseRef.current) {
+				prevPhaseRef.current = currentPhaseType;
+
+				if (phaseNameRef.current) {
+					phaseNameRef.current.innerText = PHASE_NAMES[currentPhaseType];
+					// Trigger CSS animation by resetting it
+					phaseNameRef.current.style.animation = 'none';
+					// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+					phaseNameRef.current.offsetHeight; // Force reflow
+					phaseNameRef.current.style.animation = 'phaseNameEnter 300ms 100ms ease-out forwards';
+				}
+
+				if (phaseDescRef.current) {
+					phaseDescRef.current.innerText = PHASE_DESCRIPTIONS[currentPhaseType];
+					phaseDescRef.current.style.animation = 'none';
+					// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+					phaseDescRef.current.offsetHeight; // Force reflow
+					phaseDescRef.current.style.animation = 'phaseNameEnter 300ms 100ms ease-out forwards';
+				}
+			}
+
+			// B. Update Timer (every frame for smooth countdown)
+			if (timerRef.current) {
+				const phaseTimer = Math.ceil((1 - rawProgress) * 4);
+				timerRef.current.innerText = `${phaseTimer}s`;
+			}
+
+			// C. Update Progress Bar (every frame for smooth animation)
+			if (progressBarRef.current) {
+				// Calculate overall cycle progress: 0-1 over 16 seconds
+				const cycleProgress = (currentPhaseType * 4 + rawProgress * 4) / 16;
+				progressBarRef.current.style.width = `${cycleProgress * 100}%`;
+			}
+
+			// Schedule next frame
+			requestAnimationFrame(updateLoop);
 		};
 
-		// Initial update
-		updateBreath();
+		// Start the loop
+		requestAnimationFrame(updateLoop);
 
-		// Update on animation frame for smooth timer
-		const animationId = requestAnimationFrame(function update() {
-			updateBreath();
-			requestAnimationFrame(update);
-		});
-
-		return () => cancelAnimationFrame(animationId);
-	}, []);
-
-	// Track phase transitions
-	useEffect(() => {
-		if (breathState && breathState.phaseType !== prevPhaseType) {
-			setPrevPhaseType(breathState.phaseType);
-			setPhaseTransitionKey((k) => k + 1);
-		}
-	}, [breathState?.phaseType, prevPhaseType]);
-
-	if (!breathState) return null;
-
-	const phaseName = PHASE_NAMES[breathState.phaseType];
-	const phaseDesc = PHASE_DESCRIPTIONS[breathState.phaseType];
-	const phaseTimer = Math.ceil((1 - breathState.rawProgress) * 4);
-	const cycleProgress = (breathState.phaseType * 4 + breathState.rawProgress) / 16;
+		return () => {
+			mounted.current = false;
+		};
+	}, [world]);
 
 	return (
 		<div className="breathing-hud">
 			{/* Top left - Breathing Phase */}
 			<div className="hud-panel phase-panel">
 				<div className="phase-label">Breathing Phase</div>
-				<div key={`phase-name-${phaseTransitionKey}`} className="phase-name">{phaseName}</div>
-				<div key={`phase-desc-${phaseTransitionKey}`} className="phase-desc">{phaseDesc}</div>
-				<div className="phase-timer">{phaseTimer}s</div>
+				<div ref={phaseNameRef} className="phase-name">Inhale</div>
+				<div ref={phaseDescRef} className="phase-desc">Breathing In</div>
+				<div ref={timerRef} className="phase-timer">4s</div>
 			</div>
 
 			{/* Top right - User Count */}
@@ -83,10 +135,10 @@ export function BreathingHUD({ debug = false }: BreathingHUDProps = {}) {
 			{/* Bottom - Cycle Progress Bar */}
 			<div className="cycle-progress-bar">
 				<div
+					ref={progressBarRef}
 					className="progress-fill"
-					style={{ width: `${cycleProgress * 100}%` }}
 					role="progressbar"
-					aria-valuenow={Math.round(cycleProgress * 100)}
+					aria-valuenow={0}
 					aria-valuemin={0}
 					aria-valuemax={100}
 					aria-label="Breathing cycle progress"

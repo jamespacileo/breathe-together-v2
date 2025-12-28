@@ -103,3 +103,267 @@ export const VISUALS = {
 	RIM_LIGHT_INTENSITY: 0.15,
 	RIM_LIGHT_COLOR: '#d4e8f0', // Pale cyan
 };
+
+/**
+ * BreathingSphere Configuration - Grouped by logical category
+ * These interfaces define the shape of the sphere's configuration,
+ * making it easier to manage presets and understand the component's design.
+ */
+
+export interface SphereVisualConfig {
+	opacity: number;
+	chromaticAberration: number;
+	fresnelIntensityBase: number;
+	fresnelIntensityRange: number;
+}
+
+export interface SphereAnimationConfig {
+	entranceDelayMs: number;
+	entranceDurationMs: number;
+	enableOrganicPulse: boolean;
+	organicPulseSpeed: number;
+	organicPulseIntensity: number;
+}
+
+export interface SphereGeometryConfig {
+	segments: number;
+	mainGeometryDetail: number;
+}
+
+export interface SphereLayerConfig {
+	coreScale: number;
+	coreOpacityBase: number;
+	coreOpacityRange: number;
+	auraScale: number;
+	auraOpacityBase: number;
+	auraOpacityRange: number;
+}
+
+export interface SphereConfig {
+	visuals: SphereVisualConfig;
+	animation: SphereAnimationConfig;
+	geometry: SphereGeometryConfig;
+	layers: SphereLayerConfig;
+}
+
+/**
+ * Default BreathingSphere configuration (balanced quality)
+ */
+export const DEFAULT_SPHERE_CONFIG: SphereConfig = {
+	visuals: {
+		opacity: VISUALS.SPHERE_OPACITY,
+		chromaticAberration: 0.02,
+		fresnelIntensityBase: 0.6,
+		fresnelIntensityRange: 0.8,
+	},
+	animation: {
+		entranceDelayMs: 200,
+		entranceDurationMs: 800,
+		enableOrganicPulse: true,
+		organicPulseSpeed: 0.5,
+		organicPulseIntensity: 0.05,
+	},
+	geometry: {
+		segments: 64,
+		mainGeometryDetail: 32,
+	},
+	layers: {
+		coreScale: 0.4,
+		coreOpacityBase: 0.2,
+		coreOpacityRange: 0.3,
+		auraScale: 1.5,
+		auraOpacityBase: 0.02,
+		auraOpacityRange: 0.05,
+	},
+};
+
+/**
+ * High-quality BreathingSphere configuration (best visuals, higher perf cost)
+ */
+export const HIGH_QUALITY_SPHERE_CONFIG: SphereConfig = {
+	visuals: {
+		opacity: 0.2,
+		chromaticAberration: 0.04,
+		fresnelIntensityBase: 0.8,
+		fresnelIntensityRange: 1.0,
+	},
+	animation: {
+		entranceDelayMs: 300,
+		entranceDurationMs: 1000,
+		enableOrganicPulse: true,
+		organicPulseSpeed: 0.6,
+		organicPulseIntensity: 0.1,
+	},
+	geometry: {
+		segments: 128,
+		mainGeometryDetail: 64,
+	},
+	layers: {
+		coreScale: 0.5,
+		coreOpacityBase: 0.3,
+		coreOpacityRange: 0.4,
+		auraScale: 2.0,
+		auraOpacityBase: 0.05,
+		auraOpacityRange: 0.1,
+	},
+};
+
+/**
+ * Low-quality BreathingSphere configuration (performance optimized)
+ */
+export const LOW_QUALITY_SPHERE_CONFIG: SphereConfig = {
+	visuals: {
+		opacity: 0.1,
+		chromaticAberration: 0.01,
+		fresnelIntensityBase: 0.5,
+		fresnelIntensityRange: 0.6,
+	},
+	animation: {
+		entranceDelayMs: 100,
+		entranceDurationMs: 600,
+		enableOrganicPulse: false,
+		organicPulseSpeed: 0.5,
+		organicPulseIntensity: 0.02,
+	},
+	geometry: {
+		segments: 32,
+		mainGeometryDetail: 16,
+	},
+	layers: {
+		coreScale: 0.3,
+		coreOpacityBase: 0.15,
+		coreOpacityRange: 0.2,
+		auraScale: 1.2,
+		auraOpacityBase: 0.01,
+		auraOpacityRange: 0.02,
+	},
+};
+
+/**
+ * Lighting Configuration - Grouped by light source
+ * Simplifies managing complex lighting setups and allows easy preset swapping
+ */
+
+export interface LightSourceConfig {
+	position: [number, number, number];
+	intensity: number;
+	color: string;
+}
+
+export interface LightingConfig {
+	ambient: {
+		intensity: number;
+		color: string;
+	};
+	key: LightSourceConfig;
+	fill: LightSourceConfig;
+	rim: LightSourceConfig;
+}
+
+/**
+ * Default Lighting configuration (balanced)
+ */
+export const DEFAULT_LIGHTING_CONFIG: LightingConfig = {
+	ambient: {
+		intensity: VISUALS.AMBIENT_LIGHT_INTENSITY,
+		color: '#a8b8d0',
+	},
+	key: {
+		position: [2, 3, 5],
+		intensity: VISUALS.KEY_LIGHT_INTENSITY_MIN,
+		color: VISUALS.KEY_LIGHT_COLOR,
+	},
+	fill: {
+		position: [-2, -1, -3],
+		intensity: VISUALS.FILL_LIGHT_INTENSITY,
+		color: VISUALS.FILL_LIGHT_COLOR,
+	},
+	rim: {
+		position: [0, -5, -5],
+		intensity: VISUALS.RIM_LIGHT_INTENSITY,
+		color: VISUALS.RIM_LIGHT_COLOR,
+	},
+};
+
+/**
+ * Dramatic Lighting configuration (high contrast)
+ */
+export const DRAMATIC_LIGHTING_CONFIG: LightingConfig = {
+	ambient: {
+		intensity: 0.15,
+		color: '#4a5d7e',
+	},
+	key: {
+		position: [3, 4, 6],
+		intensity: 1.2,
+		color: '#7ec8d4',
+	},
+	fill: {
+		position: [-3, -2, -4],
+		intensity: 0.3,
+		color: '#4a5d7e',
+	},
+	rim: {
+		position: [0, -5, -5],
+		intensity: 0.25,
+		color: '#d4e8f0',
+	},
+};
+
+/**
+ * Soft Lighting configuration (gentle, diffused)
+ */
+export const SOFT_LIGHTING_CONFIG: LightingConfig = {
+	ambient: {
+		intensity: 0.5,
+		color: '#c8d8e8',
+	},
+	key: {
+		position: [1, 2, 3],
+		intensity: 0.5,
+		color: '#a8c8d8',
+	},
+	fill: {
+		position: [-1, -1, -2],
+		intensity: 0.4,
+		color: '#8a9dae',
+	},
+	rim: {
+		position: [0, -4, -4],
+		intensity: 0.1,
+		color: '#d4e8f0',
+	},
+};
+
+/**
+ * Particle Physics Constants
+ * Tuning parameters for the particle simulation
+ * Extracted from hardcoded values in src/entities/particle/systems.tsx (Dec 2024)
+ */
+export const PARTICLE_PHYSICS = {
+	// Wind / Turbulence
+	WIND_BASE_STRENGTH: 0.2, // Base wind effect (dampened by crystallization)
+	WIND_FREQUENCY_SCALE: 0.5, // Frequency multiplier for Simplex noise
+	WIND_TIME_SCALE: 0.2, // Time scale for wind animation
+
+	// Wind noise offsets (to decorrelate X/Y/Z axes)
+	WIND_NOISE_OFFSET_X: 100,
+	WIND_NOISE_OFFSET_Y: 200,
+	WIND_NOISE_OFFSET_Z: 0, // Z uses the base s value
+
+	// Jitter / Shiver (high-frequency vibration during holds)
+	JITTER_FREQUENCY_X: 60, // Sin() frequency for X jitter
+	JITTER_FREQUENCY_Y: 61, // Sin() frequency for Y jitter
+	JITTER_FREQUENCY_Z: 59, // Sin() frequency for Z jitter (prime to avoid alignment)
+
+	// Jitter phase offsets (to decorrelate axes)
+	JITTER_PHASE_OFFSET_Y: 10,
+	JITTER_PHASE_OFFSET_Z: 20,
+
+	// Sphere Repulsion
+	REPULSION_RADIUS_OFFSET: 0.4, // Additional radius beyond sphere scale for repulsion boundary
+	REPULSION_STRENGTH_MULTIPLIER: 20, // Overall strength multiplier for repulsion force
+
+	// Noise threshold (avoid computing forces below this strength)
+	FORCE_THRESHOLD: 0.001,
+} as const;

@@ -7,8 +7,18 @@
  * - Key: Warm cyan directional (follows breath phase)
  * - Fill: Cool blue opposite side (0.2 intensity)
  * - Rim: Pale cyan edge definition (0.15 intensity)
+ *
+ * Configuration (updated Dec 2024):
+ * - Uses LightingConfig interface for organized, preset-friendly setup
+ * - Maintains flat props for Triplex compatibility
+ * - Supports multiple preset configurations
  */
-import { VISUALS } from '../../constants';
+import {
+	VISUALS,
+	DEFAULT_LIGHTING_CONFIG,
+	type LightingConfig,
+	type LightSourceConfig,
+} from '../../constants';
 
 interface LightingProps {
 	/**
@@ -87,6 +97,35 @@ interface LightingProps {
 }
 
 /**
+ * Helper function to convert flat props to grouped config object
+ * Maintains Triplex compatibility (props interface stays flat) while
+ * organizing values internally for better code readability
+ */
+function propsToLightingConfig(props: LightingProps): LightingConfig {
+	return {
+		ambient: {
+			intensity: props.ambientIntensity ?? DEFAULT_LIGHTING_CONFIG.ambient.intensity,
+			color: props.ambientColor ?? DEFAULT_LIGHTING_CONFIG.ambient.color,
+		},
+		key: {
+			position: props.keyPosition ?? DEFAULT_LIGHTING_CONFIG.key.position,
+			intensity: props.keyIntensity ?? DEFAULT_LIGHTING_CONFIG.key.intensity,
+			color: props.keyColor ?? DEFAULT_LIGHTING_CONFIG.key.color,
+		},
+		fill: {
+			position: props.fillPosition ?? DEFAULT_LIGHTING_CONFIG.fill.position,
+			intensity: props.fillIntensity ?? DEFAULT_LIGHTING_CONFIG.fill.intensity,
+			color: props.fillColor ?? DEFAULT_LIGHTING_CONFIG.fill.color,
+		},
+		rim: {
+			position: props.rimPosition ?? DEFAULT_LIGHTING_CONFIG.rim.position,
+			intensity: props.rimIntensity ?? DEFAULT_LIGHTING_CONFIG.rim.intensity,
+			color: props.rimColor ?? DEFAULT_LIGHTING_CONFIG.rim.color,
+		},
+	};
+}
+
+/**
  * Layered lighting system for breathing meditation scene
  * All values are Triplex-editable for real-time visual refinement
  */
@@ -103,30 +142,45 @@ export function Lighting({
 	rimIntensity = VISUALS.RIM_LIGHT_INTENSITY,
 	rimColor = VISUALS.RIM_LIGHT_COLOR,
 }: LightingProps) {
+	// Create config object from flat props (for internal organization)
+	const config = propsToLightingConfig({
+		ambientIntensity,
+		ambientColor,
+		keyPosition,
+		keyIntensity,
+		keyColor,
+		fillPosition,
+		fillIntensity,
+		fillColor,
+		rimPosition,
+		rimIntensity,
+		rimColor,
+	});
+
 	return (
 		<>
 			{/* Ambient light - cool base illumination */}
-			<ambientLight intensity={ambientIntensity} color={ambientColor} />
+			<ambientLight intensity={config.ambient.intensity} color={config.ambient.color} />
 
 			{/* Key light - warm cyan directional, follows breath phase for warmth journey */}
 			<directionalLight
-				position={keyPosition}
-				intensity={keyIntensity}
-				color={keyColor}
+				position={config.key.position}
+				intensity={config.key.intensity}
+				color={config.key.color}
 			/>
 
 			{/* Fill light - opposite side for shadow softness */}
 			<directionalLight
-				position={fillPosition}
-				intensity={fillIntensity}
-				color={fillColor}
+				position={config.fill.position}
+				intensity={config.fill.intensity}
+				color={config.fill.color}
 			/>
 
 			{/* Rim light - subtle edge definition */}
 			<directionalLight
-				position={rimPosition}
-				intensity={rimIntensity}
-				color={rimColor}
+				position={config.rim.position}
+				intensity={config.rim.intensity}
+				color={config.rim.color}
 			/>
 		</>
 	);

@@ -9,7 +9,15 @@ import { useRef, useMemo, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useWorld } from 'koota/react';
 import { sphereScale, breathPhase } from '../breath/traits';
-import { VISUALS } from '../../constants';
+import {
+	VISUALS,
+	DEFAULT_SPHERE_CONFIG,
+	type SphereConfig,
+	type SphereVisualConfig,
+	type SphereAnimationConfig,
+	type SphereGeometryConfig,
+	type SphereLayerConfig,
+} from '../../constants';
 import { createFresnelMaterial } from '../../lib/shaders';
 
 interface BreathingSphereProps {
@@ -161,6 +169,41 @@ interface BreathingSphereProps {
 	organicPulseIntensity?: number;
 }
 
+/**
+ * Helper function to convert flat props to grouped config object
+ * Maintains Triplex compatibility (props interface stays flat) while
+ * organizing values internally for better code readability
+ */
+function propsToConfig(props: BreathingSphereProps): SphereConfig {
+	return {
+		visuals: {
+			opacity: props.opacity ?? DEFAULT_SPHERE_CONFIG.visuals.opacity,
+			chromaticAberration: props.chromaticAberration ?? DEFAULT_SPHERE_CONFIG.visuals.chromaticAberration,
+			fresnelIntensityBase: props.fresnelIntensityBase ?? DEFAULT_SPHERE_CONFIG.visuals.fresnelIntensityBase,
+			fresnelIntensityRange: props.fresnelIntensityRange ?? DEFAULT_SPHERE_CONFIG.visuals.fresnelIntensityRange,
+		},
+		animation: {
+			entranceDelayMs: props.entranceDelayMs ?? DEFAULT_SPHERE_CONFIG.animation.entranceDelayMs,
+			entranceDurationMs: props.entranceDurationMs ?? DEFAULT_SPHERE_CONFIG.animation.entranceDurationMs,
+			enableOrganicPulse: props.enableOrganicPulse ?? DEFAULT_SPHERE_CONFIG.animation.enableOrganicPulse,
+			organicPulseSpeed: props.organicPulseSpeed ?? DEFAULT_SPHERE_CONFIG.animation.organicPulseSpeed,
+			organicPulseIntensity: props.organicPulseIntensity ?? DEFAULT_SPHERE_CONFIG.animation.organicPulseIntensity,
+		},
+		geometry: {
+			segments: props.segments ?? DEFAULT_SPHERE_CONFIG.geometry.segments,
+			mainGeometryDetail: props.mainGeometryDetail ?? DEFAULT_SPHERE_CONFIG.geometry.mainGeometryDetail,
+		},
+		layers: {
+			coreScale: props.coreScale ?? DEFAULT_SPHERE_CONFIG.layers.coreScale,
+			coreOpacityBase: props.coreOpacityBase ?? DEFAULT_SPHERE_CONFIG.layers.coreOpacityBase,
+			coreOpacityRange: props.coreOpacityRange ?? DEFAULT_SPHERE_CONFIG.layers.coreOpacityRange,
+			auraScale: props.auraScale ?? DEFAULT_SPHERE_CONFIG.layers.auraScale,
+			auraOpacityBase: props.auraOpacityBase ?? DEFAULT_SPHERE_CONFIG.layers.auraOpacityBase,
+			auraOpacityRange: props.auraOpacityRange ?? DEFAULT_SPHERE_CONFIG.layers.auraOpacityRange,
+		},
+	};
+}
+
 export function BreathingSphere({
 	opacity = VISUALS.SPHERE_OPACITY,
 	entranceDelayMs = 200,
@@ -180,6 +223,24 @@ export function BreathingSphere({
 	organicPulseSpeed = 0.5,
 	organicPulseIntensity = 0.05,
 }: BreathingSphereProps) {
+	// Create config object from flat props (for internal organization)
+	const config = useMemo(
+		() => propsToConfig({
+			opacity, entranceDelayMs, entranceDurationMs, noiseIntensity,
+			fresnelIntensityBase, fresnelIntensityRange, coreScale, coreOpacityBase,
+			coreOpacityRange, auraScale, auraOpacityBase, auraOpacityRange,
+			mainGeometryDetail, chromaticAberration, enableOrganicPulse,
+			organicPulseSpeed, organicPulseIntensity,
+		}),
+		[
+			opacity, entranceDelayMs, entranceDurationMs, noiseIntensity,
+			fresnelIntensityBase, fresnelIntensityRange, coreScale, coreOpacityBase,
+			coreOpacityRange, auraScale, auraOpacityBase, auraOpacityRange,
+			mainGeometryDetail, chromaticAberration, enableOrganicPulse,
+			organicPulseSpeed, organicPulseIntensity,
+		],
+	);
+
 	const meshRef = useRef<THREE.Mesh>(null);
 	const coreRef = useRef<THREE.Mesh>(null);
 	const auraRef = useRef<THREE.Mesh>(null);
@@ -226,13 +287,13 @@ export function BreathingSphere({
 		// Calculate entrance animation
 		let entranceScale = 1;
 		if (entranceStartTimeRef.current !== null) {
-			const entranceStart = entranceStartTimeRef.current + entranceDelayMs / 1000;
-			const entranceEnd = entranceStart + entranceDurationMs / 1000;
+			const entranceStart = entranceStartTimeRef.current + config.animation.entranceDelayMs / 1000;
+			const entranceEnd = entranceStart + config.animation.entranceDurationMs / 1000;
 			const currentTime = state.clock.elapsedTime;
 
 			if (currentTime < entranceEnd) {
 				// Entrance in progress - ease-out with overshoot
-				const entranceProgress = Math.min((currentTime - entranceStart) / (entranceDurationMs / 1000), 1);
+				const entranceProgress = Math.min((currentTime - entranceStart) / (config.animation.entranceDurationMs / 1000), 1);
 				// Back.out easing (overshoot effect)
 				const c1 = 1.70158;
 				const c3 = c1 + 1;
@@ -254,29 +315,29 @@ export function BreathingSphere({
 
 		materialRef.current.uniforms.uTime.value = time;
 		materialRef.current.uniforms.uBreathPhase.value = breathPhaseValue;
-		materialRef.current.uniforms.uChromaticAberration.value = chromaticAberration;
+		materialRef.current.uniforms.uChromaticAberration.value = config.visuals.chromaticAberration;
 
 		// Enhance glow pulsing with organic overlay
-		let fresnelValue = fresnelIntensityBase + breathPhaseValue * fresnelIntensityRange;
-		if (enableOrganicPulse) {
-			const organicPulse = Math.sin(time * organicPulseSpeed) * organicPulseIntensity;
+		let fresnelValue = config.visuals.fresnelIntensityBase + breathPhaseValue * config.visuals.fresnelIntensityRange;
+		if (config.animation.enableOrganicPulse) {
+			const organicPulse = Math.sin(time * config.animation.organicPulseSpeed) * config.animation.organicPulseIntensity;
 			fresnelValue += organicPulse;
 			fresnelValue = Math.max(
-				fresnelIntensityBase * 0.5,
-				Math.min(fresnelIntensityBase + fresnelIntensityRange + organicPulseIntensity * 2, fresnelValue)
+				config.visuals.fresnelIntensityBase * 0.5,
+				Math.min(config.visuals.fresnelIntensityBase + config.visuals.fresnelIntensityRange + config.animation.organicPulseIntensity * 2, fresnelValue)
 			);
 		}
 		materialRef.current.uniforms.uFresnelIntensity.value = fresnelValue;
-		materialRef.current.uniforms.uOpacity.value = opacity;
+		materialRef.current.uniforms.uOpacity.value = config.visuals.opacity;
 
 		// 1. Core: Solid, dense center. Stiff expansion (late bloom).
 		const coreCurve = 0.7 + 0.3 * Math.pow(breathPhaseValue, 2.5);
-		const finalCoreScale = VISUALS.SPHERE_SCALE_MIN * coreCurve * coreScale;
+		const finalCoreScale = VISUALS.SPHERE_SCALE_MIN * coreCurve * config.layers.coreScale;
 
 		if (coreRef.current) {
 			coreRef.current.scale.setScalar(finalCoreScale * entranceScale);
 			coreMaterialRef.current.opacity =
-				(coreOpacityBase + breathPhaseValue * coreOpacityRange) * entranceScale;
+				(config.layers.coreOpacityBase + breathPhaseValue * config.layers.coreOpacityRange) * entranceScale;
 			coreMaterialRef.current.color.copy(color);
 		}
 
@@ -285,7 +346,7 @@ export function BreathingSphere({
 
 		// 3. Aura: Elastic, airy outer shell. Early expansion (filling up).
 		const auraCurve = 1.0 + 1.2 * Math.pow(breathPhaseValue, 0.5);
-		const finalAuraScale = VISUALS.SPHERE_SCALE_MIN * auraCurve * auraScale;
+		const finalAuraScale = VISUALS.SPHERE_SCALE_MIN * auraCurve * config.layers.auraScale;
 
 		if (auraRef.current) {
 			auraRef.current.scale.setScalar(finalAuraScale * entranceScale);
@@ -296,7 +357,7 @@ export function BreathingSphere({
 			auraMaterial.uniforms.uBreathPhase.value = breathPhaseValue;
 			auraMaterial.uniforms.uColor.value.copy(color);
 			auraMaterial.uniforms.uOpacity.value =
-				(auraOpacityBase + breathPhaseValue * auraOpacityRange) * entranceScale;
+				(config.layers.auraOpacityBase + breathPhaseValue * config.layers.auraOpacityRange) * entranceScale;
 			auraMaterial.uniforms.uFresnelIntensity.value = fresnelValue * 0.5;
 		}
 	});
