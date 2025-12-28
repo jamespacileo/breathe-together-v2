@@ -121,10 +121,10 @@ export function Environment({
 
   return (
     <>
-      {/* Organic nebula background with earthy-cosmic gradient - subtle atmospheric depth */}
+      {/* Organic nebula background with subtle atmospheric depth */}
       <mesh position={[0, 0, NEBULA_POSITION_Z]} scale={NEBULA_SCALE}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial color="#16201a" transparent opacity={0.3} />
+        <meshBasicMaterial color="#1a2830" transparent opacity={0.5} />
       </mesh>
 
       {enableStars && (

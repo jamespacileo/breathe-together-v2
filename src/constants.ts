@@ -60,11 +60,11 @@ export const BREATH_TOTAL_CYCLE = 16; // seconds
  * Visual Constants
  */
 export const VISUALS = {
-  // Sphere - Organic warmth with cool-inhale/exhale journey
+  // Sphere - Organic warmth with saturated cool-warm color journey
   SPHERE_SCALE_MIN: 0.6,
   SPHERE_SCALE_MAX: 1.4,
-  SPHERE_COLOR_EXHALE: '#d4f1f4', // Cool mineral blue-green (exhale = calm, releasing)
-  SPHERE_COLOR_INHALE: '#fff4e6', // Warm sunrise cream (inhale = energizing, receiving)
+  SPHERE_COLOR_EXHALE: '#a8d8e0', // Saturated cool blue (exhale = calm, releasing)
+  SPHERE_COLOR_INHALE: '#ffe8c8', // Saturated warm cream (inhale = energizing, receiving)
   SPHERE_OPACITY: 0.15,
 
   // Particles
