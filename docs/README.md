@@ -7,7 +7,7 @@ A comprehensive collection of pro tips, advanced patterns, common gotchas, and p
 ### 🏗️ Architecture & Patterns
 - **[Koota ECS Patterns](./koota/)** - Advanced state management patterns, React hooks, performance optimization, observers and events
 - **[ECS Architecture](./ecs-architecture/)** - Design principles, system ordering, composition patterns
-- **[Triplex Integration](./triplex/)** - Visual editor setup, configuration patterns, 2025 features
+- **[Triplex Integration](./triplex/)** - Visual editor setup, configuration patterns, 2025 features, best practices and pro tips
 
 ### 🎨 Rendering & Performance
 - **[React Three Fiber](./react-three-fiber/)** - Performance optimization, useFrame patterns, memory management, advanced hooks, declarative patterns
@@ -46,7 +46,8 @@ docs/
 │   ├── 01-getting-started.md
 │   ├── 02-configuration-patterns.md
 │   ├── 03-koota-integration.md
-│   └── 04-2025-features.md
+│   ├── 04-2025-features.md
+│   └── 05-best-practices.md
 ├── ecs-architecture/            # ECS design patterns
 │   ├── 01-design-principles.md
 │   ├── 02-data-flow.md
@@ -117,6 +118,7 @@ docs/
 | **Drei** | `drei/01-shader-materials.md` | shaderMaterial, MeshTransmissionMaterial |
 | **Drei (Lighting)** | `drei/04-lighting-and-shadows.md` | ContactShadows, SoftShadows, BakeShadows, Caustics, Lightformer |
 | **Triplex** | `triplex/02-configuration-patterns.md` | Prop/context hierarchy, quality presets |
+| **Triplex (Pro Tips)** | `triplex/05-best-practices.md` | Component design, debug scenes, workflows, gotchas |
 | **ECS** | `ecs-architecture/02-data-flow.md` | System pipeline, execution order |
 | **Shaders** | `shaders/01-glsl-optimization.md` | Performance tips, precision, branching |
 | **Project** | `project-specific/01-system-pipeline.md` | 7-phase pipeline, visual diagrams |

@@ -16,6 +16,7 @@
  * ```
  */
 
+import { Html } from '@react-three/drei';
 import type { QualityPreset } from '../types/sceneProps';
 import { QUALITY_PRESETS } from '../config/sceneDefaults';
 
@@ -26,6 +27,9 @@ export interface PresetIndicatorProps {
 
 /**
  * Render preset indicator badge with color coding and description.
+ *
+ * Uses Html from drei to render HTML inside Canvas context.
+ * Displays as fixed-position badge in top-right corner.
  */
 export function PresetIndicator({ activePreset }: PresetIndicatorProps) {
 	// Color scheme for each preset
@@ -57,31 +61,39 @@ export function PresetIndicator({ activePreset }: PresetIndicatorProps) {
 	const description = presetConfig.description;
 
 	return (
-		<div
+		<Html
+			position={[0, 0, 0]}
+			scale={1}
 			style={{
-				position: 'fixed',
-				top: 16,
-				right: 16,
-				background: colors.background,
-				border: `1px solid ${colors.border}`,
-				borderRadius: 6,
-				padding: '8px 12px',
-				fontFamily: 'monospace',
-				fontSize: '11px',
-				color: colors.text,
-				zIndex: 1000,
-				lineHeight: '1.5',
-				userSelect: 'none',
 				pointerEvents: 'none',
-				backdropFilter: 'blur(4px)',
 			}}
 		>
-			<div style={{ fontWeight: 'bold', marginBottom: 4 }}>
-				{activePreset.toUpperCase()} PRESET
+			<div
+				style={{
+					position: 'fixed',
+					top: 16,
+					right: 16,
+					background: colors.background,
+					border: `1px solid ${colors.border}`,
+					borderRadius: 6,
+					padding: '8px 12px',
+					fontFamily: 'monospace',
+					fontSize: '11px',
+					color: colors.text,
+					zIndex: 1000,
+					lineHeight: '1.5',
+					userSelect: 'none',
+					pointerEvents: 'none',
+					backdropFilter: 'blur(4px)',
+				}}
+			>
+				<div style={{ fontWeight: 'bold', marginBottom: 4 }}>
+					{activePreset.toUpperCase()} PRESET
+				</div>
+				<div style={{ opacity: 0.8, fontSize: '10px' }}>
+					{description}
+				</div>
 			</div>
-			<div style={{ opacity: 0.8, fontSize: '10px' }}>
-				{description}
-			</div>
-		</div>
+		</Html>
 	);
 }

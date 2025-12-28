@@ -18,6 +18,7 @@
  * Uses shared types from src/types/sceneProps.ts and centralized defaults.
  */
 
+import { Html } from '@react-three/drei';
 import { BreathingLevel } from './breathing';
 import { BreathDebugProvider, type BreathDebugConfig } from '../contexts/breathDebug';
 import { BreathDebugVisuals } from '../components/BreathDebugVisuals';
@@ -261,6 +262,7 @@ export function BreathingDebugScene({
 					isPaused ||
 					timeScale !== 1.0 ||
 					jumpToPhase !== undefined) && (
+			<Html position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
 				<div
 					style={{
 						position: 'fixed',
@@ -304,6 +306,7 @@ export function BreathingDebugScene({
 						Production app unaffected.
 					</div>
 				</div>
+			</Html>
 				)}
 			</BreathDebugProvider>
 		</ParticleDebugProvider>

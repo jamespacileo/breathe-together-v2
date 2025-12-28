@@ -17,6 +17,7 @@
  * Uses shared types from src/types/sceneProps.ts for DRY consistency.
  */
 
+import { Html } from '@react-three/drei';
 import { BreathingLevel } from './breathing';
 import { BreathCurveProvider } from '../contexts/BreathCurveContext';
 import type { BreathingSceneProps } from '../types/sceneProps';
@@ -98,6 +99,7 @@ export function BreathingScene({
 
 			{/* Optional: Debug overlay showing current curve type and configuration */}
 			{showCurveInfo && (
+			<Html position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
 				<div
 					style={{
 						position: 'fixed',
@@ -141,6 +143,7 @@ export function BreathingScene({
 					</div>
 				</div>
 			)}
+			</Html>
 		</BreathCurveProvider>
 	);
 }
