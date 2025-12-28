@@ -99,10 +99,12 @@ export const FRESNEL_FRAGMENT_SHADER = `
 		float shimmer = vNoise * 0.1;
 
 		// Procedural chromatic aberration (RGB channel offset)
+		// Mix toward saturated base color (not white) to preserve color saturation
+		vec3 glowTarget = uColor * 1.5;
 		vec3 chromaticColor;
-		chromaticColor.r = mix(uColor, vec3(1.0), fresnel * uFresnelIntensity * 0.7 * (1.0 + uChromaticAberration)).r;
-		chromaticColor.g = mix(uColor, vec3(1.0), fresnel * uFresnelIntensity * 0.7).g;
-		chromaticColor.b = mix(uColor, vec3(1.0), fresnel * uFresnelIntensity * 0.7 * (1.0 - uChromaticAberration)).b;
+		chromaticColor.r = mix(uColor, glowTarget, fresnel * uFresnelIntensity * 0.5 * (1.0 + uChromaticAberration)).r;
+		chromaticColor.g = mix(uColor, glowTarget, fresnel * uFresnelIntensity * 0.5).g;
+		chromaticColor.b = mix(uColor, glowTarget, fresnel * uFresnelIntensity * 0.5 * (1.0 - uChromaticAberration)).b;
 
 		// Final color with chromatic aberration and shimmer
 		vec3 finalColor = chromaticColor + shimmer;

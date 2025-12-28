@@ -74,9 +74,11 @@ export function BreathingSphere({
   const coreMaterialRef = useRef(
     new THREE.MeshPhongMaterial({
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.75,
+      emissive: new THREE.Color('#a8d8e0'),
+      emissiveIntensity: 0.4,
       shininess: 100,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
     }),
   );
   const auraMaterialRef = useRef(createFresnelMaterial(0.05 * 2.5));
@@ -190,9 +192,11 @@ export function BreathingSphere({
       coreMaterialRef.current.opacity =
         (config.layers.coreOpacityBase + breathPhaseValue * config.layers.coreOpacityRange) *
         entranceScale;
-      // Soft warm glow: core color transitions with breath (cool exhale → warm inhale)
+      // Soft warm glow: core color + emissive both transition with breath (cool exhale → warm inhale)
       const coreColor = coreColorExhale.clone().lerp(coreColorInhale, breathPhaseValue);
       coreMaterialRef.current.color.copy(coreColor);
+      coreMaterialRef.current.emissive.copy(coreColor);
+      coreMaterialRef.current.emissiveIntensity = 0.3 + breathPhaseValue * 0.3;
     }
 
     // 2. Main: Standard response.

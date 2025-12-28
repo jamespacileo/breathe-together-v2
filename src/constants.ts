@@ -143,8 +143,8 @@ export const DEFAULT_SPHERE_CONFIG: SphereConfig = {
   visuals: {
     opacity: VISUALS.SPHERE_OPACITY,
     chromaticAberration: 0.02,
-    fresnelIntensityBase: 0.9, // Enhanced glow (was 0.6)
-    fresnelIntensityRange: 1.2, // Stronger range (was 0.8)
+    fresnelIntensityBase: 0.5, // Reduced to preserve color saturation (was 0.9)
+    fresnelIntensityRange: 0.6, // Reduced to preserve color saturation (was 1.2)
   },
   animation: {
     entranceDelayMs: 200,
