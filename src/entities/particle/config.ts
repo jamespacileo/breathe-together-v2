@@ -202,10 +202,11 @@ export interface ParticleVisualConfig {
  * Characteristics:
  * - Larger particles (1.2x base size)
  * - Stronger breathing pulse (20% intensity)
- * - Brighter glow (0.5 emissive intensity)
+ * - Brighter glow with proper depth sorting
  * - Smooth icosahedrons (detail: 2)
  *
  * Represents particles from connected users breathing together.
+ * Fixed: Changed to NormalBlending with depthWrite=true for clean depth rendering
  */
 export const DEFAULT_USER_PARTICLE_CONFIG: ParticleVisualConfig = {
   geometry: {
@@ -216,12 +217,13 @@ export const DEFAULT_USER_PARTICLE_CONFIG: ParticleVisualConfig = {
   material: {
     type: 'basic',
     transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    depthWrite: true,
+    blending: THREE.NormalBlending,
+    emissiveIntensity: 0.5,
   },
   size: {
     baseScale: 1.2,
-    breathPulseIntensity: 0.2,
+    breathPulseIntensity: 0.6,
   },
 };
 
@@ -231,10 +233,11 @@ export const DEFAULT_USER_PARTICLE_CONFIG: ParticleVisualConfig = {
  * Characteristics:
  * - Smaller particles (0.8x base size)
  * - Subtle breathing pulse (10% intensity)
- * - Dimmer glow (0.3 emissive intensity)
+ * - Dimmer glow with proper depth sorting
  * - Smooth icosahedrons (detail: 2)
  *
  * Represents placeholder particles when fewer than 300 users are connected.
+ * Fixed: Changed to NormalBlending with depthWrite=true for clean depth rendering
  */
 export const DEFAULT_FILLER_PARTICLE_CONFIG: ParticleVisualConfig = {
   geometry: {
@@ -245,11 +248,12 @@ export const DEFAULT_FILLER_PARTICLE_CONFIG: ParticleVisualConfig = {
   material: {
     type: 'basic',
     transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    depthWrite: true,
+    blending: THREE.NormalBlending,
+    emissiveIntensity: 0.3,
   },
   size: {
     baseScale: 0.8,
-    breathPulseIntensity: 0.1,
+    breathPulseIntensity: 0.3,
   },
 };

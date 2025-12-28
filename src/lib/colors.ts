@@ -1,4 +1,4 @@
-import type { MoodId } from './simulationConfig';
+import type { MoodId } from '../constants';
 
 /**
  * Color palettes and mood configurations
@@ -75,23 +75,27 @@ export function getMoodGradient(moodId: MoodId): string {
 }
 
 /**
- * Refined color system with warmth journey
- * Background: Warmer, richer darks with purple undertone
- * Temperature: Cool exhale → Warm inhale
+ * Organic & Natural color system with warm-cool balance
+ * Background: Dark with purple undertone
+ * Temperature: Cool exhale + soft greens → Warm inhale + peach
+ * Nature-inspired palette with earthy accents
  */
 export const BASE_COLORS = {
   primary: '#7EC8D4', // Soft Cyan (matches 'moment' mood)
-  // Warmer backgrounds (refined from #0f1723, #1a2634)
-  background: '#0a0816', // Was #0f1723 - warmer, richer with purple undertone
-  backgroundMid: '#161225', // Was #1a2634 - more purple warmth
-  backgroundLight: '#241a34', // Additional warm light option
+  // Warmer backgrounds with organic feel
+  background: '#0a0816', // Deep dark base
+  backgroundMid: '#161225', // Purple warmth
+  backgroundLight: '#241a34', // Light warm option
 
-  // HUD Colors
-  panelBg: 'rgba(10, 8, 22, 0.65)', // Warmer dark, slightly less opaque
-  panelBorder: 'rgba(126, 200, 212, 0.2)', // Subtler border (was 0.3)
-  textPrimary: '#f5f5f7', // Slight warm tint (not pure white)
-  textSecondary: '#a8b8c8', // Muted blue-gray
-  textAccent: '#7ec8d4', // Cyan accent
+  // Organic HUD Colors with warm-cool duality
+  panelBg: 'rgba(18, 16, 22, 0.45)', // Warmer, more transparent for glassmorphism
+  panelBorder: 'rgba(126, 200, 212, 0.08)', // Cool cyan border (barely visible)
+  panelBorderWarm: 'rgba(212, 165, 116, 0.08)', // Warm sand border (for left panel)
+  textPrimary: '#fffef7', // Warm cream white
+  textSecondary: '#b8a896', // Warm taupe (was cool gray)
+  textAccent: '#7ec8d4', // Keep cool cyan for breathing accent
+  accentWarm: '#d4a574', // Warm sand/clay
+  accentEarth: '#7ea888', // Soft sage green
 };
 
 /**

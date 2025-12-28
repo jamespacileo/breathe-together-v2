@@ -10,14 +10,10 @@
  * - User count still uses usePresence hook (optimized with 5s polling)
  */
 
-import { useWorld } from 'koota/react';
-import { useEffect, useRef } from 'react';
-import { breathPhase, phaseType } from '../entities/breath/traits';
+import { useRef } from 'react';
+import { useBreathPhaseDisplay } from '../hooks/useBreathPhaseDisplay';
 import { usePresence } from '../hooks/usePresence';
 import { BASE_COLORS } from '../lib/colors';
-
-const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'];
-const PHASE_DESCRIPTIONS = ['Breathing In', 'Holding Breath', 'Breathing Out', 'Resting'];
 
 export function BreathingHUD() {
   // Refs for DOM elements (no React state, direct DOM updates)
@@ -26,91 +22,16 @@ export function BreathingHUD() {
   const timerRef = useRef<HTMLDivElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
 
-  // Track previous phase for transition detection (doesn't trigger re-renders)
-  const prevPhaseRef = useRef<number>(-1);
-  const mounted = useRef(false);
+  // Manage breath phase display updates via RAF loop
+  useBreathPhaseDisplay({
+    phaseNameRef,
+    phaseDescRef,
+    timerRef,
+    progressBarRef,
+  });
 
-  // Get Koota world for reading breath state
-  const world = useWorld();
+  // Get user count from presence (optimized with 5s polling)
   const { count: userCount } = usePresence({ simulated: false, pollInterval: 5000 });
-
-  // RAF loop that updates DOM directly (no React re-renders)
-  useEffect(() => {
-    mounted.current = true;
-
-    // Helper: Update phase name and description on transition
-    const updatePhaseText = (phaseTypeValue: number) => {
-      if (phaseNameRef.current) {
-        phaseNameRef.current.innerText = PHASE_NAMES[phaseTypeValue];
-        phaseNameRef.current.style.animation = 'none';
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        phaseNameRef.current.offsetHeight; // Force reflow
-        phaseNameRef.current.style.animation = 'phaseNameEnter 300ms 100ms ease-out forwards';
-      }
-
-      if (phaseDescRef.current) {
-        phaseDescRef.current.innerText = PHASE_DESCRIPTIONS[phaseTypeValue];
-        phaseDescRef.current.style.animation = 'none';
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        phaseDescRef.current.offsetHeight; // Force reflow
-        phaseDescRef.current.style.animation = 'phaseNameEnter 300ms 100ms ease-out forwards';
-      }
-    };
-
-    // Helper: Update timer display based on progress
-    const updateTimer = (rawProgress: number) => {
-      if (timerRef.current) {
-        const phaseTimer = Math.ceil((1 - rawProgress) * 4);
-        timerRef.current.innerText = `${phaseTimer}s`;
-      }
-    };
-
-    // Helper: Update progress bar based on cycle position
-    const updateProgressBar = (currentPhaseType: number, rawProgress: number) => {
-      if (progressBarRef.current) {
-        const cycleProgress = (currentPhaseType * 4 + rawProgress * 4) / 16;
-        progressBarRef.current.style.width = `${cycleProgress * 100}%`;
-      }
-    };
-
-    const updateLoop = () => {
-      // Query breath entity from Koota world
-      const breathEntity = world.queryFirst(breathPhase, phaseType);
-      if (!breathEntity) {
-        requestAnimationFrame(updateLoop);
-        return;
-      }
-
-      // Get current breath state from ECS (single source of truth)
-      const currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
-
-      // Calculate rawProgress (0-1 within current phase)
-      const elapsed = Date.now() / 1000;
-      const cycleTime = elapsed % 16; // 16-second breathing cycle
-      const phaseStartTime = currentPhaseType * 4;
-      const rawProgress = ((cycleTime - phaseStartTime + 16) % 4) / 4;
-
-      // Update phase text only on transition
-      if (currentPhaseType !== prevPhaseRef.current) {
-        prevPhaseRef.current = currentPhaseType;
-        updatePhaseText(currentPhaseType);
-      }
-
-      // Update timer and progress bar every frame
-      updateTimer(rawProgress);
-      updateProgressBar(currentPhaseType, rawProgress);
-
-      // Schedule next frame
-      requestAnimationFrame(updateLoop);
-    };
-
-    // Start the loop
-    requestAnimationFrame(updateLoop);
-
-    return () => {
-      mounted.current = false;
-    };
-  }, [world]);
 
   return (
     <div className="breathing-hud">
@@ -146,16 +67,16 @@ export function BreathingHUD() {
           aria-label="Breathing cycle progress"
         />
         <div className="progress-markers">
-          <div className="marker" style={{ left: '0%' }} title="Inhale" aria-label="Inhale phase">
+          <div className="marker" style={{ left: '0%' }} title="Inhale">
             I
           </div>
-          <div className="marker" style={{ left: '25%' }} title="Hold" aria-label="Hold phase">
+          <div className="marker" style={{ left: '25%' }} title="Hold">
             H
           </div>
-          <div className="marker" style={{ left: '50%' }} title="Exhale" aria-label="Exhale phase">
+          <div className="marker" style={{ left: '50%' }} title="Exhale">
             E
           </div>
-          <div className="marker" style={{ left: '75%' }} title="Hold" aria-label="Hold phase">
+          <div className="marker" style={{ left: '75%' }} title="Hold">
             H
           </div>
         </div>
@@ -163,13 +84,15 @@ export function BreathingHUD() {
 
       <style>{`
 				/**
-				 * Minimal Masterclass Design Refinement
+				 * Organic & Natural Design Refinement
 				 * Golden Ratio: 8, 13, 21, 34, 55, 89 (fibonacci)
-				 * Typography: 10px → 13px → 21px → 34px → 55px (golden ratio 1.618)
-				 * Colors: Warmer backgrounds, temperature-aware palette
-				 * Shadows: Layered, colored for depth
-				 * Motion: Entrance animations + phase transitions with choreography
+				 * Typography: Crimson Pro (serif) + DM Sans (sans)
+				 * Colors: Warm-cool balance with earthy accents
+				 * Shadows: Organic layered depth with color
+				 * Motion: Breathing synchronized animations
 				 */
+
+				@import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@300;400;500&family=DM+Sans:wght@400;500&display=swap');
 
 				@keyframes hudEnterTop {
 					from {
@@ -215,6 +138,46 @@ export function BreathingHUD() {
 					}
 				}
 
+				@keyframes panelBreathPulseWarm {
+					0%, 100% {
+						background: rgba(18, 16, 22, 0.45);
+						box-shadow:
+							inset 0 1px 0 rgba(255, 254, 247, 0.04),
+							0 4px 12px rgba(212, 165, 116, 0.08),
+							0 8px 32px rgba(10, 8, 22, 0.5),
+							0 20px 60px rgba(10, 8, 22, 0.7);
+					}
+					50% {
+						background: rgba(24, 20, 18, 0.52);
+						box-shadow:
+							inset 0 1px 0 rgba(255, 254, 247, 0.05),
+							0 4px 12px rgba(212, 165, 116, 0.12),
+							0 8px 32px rgba(10, 8, 22, 0.5),
+							0 20px 60px rgba(10, 8, 22, 0.7),
+							0 0 48px rgba(212, 165, 116, 0.10);
+					}
+				}
+
+				@keyframes panelBreathPulseCool {
+					0%, 100% {
+						background: rgba(18, 16, 22, 0.45);
+						box-shadow:
+							inset 0 1px 0 rgba(255, 254, 247, 0.04),
+							0 4px 12px rgba(126, 200, 212, 0.08),
+							0 8px 32px rgba(10, 8, 22, 0.5),
+							0 20px 60px rgba(10, 8, 22, 0.7);
+					}
+					50% {
+						background: rgba(16, 18, 22, 0.52);
+						box-shadow:
+							inset 0 1px 0 rgba(255, 254, 247, 0.05),
+							0 4px 12px rgba(126, 200, 212, 0.12),
+							0 8px 32px rgba(10, 8, 22, 0.5),
+							0 20px 60px rgba(10, 8, 22, 0.7),
+							0 0 48px rgba(126, 200, 212, 0.10);
+					}
+				}
+
 				.breathing-hud {
 					position: fixed;
 					top: 0;
@@ -222,31 +185,34 @@ export function BreathingHUD() {
 					right: 0;
 					bottom: 0;
 					pointer-events: none;
-					font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+					font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
 					z-index: 100;
 				}
 
 				.hud-panel {
 					position: absolute;
 					background: ${BASE_COLORS.panelBg};
-					backdrop-filter: blur(20px);
+					backdrop-filter: blur(40px);
 					border: 1px solid ${BASE_COLORS.panelBorder};
-					border-radius: 13px;
+					border-radius: 16px;
 					padding: 21px 34px;
 					color: ${BASE_COLORS.textAccent};
 					font-size: 13px;
 					line-height: 1.6;
 					min-width: 140px;
 					box-shadow:
-						0 2px 8px rgba(10, 8, 22, 0.4),
-						0 8px 24px rgba(74, 144, 226, 0.08),
-						0 16px 48px rgba(10, 8, 22, 0.6);
+						inset 0 1px 0 rgba(255, 254, 247, 0.04),
+						0 4px 12px rgba(126, 200, 212, 0.08),
+						0 8px 32px rgba(10, 8, 22, 0.5),
+						0 20px 60px rgba(10, 8, 22, 0.7);
 				}
 
 				.phase-panel {
 					top: 34px;
 					left: 34px;
 					animation: hudEnterTop 600ms 600ms ease-out forwards;
+					border-color: ${BASE_COLORS.panelBorderWarm};
+					animation: hudEnterTop 600ms 600ms ease-out forwards, panelBreathPulseWarm 16s ease-in-out infinite;
 				}
 
 				.phase-label {
@@ -261,11 +227,13 @@ export function BreathingHUD() {
 
 				.phase-name {
 					font-size: 21px;
-					font-weight: 450;
+					font-weight: 500;
 					margin-bottom: 13px;
 					color: ${BASE_COLORS.textPrimary};
-					letter-spacing: -0.01em;
+					letter-spacing: 0.02em;
+					font-family: 'Crimson Pro', Georgia, serif;
 					animation: phaseNameEnter 300ms 100ms ease-out forwards;
+					text-shadow: 0 0 20px rgba(126, 200, 212, 0.2);
 				}
 
 				.phase-desc {
@@ -292,7 +260,7 @@ export function BreathingHUD() {
 					top: 34px;
 					right: 34px;
 					text-align: right;
-					animation: hudEnterTop 600ms 700ms ease-out forwards;
+					animation: hudEnterTop 600ms 700ms ease-out forwards, panelBreathPulseCool 16s ease-in-out infinite;
 				}
 
 				.users-label {
@@ -321,15 +289,15 @@ export function BreathingHUD() {
 					right: 34px;
 					height: 8px;
 					background: rgba(126, 200, 212, 0.1);
-					border-radius: 4px;
+					border-radius: 6px;
 					overflow: hidden;
-					border: 1px solid rgba(126, 200, 212, 0.15);
+					border: 1px solid rgba(126, 200, 212, 0.12);
 					animation: hudEnterBottom 600ms 800ms ease-out forwards;
 				}
 
 				.progress-fill {
 					height: 100%;
-					background: linear-gradient(90deg, #4a90e2 0%, #7ec8d4 50%, #9fd9e8 100%);
+					background: linear-gradient(90deg, #6ba8a8 0%, #4dd9e8 50%, #d4a574 100%);
 					transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 					border-radius: 4px;
 					position: relative;
@@ -339,17 +307,19 @@ export function BreathingHUD() {
 					content: '';
 					position: absolute;
 					right: 0;
-					top: 0;
-					width: 20px;
-					height: 100%;
-					background: linear-gradient(90deg, transparent, rgba(159, 217, 232, 0.6));
-					filter: blur(8px);
-					animation: progressPulse 1.5s ease-in-out infinite;
+					top: -2px;
+					width: 30px;
+					height: calc(100% + 4px);
+					background: linear-gradient(90deg, transparent, rgba(212, 165, 116, 0.5));
+					filter: blur(12px);
+					animation: breathPulse 4s ease-in-out infinite;
 				}
 
-				@keyframes progressPulse {
+				@keyframes breathPulse {
 					0%, 100% { opacity: 0.4; }
+					25% { opacity: 0.6; }
 					50% { opacity: 1; }
+					75% { opacity: 0.6; }
 				}
 
 				.progress-markers {
