@@ -14,286 +14,37 @@
  *
  * Note: Debug traits are only active when this scene is loaded.
  * Production app.tsx and breathing.tsx remain unaffected.
+ *
+ * Uses shared types from src/types/sceneProps.ts and centralized defaults.
  */
 
 import { BreathingLevel } from './breathing';
 import { BreathDebugProvider, type BreathDebugConfig } from '../contexts/breathDebug';
 import { BreathDebugVisuals } from '../components/BreathDebugVisuals';
+import { ParticleDebugProvider, type ParticleDebugConfig } from '../contexts/particleDebug';
+import { ParticleDebugVisuals } from '../components/ParticleDebugVisuals';
+import { PresetIndicator } from '../components/PresetIndicator';
 import { useMemo } from 'react';
+import type { BreathingDebugSceneProps } from '../types/sceneProps';
+import type { ParticleVisualConfig } from '../entities/particle/config';
+import {
+	getDefaultValues,
+	VISUAL_DEFAULTS,
+	LIGHTING_DEFAULTS,
+	BREATHING_DEBUG_DEFAULTS,
+	PARTICLE_DEBUG_DEFAULTS,
+	EXPERIMENTAL_DEFAULTS,
+	createParticleConfigs,
+} from '../config/sceneDefaults';
 
-interface BreathingDebugSceneProps {
-	// ============================================================
-	// BREATHING DEBUG CONTROLS
-	// ============================================================
-
-	/**
-	 * Enable manual breathing phase control
-	 *
-	 * When enabled, completely overrides UTC-based synchronization.
-	 * Allows scrubbing through the breathing cycle via manualPhase slider.
-	 *
-	 * @default false
-	 */
-	enableManualControl?: boolean;
-
-	/**
-	 * Manual breath phase (0 = exhaled, 1 = inhaled)
-	 *
-	 * Only active when enableManualControl is true.
-	 * Use this slider to scrub through the entire breathing cycle
-	 * frame-by-frame for detailed visual inspection.
-	 *
-	 * @min 0
-	 * @max 1
-	 * @step 0.01
-	 * @default 0.5
-	 */
-	manualPhase?: number;
-
-	/**
-	 * Pause breathing animation
-	 *
-	 * Freezes animation at current point. Combined with timeScale
-	 * for detailed frame-by-frame analysis. Useful when combined
-	 * with manualPhase for stepping through specific moments.
-	 *
-	 * @default false
-	 */
-	isPaused?: boolean;
-
-	/**
-	 * Time scale multiplier
-	 *
-	 * Speed up or slow down breathing animation:
-	 * - 0.1: 10x slower (1/10 speed)
-	 * - 0.5: 2x slower (half speed)
-	 * - 1.0: Normal speed (default)
-	 * - 2.0: 2x faster (double speed)
-	 * - 5.0: 5x faster (for quick testing)
-	 *
-	 * @min 0.1
-	 * @max 5.0
-	 * @step 0.1
-	 * @default 1.0
-	 */
-	timeScale?: number;
-
-	/**
-	 * Jump to specific breathing phase
-	 *
-	 * Instantly teleport to phase start:
-	 * - 0: Inhale (3s)
-	 * - 1: Hold-in (5s)
-	 * - 2: Exhale (5s)
-	 * - 3: Hold-out (3s)
-	 *
-	 * Automatically resets after applying. Use with manualPhase
-	 * slider for fine-grained control within phases.
-	 *
-	 * @min 0
-	 * @max 3
-	 * @step 1
-	 * @default 0
-	 */
-	jumpToPhase?: 0 | 1 | 2 | 3;
-
-	// ============================================================
-	// DEBUG VISUALIZATIONS
-	// ============================================================
-
-	/**
-	 * Show particle orbit bounds
-	 *
-	 * Renders three wireframe spheres:
-	 * - Green: Min orbit (particles on inhale, 1.5 units)
-	 * - Red: Max orbit (particles on exhale, 3.5 units)
-	 * - Yellow: Current orbit (updates with breathing)
-	 *
-	 * Helps visualize how much space particles occupy and
-	 * ensure breathing animation feels proportional.
-	 *
-	 * @default false
-	 */
-	showOrbitBounds?: boolean;
-
-	/**
-	 * Show phase transition markers
-	 *
-	 * Renders colored torus rings at cardinal points.
-	 * Active marker lights up as you progress through phases:
-	 * - Green: Inhale (top)
-	 * - Blue: Hold-in (right)
-	 * - Red: Exhale (bottom)
-	 * - Yellow: Hold-out (left)
-	 *
-	 * Useful for learning the cycle or verifying phase timing.
-	 *
-	 * @default false
-	 */
-	showPhaseMarkers?: boolean;
-
-	/**
-	 * Show real-time trait values overlay
-	 *
-	 * Displays current numerical values in top-left corner:
-	 * - Phase: 0-1 within current phase
-	 * - Type: Current phase name (Inhale, Hold-in, etc.)
-	 * - Orbit: Current particle orbit radius
-	 * - Scale: Current sphere scale multiplier
-	 *
-	 * Essential for understanding exact animation state
-	 * and validating breathing algorithm behavior.
-	 *
-	 * @default false
-	 */
-	showTraitValues?: boolean;
-
-	// ============================================================
-	// VISUAL PROPERTIES (inherited from BreathingLevel)
-	// ============================================================
-
-	/**
-	 * Scene background color
-	 * @type color
-	 * @default #0a1628
-	 */
-	backgroundColor?: string;
-
-	/**
-	 * Sphere color
-	 * @type color
-	 * @default #4dd9e8
-	 */
-	sphereColor?: string;
-
-	/**
-	 * Sphere material opacity
-	 * @min 0
-	 * @max 1
-	 * @step 0.01
-	 * @default 0.15
-	 */
-	sphereOpacity?: number;
-
-	/**
-	 * Sphere geometry segments (detail level)
-	 * @min 16
-	 * @max 128
-	 * @step 16
-	 * @default 64
-	 */
-	sphereSegments?: number;
-
-	/**
-	 * Ambient light intensity
-	 * @min 0
-	 * @max 1
-	 * @step 0.05
-	 * @default 0.4
-	 */
-	ambientIntensity?: number;
-
-	/**
-	 * Ambient light color
-	 * @type color
-	 * @default #ffffff
-	 */
-	ambientColor?: string;
-
-	/**
-	 * Key light position (x, y, z)
-	 * @type vector3
-	 * @default [2, 3, 2]
-	 */
-	keyPosition?: [number, number, number];
-
-	/**
-	 * Key light intensity
-	 * @min 0
-	 * @max 2
-	 * @step 0.1
-	 * @default 1.2
-	 */
-	keyIntensity?: number;
-
-	/**
-	 * Key light color
-	 * @type color
-	 * @default #ffffff
-	 */
-	keyColor?: string;
-
-	/**
-	 * Fill light position (opposite side)
-	 * @type vector3
-	 * @default [-2, 1, -2]
-	 */
-	fillPosition?: [number, number, number];
-
-	/**
-	 * Fill light intensity (shadow softness)
-	 * @min 0
-	 * @max 1
-	 * @step 0.05
-	 * @default 0.3
-	 */
-	fillIntensity?: number;
-
-	/**
-	 * Fill light color
-	 * @type color
-	 * @default #ffffff
-	 */
-	fillColor?: string;
-
-	/**
-	 * Rim light position (edge definition)
-	 * @type vector3
-	 * @default [0, 1, -3]
-	 */
-	rimPosition?: [number, number, number];
-
-	/**
-	 * Rim light intensity (edge glow)
-	 * @min 0
-	 * @max 1
-	 * @step 0.05
-	 * @default 0.5
-	 */
-	rimIntensity?: number;
-
-	/**
-	 * Rim light color
-	 * @type color
-	 * @default #ffffff
-	 */
-	rimColor?: string;
-
-	/**
-	 * Number of background stars
-	 * @min 1000
-	 * @max 10000
-	 * @step 500
-	 * @default 5000
-	 */
-	starsCount?: number;
-
-	/**
-	 * Floor color
-	 * @type color
-	 * @default #0d1b2a
-	 */
-	floorColor?: string;
-
-	/**
-	 * Number of particles
-	 * @min 50
-	 * @max 500
-	 * @step 50
-	 * @default 300
-	 */
-	particleCount?: number;
-}
+// Merge all defaults for convenient spreading
+const DEFAULT_PROPS = {
+	...getDefaultValues(VISUAL_DEFAULTS),
+	...getDefaultValues(LIGHTING_DEFAULTS),
+	...getDefaultValues(BREATHING_DEBUG_DEFAULTS),
+	...getDefaultValues(PARTICLE_DEBUG_DEFAULTS),
+	...getDefaultValues(EXPERIMENTAL_DEFAULTS),
+} as const;
 
 /**
  * Debug breathing scene with full manual controls
@@ -303,38 +54,62 @@ interface BreathingDebugSceneProps {
  * animation state in real-time.
  */
 export function BreathingDebugScene({
-	// Debug Controls
-	enableManualControl = false,
-	manualPhase = 0.5,
-	isPaused = false,
-	timeScale = 1.0,
-	jumpToPhase,
+	// Breathing Debug Controls
+	enableManualControl = DEFAULT_PROPS.enableManualControl,
+	manualPhase = DEFAULT_PROPS.manualPhase,
+	isPaused = DEFAULT_PROPS.isPaused,
+	timeScale = DEFAULT_PROPS.timeScale,
+	jumpToPhase = DEFAULT_PROPS.jumpToPhase,
 
 	// Debug Visualizations
-	showOrbitBounds = false,
-	showPhaseMarkers = false,
-	showTraitValues = false,
+	showOrbitBounds = DEFAULT_PROPS.showOrbitBounds,
+	showPhaseMarkers = DEFAULT_PROPS.showPhaseMarkers,
+	showTraitValues = DEFAULT_PROPS.showTraitValues,
 
 	// Visual Properties
-	backgroundColor,
-	sphereColor,
-	sphereOpacity,
-	sphereSegments,
-	ambientIntensity,
-	ambientColor,
-	keyPosition,
-	keyIntensity,
-	keyColor,
-	fillPosition,
-	fillIntensity,
-	fillColor,
-	rimPosition,
-	rimIntensity,
-	rimColor,
-	starsCount,
-	floorColor,
-	particleCount,
-}: BreathingDebugSceneProps = {}) {
+	backgroundColor = DEFAULT_PROPS.backgroundColor,
+	sphereColor = DEFAULT_PROPS.sphereColor,
+	sphereOpacity = DEFAULT_PROPS.sphereOpacity,
+	sphereSegments = DEFAULT_PROPS.sphereSegments,
+
+	// Lighting - Ambient
+	ambientIntensity = DEFAULT_PROPS.ambientIntensity,
+	ambientColor = DEFAULT_PROPS.ambientColor,
+
+	// Lighting - Key
+	keyPosition = DEFAULT_PROPS.keyPosition,
+	keyIntensity = DEFAULT_PROPS.keyIntensity,
+	keyColor = DEFAULT_PROPS.keyColor,
+
+	// Lighting - Fill
+	fillPosition = DEFAULT_PROPS.fillPosition,
+	fillIntensity = DEFAULT_PROPS.fillIntensity,
+	fillColor = DEFAULT_PROPS.fillColor,
+
+	// Lighting - Rim
+	rimPosition = DEFAULT_PROPS.rimPosition,
+	rimIntensity = DEFAULT_PROPS.rimIntensity,
+	rimColor = DEFAULT_PROPS.rimColor,
+
+	// Environment
+	starsCount = DEFAULT_PROPS.starsCount,
+	floorColor = DEFAULT_PROPS.floorColor,
+
+	// Particles
+	particleCount = DEFAULT_PROPS.particleCount,
+
+	// Particle Debug Controls
+	userParticleGeometry = DEFAULT_PROPS.userParticleGeometry,
+	userParticleDetail = DEFAULT_PROPS.userParticleDetail,
+	userParticleScale = DEFAULT_PROPS.userParticleScale,
+	userParticlePulse = DEFAULT_PROPS.userParticlePulse,
+	fillerParticleGeometry = DEFAULT_PROPS.fillerParticleGeometry,
+	fillerParticleDetail = DEFAULT_PROPS.fillerParticleDetail,
+	fillerParticleScale = DEFAULT_PROPS.fillerParticleScale,
+	fillerParticlePulse = DEFAULT_PROPS.fillerParticlePulse,
+	showParticleTypes = DEFAULT_PROPS.showParticleTypes,
+	showParticleStats = DEFAULT_PROPS.showParticleStats,
+}: Partial<BreathingDebugSceneProps> = {}) {
 	// Build debug config from props
 	const debugConfig = useMemo<BreathDebugConfig | null>(() => {
 		// Only create config if we have at least one debug property set
@@ -374,41 +149,118 @@ export function BreathingDebugScene({
 		showTraitValues,
 	]);
 
+	// Build particle debug config from props
+	const particleDebugConfig = useMemo<ParticleDebugConfig | null>(() => {
+		// Only create config if we have at least one particle debug property set
+		const hasParticleProps =
+			userParticleGeometry !== DEFAULT_PROPS.userParticleGeometry ||
+			userParticleDetail !== DEFAULT_PROPS.userParticleDetail ||
+			userParticleScale !== DEFAULT_PROPS.userParticleScale ||
+			userParticlePulse !== DEFAULT_PROPS.userParticlePulse ||
+			fillerParticleGeometry !== DEFAULT_PROPS.fillerParticleGeometry ||
+			fillerParticleDetail !== DEFAULT_PROPS.fillerParticleDetail ||
+			fillerParticleScale !== DEFAULT_PROPS.fillerParticleScale ||
+			fillerParticlePulse !== DEFAULT_PROPS.fillerParticlePulse ||
+			showParticleTypes ||
+			showParticleStats;
+
+		if (!hasParticleProps) {
+			return null;
+		}
+
+		// Use default configs as base, then override with current values
+		const defaultConfigs = createParticleConfigs();
+
+		const userConfig: ParticleVisualConfig = {
+			geometry: {
+				type: userParticleGeometry,
+				size: 1,
+				detail: userParticleDetail,
+			},
+			material: defaultConfigs.userConfig.material,
+			size: {
+				baseScale: userParticleScale,
+				breathPulseIntensity: userParticlePulse,
+			},
+		};
+
+		const fillerConfig: ParticleVisualConfig = {
+			geometry: {
+				type: fillerParticleGeometry,
+				size: 1,
+				detail: fillerParticleDetail,
+			},
+			material: defaultConfigs.fillerConfig.material,
+			size: {
+				baseScale: fillerParticleScale,
+				breathPulseIntensity: fillerParticlePulse,
+			},
+		};
+
+		return {
+			userConfig,
+			fillerConfig,
+			showParticleTypes,
+			showParticleStats,
+		};
+	}, [
+		userParticleGeometry,
+		userParticleDetail,
+		userParticleScale,
+		userParticlePulse,
+		fillerParticleGeometry,
+		fillerParticleDetail,
+		fillerParticleScale,
+		fillerParticlePulse,
+		showParticleTypes,
+		showParticleStats,
+	]);
+
 	return (
-		<BreathDebugProvider config={debugConfig}>
-			<BreathingLevel
-				backgroundColor={backgroundColor}
-				sphereColor={sphereColor}
-				sphereOpacity={sphereOpacity}
-				sphereSegments={sphereSegments}
-				ambientIntensity={ambientIntensity}
-				ambientColor={ambientColor}
-				keyPosition={keyPosition}
-				keyIntensity={keyIntensity}
-				keyColor={keyColor}
-				fillPosition={fillPosition}
-				fillIntensity={fillIntensity}
-				fillColor={fillColor}
-				rimPosition={rimPosition}
-				rimIntensity={rimIntensity}
-				rimColor={rimColor}
-				starsCount={starsCount}
-				floorColor={floorColor}
-				particleCount={particleCount}
-			/>
+		<ParticleDebugProvider config={particleDebugConfig}>
+			<BreathDebugProvider config={debugConfig}>
+				{/* Show active preset indicator */}
+				<PresetIndicator activePreset="medium" />
 
-			{/* Debug Visualizations */}
-			<BreathDebugVisuals
-				showOrbitBounds={showOrbitBounds}
-				showPhaseMarkers={showPhaseMarkers}
-				showTraitValues={showTraitValues}
-			/>
+				<BreathingLevel
+					backgroundColor={backgroundColor}
+					sphereColor={sphereColor}
+					sphereOpacity={sphereOpacity}
+					sphereSegments={sphereSegments}
+					ambientIntensity={ambientIntensity}
+					ambientColor={ambientColor}
+					keyPosition={keyPosition}
+					keyIntensity={keyIntensity}
+					keyColor={keyColor}
+					fillPosition={fillPosition}
+					fillIntensity={fillIntensity}
+					fillColor={fillColor}
+					rimPosition={rimPosition}
+					rimIntensity={rimIntensity}
+					rimColor={rimColor}
+					starsCount={starsCount}
+					floorColor={floorColor}
+					particleCount={particleCount}
+				/>
 
-			{/* Debug Control Info Overlay */}
-			{(enableManualControl ||
-				isPaused ||
-				timeScale !== 1.0 ||
-				jumpToPhase !== undefined) && (
+				{/* Debug Visualizations */}
+				<BreathDebugVisuals
+					showOrbitBounds={showOrbitBounds}
+					showPhaseMarkers={showPhaseMarkers}
+					showTraitValues={showTraitValues}
+				/>
+
+				{/* Particle Debug Visualizations */}
+				<ParticleDebugVisuals
+					showParticleTypes={showParticleTypes}
+					showParticleStats={showParticleStats}
+				/>
+
+				{/* Debug Control Info Overlay */}
+				{(enableManualControl ||
+					isPaused ||
+					timeScale !== 1.0 ||
+					jumpToPhase !== undefined) && (
 				<div
 					style={{
 						position: 'fixed',
@@ -452,8 +304,9 @@ export function BreathingDebugScene({
 						Production app unaffected.
 					</div>
 				</div>
-			)}
-		</BreathDebugProvider>
+				)}
+			</BreathDebugProvider>
+		</ParticleDebugProvider>
 	);
 }
 

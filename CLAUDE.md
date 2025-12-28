@@ -149,6 +149,158 @@ Triplex is a visual 3D component editor integrated into the dev server.
 - Changes hot-reload
 - Use `.triplex/config.json` to configure the editor
 
+### Triplex Integration: Quality Presets & Progressive Disclosure
+
+The codebase uses a **quality preset system** to reduce cognitive load in Triplex from 54 simultaneous props down to 8 commonly-used controls.
+
+**Quality Presets:**
+- **low** — Mobile-friendly (100 particles, basic lighting, reduced visual effects)
+- **medium** — Production default (300 particles, balanced lighting, standard visuals)
+- **high** — High-end visuals (500 particles, enhanced lighting, premium effects)
+- **custom** — Manual control (unlock all 54+ props for advanced tuning)
+
+**Using Presets:**
+```typescript
+// Production scene with medium preset (default)
+<BreathingLevel qualityPreset="medium" />
+
+// Mobile-friendly configuration
+<BreathingLevel qualityPreset="low" sphereColor="#ff0000" />
+
+// Manual override (preset + prop)
+<BreathingLevel qualityPreset="medium" sphereOpacity={0.8} />
+```
+
+### Prop Organization: 4-Tier System
+
+Props are organized hierarchically to avoid overwhelming the editor UI:
+
+**Tier 1: Preset Selection (1 prop)**
+- `qualityPreset` — Switches between predefined configurations
+- Use when you want to quickly change overall visual style
+
+**Tier 2: Primary Controls (7-8 props)**
+- Always visible: `backgroundColor`, `sphereColor`, `ambientIntensity`, `particleCount`
+- Most frequently adjusted during prototyping
+- Example: Changing background color or sphere hue
+
+**Tier 3: Advanced Tuning (20-25 props)**
+- Only visible when `qualityPreset = "custom"`
+- Fine-grained control: fresnel power, crystallization, individual light colors, particle geometry
+- Example: Fine-tuning lighting ratio or particle physics
+
+**Tier 4: Debug Overlays (15-20 props)**
+- Only in debug/experimental scenes (not production)
+- Visualization toggles: axes, grids, orbit bounds, trait values
+- Zero production impact
+
+### Shared Types & Centralized Defaults
+
+All visual and lighting props are defined once for consistency:
+
+**Type definitions:** `src/types/sceneProps.ts`
+- `SharedVisualProps` — backgroundColor, sphereColor, sphereOpacity, etc.
+- `SharedLightingProps` — ambient, key, fill, rim light configuration
+- `BreathingDebugProps` — manual phase control, pause/play, etc.
+- `ParticleDebugProps` — particle geometry, material, size options
+
+**Defaults & metadata:** `src/config/sceneDefaults.ts`
+- `VISUAL_DEFAULTS` — Visual defaults with "when to adjust" guidance
+- `LIGHTING_DEFAULTS` — Lighting setup with interaction hints
+- `QUALITY_PRESETS` — Predefined configurations (low/medium/high)
+- `getDefaultValues()` — Helper to extract values for prop spreading
+
+**Why centralized?**
+- Single source of truth for default values (no duplication)
+- Metadata enables future tooling (AI suggestions, validation)
+- Consistent baseline across all three scene files (production/experimental/debug)
+
+### JSDoc Template for Properties
+
+All 171+ entity props follow this standardized format for consistent help text:
+
+```typescript
+/**
+ * [One-line summary describing what the prop does]
+ *
+ * [Detailed explanation of behavior and units]
+ *
+ * **When to adjust:** [Contextual use case: "Dark backgrounds need 0.4-0.6, light backgrounds need 0.1-0.3"]
+ * **Typical range:** [Visual landmarks: "Dim (0.2) → Standard (0.4) → Bright (0.6) → Washed (0.8+)"]
+ * **Interacts with:** [Related props, e.g., "backgroundColor, keyIntensity, fillIntensity"]
+ * **Performance note:** [If relevant: "Linear impact on initialization; no runtime cost after creation"]
+ *
+ * @min X
+ * @max Y
+ * @step Z
+ * @default value (production baseline: [context])
+ */
+```
+
+**Example (Ambient Light):**
+```typescript
+/**
+ * Ambient light intensity (non-directional base illumination).
+ *
+ * Provides uniform lighting across entire scene. Foundation for all lighting.
+ * Lower = darker shadows, higher = flatter appearance.
+ *
+ * **When to adjust:** Dark backgrounds (0.4-0.6) for contrast, light backgrounds (0.1-0.3) to avoid washout
+ * **Typical range:** Dim (0.2) → Standard (0.4, balanced) → Bright (0.6) → Washed (0.8+)
+ * **Interacts with:** backgroundColor, keyIntensity, fillIntensity
+ * **Performance note:** No impact; computed per-fragment
+ *
+ * @min 0
+ * @max 1
+ * @step 0.05
+ * @default 0.4 (production baseline: balanced visibility)
+ */
+```
+
+**Where to find prop documentation:**
+- **Visual props:** `src/entities/breathingSphere/index.tsx` (17 props)
+- **Lighting props:** `src/entities/lighting/index.tsx` (9 props)
+- **Environment props:** `src/entities/environment/index.tsx` (13 props)
+- **Particle config:** `src/entities/particle/config.ts` (7 props in geometry/material/size)
+- **Scene props:** `src/types/sceneProps.ts` (all props with full metadata)
+
+### How This Reduces Cognitive Load
+
+**Before:** 54 props visible simultaneously in debug scene
+- Users confused about where to start
+- No clear relationship between related props
+- Inconsistent help text ("glow" vs. "intensity" vs. "pulsing")
+- Hard to find production baseline
+
+**After:** Progressive disclosure + standardized help
+- Default view shows 8 primary props (background, sphere, lights, particles)
+- Custom mode unlocks full 54 props when needed
+- "When to adjust" contextual guidance answers "why would I change this?"
+- "Typical range" with visual landmarks (Dim/Standard/Bright) makes tuning intuitive
+- "Interacts with" hints show related props
+- All props link back to `sceneDefaults.ts` for single source of truth
+
+### Extending Presets
+
+To create a custom preset in `src/config/sceneDefaults.ts`:
+
+```typescript
+export const QUALITY_PRESETS = {
+  // ... existing low/medium/high
+  custom_mobile: {
+    particleCount: 50,
+    ambientIntensity: 0.6,
+    keyIntensity: 1.0,
+    // Override any props from VISUAL_DEFAULTS or LIGHTING_DEFAULTS
+  },
+};
+```
+
+Then use in scenes:
+```typescript
+<BreathingLevel qualityPreset="custom_mobile" />
+```
+
 ## Important Implementation Details
 
 ### UTC Synchronization

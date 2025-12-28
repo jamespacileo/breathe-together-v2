@@ -10,9 +10,17 @@ import { breathPhase } from '../breath/traits';
 import { usePresence } from '../../hooks/usePresence';
 import { usePerformanceMonitor } from '../../hooks/usePerformanceMonitor';
 import { useTriplexConfig } from '../../contexts/triplex';
+import { useParticleDebug } from '../../contexts/particleDebug';
 import { getMoodColorCounts } from '../../lib/colors';
 import { generateFibonacciSphere, sphericalToCartesian } from '../../lib/fibonacciSphere';
 import { VISUALS } from '../../constants';
+import {
+	type ParticleVisualConfig,
+	DEFAULT_USER_PARTICLE_CONFIG,
+	DEFAULT_FILLER_PARTICLE_CONFIG,
+	type ParticleGeometryConfig,
+	type ParticleMaterialConfig,
+} from './config';
 
 /**
  * ParticleSpawner - Manages particle entities based on presence
@@ -125,29 +133,141 @@ export function ParticleSpawner({ totalCount = VISUALS.PARTICLE_COUNT, adaptiveQ
 }
 
 /**
- * ParticleRenderer - Renders all particle entities using InstancedMesh
- *
- * Reads particleScale from Triplex context if available for performance tuning.
- * Falls back to totalCount prop if context is unavailable (production builds).
+ * Helper: Create Three.js geometry from configuration
  */
-export function ParticleRenderer({ totalCount = VISUALS.PARTICLE_COUNT }) {
-	const meshRef = useRef<THREE.InstancedMesh>(null);
+function createGeometryFromConfig(config: ParticleGeometryConfig): THREE.BufferGeometry {
+	switch (config.type) {
+		case 'icosahedron':
+			return new THREE.IcosahedronGeometry(config.size, config.detail);
+		case 'sphere':
+			return new THREE.SphereGeometry(config.size, config.detail, config.detail);
+		case 'box':
+			return new THREE.BoxGeometry(
+				config.size,
+				config.size,
+				config.size,
+				config.detail,
+				config.detail,
+				config.detail
+			);
+		case 'octahedron':
+			return new THREE.OctahedronGeometry(config.size, config.detail);
+		case 'tetrahedron':
+			return new THREE.TetrahedronGeometry(config.size, config.detail);
+		default:
+			return new THREE.IcosahedronGeometry(config.size, config.detail);
+	}
+}
+
+/**
+ * Helper: Create Three.js material from configuration
+ */
+function createMaterialFromConfig(config: ParticleMaterialConfig): THREE.Material {
+	const baseProps = {
+		transparent: config.transparent,
+		depthWrite: config.depthWrite,
+		blending: config.blending,
+	};
+
+	switch (config.type) {
+		case 'basic':
+			return new THREE.MeshBasicMaterial(baseProps);
+		case 'standard':
+			return new THREE.MeshStandardMaterial({
+				...baseProps,
+				emissive: new THREE.Color(1, 1, 1),
+				emissiveIntensity: config.emissiveIntensity ?? 0,
+			});
+		case 'lambert':
+			return new THREE.MeshLambertMaterial(baseProps);
+		default:
+			return new THREE.MeshBasicMaterial(baseProps);
+	}
+}
+
+/**
+ * ParticleRenderer - Renders all particle entities using dual InstancedMesh
+ *
+ * Supports separate visual configurations for user and filler particles.
+ * Uses debug context (if available) to allow runtime override of particle visuals.
+ * Falls back to production defaults when debug context is not present.
+ *
+ * Performance: 2 draw calls (user + filler) vs 1 (~0.1ms impact on modern GPUs)
+ * Backward Compatible: Defaults match previous icosahedron + additive blending behavior
+ *
+ * @param totalCount - Base particle count (default: VISUALS.PARTICLE_COUNT = 300)
+ * @param userConfig - User particle visual config (default: DEFAULT_USER_PARTICLE_CONFIG)
+ * @param fillerConfig - Filler particle visual config (default: DEFAULT_FILLER_PARTICLE_CONFIG)
+ */
+export function ParticleRenderer({
+	totalCount = VISUALS.PARTICLE_COUNT,
+	userConfig = DEFAULT_USER_PARTICLE_CONFIG,
+	fillerConfig = DEFAULT_FILLER_PARTICLE_CONFIG,
+}: {
+	totalCount?: number;
+	userConfig?: ParticleVisualConfig;
+	fillerConfig?: ParticleVisualConfig;
+} = {}) {
 	const world = useWorld();
 	const triplexConfig = useTriplexConfig?.();
+	const debugConfig = useParticleDebug();
+
+	// Apply debug overrides if available
+	const activeUserConfig = debugConfig?.userConfig ?? userConfig;
+	const activeFillerConfig = debugConfig?.fillerConfig ?? fillerConfig;
+
+	// Apply Triplex particle scale if available
+	const finalCount = Math.round(totalCount * (triplexConfig?.particleScale ?? 1.0));
+
+	// Create geometries and materials from configurations
+	const userGeometry = useMemo(
+		() => createGeometryFromConfig(activeUserConfig.geometry),
+		[activeUserConfig.geometry.type, activeUserConfig.geometry.detail]
+	);
+
+	const fillerGeometry = useMemo(
+		() => createGeometryFromConfig(activeFillerConfig.geometry),
+		[activeFillerConfig.geometry.type, activeFillerConfig.geometry.detail]
+	);
+
+	const userMaterial = useMemo(
+		() => createMaterialFromConfig(activeUserConfig.material),
+		[
+			activeUserConfig.material.type,
+			activeUserConfig.material.transparent,
+			activeUserConfig.material.depthWrite,
+			activeUserConfig.material.blending,
+			activeUserConfig.material.emissiveIntensity,
+		]
+	);
+
+	const fillerMaterial = useMemo(
+		() => createMaterialFromConfig(activeFillerConfig.material),
+		[
+			activeFillerConfig.material.type,
+			activeFillerConfig.material.transparent,
+			activeFillerConfig.material.depthWrite,
+			activeFillerConfig.material.blending,
+			activeFillerConfig.material.emissiveIntensity,
+		]
+	);
+
+	const userMeshRef = useRef<THREE.InstancedMesh>(null);
+	const fillerMeshRef = useRef<THREE.InstancedMesh>(null);
 	const matrix = useMemo(() => new THREE.Matrix4(), []);
 	const colorObj = useMemo(() => new THREE.Color(), []);
 
-	// Apply Triplex particle scale if available, otherwise use prop as-is
-	const finalCount = Math.round(totalCount * (triplexConfig?.particleScale ?? 1.0));
-
 	useFrame((_, delta) => {
-		if (!meshRef.current) return;
+		if (!userMeshRef.current || !fillerMeshRef.current) return;
 
-		const particles = world.query(Position, color, targetColor, size, index, active);
+		const particles = world.query(Position, color, targetColor, size, index, active, ownerId);
 		const breath = world.queryFirst(breathPhase);
 		const phase = breath?.get(breathPhase)?.value ?? 0;
 
-		let colorNeedsUpdate = false;
+		let userColorNeedsUpdate = false;
+		let fillerColorNeedsUpdate = false;
+		let userIdx = 0;
+		let fillerIdx = 0;
 
 		particles.forEach((entity) => {
 			const pos = entity.get(Position);
@@ -156,50 +276,69 @@ export function ParticleRenderer({ totalCount = VISUALS.PARTICLE_COUNT }) {
 			const sizeTrait = entity.get(size);
 			const indexTrait = entity.get(index);
 			const activeTrait = entity.get(active);
+			const ownerIdTrait = entity.get(ownerId);
 
-			if (!pos || !c || !tc || !sizeTrait || !indexTrait) return;
+			if (!pos || !c || !tc || !sizeTrait || !indexTrait || !ownerIdTrait) return;
 
 			const s = sizeTrait.value;
-			const i = indexTrait.value;
 			const isActive = activeTrait?.value ?? true;
+			const isUser = ownerIdTrait.value === 'user';
+			const config = isUser ? activeUserConfig : activeFillerConfig;
 
 			// 1. Smooth color bleeding
 			if (c.r !== tc.r || c.g !== tc.g || c.b !== tc.b) {
 				easing.damp(c, 'r', tc.r, VISUALS.PARTICLE_COLOR_DAMPING, delta);
 				easing.damp(c, 'g', tc.g, VISUALS.PARTICLE_COLOR_DAMPING, delta);
 				easing.damp(c, 'b', tc.b, VISUALS.PARTICLE_COLOR_DAMPING, delta);
-				colorNeedsUpdate = true;
+				if (isUser) {
+					userColorNeedsUpdate = true;
+				} else {
+					fillerColorNeedsUpdate = true;
+				}
 			}
 
-			// 2. Calculate scale with breath pulse (inactive particles have 0 scale to hide them)
-			const pulse = 1.0 + phase * 0.2;
-			const baseScale = isActive ? s * VISUALS.PARTICLE_SIZE : 0;
+			// 2. Calculate scale with breath pulse
+			// Inactive particles have 0 scale to hide them
+			const pulse = 1.0 + phase * config.size.breathPulseIntensity;
+			const baseScale = isActive ? s * VISUALS.PARTICLE_SIZE * config.size.baseScale : 0;
 			const finalScale = baseScale * pulse;
 
 			matrix.makeScale(finalScale, finalScale, finalScale);
 			matrix.setPosition(pos.x, pos.y, pos.z);
-			meshRef.current?.setMatrixAt(i, matrix);
 
-			if (colorNeedsUpdate) {
+			const meshRef = isUser ? userMeshRef : fillerMeshRef;
+			const instanceIdx = isUser ? userIdx++ : fillerIdx++;
+
+			meshRef.current?.setMatrixAt(instanceIdx, matrix);
+
+			if (isUser ? userColorNeedsUpdate : fillerColorNeedsUpdate) {
 				colorObj.setRGB(c.r, c.g, c.b);
-				meshRef.current?.setColorAt(i, colorObj);
+				meshRef.current?.setColorAt(instanceIdx, colorObj);
 			}
 		});
 
-		meshRef.current.instanceMatrix.needsUpdate = true;
-		if (colorNeedsUpdate && meshRef.current.instanceColor) {
-			meshRef.current.instanceColor.needsUpdate = true;
+		userMeshRef.current.instanceMatrix.needsUpdate = true;
+		fillerMeshRef.current.instanceMatrix.needsUpdate = true;
+
+		if (userColorNeedsUpdate && userMeshRef.current.instanceColor) {
+			userMeshRef.current.instanceColor.needsUpdate = true;
+		}
+		if (fillerColorNeedsUpdate && fillerMeshRef.current.instanceColor) {
+			fillerMeshRef.current.instanceColor.needsUpdate = true;
 		}
 	});
 
 	return (
-		<instancedMesh ref={meshRef} args={[undefined, undefined, finalCount]}>
-			<icosahedronGeometry args={[1, 2]} />
-			<meshBasicMaterial
-				transparent
-				depthWrite={false}
-				blending={THREE.AdditiveBlending}
-			/>
-		</instancedMesh>
+		<group>
+			<instancedMesh ref={userMeshRef} args={[userGeometry, userMaterial, finalCount]}>
+				<primitive object={userGeometry} attach="geometry" />
+				<primitive object={userMaterial} attach="material" />
+			</instancedMesh>
+
+			<instancedMesh ref={fillerMeshRef} args={[fillerGeometry, fillerMaterial, finalCount]}>
+				<primitive object={fillerGeometry} attach="geometry" />
+				<primitive object={fillerMaterial} attach="material" />
+			</instancedMesh>
+		</group>
 	);
 }

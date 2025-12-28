@@ -7,182 +7,55 @@
  * - Maintains flat prop structure for Triplex sidebar compatibility
  * - Advanced component props accessible by drilling into child components
  * - Breathing animation runs in background (breathSystem enabled in .triplex/providers.tsx)
+ *
+ * Uses centralized defaults from src/config/sceneDefaults.ts for single source of truth.
  */
 import { BreathingSphere } from '../entities/breathingSphere';
 import { ParticleSpawner, ParticleRenderer } from '../entities/particle';
 import { Environment } from '../entities/environment';
 import { Lighting } from '../entities/lighting';
-import { VISUALS } from '../constants';
+import type { BreathingLevelProps } from '../types/sceneProps';
+import { getDefaultValues, VISUAL_DEFAULTS, LIGHTING_DEFAULTS } from '../config/sceneDefaults';
 
-interface BreathingLevelProps {
-	// Scene
-	/**
-	 * Scene background color
-	 * @type color
-	 */
-	backgroundColor?: string;
-
-	// BreathingSphere
-	/**
-	 * Sphere color
-	 * @type color
-	 */
-	sphereColor?: string;
-
-	/**
-	 * Sphere material opacity
-	 * @min 0
-	 * @max 1
-	 * @step 0.01
-	 */
-	sphereOpacity?: number;
-
-	/**
-	 * Sphere geometry segments (detail level)
-	 * @min 16
-	 * @max 128
-	 * @step 16
-	 */
-	sphereSegments?: number;
-
-	// Lighting - Ambient
-	/**
-	 * Ambient light intensity
-	 * @min 0
-	 * @max 1
-	 * @step 0.05
-	 */
-	ambientIntensity?: number;
-
-	/**
-	 * Ambient light color
-	 * @type color
-	 */
-	ambientColor?: string;
-
-	// Lighting - Key
-	/**
-	 * Key light position (x, y, z)
-	 * @type vector3
-	 */
-	keyPosition?: [number, number, number];
-
-	/**
-	 * Key light intensity (modulates with breath phase)
-	 * @min 0
-	 * @max 2
-	 * @step 0.1
-	 */
-	keyIntensity?: number;
-
-	/**
-	 * Key light color (warm cyan)
-	 * @type color
-	 */
-	keyColor?: string;
-
-	// Lighting - Fill
-	/**
-	 * Fill light position (opposite side)
-	 * @type vector3
-	 */
-	fillPosition?: [number, number, number];
-
-	/**
-	 * Fill light intensity (shadow softness)
-	 * @min 0
-	 * @max 1
-	 * @step 0.05
-	 */
-	fillIntensity?: number;
-
-	/**
-	 * Fill light color (cool blue)
-	 * @type color
-	 */
-	fillColor?: string;
-
-	// Lighting - Rim
-	/**
-	 * Rim light position (edge definition)
-	 * @type vector3
-	 */
-	rimPosition?: [number, number, number];
-
-	/**
-	 * Rim light intensity (edge glow)
-	 * @min 0
-	 * @max 1
-	 * @step 0.05
-	 */
-	rimIntensity?: number;
-
-	/**
-	 * Rim light color (pale cyan)
-	 * @type color
-	 */
-	rimColor?: string;
-
-	// Environment
-	/**
-	 * Number of background stars
-	 * @min 1000
-	 * @max 10000
-	 * @step 500
-	 */
-	starsCount?: number;
-
-	/**
-	 * Floor color
-	 * @type color
-	 */
-	floorColor?: string;
-
-	// Particles
-	/**
-	 * Number of particles
-	 * @min 50
-	 * @max 500
-	 * @step 50
-	 */
-	particleCount?: number;
-}
+// Merge all visual and lighting defaults for convenient spreading
+const DEFAULT_PROPS = {
+	...getDefaultValues(VISUAL_DEFAULTS),
+	...getDefaultValues(LIGHTING_DEFAULTS),
+} as const;
 
 export function BreathingLevel({
-	// Scene defaults
-	backgroundColor = VISUALS.BG_COLOR,
-
-	// BreathingSphere defaults
-	sphereColor = VISUALS.SPHERE_COLOR_INHALE,
-	sphereOpacity = VISUALS.SPHERE_OPACITY,
-	sphereSegments = VISUALS.SPHERE_SEGMENTS,
+	// Visual defaults
+	backgroundColor = DEFAULT_PROPS.backgroundColor,
+	sphereColor = DEFAULT_PROPS.sphereColor,
+	sphereOpacity = DEFAULT_PROPS.sphereOpacity,
+	sphereSegments = DEFAULT_PROPS.sphereSegments,
 
 	// Lighting - Ambient defaults
-	ambientIntensity = VISUALS.AMBIENT_LIGHT_INTENSITY,
-	ambientColor = '#a8b8d0',
+	ambientIntensity = DEFAULT_PROPS.ambientIntensity,
+	ambientColor = DEFAULT_PROPS.ambientColor,
 
 	// Lighting - Key defaults
-	keyPosition = [2, 3, 5],
-	keyIntensity = VISUALS.KEY_LIGHT_INTENSITY_MIN,
-	keyColor = VISUALS.KEY_LIGHT_COLOR,
+	keyPosition = DEFAULT_PROPS.keyPosition,
+	keyIntensity = DEFAULT_PROPS.keyIntensity,
+	keyColor = DEFAULT_PROPS.keyColor,
 
 	// Lighting - Fill defaults
-	fillPosition = [-2, -1, -3],
-	fillIntensity = VISUALS.FILL_LIGHT_INTENSITY,
-	fillColor = VISUALS.FILL_LIGHT_COLOR,
+	fillPosition = DEFAULT_PROPS.fillPosition,
+	fillIntensity = DEFAULT_PROPS.fillIntensity,
+	fillColor = DEFAULT_PROPS.fillColor,
 
 	// Lighting - Rim defaults
-	rimPosition = [0, -5, -5],
-	rimIntensity = VISUALS.RIM_LIGHT_INTENSITY,
-	rimColor = VISUALS.RIM_LIGHT_COLOR,
+	rimPosition = DEFAULT_PROPS.rimPosition,
+	rimIntensity = DEFAULT_PROPS.rimIntensity,
+	rimColor = DEFAULT_PROPS.rimColor,
 
 	// Environment defaults
-	starsCount = 5000,
-	floorColor = '#0a0a1a',
+	starsCount = DEFAULT_PROPS.starsCount,
+	floorColor = DEFAULT_PROPS.floorColor,
 
 	// Particle defaults
-	particleCount = VISUALS.PARTICLE_COUNT,
-}: BreathingLevelProps = {}) {
+	particleCount = DEFAULT_PROPS.particleCount,
+}: Partial<BreathingLevelProps> = {}) {
 	return (
 		<>
 			<color attach="background" args={[backgroundColor]} />
