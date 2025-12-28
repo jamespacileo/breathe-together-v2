@@ -15,12 +15,13 @@ import { ParticleSpawner, ParticleRenderer } from '../entities/particle';
 import { Environment } from '../entities/environment';
 import { Lighting } from '../entities/lighting';
 import type { BreathingLevelProps } from '../types/sceneProps';
-import { getDefaultValues, VISUAL_DEFAULTS, LIGHTING_DEFAULTS } from '../config/sceneDefaults';
+import { getDefaultValues, VISUAL_DEFAULTS, LIGHTING_DEFAULTS, ENVIRONMENT_DEFAULTS } from '../config/sceneDefaults';
 
-// Merge all visual and lighting defaults for convenient spreading
+// Merge all visual, lighting, and environment defaults for convenient spreading
 const DEFAULT_PROPS = {
 	...getDefaultValues(VISUAL_DEFAULTS),
 	...getDefaultValues(LIGHTING_DEFAULTS),
+	...getDefaultValues(ENVIRONMENT_DEFAULTS),
 } as const;
 
 export function BreathingLevel({
@@ -52,6 +53,12 @@ export function BreathingLevel({
 	// Environment defaults
 	starsCount = DEFAULT_PROPS.starsCount,
 	floorColor = DEFAULT_PROPS.floorColor,
+	enableStars = DEFAULT_PROPS.enableStars,
+	enableFloor = DEFAULT_PROPS.enableFloor,
+	floorOpacity = DEFAULT_PROPS.floorOpacity,
+	enablePointLight = DEFAULT_PROPS.enablePointLight,
+	lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
+	lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
 
 	// Particle defaults
 	particleCount = DEFAULT_PROPS.particleCount,
@@ -75,7 +82,16 @@ export function BreathingLevel({
 				rimColor={rimColor}
 			/>
 
-			<Environment starsCount={starsCount} floorColor={floorColor} />
+			<Environment
+			starsCount={starsCount}
+			floorColor={floorColor}
+			enableStars={enableStars}
+			enableFloor={enableFloor}
+			floorOpacity={floorOpacity}
+			enablePointLight={enablePointLight}
+			lightIntensityMin={lightIntensityMin}
+			lightIntensityRange={lightIntensityRange}
+		/>
 
 			<BreathingSphere
 				color={sphereColor}

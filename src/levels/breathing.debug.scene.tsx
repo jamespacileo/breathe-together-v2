@@ -32,6 +32,7 @@ import {
 	getDefaultValues,
 	VISUAL_DEFAULTS,
 	LIGHTING_DEFAULTS,
+	ENVIRONMENT_DEFAULTS,
 	BREATHING_DEBUG_DEFAULTS,
 	PARTICLE_DEBUG_DEFAULTS,
 	EXPERIMENTAL_DEFAULTS,
@@ -42,6 +43,7 @@ import {
 const DEFAULT_PROPS = {
 	...getDefaultValues(VISUAL_DEFAULTS),
 	...getDefaultValues(LIGHTING_DEFAULTS),
+	...getDefaultValues(ENVIRONMENT_DEFAULTS),
 	...getDefaultValues(BREATHING_DEBUG_DEFAULTS),
 	...getDefaultValues(PARTICLE_DEBUG_DEFAULTS),
 	...getDefaultValues(EXPERIMENTAL_DEFAULTS),
@@ -95,6 +97,12 @@ export function BreathingDebugScene({
 	// Environment
 	starsCount = DEFAULT_PROPS.starsCount,
 	floorColor = DEFAULT_PROPS.floorColor,
+	enableStars = DEFAULT_PROPS.enableStars,
+	enableFloor = DEFAULT_PROPS.enableFloor,
+	floorOpacity = DEFAULT_PROPS.floorOpacity,
+	enablePointLight = DEFAULT_PROPS.enablePointLight,
+	lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
+	lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
 
 	// Particles
 	particleCount = DEFAULT_PROPS.particleCount,

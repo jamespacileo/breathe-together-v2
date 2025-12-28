@@ -321,6 +321,95 @@ export interface SharedVisualProps {
 }
 
 // ============================================================================
+// ENVIRONMENT PROPS (stars, floor, point light)
+// ============================================================================
+
+/**
+ * Environment scene props (stars, floor, point light).
+ *
+ * Controls background atmospheric elements with enable/disable toggles.
+ * Exposed props support common adjustments in Triplex editor.
+ */
+export interface SharedEnvironmentProps {
+	/**
+	 * Enable stars background (starfield rendering).
+	 *
+	 * **When to adjust:** Disable for minimal aesthetic, enable for space atmosphere
+	 * **Interacts with:** starsCount (only applies when enabled)
+	 *
+	 * @default true
+	 */
+	enableStars?: boolean;
+
+	/**
+	 * Enable floor plane (ground reference).
+	 *
+	 * **When to adjust:** Disable for floating aesthetic, enable for grounded feel
+	 * **Interacts with:** floorColor, floorOpacity (only apply when enabled)
+	 *
+	 * @default true
+	 */
+	enableFloor?: boolean;
+
+	/**
+	 * Floor plane opacity (transparency).
+	 *
+	 * Controls floor visibility from 0 (invisible) to 1 (fully opaque).
+	 *
+	 * **When to adjust:** 0.3-0.5 for subtle reference, 0.7+ for visible presence
+	 * **Typical range:** Ghost-like (0.2) → Subtle (0.5) → Visible (0.8)
+	 * **Interacts with:** backgroundColor (floor should blend with background)
+	 *
+	 * @min 0
+	 * @max 1
+	 * @step 0.05
+	 * @default 0.5
+	 */
+	floorOpacity?: number;
+
+	/**
+	 * Enable breathing point light (pulsing atmospheric light).
+	 *
+	 * **When to adjust:** Disable for directional-only lighting, enable for ambient glow
+	 * **Interacts with:** lightIntensityMin, lightIntensityRange (only apply when enabled)
+	 *
+	 * @default true
+	 */
+	enablePointLight?: boolean;
+
+	/**
+	 * Point light base intensity (non-breathing).
+	 *
+	 * Minimum light brightness. Breathes up by lightIntensityRange.
+	 *
+	 * **When to adjust:** 0.2-0.5 for subtle glow, 0.8-1.5 for prominent, 2.0+ for bright
+	 * **Typical range:** Subtle (0.2) → Standard (0.5) → Prominent (1.0) → Bright (2.0+)
+	 * **Interacts with:** lightIntensityRange (adds to base intensity)
+	 *
+	 * @min 0
+	 * @max 5
+	 * @step 0.1
+	 * @default 0.5
+	 */
+	lightIntensityMin?: number;
+
+	/**
+	 * Point light breathing modulation range.
+	 *
+	 * How much intensity changes with breathing cycle. Creates pulsing ambient light effect.
+	 *
+	 * **When to adjust:** 0.5-1.0 for subtle breathing, 1.5-2.5 for pronounced pulse
+	 * **Typical range:** Subtle (0.5) → Moderate (1.5) → Strong (2.5) → Extreme (3.0+)
+	 *
+	 * @min 0
+	 * @max 5
+	 * @step 0.1
+	 * @default 1.5
+	 */
+	lightIntensityRange?: number;
+}
+
+// ============================================================================
 // EXPERIMENTAL BREATHING CURVE PROPS (breathing.scene.tsx)
 // ============================================================================
 
@@ -668,10 +757,10 @@ export interface ParticleDebugProps {
 /**
  * Production scene props (breathing.tsx).
  *
- * Combines shared visual/lighting with particle count.
+ * Combines shared visual/lighting, environment, and particle count.
  * No debug controls or experimental features.
  */
-export type BreathingLevelProps = SharedVisualProps & {
+export type BreathingLevelProps = SharedVisualProps & SharedEnvironmentProps & {
 	/**
 	 * Quality preset (for future extensibility).
 	 * Currently not used in production, but included for consistency.
@@ -685,7 +774,7 @@ export type BreathingLevelProps = SharedVisualProps & {
  * Extends production props with breathing curve experimentation.
  * Wraps BreathingLevel with BreathCurveProvider.
  */
-export type BreathingSceneProps = SharedVisualProps & ExperimentalBreathProps;
+export type BreathingSceneProps = SharedVisualProps & SharedEnvironmentProps & ExperimentalBreathProps;
 
 /**
  * Debug scene props (breathing.debug.scene.tsx).
@@ -694,6 +783,7 @@ export type BreathingSceneProps = SharedVisualProps & ExperimentalBreathProps;
  * Only active in debug scene; zero production impact.
  */
 export type BreathingDebugSceneProps = SharedVisualProps &
+	SharedEnvironmentProps &
 	ExperimentalBreathProps &
 	BreathingDebugProps &
 	ParticleDebugProps &

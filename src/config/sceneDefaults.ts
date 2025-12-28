@@ -232,6 +232,69 @@ export const LIGHTING_DEFAULTS = {
 } as const;
 
 // ============================================================================
+// ENVIRONMENT DEFAULTS
+// ============================================================================
+
+export const ENVIRONMENT_DEFAULTS = {
+	enableStars: {
+		value: true as const,
+		meta: {
+			whenToAdjust:
+				'Disable for minimal aesthetic, enable for space atmosphere',
+			typicalRange: 'false (minimal) → true (atmospheric)',
+			interactsWith: ['starsCount'],
+		} as PropMetadata,
+	},
+	enableFloor: {
+		value: true as const,
+		meta: {
+			whenToAdjust:
+				'Disable for floating aesthetic, enable for grounded feel',
+			typicalRange: 'false (floating) → true (grounded)',
+			interactsWith: ['floorColor', 'floorOpacity'],
+		} as PropMetadata,
+	},
+	floorOpacity: {
+		value: 0.5 as const,
+		meta: {
+			whenToAdjust:
+				'0.3-0.5 for subtle reference, 0.7+ for visible presence',
+			typicalRange:
+				'Ghost-like (0.2) → Subtle (0.5) → Visible (0.8)',
+			interactsWith: ['backgroundColor'],
+		} as PropMetadata,
+	},
+	enablePointLight: {
+		value: true as const,
+		meta: {
+			whenToAdjust:
+				'Disable for directional-only lighting, enable for ambient glow',
+			typicalRange: 'false (directional only) → true (pulsing ambient)',
+			interactsWith: ['lightIntensityMin', 'lightIntensityRange'],
+		} as PropMetadata,
+	},
+	lightIntensityMin: {
+		value: 0.5 as const,
+		meta: {
+			whenToAdjust:
+				'0.2-0.5 for subtle glow, 0.8-1.5 for prominent, 2.0+ for bright',
+			typicalRange:
+				'Subtle (0.2) → Standard (0.5) → Prominent (1.0) → Bright (2.0+)',
+			interactsWith: ['lightIntensityRange'],
+		} as PropMetadata,
+	},
+	lightIntensityRange: {
+		value: 1.5 as const,
+		meta: {
+			whenToAdjust:
+				'0.5-1.0 for subtle breathing, 1.5-2.5 for pronounced pulse',
+			typicalRange:
+				'Subtle (0.5) → Moderate (1.5) → Strong (2.5) → Extreme (3.0+)',
+		} as PropMetadata,
+	},
+} as const;
+
+// ============================================================================
 // BREATHING DEBUG DEFAULTS
 // ============================================================================
 

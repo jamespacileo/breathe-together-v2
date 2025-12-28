@@ -12,6 +12,36 @@ import { VISUALS } from '../../constants';
 
 interface EnvironmentProps {
 	/**
+	 * Enable stars background (starfield rendering).
+	 *
+	 * **When to adjust:** Disable for minimal aesthetic, enable for space atmosphere
+	 * **Interacts with:** starsCount, starsRadius (only apply when enabled)
+	 *
+	 * @default true
+	 */
+	enableStars?: boolean;
+
+	/**
+	 * Enable floor plane (ground reference).
+	 *
+	 * **When to adjust:** Disable for floating aesthetic, enable for grounded feel
+	 * **Interacts with:** floorColor, floorOpacity (only apply when enabled)
+	 *
+	 * @default true
+	 */
+	enableFloor?: boolean;
+
+	/**
+	 * Enable breathing point light (pulsing atmospheric light).
+	 *
+	 * **When to adjust:** Disable for directional-only lighting, enable for ambient glow
+	 * **Interacts with:** lightIntensityMin, lightIntensityRange (only apply when enabled)
+	 *
+	 * @default true
+	 */
+	enablePointLight?: boolean;
+
+	/**
 	 * Stars sphere radius (size of starfield sphere).
 	 *
 	 * Controls how far away the stars appear. Larger values push stars further.
@@ -221,44 +251,18 @@ interface EnvironmentProps {
 	 */
 	floorOpacity?: number;
 
-	/**
-	 * Floor material roughness (surface finish).
-	 *
-	 * Controls reflectivity: 0 = mirror-like (reflective), 1 = completely diffuse (matte).
-	 *
-	 * **When to adjust:** 0.3-0.5 for smooth/polished, 0.7-1.0 for rough/matte
-	 * **Typical range:** Smooth (0.3) → Balanced (0.6, default) → Rough (0.8) → Very rough (1.0)
-	 *
-	 * @min 0
-	 * @max 1
-	 * @step 0.1
-	 * @default 0.6
-	 */
-	floorRoughness?: number;
-
-	/**
-	 * Floor material metalness (metallic appearance).
-	 *
-	 * Controls how much floor behaves like metal: 0 = dielectric (normal), 1 = full metal (reflective).
-	 *
-	 * **When to adjust:** 0.0 for non-metallic, 0.3-0.7 for slight metal, 0.8+ for polished metal
-	 * **Typical range:** Non-metal (0.0) → Slight metal (0.3) → Metal (0.6) → Full metal (1.0)
-	 *
-	 * @min 0
-	 * @max 1
-	 * @step 0.1
-	 * @default 0.2
-	 */
-	floorMetalness?: number;
 }
 
 export function Environment({
+	enableStars = true,
+	enableFloor = true,
+	enablePointLight = true,
 	starsRadius = 100,
 	starsDepth = 50,
 	starsCount = 5000,
 	starsFactor = 4,
 	lightPosition = [0, 5, 5],
-	lightColor = VISUALS.SPHERE_COLOR_INHALE,
+	lightColor = '#4dd9e8',
 	lightDistance = 20,
 	lightDecay = 2,
 	lightIntensityMin = 0.5,
@@ -266,9 +270,7 @@ export function Environment({
 	floorPositionY = -4,
 	floorSize = 100,
 	floorColor = '#0a0a1a',
-	floorOpacity = 0.4,
-	floorRoughness = 1,
-	floorMetalness = 0,
+	floorOpacity = 0.5,
 }: EnvironmentProps = {}) {
 	const lightRef = useRef<THREE.PointLight>(null);
 	const world = useWorld();
@@ -287,36 +289,42 @@ export function Environment({
 	return (
 		<>
 			{/* Deep space background */}
-			<Stars
-				radius={starsRadius}
-				depth={starsDepth}
-				count={starsCount}
-				factor={starsFactor}
-				saturation={0}
-				fade
-				speed={1}
-			/>
+			{enableStars && (
+				<Stars
+					radius={starsRadius}
+					depth={starsDepth}
+					count={starsCount}
+					factor={starsFactor}
+					saturation={0}
+					fade
+					speed={1}
+				/>
+			)}
 
 			{/* Dynamic point light that pulses with breath */}
-			<pointLight
-				ref={lightRef}
-				position={lightPosition}
-				color={lightColor}
-				distance={lightDistance}
-				decay={lightDecay}
-			/>
+			{enablePointLight && (
+				<pointLight
+					ref={lightRef}
+					position={lightPosition}
+					color={lightColor}
+					distance={lightDistance}
+					decay={lightDecay}
+				/>
+			)}
 
 			{/* Subtle floor to give sense of scale and position */}
-			<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, floorPositionY, 0]} receiveShadow>
-				<planeGeometry args={[floorSize, floorSize]} />
-				<meshStandardMaterial
-					color={floorColor}
-					transparent
-					opacity={floorOpacity}
-					roughness={floorRoughness}
-					metalness={floorMetalness}
-				/>
-			</mesh>
+			{enableFloor && (
+				<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, floorPositionY, 0]} receiveShadow>
+					<planeGeometry args={[floorSize, floorSize]} />
+					<meshStandardMaterial
+						color={floorColor}
+						transparent
+						opacity={floorOpacity}
+						roughness={1}
+						metalness={0}
+					/>
+				</mesh>
+			)}
 		</>
 	);
 }

@@ -21,12 +21,13 @@ import { Html } from '@react-three/drei';
 import { BreathingLevel } from './breathing';
 import { BreathCurveProvider } from '../contexts/BreathCurveContext';
 import type { BreathingSceneProps } from '../types/sceneProps';
-import { getDefaultValues, VISUAL_DEFAULTS, LIGHTING_DEFAULTS, EXPERIMENTAL_DEFAULTS } from '../config/sceneDefaults';
+import { getDefaultValues, VISUAL_DEFAULTS, LIGHTING_DEFAULTS, ENVIRONMENT_DEFAULTS, EXPERIMENTAL_DEFAULTS } from '../config/sceneDefaults';
 
 // Merge all defaults for convenient spreading
 const DEFAULT_PROPS = {
 	...getDefaultValues(VISUAL_DEFAULTS),
 	...getDefaultValues(LIGHTING_DEFAULTS),
+	...getDefaultValues(ENVIRONMENT_DEFAULTS),
 	...getDefaultValues(EXPERIMENTAL_DEFAULTS),
 } as const;
 
@@ -70,6 +71,12 @@ export function BreathingScene({
 	// Environment defaults
 	starsCount = DEFAULT_PROPS.starsCount,
 	floorColor = DEFAULT_PROPS.floorColor,
+	enableStars = DEFAULT_PROPS.enableStars,
+	enableFloor = DEFAULT_PROPS.enableFloor,
+	floorOpacity = DEFAULT_PROPS.floorOpacity,
+	enablePointLight = DEFAULT_PROPS.enablePointLight,
+	lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
+	lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
 
 	// Particle defaults
 	particleCount = DEFAULT_PROPS.particleCount,
@@ -94,6 +101,12 @@ export function BreathingScene({
 				rimColor={rimColor}
 				starsCount={starsCount}
 				floorColor={floorColor}
+				enableStars={enableStars}
+				enableFloor={enableFloor}
+				floorOpacity={floorOpacity}
+				enablePointLight={enablePointLight}
+				lightIntensityMin={lightIntensityMin}
+				lightIntensityRange={lightIntensityRange}
 				particleCount={particleCount}
 			/>
 
@@ -142,8 +155,8 @@ export function BreathingScene({
 						)}
 					</div>
 				</div>
-			)}
 			</Html>
+			)}
 		</BreathCurveProvider>
 	);
 }
