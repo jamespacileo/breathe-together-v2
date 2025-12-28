@@ -11,25 +11,34 @@ import { usePresence } from '../../hooks/usePresence';
 import { getMoodColorCounts } from '../../lib/colors';
 import { generateFibonacciSphere, sphericalToCartesian } from '../../lib/fibonacciSphere';
 import { VISUALS } from '../../constants';
+// @ts-ignore - Triplex providers at root level, imported for dev/visual editing only
+import { useTriplexConfig } from '../../.triplex/providers';
 
 /**
  * ParticleSpawner - Manages particle entities based on presence
+ *
+ * Reads particleScale from Triplex context if available for performance tuning.
+ * Falls back to totalCount prop if context is unavailable (production builds).
  */
 export function ParticleSpawner({ totalCount = VISUALS.PARTICLE_COUNT }) {
 	const world = useWorld();
 	const { moods } = usePresence({ simulated: false, pollInterval: 5000 });
-	
+	const triplexConfig = useTriplexConfig?.();
+
+	// Apply Triplex particle scale if available, otherwise use prop as-is
+	const finalCount = Math.round(totalCount * (triplexConfig?.particleScale ?? 1.0));
+
 	// Generate base layout
-	const layout = useMemo(() => generateFibonacciSphere(totalCount), [totalCount]);
+	const layout = useMemo(() => generateFibonacciSphere(finalCount), [finalCount]);
 
 	useEffect(() => {
 		const entities: Entity[] = [];
 		const fillerColor = new THREE.Color(VISUALS.PARTICLE_FILLER_COLOR);
 
-		for (let i = 0; i < totalCount; i++) {
+		for (let i = 0; i < finalCount; i++) {
 			const p = layout[i];
 			const [x, y, z] = sphericalToCartesian(p.theta, p.phi, VISUALS.PARTICLE_ORBIT_MAX);
-			
+
 			const entity = world.spawn(
 				Position({ x, y, z }),
 				Velocity({ x: 0, y: 0, z: 0 }),
@@ -50,27 +59,27 @@ export function ParticleSpawner({ totalCount = VISUALS.PARTICLE_COUNT }) {
 		return () => {
 			entities.forEach(e => { e.destroy(); });
 		};
-	}, [world, layout, totalCount]);
+	}, [world, layout, finalCount]);
 
 	// Update target colors based on moods
 	useEffect(() => {
 		const colorCounts = getMoodColorCounts(moods);
 		const particles = world.query(targetColor, ownerId, index);
-		
+
 		// Sort by index to ensure stable mapping
 		const sortedParticles = [...particles].sort((a, b) => {
 			const indexA = a.get(index)?.value ?? 0;
 			const indexB = b.get(index)?.value ?? 0;
 			return indexA - indexB;
 		});
-		
+
 		let particleIdx = 0;
 		const fillerColor = new THREE.Color(VISUALS.PARTICLE_FILLER_COLOR);
 
 		// Assign user colors
 		for (const [hexColor, count] of Object.entries(colorCounts)) {
 			const c = new THREE.Color(hexColor);
-			for (let i = 0; i < count && particleIdx < totalCount; i++) {
+			for (let i = 0; i < count && particleIdx < finalCount; i++) {
 				const entity = sortedParticles[particleIdx];
 				if (entity) {
 					entity.set(targetColor, { r: c.r, g: c.g, b: c.b });
@@ -81,7 +90,7 @@ export function ParticleSpawner({ totalCount = VISUALS.PARTICLE_COUNT }) {
 		}
 
 		// Assign filler colors
-		while (particleIdx < totalCount) {
+		while (particleIdx < finalCount) {
 			const entity = sortedParticles[particleIdx];
 			if (entity) {
 				entity.set(targetColor, { r: fillerColor.r, g: fillerColor.g, b: fillerColor.b });
@@ -89,19 +98,26 @@ export function ParticleSpawner({ totalCount = VISUALS.PARTICLE_COUNT }) {
 			}
 			particleIdx++;
 		}
-	}, [moods, world, totalCount]);
+	}, [moods, world, finalCount]);
 
 	return null;
 }
 
 /**
  * ParticleRenderer - Renders all particle entities using InstancedMesh
+ *
+ * Reads particleScale from Triplex context if available for performance tuning.
+ * Falls back to totalCount prop if context is unavailable (production builds).
  */
 export function ParticleRenderer({ totalCount = VISUALS.PARTICLE_COUNT }) {
 	const meshRef = useRef<THREE.InstancedMesh>(null);
 	const world = useWorld();
+	const triplexConfig = useTriplexConfig?.();
 	const matrix = useMemo(() => new THREE.Matrix4(), []);
 	const colorObj = useMemo(() => new THREE.Color(), []);
+
+	// Apply Triplex particle scale if available, otherwise use prop as-is
+	const finalCount = Math.round(totalCount * (triplexConfig?.particleScale ?? 1.0));
 
 	useFrame((_, delta) => {
 		if (!meshRef.current) return;
@@ -153,7 +169,7 @@ export function ParticleRenderer({ totalCount = VISUALS.PARTICLE_COUNT }) {
 	});
 
 	return (
-		<instancedMesh ref={meshRef} args={[undefined, undefined, totalCount]}>
+		<instancedMesh ref={meshRef} args={[undefined, undefined, finalCount]}>
 			<icosahedronGeometry args={[1, 2]} />
 			<meshBasicMaterial
 				transparent

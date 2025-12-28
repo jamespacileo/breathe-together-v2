@@ -19,6 +19,8 @@ import {
 	type SphereLayerConfig,
 } from '../../constants';
 import { createFresnelMaterial } from '../../lib/shaders';
+// @ts-ignore - Triplex providers at root level, imported for dev/visual editing only
+import { useTriplexConfig } from '../../.triplex/providers';
 
 interface BreathingSphereProps {
 	/**
@@ -222,24 +224,36 @@ export function BreathingSphere({
 	enableOrganicPulse = true,
 	organicPulseSpeed = 0.5,
 	organicPulseIntensity = 0.05,
-}: BreathingSphereProps) {
+}: BreathingSphereProps = {}) {
+	const triplexConfig = useTriplexConfig?.();
+
 	// Create config object from flat props (for internal organization)
-	const config = useMemo(
-		() => propsToConfig({
+	// If Triplex context is available, merge its sphereConfig with prop overrides
+	const config = useMemo(() => {
+		const baseConfig = triplexConfig?.sphereConfig ?? propsToConfig({
 			opacity, entranceDelayMs, entranceDurationMs, noiseIntensity,
 			fresnelIntensityBase, fresnelIntensityRange, coreScale, coreOpacityBase,
 			coreOpacityRange, auraScale, auraOpacityBase, auraOpacityRange,
 			mainGeometryDetail, chromaticAberration, enableOrganicPulse,
 			organicPulseSpeed, organicPulseIntensity,
-		}),
-		[
-			opacity, entranceDelayMs, entranceDurationMs, noiseIntensity,
+		});
+		// Allow props to override context config
+		return propsToConfig({
+			opacity: opacity !== VISUALS.SPHERE_OPACITY ? opacity : undefined,
+			entranceDelayMs, entranceDurationMs, noiseIntensity,
 			fresnelIntensityBase, fresnelIntensityRange, coreScale, coreOpacityBase,
 			coreOpacityRange, auraScale, auraOpacityBase, auraOpacityRange,
 			mainGeometryDetail, chromaticAberration, enableOrganicPulse,
 			organicPulseSpeed, organicPulseIntensity,
-		],
-	);
+		}) ?? baseConfig;
+	}, [
+		triplexConfig,
+		opacity, entranceDelayMs, entranceDurationMs, noiseIntensity,
+		fresnelIntensityBase, fresnelIntensityRange, coreScale, coreOpacityBase,
+		coreOpacityRange, auraScale, auraOpacityBase, auraOpacityRange,
+		mainGeometryDetail, chromaticAberration, enableOrganicPulse,
+		organicPulseSpeed, organicPulseIntensity,
+	]);
 
 	const meshRef = useRef<THREE.Mesh>(null);
 	const coreRef = useRef<THREE.Mesh>(null);
