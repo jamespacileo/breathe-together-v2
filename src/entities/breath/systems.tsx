@@ -1,6 +1,10 @@
 /**
  * Breath system - updates breath entity every frame
  * Uses UTC time for global synchronization
+ *
+ * Supports multiple breathing algorithms:
+ * - phase-based: Production curve with discrete phases
+ * - rounded-wave: Experimental curve with smooth transitions
  */
 import type { World } from 'koota';
 import {
@@ -13,8 +17,10 @@ import {
 	targetSphereScale,
 	crystallization,
 	targetCrystallization,
+	breathCurveConfig,
 } from './traits';
 import { calculateBreathState } from '../../lib/breathCalc';
+import { calculateBreathStateRounded } from '../../lib/breathCalcRounded';
 import { easing } from 'maath';
 
 /**
@@ -32,6 +38,10 @@ const DAMP_CONFIG = [
  * Uses Date.now() for UTC-based synchronization (not local elapsed time)
  *
  * This ensures all users worldwide see the same breathing cycle
+ *
+ * Supports multiple breathing algorithms via breathCurveConfig trait:
+ * - phase-based (default): Production curve with discrete phases
+ * - rounded-wave: Experimental curve with smooth arctangent transitions
  */
 export function breathSystem(world: World, delta: number) {
 	const breathEntity = world.queryFirst(breathPhase);
@@ -43,7 +53,21 @@ export function breathSystem(world: World, delta: number) {
 
 	// Use Date.now() for true UTC sync
 	const elapsed = Date.now() / 1000;
-	const state = calculateBreathState(elapsed);
+
+	// Read curve config from entity trait (defaults to phase-based)
+	const config = breathEntity.get(breathCurveConfig);
+	const curveType = config?.curveType ?? 'phase-based';
+	const waveDelta = config?.waveDelta ?? 0.05;
+
+	// Select calculation function based on curve type
+	const state =
+		curveType === 'rounded-wave'
+			? calculateBreathStateRounded(elapsed, {
+					delta: waveDelta,
+					amplitude: 1.0,
+					cycleSeconds: 16,
+				})
+			: calculateBreathState(elapsed);
 
 	// 1. Update discrete traits and targets
 	breathEntity.set(targetBreathPhase, { value: state.breathPhase });

@@ -18,9 +18,9 @@ import {
 	type SphereGeometryConfig,
 	type SphereLayerConfig,
 } from '../../constants';
-import { createFresnelMaterial } from '../../lib/shaders';
 // @ts-ignore - Triplex providers at root level, imported for dev/visual editing only
 import { useTriplexConfig } from '../../.triplex/providers';
+import { createFresnelMaterial } from '../../lib/shaders';
 
 interface BreathingSphereProps {
 	/**

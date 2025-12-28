@@ -1,6 +1,8 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useMemo, type ReactNode } from "react";
 import { KootaSystems, RootProviders } from "../src/providers";
 import { BreathEntity } from "../src/entities/breath";
+import { TriplexConfig } from "../src/contexts/triplex";
 import type {
   SphereConfig,
   LightingConfig,
@@ -12,31 +14,14 @@ import {
 } from "../src/constants";
 
 /**
- * Triplex Configuration Context
- * Allows Triplex props to be passed down to entities for dynamic configuration
- */
-interface TriplexConfigContext {
-  particleScale: number;
-  qualityPreset: 'low' | 'medium' | 'high';
-  sphereConfig: SphereConfig;
-}
-
-const TriplexConfig = createContext<TriplexConfigContext | null>(null);
-
-/**
- * Hook to access Triplex configuration from within entities
- * Returns null in production (when not inside Triplex provider)
- * Entities should provide fallback defaults
- */
-export function useTriplexConfig(): TriplexConfigContext | null {
-  return useContext(TriplexConfig);
-}
-
-/**
  * Global Provider
  *
- * Root provider that wraps the entire application with query clients and
- * Koota ECS world setup. Must be outside Canvas.
+ * Root provider that wraps the entire application with TanStack Query client,
+ * Koota ECS world setup, and Triplex configuration. Must be outside Canvas.
+ *
+ * Provides:
+ * - QueryClientProvider: For TanStack Query hooks (usePresence, etc.)
+ * - RootProviders: For Koota WorldProvider (ECS state)
  *
  * @example
  * ```tsx
@@ -48,7 +33,26 @@ export function useTriplexConfig(): TriplexConfigContext | null {
  * ```
  */
 export function GlobalProvider({ children }: { children: ReactNode }) {
-  return <RootProviders>{children}</RootProviders>;
+  // Create QueryClient with disabled fetching for Triplex
+  // (IS_TRIPLEX detection in usePresence.ts ensures simulated mode)
+  const queryClient = useMemo(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            enabled: false, // Disable auto-fetching in Triplex
+            retry: false,
+          },
+        },
+      }),
+    []
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RootProviders>{children}</RootProviders>
+    </QueryClientProvider>
+  );
 }
 
 /**

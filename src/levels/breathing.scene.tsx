@@ -1,33 +1,82 @@
 /**
- * BreathingScene - Triplex visual editor scene
- * Complete scene setup with lighting, sphere, and particles
- * All props are editable in Triplex via JSDoc annotations
+ * Experimental Breathing Scene for Triplex Visual Editor
  *
- * This file is specifically designed to be opened in Triplex for visual editing.
- * Changes made in Triplex will write back to this file's props.
+ * Dedicated scene file for exploring different breathing algorithms and visual tuning.
+ * Allows A/B testing of curve types (phase-based vs rounded-wave) with live graph.
  *
- * Note: CameraRig is not included here (would conflict with Triplex's camera).
- * The production app includes CameraRig via app.tsx Canvas setup.
+ * Use in Triplex to:
+ * 1. Toggle between "phase-based" and "rounded-wave" breathing curves
+ * 2. Adjust "waveDelta" to control pause sharpness on rounded-wave
+ * 3. See real-time visual effect on sphere and particles
+ * 4. Compare breathing rhythm and crystallization patterns
+ * 5. Test all BreathingLevel visual props (colors, lighting, particles)
+ *
+ * Note: This scene runs independently from production app.tsx.
+ * Changes here don't affect the main app. Use when satisfied to update breathing.tsx.
  */
-import { BreathingSphere } from '../entities/breathingSphere';
-import { ParticleSpawner, ParticleRenderer } from '../entities/particle';
-import { Environment } from '../entities/environment';
-import { Lighting } from '../entities/lighting';
-import { VISUALS } from '../constants';
+
+import { BreathingLevel } from './breathing';
+import { BreathCurveProvider } from '../contexts/BreathCurveContext';
 
 interface BreathingSceneProps {
-	// ============================================================
-	// SCENE BACKGROUND
-	// ============================================================
+	/**
+	 * Breathing curve algorithm to use
+	 *
+	 * - **phase-based**: Current production algorithm
+	 *   Discrete phases with custom easing per segment
+	 *   Predictable, well-tuned, production-ready
+	 *
+	 * - **rounded-wave**: Experimental algorithm
+	 *   Continuous arctangent-smoothed wave
+	 *   Natural pause points, smoother transitions
+	 *   Subjectively feels more natural for some users
+	 *
+	 * @default "phase-based"
+	 */
+	curveType?: 'phase-based' | 'rounded-wave';
+
+	/**
+	 * Rounded wave pause sharpness (rounded-wave only)
+	 *
+	 * Controls how pronounced the pauses are at breathing peaks.
+	 * Only affects "rounded-wave" curve type.
+	 *
+	 * - 0.01: Extremely sharp pauses (very square-like)
+	 * - 0.05: Balanced (recommended, default)
+	 * - 0.1: Softer pauses (more flowing)
+	 * - 0.2: Minimal pauses (nearly sinusoidal)
+	 *
+	 * @min 0.01
+	 * @max 0.2
+	 * @step 0.01
+	 * @default 0.05
+	 */
+	waveDelta?: number;
+
+	/**
+	 * Show live curve comparison graph overlay
+	 *
+	 * Displays current breathing phase and curve type in corner.
+	 * Helps visualize the difference between algorithms.
+	 *
+	 * @default false
+	 */
+	showCurveInfo?: boolean;
+
+	// All BreathingLevel props are also exposed for visual tuning
+
 	/**
 	 * Scene background color
 	 * @type color
 	 */
 	backgroundColor?: string;
 
-	// ============================================================
-	// BREATHING SPHERE
-	// ============================================================
+	/**
+	 * Sphere color
+	 * @type color
+	 */
+	sphereColor?: string;
+
 	/**
 	 * Sphere material opacity
 	 * @min 0
@@ -45,15 +94,6 @@ interface BreathingSceneProps {
 	sphereSegments?: number;
 
 	/**
-	 * Sphere color (inhale state)
-	 * @type color
-	 */
-	sphereColor?: string;
-
-	// ============================================================
-	// LIGHTING - AMBIENT
-	// ============================================================
-	/**
 	 * Ambient light intensity
 	 * @min 0
 	 * @max 1
@@ -67,9 +107,6 @@ interface BreathingSceneProps {
 	 */
 	ambientColor?: string;
 
-	// ============================================================
-	// LIGHTING - KEY (Main directional light)
-	// ============================================================
 	/**
 	 * Key light position (x, y, z)
 	 * @type vector3
@@ -90,17 +127,14 @@ interface BreathingSceneProps {
 	 */
 	keyColor?: string;
 
-	// ============================================================
-	// LIGHTING - FILL (Shadow softness)
-	// ============================================================
 	/**
-	 * Fill light position
+	 * Fill light position (opposite side)
 	 * @type vector3
 	 */
 	fillPosition?: [number, number, number];
 
 	/**
-	 * Fill light intensity
+	 * Fill light intensity (shadow softness)
 	 * @min 0
 	 * @max 1
 	 * @step 0.05
@@ -113,17 +147,14 @@ interface BreathingSceneProps {
 	 */
 	fillColor?: string;
 
-	// ============================================================
-	// LIGHTING - RIM (Edge definition)
-	// ============================================================
 	/**
-	 * Rim light position
+	 * Rim light position (edge definition)
 	 * @type vector3
 	 */
 	rimPosition?: [number, number, number];
 
 	/**
-	 * Rim light intensity
+	 * Rim light intensity (edge glow)
 	 * @min 0
 	 * @max 1
 	 * @step 0.05
@@ -136,9 +167,6 @@ interface BreathingSceneProps {
 	 */
 	rimColor?: string;
 
-	// ============================================================
-	// ENVIRONMENT
-	// ============================================================
 	/**
 	 * Number of background stars
 	 * @min 1000
@@ -153,9 +181,6 @@ interface BreathingSceneProps {
 	 */
 	floorColor?: string;
 
-	// ============================================================
-	// PARTICLES
-	// ============================================================
 	/**
 	 * Number of particles
 	 * @min 50
@@ -165,48 +190,42 @@ interface BreathingSceneProps {
 	particleCount?: number;
 }
 
+/**
+ * Experimental breathing scene combining curve selection with BreathingLevel
+ *
+ * Wraps BreathingLevel with BreathCurveProvider to inject curve type selection
+ * into the breath system. Allows visual experimentation and comparison.
+ */
 export function BreathingScene({
-	// Scene defaults
-	backgroundColor = VISUALS.BG_COLOR,
-
-	// BreathingSphere defaults
-	sphereColor = VISUALS.SPHERE_COLOR_INHALE,
-	sphereOpacity = VISUALS.SPHERE_OPACITY,
-	sphereSegments = VISUALS.SPHERE_SEGMENTS,
-
-	// Lighting - Ambient defaults
-	ambientIntensity = VISUALS.AMBIENT_LIGHT_INTENSITY,
-	ambientColor = '#a8b8d0',
-
-	// Lighting - Key defaults
-	keyPosition = [2, 3, 5] as [number, number, number],
-	keyIntensity = VISUALS.KEY_LIGHT_INTENSITY_MIN,
-	keyColor = VISUALS.KEY_LIGHT_COLOR,
-
-	// Lighting - Fill defaults
-	fillPosition = [-2, -1, -3] as [number, number, number],
-	fillIntensity = VISUALS.FILL_LIGHT_INTENSITY,
-	fillColor = VISUALS.FILL_LIGHT_COLOR,
-
-	// Lighting - Rim defaults
-	rimPosition = [0, -5, -5] as [number, number, number],
-	rimIntensity = VISUALS.RIM_LIGHT_INTENSITY,
-	rimColor = VISUALS.RIM_LIGHT_COLOR,
-
-	// Environment defaults
-	starsCount = 5000,
-	floorColor = '#0a0a1a',
-
-	// Particle defaults
-	particleCount = VISUALS.PARTICLE_COUNT,
+	curveType = 'phase-based',
+	waveDelta = 0.05,
+	showCurveInfo = false,
+	backgroundColor,
+	sphereColor,
+	sphereOpacity,
+	sphereSegments,
+	ambientIntensity,
+	ambientColor,
+	keyPosition,
+	keyIntensity,
+	keyColor,
+	fillPosition,
+	fillIntensity,
+	fillColor,
+	rimPosition,
+	rimIntensity,
+	rimColor,
+	starsCount,
+	floorColor,
+	particleCount,
 }: BreathingSceneProps = {}) {
 	return (
-		<>
-			{/* Background */}
-			<color attach="background" args={[backgroundColor]} />
-
-			{/* Layered directional lighting (key, fill, rim) */}
-			<Lighting
+		<BreathCurveProvider config={{ curveType, waveDelta }}>
+			<BreathingLevel
+				backgroundColor={backgroundColor}
+				sphereColor={sphereColor}
+				sphereOpacity={sphereOpacity}
+				sphereSegments={sphereSegments}
 				ambientIntensity={ambientIntensity}
 				ambientColor={ambientColor}
 				keyPosition={keyPosition}
@@ -218,23 +237,56 @@ export function BreathingScene({
 				rimPosition={rimPosition}
 				rimIntensity={rimIntensity}
 				rimColor={rimColor}
+				starsCount={starsCount}
+				floorColor={floorColor}
+				particleCount={particleCount}
 			/>
 
-			{/* Environment: stars and floor */}
-			<Environment starsCount={starsCount} floorColor={floorColor} />
-
-			{/* Central breathing sphere */}
-			<BreathingSphere
-				color={sphereColor}
-				opacity={sphereOpacity}
-				segments={sphereSegments}
-			/>
-
-			{/* User presence particles */}
-			<ParticleSpawner totalCount={particleCount} />
-			<ParticleRenderer totalCount={particleCount} />
-		</>
+			{/* Optional: Debug overlay showing current curve type and configuration */}
+			{showCurveInfo && (
+				<div
+					style={{
+						position: 'fixed',
+						top: 20,
+						right: 20,
+						background: 'rgba(0, 0, 0, 0.8)',
+						border: '1px solid rgba(100, 200, 255, 0.5)',
+						borderRadius: 8,
+						padding: 16,
+						color: '#64c8ff',
+						fontFamily: 'monospace',
+						fontSize: 12,
+						zIndex: 1000,
+						lineHeight: 1.6,
+					}}
+				>
+					<div style={{ fontWeight: 'bold', marginBottom: 8 }}>
+						Breathing Curve Config
+					</div>
+					<div>Type: {curveType}</div>
+					<div>Wave Delta: {waveDelta.toFixed(3)}</div>
+					<div style={{ fontSize: 10, marginTop: 8, opacity: 0.6 }}>
+						{curveType === 'phase-based' && (
+							<>
+								Phase-based: Production curve
+								<br />
+								Discrete phases, custom easing
+							</>
+						)}
+						{curveType === 'rounded-wave' && (
+							<>
+								Rounded-wave: Experimental curve
+								<br />
+								Continuous arctangent smoothing
+								<br />
+								{waveDelta < 0.03 && 'Sharp pauses (δ < 0.03)'}
+								{waveDelta >= 0.03 && waveDelta < 0.08 && 'Balanced pauses (δ ~ 0.05)'}
+								{waveDelta >= 0.08 && 'Smooth transitions (δ > 0.08)'}
+							</>
+						)}
+					</div>
+				</div>
+			)}
+		</BreathCurveProvider>
 	);
 }
-
-export default BreathingScene;
