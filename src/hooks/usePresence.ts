@@ -5,6 +5,14 @@ import { generateMockPresence } from '../lib/mockPresence';
 import type { PopulationSnapshot } from '../lib/simulation';
 import type { SimulatedUser } from '../lib/userGenerator';
 
+/**
+ * Detect if we're running in Triplex environment
+ * Triplex runs at localhost:3333 or includes /triplex in pathname
+ */
+const IS_TRIPLEX = typeof window !== 'undefined' &&
+	(window.location.port === '3333' ||
+	 (window.location.hostname === 'localhost' && window.location.pathname.includes('triplex')));
+
 export interface PresenceData {
 	count: number;
 	moods: Record<MoodId, number>; // mood id -> count
@@ -44,17 +52,20 @@ async function fetchPresence(): Promise<PresenceData> {
 export function usePresence(options: UsePresenceOptions = {}): PresenceData {
 	const { pollInterval = 5000, simulated = true, simulationSnapshot } = options;
 
+	// Force simulated mode in Triplex to prevent API errors
+	const effectiveSimulated = simulated || IS_TRIPLEX;
+
 	// Use TanStack Query for real API when not simulated
 	const { data, isLoading, isError, error } = useQuery({
 		queryKey: ['presence'],
 		queryFn: fetchPresence,
 		refetchInterval: pollInterval,
-		enabled: !simulated,
+		enabled: !effectiveSimulated,
 		retry: 3, // Retry failed requests 3 times
 		retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
 	});
 
-	if (simulated) {
+	if (effectiveSimulated) {
 		// Use provided snapshot, or generate mock data with 75 users
 		const mockData = simulationSnapshot || generateMockPresence(75);
 		return {
@@ -106,6 +117,11 @@ export function useHeartbeat(
 	sessionId: string | null,
 	mood?: string,
 ): HeartbeatState {
+	// Skip heartbeats in Triplex environment
+	if (IS_TRIPLEX) {
+		return { isError: false, consecutiveFailures: 0 };
+	}
+
 	const queryClient = useQueryClient();
 	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	// Track failure count in ref for scheduling (avoids race conditions)

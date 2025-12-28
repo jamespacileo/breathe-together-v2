@@ -11,6 +11,7 @@ export function CanvasProvider({
   cameraFollowFocusedSystem = false,
   children,
   cursorPositionFromLandSystem = false,
+  particlePhysicsSystemEnabled = true,
   positionFromVelocitySystem = false,
   velocityTowardsTargetSystem = false,
 }: {
@@ -18,6 +19,7 @@ export function CanvasProvider({
   cameraFollowFocusedSystem?: boolean;
   children: ReactNode;
   cursorPositionFromLandSystem?: boolean;
+  particlePhysicsSystemEnabled?: boolean;
   positionFromVelocitySystem?: boolean;
   velocityTowardsTargetSystem?: boolean;
 }) {
@@ -26,6 +28,7 @@ export function CanvasProvider({
       breathSystemEnabled={breathSystemEnabled}
       cameraFollowFocusedSystem={cameraFollowFocusedSystem}
       cursorPositionFromLandSystem={cursorPositionFromLandSystem}
+      particlePhysicsSystemEnabled={particlePhysicsSystemEnabled}
       positionFromVelocitySystem={positionFromVelocitySystem}
       velocityTowardsTargetSystem={velocityTowardsTargetSystem}
     >
