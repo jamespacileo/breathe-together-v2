@@ -18,23 +18,23 @@ import { calculateBreathState } from '../../lib/breathCalc';
 import { easing } from 'maath';
 
 /**
+ * Damping configuration for breath traits
+ */
+const DAMP_CONFIG = [
+	{ trait: breathPhase, targetTrait: targetBreathPhase, speed: 0.1 },
+	{ trait: orbitRadius, targetTrait: targetOrbitRadius, speed: 0.4 },
+	{ trait: sphereScale, targetTrait: targetSphereScale, speed: 0.25 },
+	{ trait: crystallization, targetTrait: targetCrystallization, speed: 0.5 },
+] as const;
+
+/**
  * Main breath system - runs every frame to update breath state
  * Uses Date.now() for UTC-based synchronization (not local elapsed time)
  *
  * This ensures all users worldwide see the same breathing cycle
  */
 export function breathSystem(world: World, delta: number) {
-	const breathEntity = world.queryFirst(
-		breathPhase,
-		targetBreathPhase,
-		phaseType,
-		orbitRadius,
-		targetOrbitRadius,
-		sphereScale,
-		targetSphereScale,
-		crystallization,
-		targetCrystallization
-	);
+	const breathEntity = world.queryFirst(breathPhase);
 
 	if (!breathEntity) {
 		// Entity not spawned yet, skip this frame
@@ -53,29 +53,17 @@ export function breathSystem(world: World, delta: number) {
 	breathEntity.set(targetCrystallization, { value: state.crystallization });
 
 	// 2. Damp current values toward targets using maath/easing
-	// This provides smooth, frame-rate independent transitions
-
-	// Phase damping
-	const phaseTemp = { value: breathEntity.get(breathPhase)?.value ?? 0 };
-	const targetPhaseValue = breathEntity.get(targetBreathPhase)?.value ?? 0;
-	easing.damp(phaseTemp, 'value', targetPhaseValue, 0.1, delta);
-	breathEntity.set(breathPhase, { value: phaseTemp.value });
-
-	// Orbit Radius damping
-	const orbitTemp = { value: breathEntity.get(orbitRadius)?.value ?? 3.5 };
-	const targetOrbitValue = breathEntity.get(targetOrbitRadius)?.value ?? 3.5;
-	easing.damp(orbitTemp, 'value', targetOrbitValue, 0.4, delta);
-	breathEntity.set(orbitRadius, { value: orbitTemp.value });
-
-	// Sphere Scale damping (The "Meaty" feel)
-	const scaleTemp = { value: breathEntity.get(sphereScale)?.value ?? 0.6 };
-	const targetScaleValue = breathEntity.get(targetSphereScale)?.value ?? 0.6;
-	easing.damp(scaleTemp, 'value', targetScaleValue, 0.25, delta);
-	breathEntity.set(sphereScale, { value: scaleTemp.value });
-
-	// Crystallization damping
-	const crystTemp = { value: breathEntity.get(crystallization)?.value ?? 0 };
-	const targetCrystValue = breathEntity.get(targetCrystallization)?.value ?? 0;
-	easing.damp(crystTemp, 'value', targetCrystValue, 0.5, delta);
-	breathEntity.set(crystallization, { value: crystTemp.value });
+	// We use a temporary object to avoid replacing the trait object with entity.set()
+	// This allows easing.damp to maintain velocity state internally
+	DAMP_CONFIG.forEach(({ trait, targetTrait, speed }) => {
+		const current = breathEntity.get(trait);
+		const target = breathEntity.get(targetTrait);
+		if (current && target) {
+			// Create temp object for damping to maintain velocity state
+			const temp = { value: current.value };
+			easing.damp(temp, 'value', target.value, speed, delta);
+			// Update trait with damped value
+			breathEntity.set(trait, { value: temp.value });
+		}
+	});
 }

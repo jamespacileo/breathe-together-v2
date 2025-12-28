@@ -20,7 +20,7 @@ const noise3D = createNoise3D();
  */
 export function particlePhysicsSystem(world: World) {
 	const particles = world.query(Position, Velocity, Acceleration, Mass, restPosition, seed);
-	
+
 	return (dt: number, time: number) => {
 		const breathEntity = world.queryFirst(orbitRadius, sphereScale, crystallization);
 		if (!breathEntity) return;
@@ -28,7 +28,7 @@ export function particlePhysicsSystem(world: World) {
 		const orbitRadiusTrait = breathEntity.get(orbitRadius);
 		const sphereScaleTrait = breathEntity.get(sphereScale);
 		const crystallizationTrait = breathEntity.get(crystallization);
-		
+
 		if (!orbitRadiusTrait || !sphereScaleTrait || !crystallizationTrait) return;
 
 		const currentOrbitRadius = orbitRadiusTrait.value;
@@ -40,8 +40,8 @@ export function particlePhysicsSystem(world: World) {
 		const drag = Math.pow(VISUALS.PARTICLE_DRAG, dt * 60);
 		const windStrength = 0.2 * (1 - currentCryst); // Wind dies down as things crystallize
 		const jitterStrength = currentCryst * VISUALS.JITTER_STRENGTH;
-		
-		const repulsionRadius = currentSphereScale + 0.8;
+
+		const repulsionRadius = currentSphereScale + 0.4;  // Tighter repulsion to allow particles closer
 		const repulsionRadiusSq = repulsionRadius * repulsionRadius;
 
 		particles.forEach((entity) => {
@@ -61,7 +61,7 @@ export function particlePhysicsSystem(world: World) {
 
 			// 1. Target Orbit Force (Spring toward target radius)
 			tempVec3.set(rest.x, rest.y, rest.z).multiplyScalar(currentOrbitRadius);
-			
+
 			tempForce.x += (tempVec3.x - pos.x) * springStiffness;
 			tempForce.y += (tempVec3.y - pos.y) * springStiffness;
 			tempForce.z += (tempVec3.z - pos.z) * springStiffness;
@@ -110,6 +110,10 @@ export function particlePhysicsSystem(world: World) {
 			pos.x += vel.x * dt;
 			pos.y += vel.y * dt;
 			pos.z += vel.z * dt;
+
+			// Update Koota with new position and velocity for rendering
+			entity.set(Position, pos);
+			entity.set(Velocity, vel);
 		});
 	};
 }

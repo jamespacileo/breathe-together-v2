@@ -25,9 +25,10 @@ export function BreathEntity() {
 
 	useEffect(() => {
 		// Check if it already exists
-		const existing = world.queryFirst(breathPhase);
-		if (!existing) {
-			world.spawn(
+		let entity = world.queryFirst(breathPhase);
+		
+		if (!entity) {
+			entity = world.spawn(
 				breathPhase,
 				targetBreathPhase,
 				phaseType,
@@ -38,6 +39,12 @@ export function BreathEntity() {
 				crystallization,
 				targetCrystallization
 			);
+		} else {
+			// Ensure all new traits are added to existing entity (for hot-reloading/updates)
+			if (!entity.has(targetBreathPhase)) entity.add(targetBreathPhase);
+			if (!entity.has(targetOrbitRadius)) entity.add(targetOrbitRadius);
+			if (!entity.has(targetSphereScale)) entity.add(targetSphereScale);
+			if (!entity.has(targetCrystallization)) entity.add(targetCrystallization);
 		}
 	}, [world]);
 

@@ -76,7 +76,7 @@ export const VISUALS = {
 	SPHERE_SEGMENTS: 64,
 
 	// Particles
-	PARTICLE_ORBIT_MIN: 1.8,
+	PARTICLE_ORBIT_MIN: 1.5,  // Closer to surface on inhale
 	PARTICLE_ORBIT_MAX: 3.5,
 	PARTICLE_COUNT: 300,
 	PARTICLE_SIZE: 0.05,
