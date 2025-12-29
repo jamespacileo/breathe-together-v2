@@ -100,5 +100,5 @@ export function AntiPatternRedundantDefaults({
 }: {
   sphereOpacity?: number;
 } = {}) {
-  return <BreathingSphere opacity={sphereOpacity} />;
+  return <BreathingSphere mainOpacity={sphereOpacity} />;
 }

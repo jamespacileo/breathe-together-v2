@@ -19,16 +19,8 @@ import { PostProcessing } from '../components/PostProcessing';
 import { BreathingSphere } from '../entities/breathingSphere';
 import { Environment } from '../entities/environment';
 import { Lighting } from '../entities/lighting';
-import {
-  FibonacciLayout,
-  JitterBehavior,
-  MoodColorBehavior,
-  OrbitBehavior,
-  ParticleRenderer,
-  ParticleSwarm,
-  RepulsionBehavior,
-  WindBehavior,
-} from '../entities/particle';
+import { ParticleSwarm } from '../entities/particle';
+import { usePresence } from '../hooks/usePresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
@@ -46,6 +38,8 @@ export function BreathingLevel({
   const particleCount =
     particleDensity === 'sparse' ? 150 : particleDensity === 'dense' ? 600 : 300;
 
+  const { moods } = usePresence();
+
   return (
     <>
       <color attach="background" args={[backgroundColor]} />
@@ -56,17 +50,7 @@ export function BreathingLevel({
 
       <BreathingSphere />
 
-      <group>
-        <ParticleSwarm count={particleCount}>
-          <FibonacciLayout />
-          <OrbitBehavior />
-          <WindBehavior />
-          <JitterBehavior />
-          <RepulsionBehavior />
-          <MoodColorBehavior />
-        </ParticleSwarm>
-        <ParticleRenderer />
-      </group>
+      <ParticleSwarm capacity={particleCount} users={moods} />
 
       <PostProcessing bloom={bloom} />
     </>

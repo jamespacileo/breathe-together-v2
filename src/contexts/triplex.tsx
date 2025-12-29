@@ -40,7 +40,6 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
 export function CanvasProvider({
   breathSystemEnabled = true,
   children,
-  particlePhysicsSystemEnabled = true,
 }: {
   /**
    * Enable breath system (UTC-synced breathing animation)
@@ -56,19 +55,9 @@ export function CanvasProvider({
    * Children to render inside Canvas
    */
   children: ReactNode;
-
-  /**
-   * Enable particle physics system
-   *
-   * @default true
-   */
-  particlePhysicsSystemEnabled?: boolean;
 }) {
   return (
-    <KootaSystems
-      breathSystemEnabled={breathSystemEnabled}
-      particlePhysicsSystemEnabled={particlePhysicsSystemEnabled}
-    >
+    <KootaSystems breathSystemEnabled={breathSystemEnabled}>
       <BreathEntity />
       {children}
     </KootaSystems>

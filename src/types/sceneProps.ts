@@ -166,22 +166,6 @@ export interface BreathingDebugProps {
   showTraitValues?: boolean;
 }
 
-export interface ParticleDebugProps {
-  /**
-   * Color-code particles by their owner type (User vs Filler).
-   * @group "Debug"
-   * @label "Show Particle Types"
-   */
-  showParticleTypes?: boolean;
-
-  /**
-   * Display performance statistics for the particle system.
-   * @group "Debug"
-   * @label "Show Particle Stats"
-   */
-  showParticleStats?: boolean;
-}
-
 // ============================================================================
 // SCENE TYPES
 // ============================================================================
@@ -195,5 +179,4 @@ export type BreathingSceneProps = BreathingLevelProps & ExperimentalBreathingPro
 
 export type BreathingDebugSceneProps = BreathingLevelProps &
   ExperimentalBreathingProps &
-  BreathingDebugProps &
-  ParticleDebugProps;
+  BreathingDebugProps;

@@ -76,19 +76,6 @@ export function BreathingDebugScene({
    */
   showTraitValues = false,
 
-  // Particle Debug
-  /**
-   * Color-code particles by their owner type (User vs Filler).
-   * @group "Debug"
-   */
-  showParticleTypes = false,
-
-  /**
-   * Display performance statistics for the particle system.
-   * @group "Debug"
-   */
-  showParticleStats = false,
-
   // All other props are passed through to BreathingLevel
   ...breathingLevelProps
 }: Partial<BreathingDebugSceneProps> = {}) {
@@ -106,8 +93,6 @@ export function BreathingDebugScene({
           showOrbitBounds={showOrbitBounds}
           showPhaseMarkers={showPhaseMarkers}
           showTraitValues={showTraitValues}
-          showParticleTypes={showParticleTypes}
-          showParticleStats={showParticleStats}
         />
       </CanvasProvider>
     </GlobalProvider>

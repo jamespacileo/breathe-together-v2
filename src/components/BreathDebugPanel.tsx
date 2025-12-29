@@ -17,7 +17,6 @@ import { Html } from '@react-three/drei';
 import { useMemo } from 'react';
 import { type BreathDebugConfig, BreathDebugProvider } from '../contexts/breathDebug';
 import { BreathDebugVisuals } from './BreathDebugVisuals';
-import { ParticleDebugVisuals } from './ParticleDebugVisuals';
 
 interface BreathDebugPanelProps {
   /**
@@ -94,20 +93,6 @@ interface BreathDebugPanelProps {
    * @default false
    */
   showTraitValues?: boolean;
-
-  /**
-   * Show particle type coloring (user vs filler).
-   *
-   * @default false
-   */
-  showParticleTypes?: boolean;
-
-  /**
-   * Show particle statistics overlay.
-   *
-   * @default false
-   */
-  showParticleStats?: boolean;
 }
 
 /**
@@ -125,8 +110,6 @@ export function BreathDebugPanel({
   showOrbitBounds = false,
   showPhaseMarkers = false,
   showTraitValues = false,
-  showParticleTypes = false,
-  showParticleStats = false,
 }: BreathDebugPanelProps = {}) {
   // Build debug config from props
   const debugConfig = useMemo<BreathDebugConfig | null>(() => {
@@ -162,7 +145,7 @@ export function BreathDebugPanel({
   ]);
 
   // If no debug props are set, render nothing
-  if (!debugConfig && !showParticleTypes && !showParticleStats) {
+  if (!debugConfig) {
     return null;
   }
 
@@ -173,12 +156,6 @@ export function BreathDebugPanel({
         showOrbitBounds={showOrbitBounds}
         showPhaseMarkers={showPhaseMarkers}
         showTraitValues={showTraitValues}
-      />
-
-      {/* Particle Debug Visualizations */}
-      <ParticleDebugVisuals
-        showParticleTypes={showParticleTypes}
-        showParticleStats={showParticleStats}
       />
 
       {/* Debug Control Status Overlay */}

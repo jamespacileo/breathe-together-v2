@@ -3,7 +3,6 @@ import { createWorld } from 'koota';
 import { useWorld, WorldProvider } from 'koota/react';
 import { createContext, type ReactNode, use, useMemo } from 'react';
 import { breathSystem } from './entities/breath/systems';
-import { particleColorSystem, particlePhysicsSystem } from './entities/particle/systems';
 
 export function RootProviders({ children }: { children: ReactNode }) {
   const world = useMemo(() => createWorld(), []);
@@ -16,16 +15,12 @@ const NestedCheck = createContext(false);
 export function KootaSystems({
   breathSystemEnabled = true,
   children,
-  particlePhysicsSystemEnabled = true,
 }: {
   breathSystemEnabled?: boolean;
   children: ReactNode;
-  particlePhysicsSystemEnabled?: boolean;
 }) {
   const isNested = use(NestedCheck);
   const world = useWorld();
-  const particlePhysics = useMemo(() => particlePhysicsSystem(world), [world]);
-  const particleColor = useMemo(() => particleColorSystem(world), [world]);
 
   useFrame((state, delta) => {
     if (isNested) {
@@ -37,11 +32,6 @@ export function KootaSystems({
     try {
       if (breathSystemEnabled) {
         breathSystem(world, delta);
-      }
-
-      if (particlePhysicsSystemEnabled) {
-        particlePhysics(delta, state.clock.elapsedTime);
-        particleColor(delta);
       }
     } catch (_e) {
       // Silently catch ECS errors during unmount/remount in Triplex

@@ -2,12 +2,14 @@
  * Environment - Organic space background with stars, nebula, floor, and warm-cool pulsing light.
  * Exposes a minimal set of props for Triplex.
  */
-import { Environment as DreiEnvironment, Sparkles, Stars } from '@react-three/drei';
+import { Environment as DreiEnvironment, Sky, Sparkles, Stars } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Color } from 'three';
+import { VISUALS } from '../../constants';
+import { createNebulaMaterial } from '../../lib/shaders';
 import { breathPhase, crystallization } from '../breath/traits';
 
 interface EnvironmentProps {
@@ -34,6 +36,25 @@ interface EnvironmentProps {
   atmosphere?: number;
 }
 
+const NEBULA_COLORS = {
+  meditation: {
+    exhale: VISUALS.NEBULA_COLOR_EXHALE_MEDITATION,
+    inhale: VISUALS.NEBULA_COLOR_INHALE_MEDITATION,
+  },
+  cosmic: {
+    exhale: VISUALS.NEBULA_COLOR_EXHALE_COSMIC,
+    inhale: VISUALS.NEBULA_COLOR_INHALE_COSMIC,
+  },
+  minimal: {
+    exhale: VISUALS.NEBULA_COLOR_EXHALE_MINIMAL,
+    inhale: VISUALS.NEBULA_COLOR_INHALE_MINIMAL,
+  },
+  studio: {
+    exhale: VISUALS.NEBULA_COLOR_EXHALE_STUDIO,
+    inhale: VISUALS.NEBULA_COLOR_INHALE_STUDIO,
+  },
+} as const;
+
 const ENVIRONMENT_PRESETS = {
   meditation: {
     enableStars: true,
@@ -43,6 +64,7 @@ const ENVIRONMENT_PRESETS = {
     enableSparkles: true,
     sparklesCount: 50,
     dreiPreset: 'dawn' as const,
+    useSky: false, // Experimental: set to true to enable procedural sky
   },
   cosmic: {
     enableStars: true,
@@ -52,6 +74,7 @@ const ENVIRONMENT_PRESETS = {
     enableSparkles: true,
     sparklesCount: 200,
     dreiPreset: 'night' as const,
+    useSky: false,
   },
   minimal: {
     enableStars: false,
@@ -61,6 +84,7 @@ const ENVIRONMENT_PRESETS = {
     enableSparkles: false,
     sparklesCount: 0,
     dreiPreset: 'studio' as const,
+    useSky: false,
   },
   studio: {
     enableStars: true,
@@ -70,6 +94,7 @@ const ENVIRONMENT_PRESETS = {
     enableSparkles: true,
     sparklesCount: 100,
     dreiPreset: 'studio' as const,
+    useSky: false,
   },
 } as const;
 
@@ -77,26 +102,34 @@ const STARS_RADIUS = 100;
 const STARS_DEPTH = 50;
 const STARS_FACTOR = 4;
 const LIGHT_POSITION: [number, number, number] = [0, 5, 5];
-const LIGHT_COLOR_EXHALE = '#6ba8a8'; // Cool teal-green (calming)
-const LIGHT_COLOR_INHALE = '#e8c4a4'; // Warm peach-sand (energizing)
+const LIGHT_COLOR_EXHALE = '#4a7b8a'; // Deep teal-blue (calming, cool)
+const LIGHT_COLOR_INHALE = '#f0c090'; // Soft peach-gold (warm, energizing)
 const LIGHT_DISTANCE = 20;
 const LIGHT_DECAY = 2;
 const FLOOR_POSITION_Y = -4;
 const FLOOR_SIZE = 100;
 const NEBULA_POSITION_Z = -50;
 const NEBULA_SCALE = 60;
+const FOG_ENABLED = false; // Experimental: set to true to enable breath-synchronized fog
 
 export function Environment({ preset = 'meditation', atmosphere = 0.5 }: EnvironmentProps = {}) {
   const config = ENVIRONMENT_PRESETS[preset];
+  const nebulaColors = NEBULA_COLORS[preset];
   const lightRef = useRef<THREE.PointLight>(null);
   const nebulaRef = useRef<THREE.Mesh>(null);
   const starsRef = useRef<THREE.Group>(null); // Drei Stars is wrapped in a group
+  const breathPhaseRef = useRef(0); // Track breath phase for Sky component
   const world = useWorld();
 
   const colorInhale = new Color(LIGHT_COLOR_INHALE);
   const colorExhale = new Color(LIGHT_COLOR_EXHALE);
 
-  useFrame((_state, delta) => {
+  // Create nebula shader material with preset-specific colors
+  const nebulaMaterial = useMemo(() => {
+    return createNebulaMaterial(nebulaColors.exhale, nebulaColors.inhale);
+  }, [nebulaColors]);
+
+  useFrame((state, delta) => {
     try {
       const breathEntity = world.queryFirst(breathPhase, crystallization);
       if (!breathEntity || !world.has(breathEntity)) return;
@@ -104,25 +137,37 @@ export function Environment({ preset = 'meditation', atmosphere = 0.5 }: Environ
       const phase = breathEntity.get(breathPhase)?.value ?? 0;
       const cryst = breathEntity.get(crystallization)?.value ?? 0;
 
-      // 1. Animate light intensity and color
+      // Store phase for Sky component rendering
+      breathPhaseRef.current = phase;
+
+      // 1. Animate light intensity, color, and position
       if (lightRef.current) {
         lightRef.current.intensity = (0.3 + phase * 0.9) * atmosphere;
         // Smooth color lerp (Inhale = Warm, Exhale = Cool)
         lightRef.current.color.copy(colorExhale).lerp(colorInhale, phase);
+        // Animated position: rise on inhale (y: 5→7), lower on exhale (y: 7→5)
+        lightRef.current.position.y = 5 + phase * 2;
       }
 
-      // 2. Animate Nebula (Pulse scale and opacity)
-      if (nebulaRef.current) {
-        const nebulaScale = NEBULA_SCALE * (1 + phase * 0.1); // 10% pulse
-        nebulaRef.current.scale.set(nebulaScale, nebulaScale, 1);
-        if (nebulaRef.current.material instanceof THREE.MeshBasicMaterial) {
-          nebulaRef.current.material.opacity = (0.4 + phase * 0.2) * atmosphere;
-        }
+      // 2. Animate Nebula shader uniforms
+      if (nebulaRef.current?.material instanceof THREE.ShaderMaterial) {
+        const shaderMat = nebulaRef.current.material;
+        shaderMat.uniforms.uTime.value += delta * 0.1;
+        shaderMat.uniforms.uBreathPhase.value = phase;
+        shaderMat.uniforms.uAtmosphere.value = atmosphere;
       }
 
       // 3. Modulate Star speed based on stillness (crystallization)
       if (starsRef.current) {
         starsRef.current.rotation.y += delta * 0.05 * (1 - cryst);
+      }
+
+      // 4. Animate fog density (breath-synchronized)
+      if (FOG_ENABLED && state.scene.fog instanceof THREE.Fog) {
+        // Exhale: denser fog (intimate, closing in) - near=5, far=15
+        // Inhale: clearer fog (expansive, opening up) - near=8, far=30
+        state.scene.fog.near = 5 + phase * 3;
+        state.scene.fog.far = 15 + phase * 15;
       }
     } catch (_e) {
       // Silently catch ECS errors during unmount/remount
@@ -131,6 +176,9 @@ export function Environment({ preset = 'meditation', atmosphere = 0.5 }: Environ
 
   return (
     <>
+      {/* Breath-synchronized fog (experimental feature) */}
+      {FOG_ENABLED && <fog attach="fog" args={['#1a2830', 5, 20]} />}
+
       {/* HDR Environment for realistic reflections */}
       <DreiEnvironment preset={config.dreiPreset} environmentIntensity={0.5} />
 
@@ -146,13 +194,29 @@ export function Environment({ preset = 'meditation', atmosphere = 0.5 }: Environ
         />
       )}
 
-      {/* Organic nebula background with subtle atmospheric depth */}
+      {/* Organic nebula background with breath-synchronized shader */}
       <mesh ref={nebulaRef} position={[0, 0, NEBULA_POSITION_Z]} scale={NEBULA_SCALE}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial color="#1a2830" transparent opacity={0.5 * atmosphere} />
+        <primitive object={nebulaMaterial} attach="material" />
       </mesh>
 
-      {config.enableStars && (
+      {/* Procedural Sky (meditation preset experimental feature) */}
+      {config.useSky && (
+        <Sky
+          sunPosition={[
+            Math.sin(breathPhaseRef.current * Math.PI) * 5, // Horizontal arc: left to right on inhale
+            2 + breathPhaseRef.current ** 0.5 * 3, // Vertical rise: 2→5 on inhale
+            -10, // Fixed depth
+          ]}
+          turbidity={8} // Clear meditation sky
+          rayleigh={1.5} // Subtle atmospheric scattering
+          mieCoefficient={0.005} // Soft light diffusion
+          mieDirectionalG={0.8} // Directional light
+        />
+      )}
+
+      {/* Star field (shown when Sky is disabled) */}
+      {config.enableStars && !config.useSky && (
         <group ref={starsRef}>
           <Stars
             radius={STARS_RADIUS}
