@@ -37,29 +37,19 @@ export function BreathingDebugScene(props: Partial<BreathingDebugSceneProps> = {
   // Extract debug-specific props
   const {
     // Breathing Debug Controls
-    /** @type toggle */
     enableManualControl = false,
-    /** @type slider @min 0 @max 1 @step 0.01 */
     manualPhase = 0.5,
-    /** @type toggle */
     isPaused = false,
-    /** @type slider @min 0.1 @max 5 @step 0.1 */
     timeScale = 1.0,
-    /** @type select @options [0, 1, 2, 3] */
     jumpToPhase = undefined,
 
     // Debug Visualizations
-    /** @type toggle */
     showOrbitBounds = false,
-    /** @type toggle */
     showPhaseMarkers = false,
-    /** @type toggle */
     showTraitValues = false,
 
     // Particle Debug
-    /** @type toggle */
     showParticleTypes = false,
-    /** @type toggle */
     showParticleStats = false,
 
     // All visual, lighting, and environment props spread directly to BreathingLevel

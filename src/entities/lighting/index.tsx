@@ -16,6 +16,8 @@ interface LightingProps {
    * **Interacts with:** backgroundColor, keyIntensity, fillIntensity, bloomIntensity
    * **Performance note:** No impact; computed per-fragment
    *
+   * @group "Ambient"
+   * @label "Intensity"
    * @min 0
    * @max 1
    * @step 0.05
@@ -34,6 +36,8 @@ interface LightingProps {
    * **Interacts with:** keyColor, backgroundColor, mood/theme
    * **Performance note:** No impact; single color
    *
+   * @group "Ambient"
+   * @label "Color"
    * @type color
    * @default "#a8b8d0"
    */
@@ -50,6 +54,8 @@ interface LightingProps {
    * **Interacts with:** ambientIntensity (together control shadow depth), keyColor, fillIntensity
    * **Performance note:** No impact; single light
    *
+   * @group "Key Light"
+   * @label "Intensity"
    * @min 0
    * @max 2
    * @step 0.1
@@ -67,6 +73,8 @@ interface LightingProps {
    * **Interacts with:** ambientColor, backgroundColor, fillColor (complementary coolness)
    * **Performance note:** No impact; single color
    *
+   * @group "Key Light"
+   * @label "Color"
    * @type color
    * @default "#e89c5c"
    */
@@ -85,17 +93,24 @@ export function Lighting({
 }: LightingProps) {
   return (
     <>
-      <ambientLight intensity={ambientIntensity} color={ambientColor} />
-
-      <directionalLight position={KEY_POSITION} intensity={keyIntensity} color={keyColor} />
+      <ambientLight name="Ambient Light" intensity={ambientIntensity} color={ambientColor} />
 
       <directionalLight
+        name="Key Light"
+        position={KEY_POSITION}
+        intensity={keyIntensity}
+        color={keyColor}
+      />
+
+      <directionalLight
+        name="Fill Light"
         position={FILL_POSITION}
         intensity={VISUALS.FILL_LIGHT_INTENSITY}
         color={VISUALS.FILL_LIGHT_COLOR}
       />
 
       <directionalLight
+        name="Rim Light"
         position={RIM_POSITION}
         intensity={VISUALS.RIM_LIGHT_INTENSITY}
         color={VISUALS.RIM_LIGHT_COLOR}

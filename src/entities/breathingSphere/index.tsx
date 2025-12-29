@@ -25,6 +25,8 @@ interface BreathingSphereProps {
    * **Interacts with:** backgroundColor (contrast), bloomIntensity (glow color), sphereOpacity
    * **Performance note:** No impact; computed per-frame in shader
    *
+   * @group "Material"
+   * @label "Base Color"
    * @type color
    * @default "#d4a574"
    */
@@ -41,6 +43,8 @@ interface BreathingSphereProps {
    * **Interacts with:** sphereColor, backgroundColor (contrast), bloomIntensity (glow), fresnel
    * **Performance note:** No impact; material property only
    *
+   * @group "Material"
+   * @label "Opacity"
    * @min 0
    * @max 1
    * @step 0.01
@@ -59,6 +63,8 @@ interface BreathingSphereProps {
    * **Interacts with:** particleDetail (matching level for visual coherence), camera distance
    * **Performance note:** Geometry cost is O(n²); 2→3 increases face count 4x. Aura always detail level set here
    *
+   * @group "Geometry"
+   * @label "Aura Detail"
    * @min 0
    * @max 4
    * @step 1
@@ -242,15 +248,15 @@ export function BreathingSphere({
   });
 
   return (
-    <group>
+    <group name="Breathing Sphere Group">
       {/* Main Sphere with organic displacement */}
-      <mesh ref={meshRef}>
+      <mesh name="Main Sphere" ref={meshRef}>
         <sphereGeometry args={[1, 64, 64]} />
         <primitive object={materialRef.current} attach="material" />
       </mesh>
 
       {/* Inner Core - Refractive gem-like center */}
-      <mesh ref={coreRef}>
+      <mesh name="Inner Core" ref={coreRef}>
         <sphereGeometry args={[1, 64, 64]} />
         <MeshTransmissionMaterial
           ref={coreMaterialRef}
@@ -269,7 +275,7 @@ export function BreathingSphere({
       </mesh>
 
       {/* Outer Aura - Soft atmospheric glow */}
-      <mesh ref={auraRef}>
+      <mesh name="Outer Aura" ref={auraRef}>
         <icosahedronGeometry args={[1, detail]} />
         <primitive object={auraMaterialRef.current} attach="material" />
       </mesh>

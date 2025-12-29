@@ -22,6 +22,16 @@ export function ParticleSpawner({
   /**
    * Total number of particles to spawn and manage.
    *
+   * Must match ParticleRenderer totalCount for consistency. Each particle is a
+   * visual representation of a user, breathing entity, or filler (ambient particle).
+   *
+   * **When to adjust:** Increase for more immersive presence visualization, decrease for performance on mobile
+   * **Typical range:** Sparse (100) → Balanced (300, default) → Rich (600) → Dense (1000)
+   * **Interacts with:** ParticleRenderer totalCount (must match for visual consistency)
+   * **Performance note:** Linear impact on spawn time; renders using 2 InstancedMesh draw calls (no per-particle cost after spawn)
+   *
+   * @group "Simulation"
+   * @label "Total Count"
    * @min 100
    * @max 1000
    * @step 50
@@ -121,8 +131,16 @@ export function ParticleRenderer({
   /**
    * Total number of particles to render.
    *
-   * Must match ParticleSpawner totalCount for consistency.
+   * Must match ParticleSpawner totalCount for consistency. Controls the capacity of two InstancedMeshes
+   * (one for user-colored particles, one for filler ambient particles).
    *
+   * **When to adjust:** Increase for more immersive presence visualization, decrease for performance on mobile
+   * **Typical range:** Sparse (100) → Balanced (300, default) → Rich (600) → Dense (1000)
+   * **Interacts with:** ParticleSpawner totalCount (must match for visual consistency)
+   * **Performance note:** Fixed VRAM cost for InstancedMesh capacity; render time proportional to active particles (2 draw calls regardless)
+   *
+   * @group "Rendering"
+   * @label "Total Count"
    * @min 100
    * @max 1000
    * @step 50
@@ -201,13 +219,21 @@ export function ParticleRenderer({
   });
 
   return (
-    <group>
-      <instancedMesh ref={userMeshRef} args={[geometry, material, finalCount]}>
+    <group name="Particle System Group">
+      <instancedMesh
+        name="User Particles"
+        ref={userMeshRef}
+        args={[geometry, material, finalCount]}
+      >
         <primitive object={geometry} attach="geometry" />
         <primitive object={material} attach="material" />
       </instancedMesh>
 
-      <instancedMesh ref={fillerMeshRef} args={[geometry, material, finalCount]}>
+      <instancedMesh
+        name="Filler Particles"
+        ref={fillerMeshRef}
+        args={[geometry, material, finalCount]}
+      >
         <primitive object={geometry} attach="geometry" />
         <primitive object={material} attach="material" />
       </instancedMesh>

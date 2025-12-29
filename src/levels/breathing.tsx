@@ -58,19 +58,20 @@ export function BreathingLevel({
       <color attach="background" args={[backgroundColor]} />
 
       {/* Refined layered lighting (all props editable in Triplex) */}
-      {/* Replaced Lighting component with direct light elements */}
-      <ambientLight intensity={ambientIntensity} color={ambientColor} />
-      <pointLight position={[10, 10, 10]} intensity={keyIntensity} color={keyColor} />
-      <pointLight
-        position={[-10, 5, -10]}
-        intensity={VISUALS.FILL_LIGHT_INTENSITY}
-        color={VISUALS.FILL_LIGHT_COLOR}
-      />
-      <pointLight
-        position={[0, -5, 5]}
-        intensity={VISUALS.RIM_LIGHT_INTENSITY}
-        color={VISUALS.RIM_LIGHT_COLOR}
-      />
+      <group>
+        <ambientLight intensity={ambientIntensity} color={ambientColor} />
+        <pointLight position={[10, 10, 10]} intensity={keyIntensity} color={keyColor} />
+        <pointLight
+          position={[-10, 5, -10]}
+          intensity={VISUALS.FILL_LIGHT_INTENSITY}
+          color={VISUALS.FILL_LIGHT_COLOR}
+        />
+        <pointLight
+          position={[0, -5, 5]}
+          intensity={VISUALS.RIM_LIGHT_INTENSITY}
+          color={VISUALS.RIM_LIGHT_COLOR}
+        />
+      </group>
 
       <Environment
         preset={preset}
@@ -88,8 +89,10 @@ export function BreathingLevel({
 
       <BreathingSphere color={sphereColor} opacity={sphereOpacity} detail={sphereDetail} />
 
-      <ParticleSpawner totalCount={particleCount} />
-      <ParticleRenderer totalCount={particleCount} />
+      <group>
+        <ParticleSpawner totalCount={particleCount} />
+        <ParticleRenderer totalCount={particleCount} />
+      </group>
 
       <EffectComposer multisampling={4} stencilBuffer={false} frameBufferType={HalfFloatType}>
         <Bloom

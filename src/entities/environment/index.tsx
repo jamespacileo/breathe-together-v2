@@ -12,7 +12,10 @@ import { breathPhase, crystallization } from '../breath/traits';
 
 interface EnvironmentProps {
   /**
-   * Enable stars background.
+   * Enable stars background (distant starfield).
+   *
+   * **When to adjust:** Disable for minimal aesthetic, enable for cosmic depth
+   * **Interacts with:** preset (environment affects star colors)
    *
    * @default true
    */
@@ -20,6 +23,13 @@ interface EnvironmentProps {
 
   /**
    * Number of stars in starfield.
+   *
+   * Higher = denser starfield with more depth cues.
+   *
+   * **When to adjust:** Lower for performance on mobile, higher for immersion on desktop
+   * **Typical range:** Sparse (1000) → Balanced (5000, default) → Dense (10000)
+   * **Interacts with:** enableStars (only applies if enabled)
+   * **Performance note:** Linear cost; 5000→10000 doubles initialization
    *
    * @min 1000
    * @max 10000
@@ -29,14 +39,21 @@ interface EnvironmentProps {
   starsCount?: number;
 
   /**
-   * Enable floor plane.
+   * Enable grounding floor plane (reflection receiver).
+   *
+   * **When to adjust:** Disable for floating/weightless aesthetic, enable for grounding
+   * **Interacts with:** floorColor, floorOpacity (appearance if enabled)
    *
    * @default true
    */
   enableFloor?: boolean;
 
   /**
-   * Floor plane color.
+   * Floor plane color (acts as environmental anchor).
+   *
+   * **When to adjust:** Match background for continuity, or contrast for definition
+   * **Typical range:** Match background → Slightly lighter/darker → Strong contrast
+   * **Interacts with:** backgroundColor, enableFloor, floorOpacity
    *
    * @type color
    * @default "#0a0a1a"
@@ -44,7 +61,13 @@ interface EnvironmentProps {
   floorColor?: string;
 
   /**
-   * Floor material opacity.
+   * Floor material opacity (blends with background).
+   *
+   * Lower = subtle grounding, higher = visible plane.
+   *
+   * **When to adjust:** Lower for minimal presence, higher for clear horizon
+   * **Typical range:** Subtle (0.2) → Balanced (0.5, default) → Visible (0.8)
+   * **Interacts with:** floorColor, backgroundColor (blending)
    *
    * @min 0
    * @max 1
@@ -54,14 +77,24 @@ interface EnvironmentProps {
   floorOpacity?: number;
 
   /**
-   * Enable pulsing point light.
+   * Enable atmospheric point light (breathing-synchronized glow).
+   *
+   * Pulsing warm-cool light that changes with breathing cycle.
+   *
+   * **When to adjust:** Disable for flatness, enable for warmth and breathing feedback
+   * **Interacts with:** lightIntensityMin, lightIntensityRange
    *
    * @default true
    */
   enablePointLight?: boolean;
 
   /**
-   * Base point light intensity (non-breathing).
+   * Point light base intensity (non-breathing component).
+   *
+   * **When to adjust:** Raise for always-visible glow, lower for subtle effect
+   * **Typical range:** Subtle (0.1) → Gentle (0.3, default) → Bright (0.8)
+   * **Interacts with:** lightIntensityRange (total intensity = min + phase*range)
+   * **Performance note:** No impact; single light
    *
    * @min 0
    * @max 5
@@ -71,7 +104,15 @@ interface EnvironmentProps {
   lightIntensityMin?: number;
 
   /**
-   * Point light breathing modulation range.
+   * Point light breathing modulation amplitude.
+   *
+   * Range of intensity change during breath cycle. Higher = more pulsing effect.
+   * Total intensity = lightIntensityMin + (breathPhase * lightIntensityRange).
+   *
+   * **When to adjust:** Increase for breathing feedback, decrease for steadiness
+   * **Typical range:** Subtle (0.3) → Balanced (0.9, default) → Strong (2.0)
+   * **Interacts with:** lightIntensityMin, enablePointLight
+   * **Performance note:** No impact; single light
    *
    * @min 0
    * @max 5
@@ -81,7 +122,14 @@ interface EnvironmentProps {
   lightIntensityRange?: number;
 
   /**
-   * Environment preset for reflections.
+   * Environment preset for global reflections and lighting.
+   *
+   * HDR environment affects how the sphere appears (reflections, ambient color).
+   * Different presets create different moods: studio=neutral, sunset=warm, night=cool.
+   *
+   * **When to adjust:** Match desired time-of-day or mood
+   * **Typical range:** studio (neutral, production) → sunset (warm, energetic) → night (cool, calm)
+   * **Interacts with:** All lighting colors (environment influences perceived saturation)
    *
    * @default "studio"
    */
@@ -98,14 +146,24 @@ interface EnvironmentProps {
     | 'warehouse';
 
   /**
-   * Enable atmospheric sparkles.
+   * Enable atmospheric sparkles (floating particles/dust effect).
+   *
+   * **When to adjust:** Enable for magical/ethereal mood, disable for clean aesthetic
+   * **Interacts with:** sparklesCount (density if enabled)
    *
    * @default true
    */
   enableSparkles?: boolean;
 
   /**
-   * Number of sparkles.
+   * Number of atmospheric sparkles.
+   *
+   * Simulates floating dust, pollen, or magical particles.
+   *
+   * **When to adjust:** Lower for subtle depth cues, higher for magical atmosphere
+   * **Typical range:** Sparse (10) → Balanced (100, default) → Dense (500)
+   * **Interacts with:** enableSparkles (only applies if enabled)
+   * **Performance note:** Minimal impact; simple particle system
    *
    * @min 10
    * @max 500
