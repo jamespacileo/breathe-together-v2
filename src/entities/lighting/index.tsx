@@ -16,8 +16,6 @@ interface LightingProps {
    * **Interacts with:** backgroundColor, keyIntensity, fillIntensity, bloomIntensity
    * **Performance note:** No impact; computed per-fragment
    *
-   * @group "Ambient"
-   * @label "Intensity"
    * @min 0
    * @max 1
    * @step 0.05
@@ -36,8 +34,6 @@ interface LightingProps {
    * **Interacts with:** keyColor, backgroundColor, mood/theme
    * **Performance note:** No impact; single color
    *
-   * @group "Ambient"
-   * @label "Color"
    * @type color
    * @default "#a8b8d0"
    */
@@ -54,8 +50,6 @@ interface LightingProps {
    * **Interacts with:** ambientIntensity (together control shadow depth), keyColor, fillIntensity
    * **Performance note:** No impact; single light
    *
-   * @group "Key Light"
-   * @label "Intensity"
    * @min 0
    * @max 2
    * @step 0.1
@@ -73,12 +67,72 @@ interface LightingProps {
    * **Interacts with:** ambientColor, backgroundColor, fillColor (complementary coolness)
    * **Performance note:** No impact; single color
    *
-   * @group "Key Light"
-   * @label "Color"
    * @type color
    * @default "#e89c5c"
    */
   keyColor?: string;
+
+  /**
+   * Fill light intensity (secondary soft light from opposite direction).
+   *
+   * Softens shadows created by key light. Lower = more dramatic shadows,
+   * higher = flatter, more even lighting.
+   *
+   * **When to adjust:** Increase for softer look, decrease for dramatic contrast
+   * **Typical range:** Subtle (0.05) → Balanced (0.12, default) → Soft (0.25)
+   * **Interacts with:** keyIntensity, ambientIntensity
+   * **Performance note:** No impact; computed per-fragment
+   *
+   * @min 0
+   * @max 1
+   * @step 0.05
+   * @default 0.12
+   */
+  fillIntensity?: number;
+
+  /**
+   * Fill light color tint.
+   *
+   * **When to adjust:** Cool tones complement warm key light, warm tones for unified lighting
+   * **Typical range:** Cool teal (#4A7B8A, default) → Neutral (#888888) → Warm (#ff9900)
+   * **Interacts with:** keyColor (typically opposite hue for balanced lighting)
+   * **Performance note:** No impact; single color
+   *
+   * @type color
+   * @default "#4A7B8A"
+   */
+  fillColor?: string;
+
+  /**
+   * Rim light intensity (edge highlight from behind).
+   *
+   * Creates edge highlights separating sphere from background. Lower = subtle,
+   * higher = pronounced silhouette.
+   *
+   * **When to adjust:** Increase for depth/separation, decrease for minimal aesthetic
+   * **Typical range:** Subtle (0.03) → Defined (0.08, default) → Pronounced (0.15)
+   * **Interacts with:** backgroundColor (contrast), keyIntensity
+   * **Performance note:** No impact; computed per-fragment
+   *
+   * @min 0
+   * @max 0.5
+   * @step 0.02
+   * @default 0.08
+   */
+  rimIntensity?: number;
+
+  /**
+   * Rim light color tint.
+   *
+   * **When to adjust:** Cool cyan-blue creates edge definition, warm orange for glow
+   * **Typical range:** Cool cyan (#6BA8B5, default) → Neutral (#ffffff) → Warm (#ff9900)
+   * **Interacts with:** backgroundColor (contrast against background color)
+   * **Performance note:** No impact; single color
+   *
+   * @type color
+   * @default "#6BA8B5"
+   */
+  rimColor?: string;
 }
 
 const KEY_POSITION: [number, number, number] = [2, 3, 5];
@@ -90,31 +144,20 @@ export function Lighting({
   ambientColor = '#a8b8d0',
   keyIntensity = 0.2,
   keyColor = '#e89c5c',
-}: LightingProps) {
+  fillIntensity = 0.12,
+  fillColor = '#4A7B8A',
+  rimIntensity = 0.08,
+  rimColor = '#6BA8B5',
+}: LightingProps = {}) {
   return (
     <>
-      <ambientLight name="Ambient Light" intensity={ambientIntensity} color={ambientColor} />
+      <ambientLight intensity={ambientIntensity} color={ambientColor} />
 
-      <directionalLight
-        name="Key Light"
-        position={KEY_POSITION}
-        intensity={keyIntensity}
-        color={keyColor}
-      />
+      <directionalLight position={KEY_POSITION} intensity={keyIntensity} color={keyColor} />
 
-      <directionalLight
-        name="Fill Light"
-        position={FILL_POSITION}
-        intensity={VISUALS.FILL_LIGHT_INTENSITY}
-        color={VISUALS.FILL_LIGHT_COLOR}
-      />
+      <directionalLight position={FILL_POSITION} intensity={fillIntensity} color={fillColor} />
 
-      <directionalLight
-        name="Rim Light"
-        position={RIM_POSITION}
-        intensity={VISUALS.RIM_LIGHT_INTENSITY}
-        color={VISUALS.RIM_LIGHT_COLOR}
-      />
+      <directionalLight position={RIM_POSITION} intensity={rimIntensity} color={rimColor} />
     </>
   );
 }

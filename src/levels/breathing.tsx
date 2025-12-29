@@ -13,9 +13,9 @@
 
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import { HalfFloatType } from 'three';
-import { VISUALS } from '../constants';
 import { BreathingSphere } from '../entities/breathingSphere';
 import { Environment } from '../entities/environment';
+import { Lighting } from '../entities/lighting';
 import { ParticleRenderer, ParticleSpawner } from '../entities/particle';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -24,13 +24,24 @@ export function BreathingLevel({
   backgroundColor = '#0a0f1a',
   sphereColor = '#d4a574',
   sphereOpacity = 0.12,
-  sphereDetail = 3, // Smoother (was 2) - matches BreathingSphere component
+  sphereDetail = 3,
+  sphereGlowIntensity = 0.5,
+  sphereGlowRange = 0.6,
+  spherePulseSpeed = 0.5,
+  spherePulseIntensity = 0.05,
+  sphereCoreTransmission = 1.0,
+  sphereCoreThickness = 1.5,
+  sphereCoreChromaticAberration = 0.06,
 
   // Lighting defaults
   ambientIntensity = 0.15,
   ambientColor = '#a8b8d0',
   keyIntensity = 0.2,
   keyColor = '#e89c5c',
+  fillIntensity = 0.12,
+  fillColor = '#4A7B8A',
+  rimIntensity = 0.08,
+  rimColor = '#6BA8B5',
 
   // Environment defaults
   preset = 'studio',
@@ -42,8 +53,8 @@ export function BreathingLevel({
   enableFloor = true,
   floorOpacity = 0.5,
   enablePointLight = true,
-  lightIntensityMin = 0.3, // Gentle base - matches Environment component
-  lightIntensityRange = 0.9, // Peak at 1.2, reduced from 3.0 - matches Environment component
+  lightIntensityMin = 0.3,
+  lightIntensityRange = 0.9,
 
   // Post-processing defaults
   bloomIntensity = 0.5,
@@ -57,21 +68,17 @@ export function BreathingLevel({
     <>
       <color attach="background" args={[backgroundColor]} />
 
-      {/* Refined layered lighting (all props editable in Triplex) */}
-      <group>
-        <ambientLight intensity={ambientIntensity} color={ambientColor} />
-        <pointLight position={[10, 10, 10]} intensity={keyIntensity} color={keyColor} />
-        <pointLight
-          position={[-10, 5, -10]}
-          intensity={VISUALS.FILL_LIGHT_INTENSITY}
-          color={VISUALS.FILL_LIGHT_COLOR}
-        />
-        <pointLight
-          position={[0, -5, 5]}
-          intensity={VISUALS.RIM_LIGHT_INTENSITY}
-          color={VISUALS.RIM_LIGHT_COLOR}
-        />
-      </group>
+      {/* Refined layered lighting - all props editable in Triplex */}
+      <Lighting
+        ambientIntensity={ambientIntensity}
+        ambientColor={ambientColor}
+        keyIntensity={keyIntensity}
+        keyColor={keyColor}
+        fillIntensity={fillIntensity}
+        fillColor={fillColor}
+        rimIntensity={rimIntensity}
+        rimColor={rimColor}
+      />
 
       <Environment
         preset={preset}
@@ -87,7 +94,18 @@ export function BreathingLevel({
         lightIntensityRange={lightIntensityRange}
       />
 
-      <BreathingSphere color={sphereColor} opacity={sphereOpacity} detail={sphereDetail} />
+      <BreathingSphere
+        color={sphereColor}
+        opacity={sphereOpacity}
+        detail={sphereDetail}
+        glowIntensity={sphereGlowIntensity}
+        glowRange={sphereGlowRange}
+        pulseSpeed={spherePulseSpeed}
+        pulseIntensity={spherePulseIntensity}
+        coreTransmission={sphereCoreTransmission}
+        coreThickness={sphereCoreThickness}
+        coreChromaticAberration={sphereCoreChromaticAberration}
+      />
 
       <group>
         <ParticleSpawner totalCount={particleCount} />

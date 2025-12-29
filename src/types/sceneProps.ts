@@ -13,25 +13,47 @@ export type CurveType = 'phase-based' | 'rounded-wave';
 export interface SharedVisualProps {
   /** @group "Visuals" @label "Background Color" @type color */
   backgroundColor?: string;
-  /** @group "Visuals" @label "Sphere Color" @type color */
+  /** @group "Sphere: Material" @label "Base Color" @type color */
   sphereColor?: string;
-  /** @group "Visuals" @label "Sphere Opacity" @min 0 @max 1 @step 0.01 */
+  /** @group "Sphere: Material" @label "Opacity" @min 0 @max 1 @step 0.01 */
   sphereOpacity?: number;
-  /** @group "Visuals" @label "Sphere Detail" @min 0 @max 4 @step 1 */
+  /** @group "Sphere: Material" @label "Glow Intensity" @min 0 @max 2 @step 0.1 */
+  sphereGlowIntensity?: number;
+  /** @group "Sphere: Material" @label "Glow Range" @min 0 @max 2 @step 0.1 */
+  sphereGlowRange?: number;
+  /** @group "Sphere: Animation" @label "Pulse Speed" @min 0 @max 2 @step 0.1 */
+  spherePulseSpeed?: number;
+  /** @group "Sphere: Animation" @label "Pulse Intensity" @min 0 @max 0.5 @step 0.01 */
+  spherePulseIntensity?: number;
+  /** @group "Sphere: Core" @label "Transmission" @min 0 @max 1 @step 0.1 */
+  sphereCoreTransmission?: number;
+  /** @group "Sphere: Core" @label "Thickness" @min 0 @max 5 @step 0.1 */
+  sphereCoreThickness?: number;
+  /** @group "Sphere: Core" @label "Chromatic Aberration" @min 0 @max 0.5 @step 0.01 */
+  sphereCoreChromaticAberration?: number;
+  /** @group "Sphere: Geometry" @label "Detail" @min 0 @max 4 @step 1 */
   sphereDetail?: number;
   /** @group "Visuals" @label "Particle Count" @min 50 @max 1000 @step 50 */
   particleCount?: number;
 }
 
 export interface SharedLightingProps {
-  /** @group "Lighting" @label "Ambient Intensity" @min 0 @max 1 @step 0.05 */
+  /** @min 0 @max 1 @step 0.05 */
   ambientIntensity?: number;
-  /** @group "Lighting" @label "Ambient Color" @type color */
+  /** @type color */
   ambientColor?: string;
-  /** @group "Lighting" @label "Key Light Intensity" @min 0 @max 2 @step 0.1 */
+  /** @min 0 @max 2 @step 0.1 */
   keyIntensity?: number;
-  /** @group "Lighting" @label "Key Light Color" @type color */
+  /** @type color */
   keyColor?: string;
+  /** @min 0 @max 1 @step 0.05 */
+  fillIntensity?: number;
+  /** @type color */
+  fillColor?: string;
+  /** @min 0 @max 0.5 @step 0.02 */
+  rimIntensity?: number;
+  /** @type color */
+  rimColor?: string;
 }
 
 export interface SharedEnvironmentProps {
