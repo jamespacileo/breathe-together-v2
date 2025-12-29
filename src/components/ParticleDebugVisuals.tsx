@@ -78,31 +78,36 @@ export function ParticleDebugVisuals({
   useFrame(() => {
     if (!showParticleStats) return;
 
-    const particles = world.query(index, ownerId);
+    try {
+      const particles = world.query(index, ownerId);
 
-    let totalCount = 0;
-    let userCount = 0;
-    let fillerCount = 0;
-    particles.forEach((entity) => {
-      const ownerIdTrait = entity.get(ownerId);
+      let totalCount = 0;
+      let userCount = 0;
+      let fillerCount = 0;
+      particles.forEach((entity) => {
+        if (!world.has(entity)) return;
+        const ownerIdTrait = entity.get(ownerId);
 
-      if (!ownerIdTrait) return;
+        if (!ownerIdTrait) return;
 
-      const isUser = ownerIdTrait.value === 'user';
+        const isUser = ownerIdTrait.value === 'user';
 
-      totalCount++;
-      if (isUser) {
-        userCount++;
-      } else {
-        fillerCount++;
-      }
-    });
+        totalCount++;
+        if (isUser) {
+          userCount++;
+        } else {
+          fillerCount++;
+        }
+      });
 
-    setStats({
-      totalParticles: totalCount,
-      userParticles: userCount,
-      fillerParticles: fillerCount,
-    });
+      setStats({
+        totalParticles: totalCount,
+        userParticles: userCount,
+        fillerParticles: fillerCount,
+      });
+    } catch (_e) {
+      // Ignore stale world errors
+    }
   });
 
   // Don't render anything if debug visualizations are disabled

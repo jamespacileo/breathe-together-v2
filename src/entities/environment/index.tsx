@@ -12,166 +12,66 @@ import { breathPhase, crystallization } from '../breath/traits';
 
 interface EnvironmentProps {
   /**
-   * Enable stars background (distant starfield).
+   * Environment mood preset
    *
-   * **When to adjust:** Disable for minimal aesthetic, enable for cosmic depth
-   * **Interacts with:** preset (environment affects star colors)
+   * - **meditation**: Calm, grounded, subtle stars
+   * - **cosmic**: Deep space, dense starfield, nebula
+   * - **minimal**: Clean, no stars, subtle floor
+   * - **studio**: Neutral lighting, balanced atmosphere
    *
-   * @default true
+   * @group "Configuration"
+   * @enum ["meditation", "cosmic", "minimal", "studio"]
    */
-  enableStars?: boolean;
+  preset?: 'meditation' | 'cosmic' | 'minimal' | 'studio';
 
   /**
-   * Number of stars in starfield.
-   *
-   * Higher = denser starfield with more depth cues.
-   *
-   * **When to adjust:** Lower for performance on mobile, higher for immersion on desktop
-   * **Typical range:** Sparse (1000) → Balanced (5000, default) → Dense (10000)
-   * **Interacts with:** enableStars (only applies if enabled)
-   * **Performance note:** Linear cost; 5000→10000 doubles initialization
-   *
-   * @min 1000
-   * @max 10000
-   * @step 500
-   * @default 5000
-   */
-  starsCount?: number;
-
-  /**
-   * Enable grounding floor plane (reflection receiver).
-   *
-   * **When to adjust:** Disable for floating/weightless aesthetic, enable for grounding
-   * **Interacts with:** floorColor, floorOpacity (appearance if enabled)
-   *
-   * @default true
-   */
-  enableFloor?: boolean;
-
-  /**
-   * Floor plane color (acts as environmental anchor).
-   *
-   * **When to adjust:** Match background for continuity, or contrast for definition
-   * **Typical range:** Match background → Slightly lighter/darker → Strong contrast
-   * **Interacts with:** backgroundColor, enableFloor, floorOpacity
-   *
-   * @type color
-   * @default "#0a0a1a"
-   */
-  floorColor?: string;
-
-  /**
-   * Floor material opacity (blends with background).
-   *
-   * Lower = subtle grounding, higher = visible plane.
-   *
-   * **When to adjust:** Lower for minimal presence, higher for clear horizon
-   * **Typical range:** Subtle (0.2) → Balanced (0.5, default) → Visible (0.8)
-   * **Interacts with:** floorColor, backgroundColor (blending)
-   *
+   * Atmospheric density (stars, sparkles, nebula opacity)
+   * @group "Configuration"
    * @min 0
    * @max 1
-   * @step 0.05
-   * @default 0.5
-   */
-  floorOpacity?: number;
-
-  /**
-   * Enable atmospheric point light (breathing-synchronized glow).
-   *
-   * Pulsing warm-cool light that changes with breathing cycle.
-   *
-   * **When to adjust:** Disable for flatness, enable for warmth and breathing feedback
-   * **Interacts with:** lightIntensityMin, lightIntensityRange
-   *
-   * @default true
-   */
-  enablePointLight?: boolean;
-
-  /**
-   * Point light base intensity (non-breathing component).
-   *
-   * **When to adjust:** Raise for always-visible glow, lower for subtle effect
-   * **Typical range:** Subtle (0.1) → Gentle (0.3, default) → Bright (0.8)
-   * **Interacts with:** lightIntensityRange (total intensity = min + phase*range)
-   * **Performance note:** No impact; single light
-   *
-   * @min 0
-   * @max 5
    * @step 0.1
-   * @default 0.3
    */
-  lightIntensityMin?: number;
-
-  /**
-   * Point light breathing modulation amplitude.
-   *
-   * Range of intensity change during breath cycle. Higher = more pulsing effect.
-   * Total intensity = lightIntensityMin + (breathPhase * lightIntensityRange).
-   *
-   * **When to adjust:** Increase for breathing feedback, decrease for steadiness
-   * **Typical range:** Subtle (0.3) → Balanced (0.9, default) → Strong (2.0)
-   * **Interacts with:** lightIntensityMin, enablePointLight
-   * **Performance note:** No impact; single light
-   *
-   * @min 0
-   * @max 5
-   * @step 0.1
-   * @default 0.9
-   */
-  lightIntensityRange?: number;
-
-  /**
-   * Environment preset for global reflections and lighting.
-   *
-   * HDR environment affects how the sphere appears (reflections, ambient color).
-   * Different presets create different moods: studio=neutral, sunset=warm, night=cool.
-   *
-   * **When to adjust:** Match desired time-of-day or mood
-   * **Typical range:** studio (neutral, production) → sunset (warm, energetic) → night (cool, calm)
-   * **Interacts with:** All lighting colors (environment influences perceived saturation)
-   *
-   * @default "studio"
-   */
-  preset?:
-    | 'apartment'
-    | 'city'
-    | 'dawn'
-    | 'forest'
-    | 'lobby'
-    | 'night'
-    | 'park'
-    | 'studio'
-    | 'sunset'
-    | 'warehouse';
-
-  /**
-   * Enable atmospheric sparkles (floating particles/dust effect).
-   *
-   * **When to adjust:** Enable for magical/ethereal mood, disable for clean aesthetic
-   * **Interacts with:** sparklesCount (density if enabled)
-   *
-   * @default true
-   */
-  enableSparkles?: boolean;
-
-  /**
-   * Number of atmospheric sparkles.
-   *
-   * Simulates floating dust, pollen, or magical particles.
-   *
-   * **When to adjust:** Lower for subtle depth cues, higher for magical atmosphere
-   * **Typical range:** Sparse (10) → Balanced (100, default) → Dense (500)
-   * **Interacts with:** enableSparkles (only applies if enabled)
-   * **Performance note:** Minimal impact; simple particle system
-   *
-   * @min 10
-   * @max 500
-   * @step 10
-   * @default 100
-   */
-  sparklesCount?: number;
+  atmosphere?: number;
 }
+
+const ENVIRONMENT_PRESETS = {
+  meditation: {
+    enableStars: true,
+    starsCount: 3000,
+    enableFloor: true,
+    floorOpacity: 0.3,
+    enableSparkles: true,
+    sparklesCount: 50,
+    dreiPreset: 'dawn' as const,
+  },
+  cosmic: {
+    enableStars: true,
+    starsCount: 8000,
+    enableFloor: false,
+    floorOpacity: 0,
+    enableSparkles: true,
+    sparklesCount: 200,
+    dreiPreset: 'night' as const,
+  },
+  minimal: {
+    enableStars: false,
+    starsCount: 0,
+    enableFloor: true,
+    floorOpacity: 0.1,
+    enableSparkles: false,
+    sparklesCount: 0,
+    dreiPreset: 'studio' as const,
+  },
+  studio: {
+    enableStars: true,
+    starsCount: 1000,
+    enableFloor: true,
+    floorOpacity: 0.5,
+    enableSparkles: true,
+    sparklesCount: 100,
+    dreiPreset: 'studio' as const,
+  },
+} as const;
 
 const STARS_RADIUS = 100;
 const STARS_DEPTH = 50;
@@ -186,72 +86,62 @@ const FLOOR_SIZE = 100;
 const NEBULA_POSITION_Z = -50;
 const NEBULA_SCALE = 60;
 
-export function Environment({
-  enableStars = true,
-  enableFloor = true,
-  enablePointLight = true,
-  enableSparkles = true,
-  sparklesCount = 100,
-  starsCount = 5000,
-  floorColor = '#0a0a1a',
-  floorOpacity = 0.5,
-  lightIntensityMin = 0.3, // Gentle base (reduced from 1.0)
-  lightIntensityRange = 0.9, // Peak at 1.2 (reduced from 3.0, total range: 0.3-1.2)
-  preset = 'studio',
-}: EnvironmentProps = {}) {
+export function Environment({ preset = 'meditation', atmosphere = 0.5 }: EnvironmentProps = {}) {
+  const config = ENVIRONMENT_PRESETS[preset];
   const lightRef = useRef<THREE.PointLight>(null);
   const nebulaRef = useRef<THREE.Mesh>(null);
-  const starsRef = useRef<any>(null); // Drei Stars doesn't export its type easily
+  const starsRef = useRef<THREE.Group>(null); // Drei Stars is wrapped in a group
   const world = useWorld();
 
   const colorInhale = new Color(LIGHT_COLOR_INHALE);
   const colorExhale = new Color(LIGHT_COLOR_EXHALE);
 
   useFrame((_state, delta) => {
-    const breathEntity = world.queryFirst(breathPhase, crystallization);
-    const phase = breathEntity?.get(breathPhase)?.value ?? 0;
-    const cryst = breathEntity?.get(crystallization)?.value ?? 0;
+    try {
+      const breathEntity = world.queryFirst(breathPhase, crystallization);
+      if (!breathEntity || !world.has(breathEntity)) return;
 
-    // 1. Animate light intensity and color
-    if (lightRef.current) {
-      lightRef.current.intensity = lightIntensityMin + phase * lightIntensityRange;
-      // Smooth color lerp (Inhale = Warm, Exhale = Cool)
-      lightRef.current.color.copy(colorExhale).lerp(colorInhale, phase);
-    }
+      const phase = breathEntity.get(breathPhase)?.value ?? 0;
+      const cryst = breathEntity.get(crystallization)?.value ?? 0;
 
-    // 2. Animate Nebula (Pulse scale and opacity)
-    if (nebulaRef.current) {
-      const nebulaScale = NEBULA_SCALE * (1 + phase * 0.1); // 10% pulse
-      nebulaRef.current.scale.set(nebulaScale, nebulaScale, 1);
-      if (nebulaRef.current.material instanceof THREE.MeshBasicMaterial) {
-        nebulaRef.current.material.opacity = 0.4 + phase * 0.2; // 0.4 -> 0.6
+      // 1. Animate light intensity and color
+      if (lightRef.current) {
+        lightRef.current.intensity = (0.3 + phase * 0.9) * atmosphere;
+        // Smooth color lerp (Inhale = Warm, Exhale = Cool)
+        lightRef.current.color.copy(colorExhale).lerp(colorInhale, phase);
       }
-    }
 
-    // 3. Modulate Star speed based on stillness (crystallization)
-    // Less movement during "Hold" phases
-    if (starsRef.current) {
-      // starsRef.current is the group containing the points
-      // Drei stars update logic is internal, but we can scale their time if we were using a custom shader.
-      // Since it's a Drei component, we might just be limited to the speed prop.
-      // However, starsRef.current.rotation.y is a simple way to add some motion.
-      starsRef.current.rotation.y += delta * 0.05 * (1 - cryst);
+      // 2. Animate Nebula (Pulse scale and opacity)
+      if (nebulaRef.current) {
+        const nebulaScale = NEBULA_SCALE * (1 + phase * 0.1); // 10% pulse
+        nebulaRef.current.scale.set(nebulaScale, nebulaScale, 1);
+        if (nebulaRef.current.material instanceof THREE.MeshBasicMaterial) {
+          nebulaRef.current.material.opacity = (0.4 + phase * 0.2) * atmosphere;
+        }
+      }
+
+      // 3. Modulate Star speed based on stillness (crystallization)
+      if (starsRef.current) {
+        starsRef.current.rotation.y += delta * 0.05 * (1 - cryst);
+      }
+    } catch (_e) {
+      // Silently catch ECS errors during unmount/remount
     }
   });
 
   return (
     <>
       {/* HDR Environment for realistic reflections */}
-      <DreiEnvironment preset={preset} environmentIntensity={0.5} />
+      <DreiEnvironment preset={config.dreiPreset} environmentIntensity={0.5} />
 
       {/* Atmospheric sparkles (dust/pollen) */}
-      {enableSparkles && (
+      {config.enableSparkles && (
         <Sparkles
-          count={sparklesCount}
+          count={Math.floor(config.sparklesCount * atmosphere * 2)}
           scale={15}
           size={2}
           speed={0.4}
-          opacity={0.2}
+          opacity={0.2 * atmosphere}
           color="#e8c4a4"
         />
       )}
@@ -259,15 +149,15 @@ export function Environment({
       {/* Organic nebula background with subtle atmospheric depth */}
       <mesh ref={nebulaRef} position={[0, 0, NEBULA_POSITION_Z]} scale={NEBULA_SCALE}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial color="#1a2830" transparent opacity={0.5} />
+        <meshBasicMaterial color="#1a2830" transparent opacity={0.5 * atmosphere} />
       </mesh>
 
-      {enableStars && (
+      {config.enableStars && (
         <group ref={starsRef}>
           <Stars
             radius={STARS_RADIUS}
             depth={STARS_DEPTH}
-            count={starsCount}
+            count={Math.floor(config.starsCount * atmosphere * 2)}
             factor={STARS_FACTOR}
             saturation={0.2}
             fade
@@ -276,23 +166,21 @@ export function Environment({
         </group>
       )}
 
-      {enablePointLight && (
-        <pointLight
-          ref={lightRef}
-          position={LIGHT_POSITION}
-          color={LIGHT_COLOR_EXHALE}
-          distance={LIGHT_DISTANCE}
-          decay={LIGHT_DECAY}
-        />
-      )}
+      <pointLight
+        ref={lightRef}
+        position={LIGHT_POSITION}
+        color={LIGHT_COLOR_EXHALE}
+        distance={LIGHT_DISTANCE}
+        decay={LIGHT_DECAY}
+      />
 
-      {enableFloor && (
+      {config.enableFloor && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_POSITION_Y, 0]} receiveShadow>
           <planeGeometry args={[FLOOR_SIZE, FLOOR_SIZE]} />
           <meshStandardMaterial
-            color={floorColor}
+            color="#0a0a1a"
             transparent
-            opacity={floorOpacity}
+            opacity={config.floorOpacity}
             roughness={1}
             metalness={0}
           />

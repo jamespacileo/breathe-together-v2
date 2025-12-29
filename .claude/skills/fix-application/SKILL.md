@@ -112,6 +112,121 @@ Before diving in, answer these three questions to clarify the fix scope:
 
 ---
 
+## JSDoc Validation Checklist
+
+When preserving or updating component JSDoc, validate against the standardized template.
+
+### Required Sections
+
+✅ **Technical Description** - One-line summary of what prop does
+✅ **Triplex Annotations** - @min/@max/@step/@type/@enum/@default where applicable
+
+### Highly Recommended Sections
+
+✅ **"When to adjust"** - Contextual guidance for when to change this prop
+✅ **"Typical range"** - Visual landmarks with descriptive labels (Dim/Standard/Bright)
+✅ **"Interacts with"** - List of related props (comma-separated)
+
+### Optional Sections
+
+⚪ **Detailed Explanation** - Only if technical description needs more context
+⚪ **"Performance note"** - Only if significant performance impact
+
+### Validation Examples
+
+**❌ Bad JSDoc (Missing Contextual Guidance):**
+```typescript
+/**
+ * The intensity.
+ * @default 0.4
+ */
+intensity?: number;
+```
+
+**✅ Good JSDoc (Complete Template):**
+```typescript
+/**
+ * Ambient light intensity (non-directional base illumination).
+ *
+ * **When to adjust:** Dark backgrounds (0.4-0.6), light backgrounds (0.1-0.3)
+ * **Typical range:** Dim (0.2) → Standard (0.4) → Bright (0.6)
+ * **Interacts with:** backgroundColor, keyIntensity
+ *
+ * @min 0 @max 1 @step 0.05
+ * @default 0.4 (balanced visibility)
+ */
+ambientIntensity?: number;
+```
+
+### Cross-Reference Checklist
+
+When fixing props, reference their documentation location:
+
+✅ **Cite specific files and line numbers:**
+- `src/entities/breathingSphere/index.tsx:180-187` (sphere color props)
+- `src/entities/lighting/index.tsx:143-152` (lighting props)
+- `src/entities/environment/index.tsx:189-201` (environment props)
+
+✅ **Link to centralized defaults if applicable:**
+- `src/config/sceneDefaults.ts` - VISUAL_DEFAULTS, LIGHTING_DEFAULTS
+
+✅ **Verify 171+ prop system structure:**
+- 17 visual props in breathingSphere
+- 9 lighting props in lighting
+- 13 environment props in environment
+- 7 particle config props
+
+### sceneDefaults.ts Pattern Validation
+
+Check for single source of truth violations:
+
+❌ **Duplicate Defaults (Bad):**
+```typescript
+// constants.ts
+export const SPHERE_COLOR = '#4A8A9A';
+
+// BreathingSphere.tsx
+export function BreathingSphere({
+  colorExhale = '#4A8A9A',  // Duplicate!
+}) {}
+
+// BreathingLevel.tsx
+export function BreathingLevel({
+  sphereColorExhale = '#4A8A9A',  // Triple duplicate!
+}) {}
+```
+
+✅ **Single Source of Truth (Good):**
+```typescript
+// BreathingSphere.tsx (entity owns default)
+export function BreathingSphere({
+  colorExhale = '#4A8A9A',
+}) {}
+
+// BreathingLevel.tsx (scene passes through)
+export function BreathingLevel({
+  sphereColorExhale,  // undefined, lets entity use its default
+}) {
+  return <BreathingSphere colorExhale={sphereColorExhale} />;
+}
+```
+
+### Transparent Pass-Through Validation
+
+Verify scene components follow the pattern:
+
+✅ **Scene owns only what it renders directly:**
+- backgroundColor (rendered by scene)
+- bloom settings (scene-level post-processing)
+
+✅ **Scene passes through entity props as undefined:**
+- sphereColorExhale, lightingPreset, environmentPreset
+
+✅ **Entity components use their own defaults:**
+- No default redefinition at scene level
+
+---
+
 ### Phase 3: Fix Design
 
 **Goal:** Design the fix with clear rationale

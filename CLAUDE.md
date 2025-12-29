@@ -297,6 +297,55 @@ export function Lighting({
 }
 ```
 
+### Triplex Composition Patterns
+
+**Canonical Defaults Rule:** Entity components own all default values. Scenes re-declare defaults for:
+
+1. **Triplex static analysis visibility** (when scene is the primary edit target)
+2. **Scene-specific overrides** (e.g., debug scene with different baselines)
+
+**Why redundancy exists:** Triplex requires literal values in function signatures for static analysis. Cannot use `import { DEFAULT }` as function param defaults.
+
+**Three composition patterns:**
+
+- **Pattern 1A (Entity Owns):** No scene-level defaults. Use for internal compositions not edited in Triplex.
+  ```typescript
+  export function BreathingLevel(props: Partial<BreathingLevelProps> = {}) {
+    return <Lighting {...props} />;  // Entities handle their own defaults
+  }
+  ```
+
+- **Pattern 1B (Re-Declare for Triplex):** Scene re-declares all entity defaults for Triplex visibility. **RECOMMENDED for primary scenes.**
+  ```typescript
+  export function BreathingLevel({
+    ambientIntensity = 0.15,  // Matches Lighting entity default
+    // ... all other props with matching entity defaults
+  }: Partial<BreathingLevelProps> = {}) {
+    return <Lighting ambientIntensity={ambientIntensity} />;
+  }
+  ```
+
+- **Pattern 2 (Scene Overrides):** Scene only declares properties that differ from entity defaults, with comments explaining why.
+  ```typescript
+  export function BreathingDebugScene({
+    // DEBUG OVERRIDE: Higher opacity for debugging visibility (entity: 0.12)
+    sphereOpacity = 0.25,
+    // Other props use entity defaults (no declaration)
+    ...restProps
+  }: Partial<BreathingDebugSceneProps> = {}) {
+    return <BreathingLevel sphereOpacity={sphereOpacity} {...restProps} />;
+  }
+  ```
+
+**Guidelines:**
+- Use Pattern 1B for Triplex-edited production scenes (breathingLevel.tsx)
+- Use Pattern 2 for variant scenes with intentional overrides (breathing.debug.scene.tsx)
+- Use Pattern 1A for internal/utility compositions
+- Always document any default that differs from entity with a comment explaining why
+- Never import constants for defaults (breaks Triplex static analysis)
+
+See `docs/triplex/06-composition-patterns.md` for comprehensive guide with decision tree and examples.
+
 ## Important Implementation Details
 
 ### UTC Synchronization

@@ -34,13 +34,18 @@ export function KootaSystems({
       return;
     }
 
-    if (breathSystemEnabled) {
-      breathSystem(world, delta);
-    }
+    try {
+      if (breathSystemEnabled) {
+        breathSystem(world, delta);
+      }
 
-    if (particlePhysicsSystemEnabled) {
-      particlePhysics(delta, state.clock.elapsedTime);
-      particleColor(delta);
+      if (particlePhysicsSystemEnabled) {
+        particlePhysics(delta, state.clock.elapsedTime);
+        particleColor(delta);
+      }
+    } catch (_e) {
+      // Silently catch ECS errors during unmount/remount in Triplex
+      // This prevents the "data_7_$f.store" crash when the world is stale
     }
   });
 

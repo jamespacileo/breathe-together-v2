@@ -38,16 +38,20 @@ interface LightingProps {
   rimColor?: string;
 }
 
-// Comprehensive JSDoc example
+// Comprehensive JSDoc example (Standardized 7-Section Format)
 /**
  * Enable ambient light (soft base illumination).
  *
- * **When to adjust:** Always on (provides base light)
- * **Typical range:** 0.3 (subtle) → 0.4 (standard) → 0.6 (bright)
- * **Interacts with:** ambientIntensity, keyIntensity
+ * Non-directional light providing uniform illumination across entire scene.
+ * Foundation for all other lighting; always recommended for balanced appearance.
+ *
+ * **When to adjust:** Keep enabled for balanced lighting; disable for theatrical high-contrast effects
+ * **Typical range:** Disabled → Enabled (provides consistent base), adjust intensity separately
+ * **Interacts with:** ambientIntensity, keyIntensity, fillIntensity (affects overall brightness balance)
+ * **Performance note:** No impact; single light pass on all pixels
  *
  * @type boolean
- * @default true
+ * @default true (production baseline: always-on ambient lighting)
  */
 enableAmbient?: boolean;
 
@@ -187,6 +191,10 @@ export function KootaSystems() {
 ```typescript
 // Simplified interface (23 props total)
 interface BreathingSphereProps {
+  // Position & Scale (using tuple types)
+  position?: [x: number, y: number, z: number];
+  scale?: number | [x: number, y: number, z: number];  // Flexible: uniform or per-axis
+
   // Opacity & effects
   opacity?: number;
   chromaticAberration?: number;
@@ -199,19 +207,23 @@ interface BreathingSphereProps {
   // ... more props
 }
 
-// Comprehensive JSDoc example
+// Comprehensive JSDoc example (Standardized 7-Section Format)
 /**
- * Sphere opacity (0 = transparent, 1 = opaque)
+ * Sphere opacity (0 = transparent, 1 = opaque).
  *
- * **When to adjust:** Reduce for subtle focus, increase for prominence
- * **Typical range:** 0.3 (subtle) → 0.7 (standard) → 1.0 (solid)
- * **Interacts with:** fresnelIntensityMax (higher intensity needs lower opacity)
+ * Controls transparency of the main sphere layer. Affects visibility of fresnel glow and internal details.
+ * Higher opacity makes sphere more solid and prominent, lower opacity allows environment to show through.
+ *
+ * **When to adjust:** Reduce for meditative subtlety (0.3-0.5), increase for focal prominence (0.8-1.0)
+ * **Typical range:** Subtle (0.3) → Standard (0.7, balanced) → Solid (1.0)
+ * **Interacts with:** fresnelIntensityMax (higher intensity needs lower opacity for balance), colorExhale/colorInhale
+ * **Performance note:** No impact; transparency computed per-fragment in shader
  *
  * @type slider
  * @min 0
  * @max 1
  * @step 0.05
- * @default 0.7
+ * @default 0.7 (production baseline: balanced opacity with visible glow)
  */
 opacity?: number;
 
@@ -358,6 +370,48 @@ export function BreathingSphere({
 - ✅ Complex state deserves rich props interface
 - ✅ Context override enables flexibility
 - ✅ Closure pattern in useFrame improves performance
+
+---
+
+## 171+ Prop Documentation System
+
+The breathe-together-v2 codebase maintains a comprehensive prop inventory with standardized JSDoc documentation:
+
+### Prop Locations & Inventory
+
+**Visual Props (17 total)** - `src/entities/breathingSphere/index.tsx:20-181`
+- colorExhale, colorInhale, opacity, scaleRange, coreStiffness, mainResponsiveness, auraElasticity, detail
+
+**Lighting Props (9 total)** - `src/entities/lighting/index.tsx:13-152`
+- preset, intensity, ambientIntensity, ambientColor, keyIntensity, keyColor, fillIntensity, fillColor, rimIntensity, rimColor
+
+**Environment Props (13 total)** - `src/entities/environment/index.tsx:13-174`
+- enableStars, starsCount, enableFloor, floorColor, floorOpacity, enablePointLight, lightIntensityMin, lightIntensityRange, preset, enableSparkles, sparklesCount
+
+**Particle Config Props (7 total)** - `src/entities/particle/config.ts`
+- Geometry (detail, segments), Material (metalness, roughness), Size (minScale, maxScale, spread)
+
+### Centralized Defaults
+
+All props reference centralized configuration for consistency:
+
+**Location:** `src/config/sceneDefaults.ts`
+- VISUAL_DEFAULTS - backgroundColor, sphere colors, opacity
+- LIGHTING_DEFAULTS - preset, intensity, individual light configs
+- POST_PROCESSING_DEFAULTS - bloom settings
+
+### JSDoc Standard
+
+All props follow the standardized 7-section JSDoc format:
+1. **Technical Description** (required) - What the prop does
+2. **Detailed Explanation** (optional) - 1-2 sentences of context
+3. **"When to adjust"** (recommended) - Contextual use cases
+4. **"Typical range"** (recommended) - Visual landmarks with labels
+5. **"Interacts with"** (recommended) - Related props
+6. **"Performance note"** (optional) - If significant impact
+7. **Triplex Annotations** (required) - @min/@max/@step/@type/@enum/@default
+
+This ensures consistency, discoverability, and optimal Triplex editor experience across all 171+ props.
 
 ---
 

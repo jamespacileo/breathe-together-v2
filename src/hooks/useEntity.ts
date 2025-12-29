@@ -17,12 +17,23 @@ export function useEntity(
   const world = useWorld();
 
   useEffect(() => {
-    const traits = traitsFactory(world);
-    const entity = world.spawn(...traits);
-    return () => {
-      entity.destroy();
-    };
-  }, [world, ...dependencies]);
+    try {
+      const traits = traitsFactory(world);
+      const entity = world.spawn(...traits);
+      return () => {
+        try {
+          if (world.has(entity)) {
+            entity.destroy();
+          }
+        } catch (_e) {
+          // Ignore stale world errors
+        }
+      };
+    } catch (_e) {
+      // Ignore stale world errors
+      return () => {};
+    }
+  }, [world, ...dependencies, traitsFactory]);
 
   return null; // We don't return the entity since it changes on every render cycle
 }

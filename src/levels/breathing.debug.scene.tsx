@@ -1,77 +1,116 @@
 /**
- * Debug Breathing Scene for Triplex Visual Editor
+ * BreathingDebugScene - Full manual control and visualization.
  *
- * Complete debug control over breathing animation with manual scrubbing,
- * pause/play, time scaling, and visual feedback helpers.
+ * A comprehensive debug environment for inspecting the breathing animation
+ * and particle system behavior. It provides tools for manual scrubbing,
+ * time scaling, and visual helpers for ECS traits and physics.
  *
  * Use in Triplex to:
- * 1. Scrub through breathing cycle frame-by-frame (manualPhase 0-1)
- * 2. Pause/play animation (isPaused toggle)
- * 3. Speed up/slow down breathing (timeScale 0.1-5.0)
- * 4. Jump to specific phases instantly (jumpToPhase 0-3)
- * 5. Visualize orbit bounds, phase transitions, and trait values
- * 6. Tweak all visual properties while debugging
- *
- * Note: Debug traits are only active when this scene is loaded.
- * Production app.tsx and breathing.tsx remain unaffected.
- *
- * Uses shared types from src/types/sceneProps.ts and centralized defaults.
+ * 1. Scrub through the breathing cycle frame-by-frame.
+ * 2. Visualize orbit bounds, phase transitions, and trait values.
+ * 3. Inspect particle ownership (User vs Filler) and performance stats.
  */
 
 import { BreathDebugPanel } from '../components/BreathDebugPanel';
+import { CanvasProvider, GlobalProvider } from '../contexts/triplex';
 import type { BreathingDebugSceneProps } from '../types/sceneProps';
 import { BreathingLevel } from './breathing';
 
 /**
- * Debug breathing scene with full manual controls
+ * Debug breathing scene with manual controls and visualizations.
  *
- * Simplified scene that wraps BreathingLevel with BreathDebugPanel for debug controls.
- * BreathDebugPanel encapsulates all debug-only props (manual phase, pause, visualizations)
- * while BreathingLevel receives all visual and lighting props.
- *
- * This separation reduces Triplex sidebar clutter: visual props (18) + debug panel props (9)
- * instead of all 31 mixed together.
+ * Wraps BreathingLevel with a BreathDebugPanel. This separation keeps the
+ * Triplex sidebar organized by grouping debug-only controls separately
+ * from visual environment props.
  */
-export function BreathingDebugScene(props: Partial<BreathingDebugSceneProps> = {}) {
-  // Extract debug-specific props for BreathDebugPanel
-  const {
-    // Breathing Debug Controls
-    enableManualControl = false,
-    manualPhase = 0.5,
-    isPaused = false,
-    timeScale = 1.0,
-    jumpToPhase = undefined,
+export function BreathingDebugScene({
+  // Breathing Debug Controls
+  /**
+   * Enable manual scrubbing of the breathing phase.
+   * @group "Debug"
+   */
+  enableManualControl = false,
 
-    // Debug Visualizations
-    showOrbitBounds = false,
-    showPhaseMarkers = false,
-    showTraitValues = false,
+  /**
+   * Manually set the breathing phase (0 = exhale, 1 = inhale).
+   * @group "Debug"
+   * @min 0 @max 1 @step 0.01
+   */
+  manualPhase = 0.5,
 
-    // Particle Debug
-    showParticleTypes = false,
-    showParticleStats = false,
+  /**
+   * Pause the breathing animation.
+   * @group "Debug"
+   */
+  isPaused = false,
 
-    // All visual, lighting, and environment props spread directly to BreathingLevel
-    ...breathingLevelProps
-  } = props;
+  /**
+   * Speed multiplier for the breathing animation.
+   * @group "Debug"
+   * @min 0 @max 2 @step 0.1
+   */
+  timeScale = 1.0,
 
+  /**
+   * Instantly jump to a specific phase in the cycle.
+   * @group "Debug"
+   */
+  jumpToPhase = undefined,
+
+  // Debug Visualizations
+  /**
+   * Visualize the boundaries of the particle orbits.
+   * @group "Debug"
+   */
+  showOrbitBounds = false,
+
+  /**
+   * Show markers for phase transitions (Inhale, Hold, Exhale).
+   * @group "Debug"
+   */
+  showPhaseMarkers = false,
+
+  /**
+   * Display real-time ECS trait values for the breath entity.
+   * @group "Debug"
+   */
+  showTraitValues = false,
+
+  // Particle Debug
+  /**
+   * Color-code particles by their owner type (User vs Filler).
+   * @group "Debug"
+   */
+  showParticleTypes = false,
+
+  /**
+   * Display performance statistics for the particle system.
+   * @group "Debug"
+   */
+  showParticleStats = false,
+
+  // All other props are passed through to BreathingLevel
+  ...breathingLevelProps
+}: Partial<BreathingDebugSceneProps> = {}) {
   return (
-    <>
-      <BreathingLevel {...breathingLevelProps} />
+    <GlobalProvider>
+      <CanvasProvider>
+        <BreathingLevel {...breathingLevelProps} />
 
-      <BreathDebugPanel
-        enableManualControl={enableManualControl}
-        manualPhase={manualPhase}
-        isPaused={isPaused}
-        timeScale={timeScale}
-        jumpToPhase={jumpToPhase}
-        showOrbitBounds={showOrbitBounds}
-        showPhaseMarkers={showPhaseMarkers}
-        showTraitValues={showTraitValues}
-        showParticleTypes={showParticleTypes}
-        showParticleStats={showParticleStats}
-      />
-    </>
+        <BreathDebugPanel
+          enableManualControl={enableManualControl}
+          manualPhase={manualPhase}
+          isPaused={isPaused}
+          timeScale={timeScale}
+          jumpToPhase={jumpToPhase}
+          showOrbitBounds={showOrbitBounds}
+          showPhaseMarkers={showPhaseMarkers}
+          showTraitValues={showTraitValues}
+          showParticleTypes={showParticleTypes}
+          showParticleStats={showParticleStats}
+        />
+      </CanvasProvider>
+    </GlobalProvider>
   );
 }
 

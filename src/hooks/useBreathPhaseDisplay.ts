@@ -30,7 +30,7 @@ export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
       BREATH_PHASES.EXHALE,
       BREATH_PHASES.HOLD_OUT,
     ];
-    const phaseStartTimes = phaseDurations.reduce<number[]>((acc, duration, index) => {
+    const phaseStartTimes = phaseDurations.reduce<number[]>((acc, _duration, index) => {
       if (index === 0) return [0];
       const lastStart = acc[index - 1] ?? 0;
       acc.push(lastStart + (phaseDurations[index - 1] ?? 0));
@@ -93,32 +93,36 @@ export function useBreathPhaseDisplay(refs: PhaseDisplayRefs): void {
 
     let frameId = 0;
     const updateLoop = () => {
-      // Query breath entity from Koota world
-      const breathEntity = world.queryFirst(phaseType, rawProgress);
-      if (!breathEntity) {
-        frameId = requestAnimationFrame(updateLoop);
-        return;
+      try {
+        // Query breath entity from Koota world
+        const breathEntity = world.queryFirst(phaseType, rawProgress);
+        if (!breathEntity || !world.has(breathEntity)) {
+          frameId = requestAnimationFrame(updateLoop);
+          return;
+        }
+
+        // Get current breath state from ECS (single source of truth)
+        const currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
+        const currentRawProgress = Math.min(
+          1,
+          Math.max(0, breathEntity.get(rawProgress)?.value ?? 0),
+        );
+        const phaseStartTime = phaseStartTimes[currentPhaseType] ?? 0;
+        const phaseDuration = phaseDurations[currentPhaseType] ?? phaseDurations[0] ?? 1;
+
+        // Update phase text only on transition
+        if (currentPhaseType !== prevPhaseRef.current) {
+          prevPhaseRef.current = currentPhaseType;
+          updatePhaseText(currentPhaseType);
+        }
+
+        // Update timer and progress bar/arc every frame
+        updateTimer(currentRawProgress, phaseDuration);
+        updateProgressBar(phaseStartTime, currentRawProgress, phaseDuration);
+        updateProgressArc(phaseStartTime, currentRawProgress, phaseDuration);
+      } catch (_e) {
+        // Ignore stale world errors
       }
-
-      // Get current breath state from ECS (single source of truth)
-      const currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
-      const currentRawProgress = Math.min(
-        1,
-        Math.max(0, breathEntity.get(rawProgress)?.value ?? 0),
-      );
-      const phaseStartTime = phaseStartTimes[currentPhaseType] ?? 0;
-      const phaseDuration = phaseDurations[currentPhaseType] ?? phaseDurations[0] ?? 1;
-
-      // Update phase text only on transition
-      if (currentPhaseType !== prevPhaseRef.current) {
-        prevPhaseRef.current = currentPhaseType;
-        updatePhaseText(currentPhaseType);
-      }
-
-      // Update timer and progress bar/arc every frame
-      updateTimer(currentRawProgress, phaseDuration);
-      updateProgressBar(phaseStartTime, currentRawProgress, phaseDuration);
-      updateProgressArc(phaseStartTime, currentRawProgress, phaseDuration);
 
       // Schedule next frame
       frameId = requestAnimationFrame(updateLoop);

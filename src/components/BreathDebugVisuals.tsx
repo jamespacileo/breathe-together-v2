@@ -60,15 +60,19 @@ export function BreathDebugVisuals({
 
   // Update values every frame
   useFrame(() => {
-    const breath = world.queryFirst(breathPhase, orbitRadius, sphereScale, phaseType);
-    if (!breath) return;
+    try {
+      const breath = world.queryFirst(breathPhase, orbitRadius, sphereScale, phaseType);
+      if (!breath || !world.has(breath)) return;
 
-    setCurrentValues({
-      phase: breath.get(breathPhase)?.value ?? 0,
-      orbit: breath.get(orbitRadius)?.value ?? VISUALS.PARTICLE_ORBIT_MAX,
-      scale: breath.get(sphereScale)?.value ?? 1,
-      phaseType: breath.get(phaseType)?.value ?? 0,
-    });
+      setCurrentValues({
+        phase: breath.get(breathPhase)?.value ?? 0,
+        orbit: breath.get(orbitRadius)?.value ?? VISUALS.PARTICLE_ORBIT_MAX,
+        scale: breath.get(sphereScale)?.value ?? 1,
+        phaseType: breath.get(phaseType)?.value ?? 0,
+      });
+    } catch (_e) {
+      // Ignore stale world errors
+    }
   });
 
   const orbitsRef = useRef<THREE.Group>(null);

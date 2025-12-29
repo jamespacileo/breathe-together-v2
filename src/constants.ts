@@ -65,14 +65,10 @@ export const VISUALS = {
   SPHERE_SCALE_MAX: 0.7, // Significantly reduced (was 1.4)
   SPHERE_COLOR_EXHALE: '#4A8A9A', // Meditation teal-blue (deep, saturated)
   SPHERE_COLOR_INHALE: '#D4A574', // Warm amber-sand (meditation gold)
-  /** @deprecated Inlined in BreathingSphere for Triplex compatibility. See src/entities/breathingSphere/index.tsx:50 */
-  SPHERE_OPACITY: 0.12, // Slightly more ethereal (was 0.15)
 
   // Particles
   PARTICLE_ORBIT_MIN: 0.8, // Tighter to small sphere surface (was 1.1)
   PARTICLE_ORBIT_MAX: 6.0, // Much wider expansion (was 4.5)
-  /** @deprecated Inlined in Particle components for Triplex compatibility. See src/entities/particle/index.tsx:20,119 */
-  PARTICLE_COUNT: 300,
   PARTICLE_SIZE: 0.05,
   PARTICLE_FILLER_COLOR: '#6B8A9C',
   PARTICLE_COLOR_DAMPING: 1.5,
@@ -94,14 +90,8 @@ export const VISUALS = {
   REPULSION_STRENGTH: 1.5,
 
   // Environment - Organic & Natural with atmospheric depth
-  /** @deprecated Inlined in Lighting for Triplex compatibility. See src/entities/lighting/index.tsx:50 */
-  AMBIENT_LIGHT_INTENSITY: 0.15, // Dark meditation space (reduced from 0.45)
 
   // Lighting - Warm-cool balance with meditation colors
-  /** @deprecated Inlined in Lighting for Triplex compatibility. See src/entities/lighting/index.tsx:52 */
-  KEY_LIGHT_INTENSITY_MIN: 0.2, // Subtle warm glow (reduced from 0.5)
-  /** @deprecated Inlined in Lighting for Triplex compatibility. See src/entities/lighting/index.tsx:53 */
-  KEY_LIGHT_COLOR: '#E89C5C', // Warm amber/orange (changed from #f0d8c0)
   FILL_LIGHT_INTENSITY: 0.12, // Very subtle cool fill (reduced from 0.3)
   FILL_LIGHT_COLOR: '#4A7B8A', // Deep teal-blue (changed from #8ababa)
   RIM_LIGHT_INTENSITY: 0.08, // Very subtle rim (reduced from 0.2)

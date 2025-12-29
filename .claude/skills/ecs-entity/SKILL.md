@@ -109,26 +109,36 @@ export function MyEntity() {
 ### Pattern B: Stateful Entity with Props
 ```typescript
 interface Props {
-  scale?: number;
-  color?: string;
+  position?: [x: number, y: number, z: number];  // Tuple type - renders as 3 inputs
+  scale?: number | [x: number, y: number, z: number];  // Mixed type - scalar or tuple
+  color?: string;  // Color prop
 }
 
-export function MyEntity({ scale = 1, color = "#fff" }: Props) {
+export function MyEntity({
+  position = [0, 0, 0],
+  scale = 1,
+  color = "#fff"
+}: Props = {}) {
   const world = useWorld();
-  const [x, y, z] = position;
 
   useEffect(() => {
     world.spawn(
       MyTrait,
       Mesh(ref.current),
-      Position({ x, y, z }),
-      Scale({ value: scale })
+      Position({ x: position[0], y: position[1], z: position[2] }),
+      Scale({ value: typeof scale === 'number' ? scale : scale[0] })
     );
-  }, [scale, world, x, y, z]);
+  }, [scale, world, position]);
 
-  return <group ref={ref}>{children}</group>;
+  return <group ref={ref} position={position}>{children}</group>;
 }
 ```
+
+**Tuple Types for Props:**
+- Use `[number, number, number]` for position, scale, rotation
+- Use `[r: number, g: number, b: number]` for RGB colors
+- Use `number | [x: number, y: number, z: number]` for flexible scale (uniform or per-axis)
+- Triplex automatically renders tuples as individual inputs
 
 ### Pattern C: State-Only Entity
 ```typescript
@@ -256,6 +266,250 @@ export function KootaSystems({
 
 ---
 
+## Standardized JSDoc Template
+
+All entity props must follow the comprehensive JSDoc format for Triplex integration and user guidance.
+
+### Complete Template
+
+```typescript
+/**
+ * [One-line technical description of what the prop does]
+ *
+ * [Optional: 1-2 sentence detailed explanation of behavior, units, or context]
+ *
+ * **When to adjust:** [Contextual guidance - when should user change this?]
+ * **Typical range:** [Visual landmarks with labels, e.g., "Dim (0.2) → Standard (0.4) → Bright (0.6)"]
+ * **Interacts with:** [Comma-separated list of related props]
+ * **Performance note:** [Optional: only if significant impact]
+ *
+ * @min [minimum value for numeric props]
+ * @max [maximum value for numeric props]
+ * @step [increment step for numeric props]
+ * @type [color|number|boolean|string]
+ * @enum [array of valid values for string union types]
+ * @default [default value with optional context]
+ */
+propertyName?: type;
+```
+
+### Real Examples
+
+**Visual Prop (Color):**
+```typescript
+/**
+ * Sphere color at exhale (cool/calming phase).
+ *
+ * Main and aura layers lerp between exhale→inhale colors during breathing cycle.
+ * Controls the cool tone at the end of exhalation.
+ *
+ * **When to adjust:** Cooler blues/teals for meditation, warmer tones for energy
+ * **Typical range:** Cool Teal (#4A8A9A, default) → Neutral → Warm Orange
+ * **Interacts with:** colorInhale (defines the breathing color journey)
+ * **Performance note:** No impact; computed per-frame
+ *
+ * @type color
+ * @default "#4A8A9A"
+ */
+colorExhale?: string;
+```
+
+**Performance Prop (Count):**
+```typescript
+/**
+ * Number of stars in starfield.
+ *
+ * Higher = denser starfield with more depth cues.
+ *
+ * **When to adjust:** Lower for performance on mobile, higher for immersion on desktop
+ * **Typical range:** Sparse (1000) → Balanced (5000, default) → Dense (10000)
+ * **Interacts with:** enableStars (only applies if enabled)
+ * **Performance note:** Linear cost; 5000→10000 doubles initialization
+ *
+ * @min 1000
+ * @max 10000
+ * @step 500
+ * @default 5000
+ */
+starsCount?: number;
+```
+
+**Behavior Prop (Physics):**
+```typescript
+/**
+ * Core layer responsiveness curve (stiffness).
+ *
+ * Exponent for the core expansion curve: breathPhase^coreStiffness.
+ * Higher = stiffer/slower early expansion (cubic-like), lower = elastic/instant expansion.
+ *
+ * **When to adjust:** Higher (3-5) for stiff/delayed response, lower (0.5-1) for elastic/quick
+ * **Typical range:** Elastic (0.5) → Balanced (2.0) → Stiff (3.0, default) → Very Stiff (4.0)
+ * **Interacts with:** mainResponsiveness, auraElasticity (layer coordination)
+ * **Performance note:** No impact; computed per-frame
+ *
+ * @min 0
+ * @max 5
+ * @step 0.1
+ * @default 3.0
+ */
+coreStiffness?: number;
+```
+
+### JSDoc Section Guidelines
+
+1. **Technical Description** (Required) - One line, technical but clear
+2. **Detailed Explanation** (Optional) - 1-2 sentences for complex behavior
+3. **"When to adjust"** (Highly Recommended) - Contextual scenarios
+4. **"Typical range"** (Highly Recommended) - Visual landmarks with labels
+5. **"Interacts with"** (Recommended) - Related props (discoverability)
+6. **"Performance note"** (Optional) - Only if significant impact
+7. **Triplex Annotations** (Required) - @min/@max/@step/@type/@enum/@default
+
+---
+
+## Scene Threading Pattern
+
+Entities should be integrated into the 3-level scene hierarchy:
+
+### Scene Structure
+
+```
+src/levels/
+├── breathing.tsx              # Production scene (minimal props)
+├── breathing.scene.tsx        # Experimental scene (preset exploration)
+└── breathing.debug.scene.tsx  # Debug scene (all controls, manual phase)
+```
+
+### Transparent Pass-Through Pattern
+
+**Key principle:** Scene-level components should NOT redefine entity defaults.
+
+**Good Pattern:**
+```typescript
+// breathing.tsx (Production Scene)
+export function BreathingLevel({
+  backgroundColor = '#0a0f1a',  // Scene-owned (rendered by scene)
+  bloom = 'subtle',             // Scene-owned (scene-level post-processing)
+
+  // Pass-through (no defaults!) - let entities use their own
+  sphereColorExhale,
+  lightingPreset,
+  environmentPreset,
+}: Partial<BreathingLevelProps> = {}) {
+  return (
+    <>
+      <color attach="background" args={[backgroundColor]} />
+
+      {/* Entity components use their own defaults */}
+      <BreathingSphere colorExhale={sphereColorExhale} />
+      <Lighting preset={lightingPreset} />
+      <Environment preset={environmentPreset} />
+    </>
+  );
+}
+```
+
+**Why this works:**
+- Single source of truth for each entity's defaults
+- No conflicts between scene and entity layers
+- Triplex changes flow correctly
+- Easy to reason about ownership
+
+### Prop Flow
+
+**Entity (BreathingSphere):**
+```typescript
+export function BreathingSphere({
+  colorExhale = '#4A8A9A',  // Entity owns its default
+  colorInhale = '#D4A574',
+  // ...
+}: BreathingSphereProps = {}) {
+  // Implementation
+}
+```
+
+**Scene (BreathingLevel):**
+```typescript
+export function BreathingLevel({
+  sphereColorExhale,  // undefined, passes through to entity
+  // ...
+}) {
+  return <BreathingSphere colorExhale={sphereColorExhale} />;
+}
+```
+
+**Result:** Entity default is used unless explicitly overridden at scene level.
+
+---
+
+## Centralized Defaults System
+
+Entity defaults should reference centralized configuration for consistency.
+
+### sceneDefaults.ts Structure
+
+**Location:** `src/config/sceneDefaults.ts`
+
+```typescript
+export const VISUAL_DEFAULTS = {
+  backgroundColor: {
+    value: '#0a0f1a' as const,
+    when: 'Base scene background color. Deep space aesthetic for meditation.',
+    typical: 'Deep Space (#0a0f1a) → Medium (#1a2030) → Light (#2a3040)',
+    interacts: ['ambientIntensity', 'keyIntensity', 'fillIntensity'],
+    performance: 'No impact; static color',
+  },
+  sphereColorExhale: {
+    value: '#4A8A9A' as const,
+    when: 'Cooler blues/teals for meditation, warmer tones for energy',
+    typical: 'Cool Teal (#4A8A9A, default) → Neutral → Warm Orange',
+    interacts: ['sphereColorInhale'],
+    performance: 'No impact; computed per-frame',
+  },
+  // ...
+};
+
+export const getDefaultValues = () => ({
+  backgroundColor: VISUAL_DEFAULTS.backgroundColor.value,
+  sphereColorExhale: VISUAL_DEFAULTS.sphereColorExhale.value,
+  // ...
+});
+```
+
+### Usage in Entity Components
+
+**Import defaults:**
+```typescript
+import { VISUAL_DEFAULTS } from '../../config/sceneDefaults';
+
+export function BreathingSphere({
+  colorExhale = VISUAL_DEFAULTS.sphereColorExhale.value,
+  colorInhale = VISUAL_DEFAULTS.sphereColorInhale.value,
+  // ...
+}: BreathingSphereProps = {}) {
+  // Implementation
+}
+```
+
+**Benefits:**
+- Single source of truth for defaults
+- Metadata enables AI suggestions
+- Centralized validation
+- Easy to maintain consistency
+
+### Prop Documentation Inventory
+
+The codebase maintains **171+ documented props** across entities:
+
+- **17 visual props** - `src/entities/breathingSphere/index.tsx` (colorExhale, opacity, scaleRange, etc.)
+- **9 lighting props** - `src/entities/lighting/index.tsx` (ambientIntensity, keyIntensity, etc.)
+- **13 environment props** - `src/entities/environment/index.tsx` (enableStars, starsCount, preset, etc.)
+- **7 particle config props** - `src/entities/particle/config.ts` (geometry, material, size categories)
+
+All props follow the standardized JSDoc template with complete contextual guidance.
+
+---
+
 ## Triplex Annotations (for Tunable Props)
 
 If your component will be edited in Triplex visual editor:
@@ -263,28 +517,40 @@ If your component will be edited in Triplex visual editor:
 ```typescript
 interface MyEntityProps {
   /**
-   * Component scale multiplier for all dimensions
+   * Position in 3D space (x, y, z coordinates).
    *
-   * **When to adjust**: Increase to make entity more prominent, decrease for subtle effects
-   * **Typical range**: 0.5-3.0 (values < 0.1 may be invisible)
-   * **Interacts with**: positionZ (closer camera may need smaller scale)
-   * **Performance note**: No performance impact
+   * Triplex renders as three separate number inputs.
    *
-   * @type slider
-   * @min 0.1
-   * @max 5
-   * @step 0.1
-   * @default 1
+   * **When to adjust**: Move entity around the scene
+   * **Typical range**: Depends on scene scale (e.g., ±10 for 20-unit scene)
+   * **Interacts with**: Camera position, scale
+   *
+   * @default [0, 0, 0]
    */
-  scale?: number;
+  position?: [x: number, y: number, z: number];
 
   /**
-   * Base color in hex format
+   * Component scale (uniform or per-axis).
    *
-   * @type color
+   * Use single number for uniform scaling, or tuple for per-axis control.
+   * Triplex lets you switch between formats with "Switch Prop Type" action.
+   *
+   * **When to adjust**: Increase to make entity larger, decrease for smaller
+   * **Typical range**: 0.1 (tiny) → 1.0 (normal) → 5.0 (huge)
+   * **Interacts with**: position (scaled objects may need position adjustment)
+   *
+   * @default 1 (uniform) or [1, 1, 1] (per-axis)
+   */
+  scale?: number | [x: number, y: number, z: number];
+
+  /**
+   * Base color in multiple formats (hex, number, or RGB tuple).
+   *
+   * Triplex lets you switch between formats with "Switch Prop Type" action.
+   *
    * @default "#ffffff"
    */
-  color?: string;
+  color?: string | number | [r: number, g: number, b: number];
 }
 ```
 

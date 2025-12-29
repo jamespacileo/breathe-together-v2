@@ -2,162 +2,86 @@
  * Lighting - Layered directional lights for breathing sphere scene.
  * Exposes only the most useful tuning knobs for Triplex.
  */
-import { VISUALS } from '../../constants';
 
 interface LightingProps {
   /**
-   * Ambient light intensity (non-directional base illumination).
+   * Lighting mood preset
    *
-   * Provides uniform lighting across entire scene. Foundation for all shadow visibility.
-   * Lower = darker shadows and more depth, higher = flatter appearance and less shadows.
+   * - **warm**: Golden hour feel, sunrise/sunset mood
+   * - **cool**: Blue-tinted, calm meditation feel
+   * - **neutral**: Balanced studio lighting
+   * - **dramatic**: High contrast, cinematic
    *
-   * **When to adjust:** Dark backgrounds (0.3-0.4) for shadow contrast, light backgrounds (0.1-0.2) to reduce washout
-   * **Typical range:** Dark Meditation (0.1) → Balanced (0.15, default) → Soft (0.3) → Washed (0.5+)
-   * **Interacts with:** backgroundColor, keyIntensity, fillIntensity, bloomIntensity
-   * **Performance note:** No impact; computed per-fragment
-   *
-   * @min 0
-   * @max 1
-   * @step 0.05
-   * @default 0.15
+   * @group "Configuration"
+   * @enum ["warm", "cool", "neutral", "dramatic"]
    */
-  ambientIntensity?: number;
+  preset?: 'warm' | 'cool' | 'neutral' | 'dramatic';
 
   /**
-   * Ambient light color tint.
-   *
-   * Overall color temperature of non-directional lighting. Cooler colors (blues) promote calm,
-   * warmer colors (oranges) promote energy.
-   *
-   * **When to adjust:** Match overall scene mood; cool for meditation, warm for energy
-   * **Typical range:** Cool (#4080ff) → Neutral (#a8b8d0, default) → Warm (#ff9900)
-   * **Interacts with:** keyColor, backgroundColor, mood/theme
-   * **Performance note:** No impact; single color
-   *
-   * @type color
-   * @default "#a8b8d0"
-   */
-  ambientColor?: string;
-
-  /**
-   * Key light intensity (main directional light strength).
-   *
-   * Primary light source that creates the most dramatic shadows and highlights.
-   * Strongest light in the scene, defines main light direction and character.
-   *
-   * **When to adjust:** Increase for dramatic lighting (cinematic), decrease for soft (meditative)
-   * **Typical range:** Soft (0.1) → Defined (0.2, default) → Dramatic (0.5) → Harsh (1.0+)
-   * **Interacts with:** ambientIntensity (together control shadow depth), keyColor, fillIntensity
-   * **Performance note:** No impact; single light
-   *
+   * Global intensity multiplier
+   * @group "Configuration"
    * @min 0
    * @max 2
    * @step 0.1
-   * @default 0.2
    */
-  keyIntensity?: number;
-
-  /**
-   * Key light color tint.
-   *
-   * Hue of the primary directional light. Sets the main color character of the scene.
-   *
-   * **When to adjust:** Match lighting design; warm/orange for sunrise, cool/blue for night
-   * **Typical range:** Cool (#4080ff) → Neutral (#ffffff) → Warm (#e89c5c, default) → Very Warm (#ff9900)
-   * **Interacts with:** ambientColor, backgroundColor, fillColor (complementary coolness)
-   * **Performance note:** No impact; single color
-   *
-   * @type color
-   * @default "#e89c5c"
-   */
-  keyColor?: string;
-
-  /**
-   * Fill light intensity (secondary soft light from opposite direction).
-   *
-   * Softens shadows created by key light. Lower = more dramatic shadows,
-   * higher = flatter, more even lighting.
-   *
-   * **When to adjust:** Increase for softer look, decrease for dramatic contrast
-   * **Typical range:** Subtle (0.05) → Balanced (0.12, default) → Soft (0.25)
-   * **Interacts with:** keyIntensity, ambientIntensity
-   * **Performance note:** No impact; computed per-fragment
-   *
-   * @min 0
-   * @max 1
-   * @step 0.05
-   * @default 0.12
-   */
-  fillIntensity?: number;
-
-  /**
-   * Fill light color tint.
-   *
-   * **When to adjust:** Cool tones complement warm key light, warm tones for unified lighting
-   * **Typical range:** Cool teal (#4A7B8A, default) → Neutral (#888888) → Warm (#ff9900)
-   * **Interacts with:** keyColor (typically opposite hue for balanced lighting)
-   * **Performance note:** No impact; single color
-   *
-   * @type color
-   * @default "#4A7B8A"
-   */
-  fillColor?: string;
-
-  /**
-   * Rim light intensity (edge highlight from behind).
-   *
-   * Creates edge highlights separating sphere from background. Lower = subtle,
-   * higher = pronounced silhouette.
-   *
-   * **When to adjust:** Increase for depth/separation, decrease for minimal aesthetic
-   * **Typical range:** Subtle (0.03) → Defined (0.08, default) → Pronounced (0.15)
-   * **Interacts with:** backgroundColor (contrast), keyIntensity
-   * **Performance note:** No impact; computed per-fragment
-   *
-   * @min 0
-   * @max 0.5
-   * @step 0.02
-   * @default 0.08
-   */
-  rimIntensity?: number;
-
-  /**
-   * Rim light color tint.
-   *
-   * **When to adjust:** Cool cyan-blue creates edge definition, warm orange for glow
-   * **Typical range:** Cool cyan (#6BA8B5, default) → Neutral (#ffffff) → Warm (#ff9900)
-   * **Interacts with:** backgroundColor (contrast against background color)
-   * **Performance note:** No impact; single color
-   *
-   * @type color
-   * @default "#6BA8B5"
-   */
-  rimColor?: string;
+  intensity?: number;
 }
+
+const LIGHTING_PRESETS = {
+  warm: {
+    ambient: { intensity: 0.15, color: '#a8b8d0' },
+    key: { intensity: 0.2, color: '#e89c5c' },
+    fill: { intensity: 0.12, color: '#4A7B8A' },
+    rim: { intensity: 0.08, color: '#6BA8B5' },
+  },
+  cool: {
+    ambient: { intensity: 0.1, color: '#4080ff' },
+    key: { intensity: 0.15, color: '#ffffff' },
+    fill: { intensity: 0.1, color: '#4A7B8A' },
+    rim: { intensity: 0.1, color: '#6BA8B5' },
+  },
+  neutral: {
+    ambient: { intensity: 0.15, color: '#ffffff' },
+    key: { intensity: 0.2, color: '#ffffff' },
+    fill: { intensity: 0.12, color: '#888888' },
+    rim: { intensity: 0.08, color: '#ffffff' },
+  },
+  dramatic: {
+    ambient: { intensity: 0.05, color: '#a8b8d0' },
+    key: { intensity: 0.5, color: '#e89c5c' },
+    fill: { intensity: 0.05, color: '#4A7B8A' },
+    rim: { intensity: 0.15, color: '#6BA8B5' },
+  },
+} as const;
 
 const KEY_POSITION: [number, number, number] = [2, 3, 5];
 const FILL_POSITION: [number, number, number] = [-2, -1, -3];
 const RIM_POSITION: [number, number, number] = [0, -5, -5];
 
-export function Lighting({
-  ambientIntensity = 0.15,
-  ambientColor = '#a8b8d0',
-  keyIntensity = 0.2,
-  keyColor = '#e89c5c',
-  fillIntensity = 0.12,
-  fillColor = '#4A7B8A',
-  rimIntensity = 0.08,
-  rimColor = '#6BA8B5',
-}: LightingProps = {}) {
+export function Lighting({ preset = 'warm', intensity = 1.0 }: LightingProps = {}) {
+  const config = LIGHTING_PRESETS[preset];
+
   return (
     <>
-      <ambientLight intensity={ambientIntensity} color={ambientColor} />
+      <ambientLight intensity={config.ambient.intensity * intensity} color={config.ambient.color} />
 
-      <directionalLight position={KEY_POSITION} intensity={keyIntensity} color={keyColor} />
+      <directionalLight
+        position={KEY_POSITION}
+        intensity={config.key.intensity * intensity}
+        color={config.key.color}
+      />
 
-      <directionalLight position={FILL_POSITION} intensity={fillIntensity} color={fillColor} />
+      <directionalLight
+        position={FILL_POSITION}
+        intensity={config.fill.intensity * intensity}
+        color={config.fill.color}
+      />
 
-      <directionalLight position={RIM_POSITION} intensity={rimIntensity} color={rimColor} />
+      <directionalLight
+        position={RIM_POSITION}
+        intensity={config.rim.intensity * intensity}
+        color={config.rim.color}
+      />
     </>
   );
 }
