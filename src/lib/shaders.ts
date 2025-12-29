@@ -273,3 +273,63 @@ export const createNebulaMaterial = (colorExhale: string, colorInhale: string) =
     vertexShader: NEBULA_VERTEX_SHADER,
     fragmentShader: NEBULA_FRAGMENT_SHADER,
   });
+
+// ============================================================================
+// GRADIENT BACKGROUND SHADER - Breath-synchronized vertical gradient
+// ============================================================================
+
+export const GRADIENT_VERTEX_SHADER = `
+	varying vec2 vUv;
+
+	void main() {
+		vUv = uv;
+		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+	}
+`;
+
+export const GRADIENT_FRAGMENT_SHADER = `
+	varying vec2 vUv;
+
+	uniform vec3 uColorBottomExhale;
+	uniform vec3 uColorTopExhale;
+	uniform vec3 uColorBottomInhale;
+	uniform vec3 uColorTopInhale;
+	uniform float uBreathPhase;
+
+	void main() {
+		// Vertical gradient from bottom (y=0) to top (y=1)
+		float gradientMix = vUv.y;
+
+		// Exhale gradient state (bottom dark → top medium)
+		vec3 colorExhale = mix(uColorBottomExhale, uColorTopExhale, gradientMix);
+
+		// Inhale gradient state (bottom dark → top bright)
+		vec3 colorInhale = mix(uColorBottomInhale, uColorTopInhale, gradientMix);
+
+		// Breathe between the two gradient states
+		vec3 finalColor = mix(colorExhale, colorInhale, uBreathPhase);
+
+		gl_FragColor = vec4(finalColor, 1.0); // Opaque
+	}
+`;
+
+export const createGradientMaterial = (
+  colorBottomExhale: string,
+  colorTopExhale: string,
+  colorBottomInhale: string,
+  colorTopInhale: string,
+) =>
+  new THREE.ShaderMaterial({
+    transparent: false, // Opaque background
+    depthWrite: true,
+    side: THREE.FrontSide,
+    uniforms: {
+      uColorBottomExhale: { value: new THREE.Color(colorBottomExhale) },
+      uColorTopExhale: { value: new THREE.Color(colorTopExhale) },
+      uColorBottomInhale: { value: new THREE.Color(colorBottomInhale) },
+      uColorTopInhale: { value: new THREE.Color(colorTopInhale) },
+      uBreathPhase: { value: 0 },
+    },
+    vertexShader: GRADIENT_VERTEX_SHADER,
+    fragmentShader: GRADIENT_FRAGMENT_SHADER,
+  });

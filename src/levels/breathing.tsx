@@ -50,7 +50,8 @@ export function BreathingLevel({
 
   return (
     <>
-      <color attach="background" args={[backgroundColor]} />
+      {/* Background now handled by gradient shader in Environment */}
+      {/* <color attach="background" args={[backgroundColor]} /> */}
 
       {showLighting && <Lighting preset={lightingPreset} intensity={lightingIntensity} />}
 

@@ -9,7 +9,7 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Color } from 'three';
 import { VISUALS } from '../../constants';
-import { createNebulaMaterial } from '../../lib/shaders';
+import { createGradientMaterial, createNebulaMaterial } from '../../lib/shaders';
 import { breathPhase, crystallization } from '../breath/traits';
 
 interface EnvironmentProps {
@@ -52,6 +52,33 @@ const NEBULA_COLORS = {
   studio: {
     exhale: VISUALS.NEBULA_COLOR_EXHALE_STUDIO,
     inhale: VISUALS.NEBULA_COLOR_INHALE_STUDIO,
+  },
+} as const;
+
+const GRADIENT_COLORS = {
+  meditation: {
+    bottomExhale: VISUALS.GRADIENT_BOTTOM_EXHALE_MEDITATION,
+    topExhale: VISUALS.GRADIENT_TOP_EXHALE_MEDITATION,
+    bottomInhale: VISUALS.GRADIENT_BOTTOM_INHALE_MEDITATION,
+    topInhale: VISUALS.GRADIENT_TOP_INHALE_MEDITATION,
+  },
+  cosmic: {
+    bottomExhale: VISUALS.GRADIENT_BOTTOM_EXHALE_COSMIC,
+    topExhale: VISUALS.GRADIENT_TOP_EXHALE_COSMIC,
+    bottomInhale: VISUALS.GRADIENT_BOTTOM_INHALE_COSMIC,
+    topInhale: VISUALS.GRADIENT_TOP_INHALE_COSMIC,
+  },
+  minimal: {
+    bottomExhale: VISUALS.GRADIENT_BOTTOM_EXHALE_MINIMAL,
+    topExhale: VISUALS.GRADIENT_TOP_EXHALE_MINIMAL,
+    bottomInhale: VISUALS.GRADIENT_BOTTOM_INHALE_MINIMAL,
+    topInhale: VISUALS.GRADIENT_TOP_INHALE_MINIMAL,
+  },
+  studio: {
+    bottomExhale: VISUALS.GRADIENT_BOTTOM_EXHALE_STUDIO,
+    topExhale: VISUALS.GRADIENT_TOP_EXHALE_STUDIO,
+    bottomInhale: VISUALS.GRADIENT_BOTTOM_INHALE_STUDIO,
+    topInhale: VISUALS.GRADIENT_TOP_INHALE_STUDIO,
   },
 } as const;
 
@@ -110,13 +137,17 @@ const FLOOR_POSITION_Y = -4;
 const FLOOR_SIZE = 100;
 const NEBULA_POSITION_Z = -50;
 const NEBULA_SCALE = 60;
+const GRADIENT_POSITION_Z = -100; // Behind nebula (-50) and all geometry
+const GRADIENT_SCALE = 100; // Large enough to cover viewport
 const FOG_ENABLED = false; // Experimental: set to true to enable breath-synchronized fog
 
 export function Environment({ preset = 'meditation', atmosphere = 0.5 }: EnvironmentProps = {}) {
   const config = ENVIRONMENT_PRESETS[preset];
   const nebulaColors = NEBULA_COLORS[preset];
+  const gradientColors = GRADIENT_COLORS[preset];
   const lightRef = useRef<THREE.PointLight>(null);
   const nebulaRef = useRef<THREE.Mesh>(null);
+  const gradientRef = useRef<THREE.Mesh>(null);
   const starsRef = useRef<THREE.Group>(null); // Drei Stars is wrapped in a group
   const breathPhaseRef = useRef(0); // Track breath phase for Sky component
   const world = useWorld();
@@ -128,6 +159,16 @@ export function Environment({ preset = 'meditation', atmosphere = 0.5 }: Environ
   const nebulaMaterial = useMemo(() => {
     return createNebulaMaterial(nebulaColors.exhale, nebulaColors.inhale);
   }, [nebulaColors]);
+
+  // Create gradient background shader material with preset-specific colors
+  const gradientMaterial = useMemo(() => {
+    return createGradientMaterial(
+      gradientColors.bottomExhale,
+      gradientColors.topExhale,
+      gradientColors.bottomInhale,
+      gradientColors.topInhale,
+    );
+  }, [gradientColors]);
 
   useFrame((state, delta) => {
     try {
@@ -155,6 +196,12 @@ export function Environment({ preset = 'meditation', atmosphere = 0.5 }: Environ
         shaderMat.uniforms.uTime.value += delta * 0.1;
         shaderMat.uniforms.uBreathPhase.value = phase;
         shaderMat.uniforms.uAtmosphere.value = atmosphere;
+      }
+
+      // 2B. Animate Gradient background shader uniforms
+      if (gradientRef.current?.material instanceof THREE.ShaderMaterial) {
+        const shaderMat = gradientRef.current.material;
+        shaderMat.uniforms.uBreathPhase.value = phase;
       }
 
       // 3. Modulate Star speed based on stillness (crystallization)
@@ -193,6 +240,12 @@ export function Environment({ preset = 'meditation', atmosphere = 0.5 }: Environ
           color="#e8c4a4"
         />
       )}
+
+      {/* Gradient background - opaque base layer behind all geometry */}
+      <mesh ref={gradientRef} position={[0, 0, GRADIENT_POSITION_Z]} scale={GRADIENT_SCALE}>
+        <planeGeometry args={[1, 1]} />
+        <primitive object={gradientMaterial} attach="material" />
+      </mesh>
 
       {/* Organic nebula background with breath-synchronized shader */}
       <mesh ref={nebulaRef} position={[0, 0, NEBULA_POSITION_Z]} scale={NEBULA_SCALE}>
