@@ -251,7 +251,7 @@ export const NEBULA_FRAGMENT_SHADER = `
 
 		// Add subtle glow during inhale
 		float glow = cloudNoise * uBreathPhase * 0.2;
-		vec3 finalColor = nebulaColor * (1.0 + glow);
+		vec3 finalColor = nebulaColor * (1.2 + uBreathPhase * 0.3 + glow);
 
 		gl_FragColor = vec4(finalColor, opacity);
 	}
@@ -268,7 +268,7 @@ export const createNebulaMaterial = (colorExhale: string, colorInhale: string) =
       uColorExhale: { value: new THREE.Color(colorExhale) },
       uColorInhale: { value: new THREE.Color(colorInhale) },
       uAtmosphere: { value: 0.5 },
-      uDensity: { value: 1.5 },
+      uDensity: { value: 2.0 },
     },
     vertexShader: NEBULA_VERTEX_SHADER,
     fragmentShader: NEBULA_FRAGMENT_SHADER,
