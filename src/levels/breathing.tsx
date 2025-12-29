@@ -13,50 +13,45 @@
 
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import { HalfFloatType } from 'three';
-import {
-  ENVIRONMENT_DEFAULTS,
-  getDefaultValues,
-  LIGHTING_DEFAULTS,
-  VISUAL_DEFAULTS,
-} from '../config/sceneDefaults';
 import { VISUALS } from '../constants';
 import { BreathingSphere } from '../entities/breathingSphere';
 import { Environment } from '../entities/environment';
 import { ParticleRenderer, ParticleSpawner } from '../entities/particle';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
-// Merge all visual, lighting, and environment defaults for convenient spreading
-const DEFAULT_PROPS = {
-  ...getDefaultValues(VISUAL_DEFAULTS),
-  ...getDefaultValues(LIGHTING_DEFAULTS),
-  ...getDefaultValues(ENVIRONMENT_DEFAULTS),
-} as const;
-
 export function BreathingLevel({
-  // Visual defaults
-  backgroundColor = DEFAULT_PROPS.backgroundColor,
-  sphereColor = DEFAULT_PROPS.sphereColor,
-  sphereOpacity = DEFAULT_PROPS.sphereOpacity,
-  sphereDetail = DEFAULT_PROPS.sphereDetail,
+  // Visual defaults (literal values - Triplex compatible)
+  backgroundColor = '#0a0f1a',
+  sphereColor = '#d4a574',
+  sphereOpacity = 0.12,
+  sphereDetail = 2,
 
   // Lighting defaults
-  ambientIntensity = DEFAULT_PROPS.ambientIntensity,
-  ambientColor = DEFAULT_PROPS.ambientColor,
-  keyIntensity = DEFAULT_PROPS.keyIntensity,
-  keyColor = DEFAULT_PROPS.keyColor,
+  ambientIntensity = 0.15,
+  ambientColor = '#a8b8d0',
+  keyIntensity = 0.2,
+  keyColor = '#e89c5c',
 
   // Environment defaults
-  starsCount = DEFAULT_PROPS.starsCount,
-  floorColor = DEFAULT_PROPS.floorColor,
-  enableStars = DEFAULT_PROPS.enableStars,
-  enableFloor = DEFAULT_PROPS.enableFloor,
-  floorOpacity = DEFAULT_PROPS.floorOpacity,
-  enablePointLight = DEFAULT_PROPS.enablePointLight,
-  lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
-  lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
+  preset = 'studio',
+  enableSparkles = true,
+  sparklesCount = 100,
+  starsCount = 5000,
+  floorColor = '#0a0a1a',
+  enableStars = true,
+  enableFloor = true,
+  floorOpacity = 0.5,
+  enablePointLight = true,
+  lightIntensityMin = 0.5,
+  lightIntensityRange = 1.5,
+
+  // Post-processing defaults
+  bloomIntensity = 0.5,
+  bloomThreshold = 1.0,
+  bloomSmoothing = 0.1,
 
   // Particle defaults
-  particleCount = DEFAULT_PROPS.particleCount,
+  particleCount = 300,
 }: Partial<BreathingLevelProps> = {}) {
   return (
     <>
@@ -64,12 +59,8 @@ export function BreathingLevel({
 
       {/* Refined layered lighting (all props editable in Triplex) */}
       {/* Replaced Lighting component with direct light elements */}
-      <ambientLight intensity={VISUALS.AMBIENT_LIGHT_INTENSITY} />
-      <pointLight
-        position={[10, 10, 10]}
-        intensity={VISUALS.KEY_LIGHT_INTENSITY_MIN}
-        color={VISUALS.KEY_LIGHT_COLOR}
-      />
+      <ambientLight intensity={ambientIntensity} color={ambientColor} />
+      <pointLight position={[10, 10, 10]} intensity={keyIntensity} color={keyColor} />
       <pointLight
         position={[-10, 5, -10]}
         intensity={VISUALS.FILL_LIGHT_INTENSITY}
@@ -82,6 +73,9 @@ export function BreathingLevel({
       />
 
       <Environment
+        preset={preset}
+        enableSparkles={enableSparkles}
+        sparklesCount={sparklesCount}
         starsCount={starsCount}
         floorColor={floorColor}
         enableStars={enableStars}
@@ -99,9 +93,9 @@ export function BreathingLevel({
 
       <EffectComposer multisampling={4} stencilBuffer={false} frameBufferType={HalfFloatType}>
         <Bloom
-          intensity={0.15} // Slightly stronger, now that threshold is lower (was 0.1)
-          luminanceThreshold={0.75} // Allows Fresnel glow to bloom (was 1.0)
-          luminanceSmoothing={0.9}
+          intensity={bloomIntensity}
+          luminanceThreshold={bloomThreshold}
+          luminanceSmoothing={bloomSmoothing}
           mipmapBlur
         />
       </EffectComposer>

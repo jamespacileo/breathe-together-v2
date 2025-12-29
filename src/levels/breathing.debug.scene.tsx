@@ -22,28 +22,9 @@ import { Html } from '@react-three/drei';
 import { useMemo } from 'react';
 import { BreathDebugVisuals } from '../components/BreathDebugVisuals';
 import { ParticleDebugVisuals } from '../components/ParticleDebugVisuals';
-import {
-  BREATHING_DEBUG_DEFAULTS,
-  ENVIRONMENT_DEFAULTS,
-  EXPERIMENTAL_DEFAULTS,
-  getDefaultValues,
-  LIGHTING_DEFAULTS,
-  PARTICLE_DEBUG_DEFAULTS,
-  VISUAL_DEFAULTS,
-} from '../config/sceneDefaults';
 import { type BreathDebugConfig, BreathDebugProvider } from '../contexts/breathDebug';
 import type { BreathingDebugSceneProps } from '../types/sceneProps';
 import { BreathingLevel } from './breathing';
-
-// Merge all defaults for convenient spreading
-const DEFAULT_PROPS = {
-  ...getDefaultValues(VISUAL_DEFAULTS),
-  ...getDefaultValues(LIGHTING_DEFAULTS),
-  ...getDefaultValues(ENVIRONMENT_DEFAULTS),
-  ...getDefaultValues(BREATHING_DEBUG_DEFAULTS),
-  ...getDefaultValues(PARTICLE_DEBUG_DEFAULTS),
-  ...getDefaultValues(EXPERIMENTAL_DEFAULTS),
-} as const;
 
 /**
  * Debug breathing scene with full manual controls
@@ -53,45 +34,45 @@ const DEFAULT_PROPS = {
  * animation state in real-time.
  */
 export function BreathingDebugScene({
-  // Breathing Debug Controls
-  enableManualControl = DEFAULT_PROPS.enableManualControl,
-  manualPhase = DEFAULT_PROPS.manualPhase,
-  isPaused = DEFAULT_PROPS.isPaused,
-  timeScale = DEFAULT_PROPS.timeScale,
-  jumpToPhase = DEFAULT_PROPS.jumpToPhase,
+  // Breathing Debug Controls (literal values - Triplex compatible)
+  enableManualControl = false,
+  manualPhase = 0.5,
+  isPaused = false,
+  timeScale = 1.0,
+  jumpToPhase = undefined,
 
   // Debug Visualizations
-  showOrbitBounds = DEFAULT_PROPS.showOrbitBounds,
-  showPhaseMarkers = DEFAULT_PROPS.showPhaseMarkers,
-  showTraitValues = DEFAULT_PROPS.showTraitValues,
+  showOrbitBounds = false,
+  showPhaseMarkers = false,
+  showTraitValues = false,
 
   // Visual Properties
-  backgroundColor = DEFAULT_PROPS.backgroundColor,
-  sphereColor = DEFAULT_PROPS.sphereColor,
-  sphereOpacity = DEFAULT_PROPS.sphereOpacity,
-  sphereDetail = DEFAULT_PROPS.sphereDetail,
+  backgroundColor = '#0a0f1a',
+  sphereColor = '#d4a574',
+  sphereOpacity = 0.12,
+  sphereDetail = 2,
 
   // Lighting
-  ambientIntensity = DEFAULT_PROPS.ambientIntensity,
-  ambientColor = DEFAULT_PROPS.ambientColor,
-  keyIntensity = DEFAULT_PROPS.keyIntensity,
-  keyColor = DEFAULT_PROPS.keyColor,
+  ambientIntensity = 0.15,
+  ambientColor = '#a8b8d0',
+  keyIntensity = 0.2,
+  keyColor = '#e89c5c',
 
   // Environment
-  starsCount = DEFAULT_PROPS.starsCount,
-  floorColor = DEFAULT_PROPS.floorColor,
-  enableStars = DEFAULT_PROPS.enableStars,
-  enableFloor = DEFAULT_PROPS.enableFloor,
-  floorOpacity = DEFAULT_PROPS.floorOpacity,
-  enablePointLight = DEFAULT_PROPS.enablePointLight,
-  lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
-  lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
+  starsCount = 5000,
+  floorColor = '#0a0a1a',
+  enableStars = true,
+  enableFloor = true,
+  floorOpacity = 0.5,
+  enablePointLight = true,
+  lightIntensityMin = 0.5,
+  lightIntensityRange = 1.5,
 
   // Particles
-  particleCount = DEFAULT_PROPS.particleCount,
+  particleCount = 300,
 
-  showParticleTypes = DEFAULT_PROPS.showParticleTypes,
-  showParticleStats = DEFAULT_PROPS.showParticleStats,
+  showParticleTypes = false,
+  showParticleStats = false,
 }: Partial<BreathingDebugSceneProps> = {}) {
   // Build debug config from props
   const debugConfig = useMemo<BreathDebugConfig | null>(() => {

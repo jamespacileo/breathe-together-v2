@@ -18,24 +18,9 @@
  */
 
 import { Html } from '@react-three/drei';
-import {
-  ENVIRONMENT_DEFAULTS,
-  EXPERIMENTAL_DEFAULTS,
-  getDefaultValues,
-  LIGHTING_DEFAULTS,
-  VISUAL_DEFAULTS,
-} from '../config/sceneDefaults';
 import { BreathCurveProvider } from '../contexts/BreathCurveContext';
 import type { BreathingSceneProps } from '../types/sceneProps';
 import { BreathingLevel } from './breathing';
-
-// Merge all defaults for convenient spreading
-const DEFAULT_PROPS = {
-  ...getDefaultValues(VISUAL_DEFAULTS),
-  ...getDefaultValues(LIGHTING_DEFAULTS),
-  ...getDefaultValues(ENVIRONMENT_DEFAULTS),
-  ...getDefaultValues(EXPERIMENTAL_DEFAULTS),
-} as const;
 
 /**
  * Experimental breathing scene combining curve selection with BreathingLevel
@@ -44,35 +29,43 @@ const DEFAULT_PROPS = {
  * into the breath system. Allows visual experimentation and comparison.
  */
 export function BreathingScene({
-  // Experimental curve props
-  curveType = DEFAULT_PROPS.curveType,
-  waveDelta = DEFAULT_PROPS.waveDelta,
-  showCurveInfo = DEFAULT_PROPS.showCurveInfo,
+  // Experimental curve props (literal values - Triplex compatible)
+  curveType = 'phase-based',
+  waveDelta = 0.05,
+  showCurveInfo = false,
 
   // Visual defaults
-  backgroundColor = DEFAULT_PROPS.backgroundColor,
-  sphereColor = DEFAULT_PROPS.sphereColor,
-  sphereOpacity = DEFAULT_PROPS.sphereOpacity,
-  sphereDetail = DEFAULT_PROPS.sphereDetail,
+  backgroundColor = '#0a0f1a',
+  sphereColor = '#d4a574',
+  sphereOpacity = 0.12,
+  sphereDetail = 2,
 
   // Lighting defaults
-  ambientIntensity = DEFAULT_PROPS.ambientIntensity,
-  ambientColor = DEFAULT_PROPS.ambientColor,
-  keyIntensity = DEFAULT_PROPS.keyIntensity,
-  keyColor = DEFAULT_PROPS.keyColor,
+  ambientIntensity = 0.15,
+  ambientColor = '#a8b8d0',
+  keyIntensity = 0.2,
+  keyColor = '#e89c5c',
 
   // Environment defaults
-  starsCount = DEFAULT_PROPS.starsCount,
-  floorColor = DEFAULT_PROPS.floorColor,
-  enableStars = DEFAULT_PROPS.enableStars,
-  enableFloor = DEFAULT_PROPS.enableFloor,
-  floorOpacity = DEFAULT_PROPS.floorOpacity,
-  enablePointLight = DEFAULT_PROPS.enablePointLight,
-  lightIntensityMin = DEFAULT_PROPS.lightIntensityMin,
-  lightIntensityRange = DEFAULT_PROPS.lightIntensityRange,
+  preset = 'studio',
+  enableSparkles = true,
+  sparklesCount = 100,
+  starsCount = 5000,
+  floorColor = '#0a0a1a',
+  enableStars = true,
+  enableFloor = true,
+  floorOpacity = 0.5,
+  enablePointLight = true,
+  lightIntensityMin = 0.5,
+  lightIntensityRange = 1.5,
+
+  // Post-processing defaults
+  bloomIntensity = 0.5,
+  bloomThreshold = 1.0,
+  bloomSmoothing = 0.1,
 
   // Particle defaults
-  particleCount = DEFAULT_PROPS.particleCount,
+  particleCount = 300,
 }: Partial<BreathingSceneProps> = {}) {
   return (
     <BreathCurveProvider config={{ curveType, waveDelta }}>
@@ -85,6 +78,9 @@ export function BreathingScene({
         ambientColor={ambientColor}
         keyIntensity={keyIntensity}
         keyColor={keyColor}
+        preset={preset}
+        enableSparkles={enableSparkles}
+        sparklesCount={sparklesCount}
         starsCount={starsCount}
         floorColor={floorColor}
         enableStars={enableStars}
@@ -93,6 +89,9 @@ export function BreathingScene({
         enablePointLight={enablePointLight}
         lightIntensityMin={lightIntensityMin}
         lightIntensityRange={lightIntensityRange}
+        bloomIntensity={bloomIntensity}
+        bloomThreshold={bloomThreshold}
+        bloomSmoothing={bloomSmoothing}
         particleCount={particleCount}
       />
 
