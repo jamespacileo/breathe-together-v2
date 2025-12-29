@@ -8,6 +8,7 @@
 import { useWorld } from 'koota/react';
 import { useEffect } from 'react';
 import { useBreathCurveConfig } from '../../contexts/BreathCurveContext';
+import { useBreathController } from '../../contexts/breathController';
 import { useBreathDebug } from '../../contexts/breathDebug';
 import {
   breathCurveConfig,
@@ -40,6 +41,7 @@ export function BreathEntity() {
   const world = useWorld();
   const curveConfig = useBreathCurveConfig();
   const debugConfig = useBreathDebug();
+  const controllerConfig = useBreathController();
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ECS entity initialization with multiple trait setup steps
   useEffect(() => {
@@ -123,6 +125,23 @@ export function BreathEntity() {
           });
         }
       }
+      // ============================================================
+      // BREATH CONTROLLER FALLBACK (Production)
+      // Only apply if debug context is NOT present (debug takes priority)
+      // ============================================================
+      else if (controllerConfig && entity && world.has(entity)) {
+        // Add debugTimeControl trait if it doesn't exist
+        if (!entity.has(debugTimeControl)) entity.add(debugTimeControl);
+
+        // Update time control from controller context
+        const current = entity.get(debugTimeControl);
+        const manualTime = current?.manualTime ?? Date.now() / 1000;
+        entity.set(debugTimeControl, {
+          isPaused: controllerConfig.isPaused ?? false,
+          timeScale: controllerConfig.timeScale ?? 1.0,
+          manualTime,
+        });
+      }
     } catch (_e) {
       // Silently catch ECS errors during unmount/remount
     }
@@ -132,7 +151,7 @@ export function BreathEntity() {
       // and multiple components might depend on it. It will be cleaned up
       // when the world is destroyed.
     };
-  }, [world, curveConfig.curveType, curveConfig.waveDelta, debugConfig]);
+  }, [world, curveConfig.curveType, curveConfig.waveDelta, debugConfig, controllerConfig]);
 
   return null; // This component renders nothing
 }

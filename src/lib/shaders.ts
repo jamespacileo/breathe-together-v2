@@ -243,12 +243,6 @@ export const NEBULA_FRAGMENT_SHADER = `
 		// Normalize noise to 0-1 range
 		cloudNoise = cloudNoise * 0.5 + 0.5;
 
-		// Apply density curve (quieter in middle, stronger at edges)
-		float edgeFade = length(vUv - 0.5) * 2.0;
-		edgeFade = 1.0 - smoothstep(0.4, 1.0, edgeFade);
-
-		cloudNoise *= edgeFade;
-
 		// Color transition based on breath phase: cool (exhale) to warm (inhale)
 		vec3 nebulaColor = mix(uColorExhale, uColorInhale, uBreathPhase);
 
@@ -267,14 +261,14 @@ export const createNebulaMaterial = (colorExhale: string, colorInhale: string) =
   new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    side: THREE.BackSide,
+    side: THREE.FrontSide,
     uniforms: {
       uTime: { value: 0 },
       uBreathPhase: { value: 0 },
       uColorExhale: { value: new THREE.Color(colorExhale) },
       uColorInhale: { value: new THREE.Color(colorInhale) },
       uAtmosphere: { value: 0.5 },
-      uDensity: { value: 0.5 },
+      uDensity: { value: 1.5 },
     },
     vertexShader: NEBULA_VERTEX_SHADER,
     fragmentShader: NEBULA_FRAGMENT_SHADER,

@@ -90,14 +90,14 @@ export const VISUALS = {
   REPULSION_STRENGTH: 1.5,
 
   // Environment - Organic & Natural with atmospheric depth
-  // Nebula shader colors (per preset)
-  NEBULA_COLOR_EXHALE_MEDITATION: '#182838', // Deep indigo-blue (cool, calming)
-  NEBULA_COLOR_INHALE_MEDITATION: '#3a2820', // Deep amber-brown (warm, grounding)
-  NEBULA_COLOR_EXHALE_COSMIC: '#0a0a1a', // Near-black (deep space)
-  NEBULA_COLOR_INHALE_COSMIC: '#2a1840', // Deep purple (cosmic energy)
-  NEBULA_COLOR_EXHALE_MINIMAL: '#1a1814', // Warm grey (neutral)
+  // Nebula shader colors (per preset) - brightened for visibility
+  NEBULA_COLOR_EXHALE_MEDITATION: '#3a5468', // Brighter cool blue (calm, visible)
+  NEBULA_COLOR_INHALE_MEDITATION: '#6a5040', // Brighter warm amber (energizing, visible)
+  NEBULA_COLOR_EXHALE_COSMIC: '#1a1a3a', // Deep blue-black (deep space)
+  NEBULA_COLOR_INHALE_COSMIC: '#3a2050', // Brighter purple (cosmic energy)
+  NEBULA_COLOR_EXHALE_MINIMAL: '#1a1814', // Warm grey (neutral, subtle)
   NEBULA_COLOR_INHALE_MINIMAL: '#1a1814', // Warm grey (no transition)
-  NEBULA_COLOR_EXHALE_STUDIO: '#1a1a2e', // Cool grey (neutral)
+  NEBULA_COLOR_EXHALE_STUDIO: '#1a1a2e', // Cool grey (neutral, subtle)
   NEBULA_COLOR_INHALE_STUDIO: '#1a1a2e', // Cool grey (no transition)
 
   // Lighting - Warm-cool balance with meditation colors

@@ -167,13 +167,52 @@ export interface BreathingDebugProps {
 }
 
 // ============================================================================
+// ENTITY VISIBILITY (DEBUG-ONLY)
+// ============================================================================
+
+export interface EntityVisibilityProps {
+  /**
+   * Show BreathingSphere entity.
+   *
+   * @group "Entity Visibility"
+   * @default true
+   */
+  showSphere?: boolean;
+
+  /**
+   * Show ParticleSwarm entity.
+   *
+   * @group "Entity Visibility"
+   * @default true
+   */
+  showParticles?: boolean;
+
+  /**
+   * Show Lighting entity.
+   *
+   * @group "Entity Visibility"
+   * @default true
+   */
+  showLighting?: boolean;
+
+  /**
+   * Show Environment entity (stars, floor, point light).
+   *
+   * @group "Entity Visibility"
+   * @default true
+   */
+  showEnvironment?: boolean;
+}
+
+// ============================================================================
 // SCENE TYPES
 // ============================================================================
 
 export type BreathingLevelProps = SharedVisualProps &
   SharedLightingProps &
   SharedEnvironmentProps &
-  SharedPostProcessingProps;
+  SharedPostProcessingProps &
+  EntityVisibilityProps;
 
 export type BreathingSceneProps = BreathingLevelProps & ExperimentalBreathingProps;
 

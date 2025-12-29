@@ -25,6 +25,9 @@ import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
  * Main breathing meditation level.
+ *
+ * **Debug Note:** Entity visibility toggles (showSphere, showParticles, etc.) are debug-only
+ * and default to true. They are primarily used in debug scenes to isolate specific entities.
  */
 export function BreathingLevel({
   backgroundColor = '#0a0f1a',
@@ -34,6 +37,11 @@ export function BreathingLevel({
   environmentPreset,
   environmentAtmosphere,
   particleDensity,
+  // DEBUG-ONLY: Entity visibility toggles (all default true)
+  showSphere = true,
+  showParticles = true,
+  showLighting = true,
+  showEnvironment = true,
 }: Partial<BreathingLevelProps> = {}) {
   const particleCount =
     particleDensity === 'sparse' ? 150 : particleDensity === 'dense' ? 600 : 300;
@@ -44,13 +52,15 @@ export function BreathingLevel({
     <>
       <color attach="background" args={[backgroundColor]} />
 
-      <Lighting preset={lightingPreset} intensity={lightingIntensity} />
+      {showLighting && <Lighting preset={lightingPreset} intensity={lightingIntensity} />}
 
-      <Environment preset={environmentPreset} atmosphere={environmentAtmosphere} />
+      {showEnvironment && (
+        <Environment preset={environmentPreset} atmosphere={environmentAtmosphere} />
+      )}
 
-      <BreathingSphere />
+      {showSphere && <BreathingSphere />}
 
-      <ParticleSwarm capacity={particleCount} users={moods} />
+      {showParticles && <ParticleSwarm capacity={particleCount} users={moods} />}
 
       <PostProcessing bloom={bloom} />
     </>
