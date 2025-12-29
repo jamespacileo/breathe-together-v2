@@ -33,48 +33,40 @@ import { BreathingLevel } from './breathing';
  * into the breath system. Includes visual debug helpers for understanding
  * animation state in real-time.
  */
-export function BreathingDebugScene({
-  // Breathing Debug Controls (literal values - Triplex compatible)
-  enableManualControl = false,
-  manualPhase = 0.5,
-  isPaused = false,
-  timeScale = 1.0,
-  jumpToPhase = undefined,
+export function BreathingDebugScene(props: Partial<BreathingDebugSceneProps> = {}) {
+  // Extract debug-specific props
+  const {
+    // Breathing Debug Controls
+    /** @type toggle */
+    enableManualControl = false,
+    /** @type slider @min 0 @max 1 @step 0.01 */
+    manualPhase = 0.5,
+    /** @type toggle */
+    isPaused = false,
+    /** @type slider @min 0.1 @max 5 @step 0.1 */
+    timeScale = 1.0,
+    /** @type select @options [0, 1, 2, 3] */
+    jumpToPhase = undefined,
 
-  // Debug Visualizations
-  showOrbitBounds = false,
-  showPhaseMarkers = false,
-  showTraitValues = false,
+    // Debug Visualizations
+    /** @type toggle */
+    showOrbitBounds = false,
+    /** @type toggle */
+    showPhaseMarkers = false,
+    /** @type toggle */
+    showTraitValues = false,
 
-  // Visual Properties
-  backgroundColor = '#0a0f1a',
-  sphereColor = '#d4a574',
-  sphereOpacity = 0.12,
-  sphereDetail = 2,
+    // Particle Debug
+    /** @type toggle */
+    showParticleTypes = false,
+    /** @type toggle */
+    showParticleStats = false,
 
-  // Lighting
-  ambientIntensity = 0.15,
-  ambientColor = '#a8b8d0',
-  keyIntensity = 0.2,
-  keyColor = '#e89c5c',
+    // All visual, lighting, and environment props spread directly to BreathingLevel
+    ...breathingLevelProps
+  } = props;
 
-  // Environment
-  starsCount = 5000,
-  floorColor = '#0a0a1a',
-  enableStars = true,
-  enableFloor = true,
-  floorOpacity = 0.5,
-  enablePointLight = true,
-  lightIntensityMin = 0.5,
-  lightIntensityRange = 1.5,
-
-  // Particles
-  particleCount = 300,
-
-  showParticleTypes = false,
-  showParticleStats = false,
-}: Partial<BreathingDebugSceneProps> = {}) {
-  // Build debug config from props
+  // Build debug config from debug-specific props
   const debugConfig = useMemo<BreathDebugConfig | null>(() => {
     // Only create config if we have at least one debug property set
     const hasDebugProps =
@@ -115,25 +107,7 @@ export function BreathingDebugScene({
 
   return (
     <BreathDebugProvider config={debugConfig}>
-      <BreathingLevel
-        backgroundColor={backgroundColor}
-        sphereColor={sphereColor}
-        sphereOpacity={sphereOpacity}
-        sphereDetail={sphereDetail}
-        ambientIntensity={ambientIntensity}
-        ambientColor={ambientColor}
-        keyIntensity={keyIntensity}
-        keyColor={keyColor}
-        starsCount={starsCount}
-        floorColor={floorColor}
-        enableStars={enableStars}
-        enableFloor={enableFloor}
-        floorOpacity={floorOpacity}
-        enablePointLight={enablePointLight}
-        lightIntensityMin={lightIntensityMin}
-        lightIntensityRange={lightIntensityRange}
-        particleCount={particleCount}
-      />
+      <BreathingLevel {...breathingLevelProps} />
 
       {/* Debug Visualizations */}
       <BreathDebugVisuals

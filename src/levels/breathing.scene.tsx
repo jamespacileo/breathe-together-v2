@@ -28,72 +28,25 @@ import { BreathingLevel } from './breathing';
  * Wraps BreathingLevel with BreathCurveProvider to inject curve type selection
  * into the breath system. Allows visual experimentation and comparison.
  */
-export function BreathingScene({
-  // Experimental curve props (literal values - Triplex compatible)
-  curveType = 'phase-based',
-  waveDelta = 0.05,
-  showCurveInfo = false,
+export function BreathingScene(props: Partial<BreathingSceneProps> = {}) {
+  // Extract scene-specific props
+  const {
+    // Experimental curve props (literal values - Triplex compatible)
+    /** @type select @options ["phase-based", "rounded-wave"] */
+    curveType = 'phase-based',
+    /** @type slider @min 0.01 @max 0.2 @step 0.01 */
+    waveDelta = 0.05,
+    /** @type toggle */
+    showCurveInfo = false,
 
-  // Visual defaults
-  backgroundColor = '#0a0f1a',
-  sphereColor = '#d4a574',
-  sphereOpacity = 0.12,
-  sphereDetail = 2,
+    // All other props (visual, lighting, environment, post-processing)
+    // are spread directly to BreathingLevel without intermediate variables
+    ...breathingLevelProps
+  } = props;
 
-  // Lighting defaults
-  ambientIntensity = 0.15,
-  ambientColor = '#a8b8d0',
-  keyIntensity = 0.2,
-  keyColor = '#e89c5c',
-
-  // Environment defaults
-  preset = 'studio',
-  enableSparkles = true,
-  sparklesCount = 100,
-  starsCount = 5000,
-  floorColor = '#0a0a1a',
-  enableStars = true,
-  enableFloor = true,
-  floorOpacity = 0.5,
-  enablePointLight = true,
-  lightIntensityMin = 0.5,
-  lightIntensityRange = 1.5,
-
-  // Post-processing defaults
-  bloomIntensity = 0.5,
-  bloomThreshold = 1.0,
-  bloomSmoothing = 0.1,
-
-  // Particle defaults
-  particleCount = 300,
-}: Partial<BreathingSceneProps> = {}) {
   return (
     <BreathCurveProvider config={{ curveType, waveDelta }}>
-      <BreathingLevel
-        backgroundColor={backgroundColor}
-        sphereColor={sphereColor}
-        sphereOpacity={sphereOpacity}
-        sphereDetail={sphereDetail}
-        ambientIntensity={ambientIntensity}
-        ambientColor={ambientColor}
-        keyIntensity={keyIntensity}
-        keyColor={keyColor}
-        preset={preset}
-        enableSparkles={enableSparkles}
-        sparklesCount={sparklesCount}
-        starsCount={starsCount}
-        floorColor={floorColor}
-        enableStars={enableStars}
-        enableFloor={enableFloor}
-        floorOpacity={floorOpacity}
-        enablePointLight={enablePointLight}
-        lightIntensityMin={lightIntensityMin}
-        lightIntensityRange={lightIntensityRange}
-        bloomIntensity={bloomIntensity}
-        bloomThreshold={bloomThreshold}
-        bloomSmoothing={bloomSmoothing}
-        particleCount={particleCount}
-      />
+      <BreathingLevel {...breathingLevelProps} />
 
       {/* Optional: Debug overlay showing current curve type and configuration */}
       {showCurveInfo && (
