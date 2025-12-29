@@ -2,7 +2,7 @@
  * Environment - Organic space background with stars, nebula, floor, and warm-cool pulsing light.
  * Exposes a minimal set of props for Triplex.
  */
-import { Stars } from '@react-three/drei';
+import { Environment as DreiEnvironment, Sparkles, Stars } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useRef } from 'react';
@@ -66,7 +66,7 @@ interface EnvironmentProps {
    * @min 0
    * @max 5
    * @step 0.1
-   * @default 0.5
+   * @default 0.3
    */
   lightIntensityMin?: number;
 
@@ -76,9 +76,43 @@ interface EnvironmentProps {
    * @min 0
    * @max 5
    * @step 0.1
-   * @default 1.5
+   * @default 0.9
    */
   lightIntensityRange?: number;
+
+  /**
+   * Environment preset for reflections.
+   *
+   * @default "studio"
+   */
+  preset?:
+    | 'apartment'
+    | 'city'
+    | 'dawn'
+    | 'forest'
+    | 'lobby'
+    | 'night'
+    | 'park'
+    | 'studio'
+    | 'sunset'
+    | 'warehouse';
+
+  /**
+   * Enable atmospheric sparkles.
+   *
+   * @default true
+   */
+  enableSparkles?: boolean;
+
+  /**
+   * Number of sparkles.
+   *
+   * @min 10
+   * @max 500
+   * @step 10
+   * @default 100
+   */
+  sparklesCount?: number;
 }
 
 const STARS_RADIUS = 100;
@@ -98,11 +132,14 @@ export function Environment({
   enableStars = true,
   enableFloor = true,
   enablePointLight = true,
+  enableSparkles = true,
+  sparklesCount = 100,
   starsCount = 5000,
   floorColor = '#0a0a1a',
   floorOpacity = 0.5,
-  lightIntensityMin = 1.0, // Doubled from 0.5
-  lightIntensityRange = 3.0, // Doubled from 1.5 (total range: 1.0-4.0)
+  lightIntensityMin = 0.3, // Gentle base (reduced from 1.0)
+  lightIntensityRange = 0.9, // Peak at 1.2 (reduced from 3.0, total range: 0.3-1.2)
+  preset = 'studio',
 }: EnvironmentProps = {}) {
   const lightRef = useRef<THREE.PointLight>(null);
   const nebulaRef = useRef<THREE.Mesh>(null);
@@ -146,6 +183,21 @@ export function Environment({
 
   return (
     <>
+      {/* HDR Environment for realistic reflections */}
+      <DreiEnvironment preset={preset} environmentIntensity={0.5} />
+
+      {/* Atmospheric sparkles (dust/pollen) */}
+      {enableSparkles && (
+        <Sparkles
+          count={sparklesCount}
+          scale={15}
+          size={2}
+          speed={0.4}
+          opacity={0.2}
+          color="#e8c4a4"
+        />
+      )}
+
       {/* Organic nebula background with subtle atmospheric depth */}
       <mesh ref={nebulaRef} position={[0, 0, NEBULA_POSITION_Z]} scale={NEBULA_SCALE}>
         <planeGeometry args={[1, 1]} />

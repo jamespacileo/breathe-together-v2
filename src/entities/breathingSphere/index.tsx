@@ -4,6 +4,7 @@
  * Features a fresnel edge glow that intensifies with breathing
  * Entrance animation: scales from 0 with smooth overshoot
  */
+import { MeshTransmissionMaterial } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -19,7 +20,7 @@ interface BreathingSphereProps {
    * **When to adjust:** Change overall hue of the breathing orb
    *
    * @type color
-   * @default "#4dd9e8"
+   * @default "#d4a574"
    */
   color?: string;
 
@@ -29,7 +30,7 @@ interface BreathingSphereProps {
    * @min 0
    * @max 1
    * @step 0.01
-   * @default 0.15
+   * @default 0.12
    */
   opacity?: number;
 
@@ -39,7 +40,7 @@ interface BreathingSphereProps {
    * @min 0
    * @max 4
    * @step 1
-   * @default 2
+   * @default 3
    */
   detail?: number;
 }
@@ -71,17 +72,7 @@ export function BreathingSphere({
   const [mounted, setMounted] = useState(false);
 
   const materialRef = useRef(createFresnelMaterial(0.05));
-  const coreMaterialRef = useRef(
-    new THREE.MeshStandardMaterial({
-      transparent: true,
-      opacity: 0.6, // Slightly more transparent (was 0.7)
-      emissive: new THREE.Color('#98ccd6'), // Slightly darker (was #b8e2e8)
-      emissiveIntensity: 0.08, // Significantly reduced (was 0.2)
-      roughness: 0.4, // Matte-soft feel
-      metalness: 0.1,
-      blending: THREE.NormalBlending,
-    }),
-  );
+  const coreMaterialRef = useRef<any>(null);
   const auraMaterialRef = useRef(createFresnelMaterial(0.05 * 2.5));
 
   // Track entrance animation
@@ -183,22 +174,24 @@ export function BreathingSphere({
     }
     materialRef.current.uniforms.uFresnelIntensity.value = fresnelValue;
     materialRef.current.uniforms.uOpacity.value = config.visuals.opacity;
+    materialRef.current.uniforms.uEmissiveIntensity.value = 0.0 + breathPhaseValue * 0.08; // Even more subtle (max 0.08)
 
     // 1. Core: Solid, dense center. Stiffer, less expansion (hard core feel).
     // Starts smaller on exhale, minimal expansion on inhale.
     const coreCurve = 0.5 + 0.15 * breathPhaseValue ** 3.0;
     const finalCoreScale = VISUALS.SPHERE_SCALE_MIN * coreCurve * config.layers.coreScale;
 
-    if (coreRef.current) {
+    if (coreRef.current && coreMaterialRef.current) {
       coreRef.current.scale.setScalar(finalCoreScale * entranceScale);
-      coreMaterialRef.current.opacity =
-        (config.layers.coreOpacityBase + breathPhaseValue * config.layers.coreOpacityRange) *
-        entranceScale;
-      // Soft warm glow: core color + emissive both transition with breath (cool exhale → warm inhale)
+
+      // Update transmission material properties
       const coreColor = coreColorExhale.clone().lerp(coreColorInhale, breathPhaseValue);
       coreMaterialRef.current.color.copy(coreColor);
-      coreMaterialRef.current.emissive.copy(coreColor);
-      coreMaterialRef.current.emissiveIntensity = 0.01; // Virtually off
+
+      // Modulate transmission and thickness with breath
+      coreMaterialRef.current.transmission = 1.0;
+      coreMaterialRef.current.thickness = 0.3 + breathPhaseValue * 0.5; // Reduced from 1.5-2.5 to 0.3-0.8
+      coreMaterialRef.current.roughness = 0.1 + (1.0 - breathPhaseValue) * 0.2;
     }
 
     // 2. Main: Standard response.
@@ -234,10 +227,23 @@ export function BreathingSphere({
         <primitive object={materialRef.current} attach="material" />
       </mesh>
 
-      {/* Inner Core - Glowing center */}
+      {/* Inner Core - Refractive gem-like center */}
       <mesh ref={coreRef}>
         <sphereGeometry args={[1, 64, 64]} />
-        <primitive object={coreMaterialRef.current} attach="material" />
+        <MeshTransmissionMaterial
+          ref={coreMaterialRef}
+          backside
+          samples={16}
+          resolution={512}
+          transmission={1}
+          roughness={0.2}
+          thickness={1.5}
+          chromaticAberration={0.06}
+          anisotropy={0.1}
+          distortion={0.1}
+          distortionScale={0.5}
+          temporalDistortion={0.1}
+        />
       </mesh>
 
       {/* Outer Aura - Soft atmospheric glow */}

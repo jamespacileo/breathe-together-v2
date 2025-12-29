@@ -19,6 +19,14 @@ import { color, index, offset, ownerId, restPosition, seed, size, targetColor } 
 export function ParticleSpawner({
   totalCount = VISUALS.PARTICLE_COUNT,
 }: {
+  /**
+   * Total number of particles to spawn and manage.
+   *
+   * @min 100
+   * @max 1000
+   * @step 50
+   * @default 300
+   */
   totalCount?: number;
 } = {}) {
   const world = useWorld();
@@ -106,12 +114,20 @@ export function ParticleSpawner({
  * Uses internal defaults for user and filler appearance.
  *
  * Performance: 2 draw calls (user + filler).
- *
- * @param totalCount - Base particle count (default: VISUALS.PARTICLE_COUNT = 300)
  */
 export function ParticleRenderer({
   totalCount = VISUALS.PARTICLE_COUNT,
 }: {
+  /**
+   * Total number of particles to render.
+   *
+   * Must match ParticleSpawner totalCount for consistency.
+   *
+   * @min 100
+   * @max 1000
+   * @step 50
+   * @default 300
+   */
   totalCount?: number;
 } = {}) {
   const world = useWorld();

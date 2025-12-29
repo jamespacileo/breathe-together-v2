@@ -1,7 +1,17 @@
 /**
- * Centralized Scene Defaults & Metadata
+ * Centralized Scene Defaults & Metadata (DEPRECATED)
  *
- * Single source of truth for default values used by Triplex scenes.
+ * @deprecated As of Dec 2024, Triplex requires literal defaults in component function signatures
+ * for static analysis to work correctly. All actual defaults are now in component files
+ * under src/entities and src/levels.
+ *
+ * This file is kept as a reference for historical metadata and pattern documentation.
+ * Do NOT import this file in new code.
+ *
+ * Pattern for new code:
+ * - Use literal values directly in component function defaults
+ * - Add JSDoc decorators (@min, @max, @step, @default) to interfaces
+ * - See src/entities/lighting/index.tsx for an example
  */
 import { VISUALS } from '../constants';
 
@@ -27,7 +37,7 @@ export interface PropMetadata {
 
 export const VISUAL_DEFAULTS = {
   backgroundColor: {
-    value: '#0a0a0a' as const,
+    value: '#0A0F1A' as const,
     meta: {
       whenToAdjust: 'Set scene mood and contrast against the sphere',
       typicalRange: 'Deep Indigo (#0a0a1a) → Dark (#0a0a0a) → Medium (#404040)',
@@ -100,10 +110,60 @@ export const LIGHTING_DEFAULTS = {
 } as const;
 
 // ============================================================================
+// POST-PROCESSING DEFAULTS
+// ============================================================================
+
+export const POST_PROCESSING_DEFAULTS = {
+  bloomIntensity: {
+    value: 0.5 as const,
+    meta: {
+      whenToAdjust: 'Overall glow strength',
+      typicalRange: '0.2 (subtle) → 0.5 (default) → 1.5 (dreamy)',
+    } as PropMetadata,
+  },
+  bloomThreshold: {
+    value: 1.0 as const,
+    meta: {
+      whenToAdjust: 'Brightness level required to trigger glow',
+      typicalRange: '0.8 (everything glows) → 1.0 (selective) → 1.5 (only highlights)',
+      interactsWith: ['sphereEmissiveIntensity'],
+    } as PropMetadata,
+  },
+  bloomSmoothing: {
+    value: 0.1 as const,
+    meta: {
+      whenToAdjust: 'Softness of the glow transition',
+      typicalRange: '0.025 (sharp) → 0.1 (default) → 0.5 (soft)',
+    } as PropMetadata,
+  },
+} as const;
+
+// ============================================================================
 // ENVIRONMENT DEFAULTS
 // ============================================================================
 
 export const ENVIRONMENT_DEFAULTS = {
+  preset: {
+    value: 'studio' as const,
+    meta: {
+      whenToAdjust: 'Global lighting environment and reflections',
+      typicalRange: 'studio (neutral) → sunset (warm) → night (cool)',
+    } as PropMetadata,
+  },
+  enableSparkles: {
+    value: true as const,
+    meta: {
+      whenToAdjust: 'Add atmospheric depth with floating particles',
+      typicalRange: 'false → true',
+    } as PropMetadata,
+  },
+  sparklesCount: {
+    value: 100 as const,
+    meta: {
+      whenToAdjust: 'Density of atmospheric sparkles',
+      typicalRange: '50 (sparse) → 100 (default) → 300 (dense)',
+    } as PropMetadata,
+  },
   enableStars: {
     value: true as const,
     meta: {

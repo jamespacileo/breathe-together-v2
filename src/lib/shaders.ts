@@ -80,6 +80,7 @@ export const FRESNEL_FRAGMENT_SHADER = `
 	uniform vec3 uColor;
 	uniform float uOpacity;
 	uniform float uFresnelIntensity;
+	uniform float uEmissiveIntensity;
 	uniform float uTime;
 	uniform float uChromaticAberration;
 	varying vec3 vNormal;
@@ -100,7 +101,7 @@ export const FRESNEL_FRAGMENT_SHADER = `
 
 		// Procedural chromatic aberration (RGB channel offset)
 		// Mix toward saturated base color (not white) to preserve color saturation
-		vec3 glowTarget = uColor * 1.1; // Reduced boost (was 1.5)
+		vec3 glowTarget = uColor * (1.0 + uEmissiveIntensity); 
 		vec3 chromaticColor;
 		chromaticColor.r = mix(uColor, glowTarget, fresnel * uFresnelIntensity * 0.5 * (1.0 + uChromaticAberration)).r;
 		chromaticColor.g = mix(uColor, glowTarget, fresnel * uFresnelIntensity * 0.5).g;
@@ -121,10 +122,12 @@ export const createFresnelMaterial = (noiseIntensity: number = 0.05) =>
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
+    toneMapped: false,
     uniforms: {
       uColor: { value: new THREE.Color() },
       uOpacity: { value: 0.05 }, // Much more ethereal (was 0.15)
       uFresnelIntensity: { value: 1.0 },
+      uEmissiveIntensity: { value: 0.5 },
       uTime: { value: 0 },
       uNoiseIntensity: { value: noiseIntensity },
       uBreathPhase: { value: 0 },

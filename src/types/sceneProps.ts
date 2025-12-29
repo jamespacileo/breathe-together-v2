@@ -35,6 +35,21 @@ export interface SharedLightingProps {
 }
 
 export interface SharedEnvironmentProps {
+  /** @enum ["studio", "sunset", "night", "warehouse", "forest", "apartment", "city", "park", "lobby"] */
+  preset?:
+    | 'apartment'
+    | 'city'
+    | 'dawn'
+    | 'forest'
+    | 'lobby'
+    | 'night'
+    | 'park'
+    | 'studio'
+    | 'sunset'
+    | 'warehouse';
+  enableSparkles?: boolean;
+  /** @min 10 @max 500 @step 10 */
+  sparklesCount?: number;
   enableStars?: boolean;
   /** @min 1000 @max 10000 @step 500 */
   starsCount?: number;
@@ -48,6 +63,15 @@ export interface SharedEnvironmentProps {
   lightIntensityMin?: number;
   /** @min 0 @max 5 @step 0.1 */
   lightIntensityRange?: number;
+}
+
+export interface SharedPostProcessingProps {
+  /** @min 0 @max 5 @step 0.1 */
+  bloomIntensity?: number;
+  /** @min 0 @max 2 @step 0.05 */
+  bloomThreshold?: number;
+  /** @min 0 @max 1 @step 0.01 */
+  bloomSmoothing?: number;
 }
 
 // ============================================================================
@@ -82,7 +106,10 @@ export interface ParticleDebugProps {
 // SCENE TYPES
 // ============================================================================
 
-export type BreathingLevelProps = SharedVisualProps & SharedLightingProps & SharedEnvironmentProps;
+export type BreathingLevelProps = SharedVisualProps &
+  SharedLightingProps &
+  SharedEnvironmentProps &
+  SharedPostProcessingProps;
 
 export type BreathingSceneProps = BreathingLevelProps & ExperimentalBreathingProps;
 

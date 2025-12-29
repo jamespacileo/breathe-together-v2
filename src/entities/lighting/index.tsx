@@ -11,7 +11,7 @@ interface LightingProps {
    * @min 0
    * @max 1
    * @step 0.05
-   * @default 0.3
+   * @default 0.15
    */
   ambientIntensity?: number;
 
@@ -29,7 +29,7 @@ interface LightingProps {
    * @min 0
    * @max 2
    * @step 0.1
-   * @default 0.4
+   * @default 0.2
    */
   keyIntensity?: number;
 
@@ -37,7 +37,7 @@ interface LightingProps {
    * Key light color tint.
    *
    * @type color
-   * @default "#9fd9e8"
+   * @default "#e89c5c"
    */
   keyColor?: string;
 }

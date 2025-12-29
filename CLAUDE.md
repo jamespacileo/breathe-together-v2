@@ -163,25 +163,38 @@ The MVP keeps Triplex props intentionally small and high-signal. Defaults live i
 <BreathingDebugScene showParticleStats enableManualControl />
 ```
 
-### Shared Types & Centralized Defaults
+### Triplex Prop Pattern (Updated Dec 2024)
 
-All visual and lighting props are defined once for consistency:
+**Key Rule:** Use **literal values** in component function parameter defaults, not computed or variable defaults.
+
+**Why?** Triplex uses compile-time static analysis (AST parsing) to extract component metadata. It cannot:
+- Execute functions like `getDefaultValues()`
+- Resolve runtime object spreads (`...DEFAULT_PROPS`)
+- Trace complex data flows
+
+It **can** only:
+- Read literal values: `'#4dd9e8'`, `0.15`, `true`, `'studio'`
+- Parse simple expressions: `5 * 2`, `'hello' + 'world'`
+
+**Pattern:**
+```typescript
+// ❌ DON'T: Variable default (Triplex shows {variableName} with ⚠️)
+export function MyComponent({ color = DEFAULT_PROPS.color }: Props) { }
+
+// ✅ DO: Literal default (Triplex displays actual value)
+export function MyComponent({ color = '#4dd9e8' }: Props) { }
+```
 
 **Type definitions:** `src/types/sceneProps.ts`
 - `SharedVisualProps` — backgroundColor, sphereColor, sphereOpacity, etc.
 - `SharedLightingProps` — ambient, key, fill, rim light configuration
 - `BreathingDebugProps` — manual phase control, pause/play, etc.
-- `ParticleDebugProps` — particle geometry, material, size options
+- `ParticleDebugProps` — particle debug flags
 
-**Defaults & metadata:** `src/config/sceneDefaults.ts`
-- `VISUAL_DEFAULTS` — Visual defaults with "when to adjust" guidance
-- `LIGHTING_DEFAULTS` — Lighting setup with interaction hints
-- `getDefaultValues()` — Helper to extract values for prop spreading
-
-**Why centralized?**
-- Single source of truth for default values (no duplication)
-- Metadata enables future tooling (AI suggestions, validation)
-- Consistent baseline across all three scene files (production/experimental/debug)
+**Defaults location:** Component function signatures in `src/entities/*/index.tsx` and `src/levels/*.tsx`
+- All Triplex-editable props use literal values in function signatures
+- JSDoc @default decorators match the function signature defaults
+- `src/config/sceneDefaults.ts` is deprecated (kept as reference only)
 
 ### JSDoc Template for Properties
 
@@ -246,12 +259,43 @@ All 171+ entity props follow this standardized format for consistent help text:
 - "When to adjust" contextual guidance answers "why would I change this?"
 - "Typical range" with visual landmarks (Dim/Standard/Bright) makes tuning intuitive
 - "Interacts with" hints show related props
-- All props link back to `sceneDefaults.ts` for single source of truth
+- Literal defaults in component signatures provide single source of truth
 
 ### Adjusting Defaults
 
-To adjust Triplex defaults, edit `src/config/sceneDefaults.ts` and update the relevant
-`*_DEFAULTS` value. For runtime defaults, use `src/constants.ts` and component defaults.
+**To adjust component defaults:**
+
+1. Edit the component's function signature in `src/entities/*/index.tsx` or `src/levels/*.tsx`
+   - Update the literal value in the parameter default
+   - Example: `sphereColor = '#d4a574'` → `sphereColor = '#ff0000'`
+
+2. Update the corresponding JSDoc `@default` decorator in the interface
+   - Example: `@default '#d4a574'` → `@default '#ff0000'`
+
+3. Both **must match** for consistency
+
+**For complex values or physics constants:**
+- Use `src/constants.ts` (e.g., `VISUALS.SPHERE_OPACITY`)
+- Reference the constant in the function signature
+- Update JSDoc @default to match the constant value
+
+**Example:**
+```typescript
+// In src/entities/lighting/index.tsx
+interface LightingProps {
+  /**
+   * Ambient light intensity.
+   * @default 0.15
+   */
+  ambientIntensity?: number;
+}
+
+export function Lighting({
+  ambientIntensity = 0.15,  // ← Literal value
+}: LightingProps) {
+  // ...
+}
+```
 
 ## Important Implementation Details
 

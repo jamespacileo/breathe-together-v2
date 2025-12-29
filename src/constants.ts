@@ -63,8 +63,8 @@ export const VISUALS = {
   // Sphere - Organic warmth with saturated cool-warm color journey
   SPHERE_SCALE_MIN: 0.3, // Significantly reduced (was 0.6)
   SPHERE_SCALE_MAX: 0.7, // Significantly reduced (was 1.4)
-  SPHERE_COLOR_EXHALE: '#b8e2e8', // Softer, lighter cool blue (was #a8d8e0)
-  SPHERE_COLOR_INHALE: '#ffe0b0', // Deeper pastel warm cream (was #fff0db)
+  SPHERE_COLOR_EXHALE: '#4A8A9A', // Meditation teal-blue (deep, saturated)
+  SPHERE_COLOR_INHALE: '#D4A574', // Warm amber-sand (meditation gold)
   SPHERE_OPACITY: 0.12, // Slightly more ethereal (was 0.15)
 
   // Particles
@@ -92,15 +92,15 @@ export const VISUALS = {
   REPULSION_STRENGTH: 1.5,
 
   // Environment - Organic & Natural with atmospheric depth
-  AMBIENT_LIGHT_INTENSITY: 0.45, // More grounded, less harsh contrast (was 0.3)
+  AMBIENT_LIGHT_INTENSITY: 0.15, // Dark meditation space (reduced from 0.45)
 
-  // Lighting - Warm-cool balance with organic color journey
-  KEY_LIGHT_INTENSITY_MIN: 0.5, // Doubled from 0.25 for better visibility (was 0.3 originally)
-  KEY_LIGHT_COLOR: '#f0d8c0', // Softer peach-sand (was #e8c4a4)
-  FILL_LIGHT_INTENSITY: 0.3, // Doubled from 0.15 for better visibility (was 0.2 originally)
-  FILL_LIGHT_COLOR: '#8ababa', // Slightly more muted teal (was #6ba8a8)
-  RIM_LIGHT_INTENSITY: 0.2, // Doubled from 0.1 for better visibility (was 0.15 originally)
-  RIM_LIGHT_COLOR: '#e0f0f8', // Even paler cyan (was #d4e8f0)
+  // Lighting - Warm-cool balance with meditation colors
+  KEY_LIGHT_INTENSITY_MIN: 0.2, // Subtle warm glow (reduced from 0.5)
+  KEY_LIGHT_COLOR: '#E89C5C', // Warm amber/orange (changed from #f0d8c0)
+  FILL_LIGHT_INTENSITY: 0.12, // Very subtle cool fill (reduced from 0.3)
+  FILL_LIGHT_COLOR: '#4A7B8A', // Deep teal-blue (changed from #8ababa)
+  RIM_LIGHT_INTENSITY: 0.08, // Very subtle rim (reduced from 0.2)
+  RIM_LIGHT_COLOR: '#6BA8B5', // Medium cyan-blue (changed from #e0f0f8)
 };
 
 /**
