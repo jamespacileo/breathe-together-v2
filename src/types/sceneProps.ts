@@ -11,29 +11,36 @@ export type CurveType = 'phase-based' | 'rounded-wave';
 // ============================================================================
 
 export interface SharedVisualProps {
-  /** @group "Visuals" @label "Background Color" @type color */
+  /** @type color */
   backgroundColor?: string;
-  /** @group "Sphere: Material" @label "Base Color" @type color */
-  sphereColor?: string;
-  /** @group "Sphere: Material" @label "Opacity" @min 0 @max 1 @step 0.01 */
+
+  // Sphere color system
+  /** @type color @default "#4A8A9A" */
+  sphereColorExhale?: string;
+  /** @type color @default "#D4A574" */
+  sphereColorInhale?: string;
+
+  // Sphere material and geometry
+  /** @min 0 @max 1 @step 0.01 @default 0.12 */
   sphereOpacity?: number;
-  /** @group "Sphere: Material" @label "Glow Intensity" @min 0 @max 2 @step 0.1 */
-  sphereGlowIntensity?: number;
-  /** @group "Sphere: Material" @label "Glow Range" @min 0 @max 2 @step 0.1 */
-  sphereGlowRange?: number;
-  /** @group "Sphere: Animation" @label "Pulse Speed" @min 0 @max 2 @step 0.1 */
-  spherePulseSpeed?: number;
-  /** @group "Sphere: Animation" @label "Pulse Intensity" @min 0 @max 0.5 @step 0.01 */
-  spherePulseIntensity?: number;
-  /** @group "Sphere: Core" @label "Transmission" @min 0 @max 1 @step 0.1 */
-  sphereCoreTransmission?: number;
-  /** @group "Sphere: Core" @label "Thickness" @min 0 @max 5 @step 0.1 */
-  sphereCoreThickness?: number;
-  /** @group "Sphere: Core" @label "Chromatic Aberration" @min 0 @max 0.5 @step 0.01 */
-  sphereCoreChromaticAberration?: number;
-  /** @group "Sphere: Geometry" @label "Detail" @min 0 @max 4 @step 1 */
+  /** @min 0 @max 4 @step 1 @default 3 */
   sphereDetail?: number;
-  /** @group "Visuals" @label "Particle Count" @min 50 @max 1000 @step 50 */
+
+  // Sphere breathing size
+  /** @min 0.1 @max 1.0 @step 0.05 @default 0.3 */
+  sphereScaleMin?: number;
+  /** @min 0.1 @max 2.0 @step 0.05 @default 0.7 */
+  sphereScaleMax?: number;
+
+  // Sphere layer responsiveness
+  /** @min 0 @max 5 @step 0.1 @default 3.0 */
+  sphereCoreStiffness?: number;
+  /** @min 0 @max 5 @step 0.1 @default 1.0 */
+  sphereMainResponsiveness?: number;
+  /** @min 0 @max 5 @step 0.1 @default 0.5 */
+  sphereAuraElasticity?: number;
+
+  /** @min 50 @max 1000 @step 50 @default 300 */
   particleCount?: number;
 }
 

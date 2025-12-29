@@ -22,16 +22,21 @@ import type { BreathingLevelProps } from '../types/sceneProps';
 export function BreathingLevel({
   // Visual defaults (literal values - Triplex compatible)
   backgroundColor = '#0a0f1a',
-  sphereColor = '#d4a574',
+
+  // Sphere color system
+  sphereColorExhale = '#4A8A9A',
+  sphereColorInhale = '#D4A574',
+
+  // Sphere size and responsiveness
+  sphereScaleMin = 0.3,
+  sphereScaleMax = 0.7,
+  sphereCoreStiffness = 3.0,
+  sphereMainResponsiveness = 1.0,
+  sphereAuraElasticity = 0.5,
+
+  // Sphere material and geometry
   sphereOpacity = 0.12,
   sphereDetail = 3,
-  sphereGlowIntensity = 0.5,
-  sphereGlowRange = 0.6,
-  spherePulseSpeed = 0.5,
-  spherePulseIntensity = 0.05,
-  sphereCoreTransmission = 1.0,
-  sphereCoreThickness = 1.5,
-  sphereCoreChromaticAberration = 0.06,
 
   // Lighting defaults
   ambientIntensity = 0.15,
@@ -95,16 +100,15 @@ export function BreathingLevel({
       />
 
       <BreathingSphere
-        color={sphereColor}
-        opacity={sphereOpacity}
-        detail={sphereDetail}
-        glowIntensity={sphereGlowIntensity}
-        glowRange={sphereGlowRange}
-        pulseSpeed={spherePulseSpeed}
-        pulseIntensity={spherePulseIntensity}
-        coreTransmission={sphereCoreTransmission}
-        coreThickness={sphereCoreThickness}
-        coreChromaticAberration={sphereCoreChromaticAberration}
+        sphereColorExhale={sphereColorExhale}
+        sphereColorInhale={sphereColorInhale}
+        sphereScaleMin={sphereScaleMin}
+        sphereScaleMax={sphereScaleMax}
+        sphereCoreStiffness={sphereCoreStiffness}
+        sphereMainResponsiveness={sphereMainResponsiveness}
+        sphereAuraElasticity={sphereAuraElasticity}
+        sphereOpacity={sphereOpacity}
+        sphereDetail={sphereDetail}
       />
 
       <group>

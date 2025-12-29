@@ -9,23 +9,46 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { DEFAULT_SPHERE_CONFIG, VISUALS } from '../../constants';
+import {
+  SPHERE_ANIMATION_DEFAULTS,
+  SPHERE_LAYER_SCALE,
+  SPHERE_VISUAL_DEFAULTS,
+} from '../../constants';
 import { createFresnelMaterial } from '../../lib/shaders';
 import { breathPhase, sphereScale } from '../breath/traits';
 
 interface BreathingSphereProps {
   /**
-   * Sphere base color (breath-modulated).
+   * Sphere color at exhale (cool/calming phase).
    *
-   * Main hue of the breathing orb. Color lightly shifts between exhale (darker, more saturated)
-   * and inhale (lighter, warmer). If not provided, uses default warm-cool progression.
+   * Main and aura layers lerp between exhale→inhale colors during breathing cycle.
+   * Controls the cool tone at the end of exhalation.
    *
-   * @group "Material"
-   * @label "Base Color"
+   * **When to adjust:** Cooler blues/teals for meditation, warmer tones for energy
+   * **Typical range:** Cool Teal (#4A8A9A, default) → Neutral → Warm Orange
+   * **Interacts with:** sphereColorInhale (breathing color journey)
+   * **Performance note:** No impact; computed per-frame
+   *
    * @type color
-   * @default "#d4a574"
+   * @default "#4A8A9A"
    */
-  color?: string;
+  sphereColorExhale?: string;
+
+  /**
+   * Sphere color at inhale (warm/energetic phase).
+   *
+   * Controls the warm tone at the peak of inhalation. Complements exhale color
+   * to create a breathing color journey.
+   *
+   * **When to adjust:** Warmer oranges/golds for vitality, cooler tones for calm
+   * **Typical range:** Cool Blue → Neutral → Warm Gold (#D4A574, default)
+   * **Interacts with:** sphereColorExhale (defines the color arc)
+   * **Performance note:** No impact; computed per-frame
+   *
+   * @type color
+   * @default "#D4A574"
+   */
+  sphereColorInhale?: string;
 
   /**
    * Sphere material opacity (transparency).
@@ -33,146 +56,152 @@ interface BreathingSphereProps {
    * Controls how transparent the breathing sphere appears. Lower = more ethereal and subtle,
    * higher = more solid and commanding presence.
    *
-   * @group "Material"
-   * @label "Opacity"
+   * **When to adjust:** Increase for focus/attention, decrease for calm/ambient feel
+   * **Typical range:** Ethereal (0.05) → Balanced (0.12, default) → Present (0.25) → Solid (0.4+)
+   * **Interacts with:** sphereColorExhale/Inhale, backgroundColor (contrast), bloomIntensity
+   * **Performance note:** No impact; material property only
+   *
    * @min 0
    * @max 1
    * @step 0.01
    * @default 0.12
    */
-  opacity?: number;
+  sphereOpacity?: number;
 
   /**
-   * Base intensity of the edge glow (Fresnel effect).
+   * Minimum sphere scale at exhale (tightest contraction).
    *
-   * @group "Material"
-   * @label "Glow Intensity"
-   * @min 0
-   * @max 2
-   * @step 0.1
-   * @default 0.5
+   * Controls the smallest size the sphere reaches at end of exhalation.
+   * Lower = more dramatic breathing effect, higher = subtle breathing.
+   *
+   * **When to adjust:** Lower (0.2-0.3) for dramatic effect, higher (0.5-0.7) for subtle
+   * **Typical range:** Dramatic (0.2) → Balanced (0.3, default) → Subtle (0.6)
+   * **Interacts with:** sphereScaleMax (together define breathing range)
+   * **Performance note:** No impact; computed per-frame
+   *
+   * @min 0.1
+   * @max 1.0
+   * @step 0.05
+   * @default 0.3
    */
-  glowIntensity?: number;
+  sphereScaleMin?: number;
 
   /**
-   * How much the glow intensifies during the inhale phase.
+   * Maximum sphere scale at inhale (full expansion).
    *
-   * @group "Material"
-   * @label "Glow Range"
-   * @min 0
-   * @max 2
-   * @step 0.1
-   * @default 0.6
+   * Controls the largest size the sphere reaches at peak inhalation.
+   * Defines the upper bound of the breathing motion.
+   *
+   * **When to adjust:** Higher (0.8-1.0) for expansive effect, lower (0.4-0.6) for restrained
+   * **Typical range:** Restrained (0.5) → Balanced (0.7, default) → Expansive (1.0)
+   * **Interacts with:** sphereScaleMin (together define breathing range)
+   * **Performance note:** No impact; computed per-frame
+   *
+   * @min 0.1
+   * @max 2.0
+   * @step 0.05
+   * @default 0.7
    */
-  glowRange?: number;
+  sphereScaleMax?: number;
 
   /**
-   * Speed of the organic surface displacement pulse.
+   * Core layer responsiveness curve (stiffness).
    *
-   * @group "Animation"
-   * @label "Pulse Speed"
-   * @min 0
-   * @max 2
-   * @step 0.1
-   * @default 0.5
-   */
-  pulseSpeed?: number;
-
-  /**
-   * Strength of the organic surface displacement pulse.
+   * Exponent for the core expansion curve: breathPhase^sphereCoreStiffness.
+   * Higher = stiffer/slower early expansion (cubic-like), lower = elastic/instant expansion.
+   * Affects the dense inner core's breathing behavior.
    *
-   * @group "Animation"
-   * @label "Pulse Intensity"
-   * @min 0
-   * @max 0.5
-   * @step 0.01
-   * @default 0.05
-   */
-  pulseIntensity?: number;
-
-  /**
-   * How much light passes through the inner core.
+   * **When to adjust:** Higher (3-5) for stiff/delayed response, lower (0.5-1) for elastic/quick
+   * **Typical range:** Elastic (0.5) → Balanced (2.0) → Stiff (3.0, default) → Very Stiff (4.0)
+   * **Interacts with:** sphereMainResponsiveness, sphereAuraElasticity (layer coordination)
+   * **Performance note:** No impact; computed per-frame
    *
-   * @group "Core"
-   * @label "Transmission"
-   * @min 0
-   * @max 1
-   * @step 0.1
-   * @default 1.0
-   */
-  coreTransmission?: number;
-
-  /**
-   * Refractive thickness of the inner core material.
-   *
-   * @group "Core"
-   * @label "Thickness"
    * @min 0
    * @max 5
    * @step 0.1
-   * @default 1.5
+   * @default 3.0
    */
-  coreThickness?: number;
+  sphereCoreStiffness?: number;
 
   /**
-   * Color fringing (rainbow effect) in the inner core.
+   * Main layer responsiveness curve (linear response).
    *
-   * @group "Core"
-   * @label "Chromatic Aberration"
+   * Exponent for main sphere expansion: breathPhase^sphereMainResponsiveness.
+   * 1.0 = linear response (default), higher = slower early expansion, lower = faster
+   * Affects the primary visible sphere's breathing behavior.
+   *
+   * **When to adjust:** 1.0 for linear, 2-3 for cubic (delayed start), 0.5 for sqrt (early burst)
+   * **Typical range:** Elastic (0.5) → Linear (1.0, default) → Cubic (2.0) → Very Stiff (3.0)
+   * **Interacts with:** sphereCoreStiffness, sphereAuraElasticity (creates layered breathing)
+   * **Performance note:** No impact; computed per-frame
+   *
    * @min 0
-   * @max 0.5
-   * @step 0.01
-   * @default 0.06
+   * @max 5
+   * @step 0.1
+   * @default 1.0
    */
-  coreChromaticAberration?: number;
+  sphereMainResponsiveness?: number;
+
+  /**
+   * Aura layer elasticity (ballistic expansion).
+   *
+   * Exponent for aura expansion: breathPhase^sphereAuraElasticity.
+   * Lower = more elastic/bouncy (early large expansion), higher = delayed/stiff.
+   * Affects the outer ethereal aura's breathing behavior for "balloon fill" effect.
+   *
+   * **When to adjust:** Lower (0.3-0.5) for bouncy balloon effect, higher (1.5-3) for restrained
+   * **Typical range:** Bouncy (0.3) → Elastic (0.5, default) → Linear (1.0) → Stiff (2.0)
+   * **Interacts with:** sphereCoreStiffness, sphereMainResponsiveness (creates breathing personality)
+   * **Performance note:** No impact; computed per-frame
+   *
+   * @min 0
+   * @max 5
+   * @step 0.1
+   * @default 0.5
+   */
+  sphereAuraElasticity?: number;
 
   /**
    * Aura geometry detail (icosahedron subdivision level).
    *
    * Higher values = smoother spherical appearance with more polygons.
+   * Affects visual quality and performance of the outer aura layer.
    *
-   * @group "Geometry"
-   * @label "Aura Detail"
+   * **When to adjust:** Lower (0-1) for mobile/performance, higher (3-4) for desktop/quality
+   * **Typical range:** Angular (0) → Balanced (2, default) → Smooth (3) → Very Smooth (4)
+   * **Interacts with:** particleCount (both affect overall scene geometry budget)
+   * **Performance note:** Linear geometry cost; each level quadruples face count
+   *
    * @min 0
    * @max 4
    * @step 1
    * @default 3
    */
-  detail?: number;
+  sphereDetail?: number;
 }
 
 export function BreathingSphere({
-  color,
-  opacity = 0.12,
-  glowIntensity = 0.5,
-  glowRange = 0.6,
-  pulseSpeed = 0.5,
-  pulseIntensity = 0.05,
-  coreTransmission = 1.0,
-  coreThickness = 1.5,
-  coreChromaticAberration = 0.06,
-  detail = 3,
+  sphereColorExhale = '#4A8A9A',
+  sphereColorInhale = '#D4A574',
+  sphereOpacity = 0.12,
+  sphereScaleMin = 0.3,
+  sphereScaleMax = 0.7,
+  sphereCoreStiffness = 3.0,
+  sphereMainResponsiveness = 1.0,
+  sphereAuraElasticity = 0.5,
+  sphereDetail = 3,
 }: BreathingSphereProps = {}) {
+  // Use simplified animation and visual defaults
   const config = useMemo(
     () => ({
-      ...DEFAULT_SPHERE_CONFIG,
+      animation: SPHERE_ANIMATION_DEFAULTS,
+      layers: SPHERE_LAYER_SCALE,
       visuals: {
-        ...DEFAULT_SPHERE_CONFIG.visuals,
-        opacity,
-        fresnelIntensityBase: glowIntensity,
-        fresnelIntensityRange: glowRange,
-      },
-      animation: {
-        ...DEFAULT_SPHERE_CONFIG.animation,
-        organicPulseSpeed: pulseSpeed,
-        organicPulseIntensity: pulseIntensity,
-      },
-      geometry: {
-        ...DEFAULT_SPHERE_CONFIG.geometry,
-        mainGeometryDetail: detail,
+        opacity: sphereOpacity,
+        ...SPHERE_VISUAL_DEFAULTS,
       },
     }),
-    [opacity, glowIntensity, glowRange, pulseSpeed, pulseIntensity, detail],
+    [sphereOpacity],
   );
 
   const meshRef = useRef<THREE.Mesh>(null);
@@ -194,25 +223,13 @@ export function BreathingSphere({
 
   // Pre-allocate colors for lerping to avoid GC pressure
   const { exhaleColor, inhaleColor, coreColorExhale, coreColorInhale } = useMemo(() => {
-    if (!color) {
-      return {
-        exhaleColor: new THREE.Color(VISUALS.SPHERE_COLOR_EXHALE),
-        inhaleColor: new THREE.Color(VISUALS.SPHERE_COLOR_INHALE),
-        coreColorExhale: new THREE.Color('#b8e2e8'), // Matches SPHERE_COLOR_EXHALE
-        coreColorInhale: new THREE.Color('#ffe0b0'), // Matches SPHERE_COLOR_INHALE
-      };
-    }
-
-    const baseColor = new THREE.Color(color);
-    const exhale = baseColor.clone().lerp(new THREE.Color(0, 0, 0), 0.35);
-    const inhale = baseColor.clone().lerp(new THREE.Color(1, 1, 1), 0.15);
     return {
-      exhaleColor: exhale,
-      inhaleColor: inhale,
-      coreColorExhale: new THREE.Color('#b8e2e8'),
-      coreColorInhale: new THREE.Color('#ffe0b0'),
+      exhaleColor: new THREE.Color(sphereColorExhale),
+      inhaleColor: new THREE.Color(sphereColorInhale),
+      coreColorExhale: new THREE.Color('#b8e2e8'), // Fixed cool tone
+      coreColorInhale: new THREE.Color('#ffe0b0'), // Fixed warm tone
     };
-  }, [color]);
+  }, [sphereColorExhale, sphereColorInhale]);
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex animation loop with multiple material properties and transitions
   useFrame((state) => {
@@ -227,8 +244,10 @@ export function BreathingSphere({
     const breathEntity = world.queryFirst(sphereScale, breathPhase);
     if (!breathEntity) return;
 
-    const targetScale = breathEntity.get(sphereScale)?.value ?? 1;
     const breathPhaseValue = breathEntity.get(breathPhase)?.value ?? 0;
+
+    // Calculate target scale directly from min/max using breath phase
+    const targetScale = sphereScaleMin + breathPhaseValue * (sphereScaleMax - sphereScaleMin);
 
     // Calculate entrance animation
     let entranceScale = 1;
@@ -264,44 +283,29 @@ export function BreathingSphere({
     materialRef.current.uniforms.uBreathPhase.value = breathPhaseValue;
     materialRef.current.uniforms.uChromaticAberration.value = config.visuals.chromaticAberration;
 
-    // Enhance glow pulsing with organic overlay
-    let fresnelValue =
+    // Fixed glow with breathing-based intensity modulation
+    const fresnelValue =
       config.visuals.fresnelIntensityBase + breathPhaseValue * config.visuals.fresnelIntensityRange;
-    if (config.animation.enableOrganicPulse) {
-      const organicPulse =
-        Math.sin(time * config.animation.organicPulseSpeed) *
-        config.animation.organicPulseIntensity;
-      fresnelValue += organicPulse;
-      fresnelValue = Math.max(
-        config.visuals.fresnelIntensityBase * 0.5,
-        Math.min(
-          config.visuals.fresnelIntensityBase +
-            config.visuals.fresnelIntensityRange +
-            config.animation.organicPulseIntensity * 2,
-          fresnelValue,
-        ),
-      );
-    }
     materialRef.current.uniforms.uFresnelIntensity.value = fresnelValue;
     materialRef.current.uniforms.uOpacity.value = config.visuals.opacity;
-    materialRef.current.uniforms.uEmissiveIntensity.value = 0.0 + breathPhaseValue * 0.08; // Even more subtle (max 0.08)
+    materialRef.current.uniforms.uEmissiveIntensity.value = 0.0 + breathPhaseValue * 0.08;
 
-    // 1. Core: Solid, dense center. Stiffer, less expansion (hard core feel).
-    // Starts smaller on exhale, minimal expansion on inhale.
-    const coreCurve = 0.5 + 0.15 * breathPhaseValue ** 3.0;
-    const finalCoreScale = VISUALS.SPHERE_SCALE_MIN * coreCurve * config.layers.coreScale;
+    // 1. Core: Solid, dense center with configurable stiffness
+    // Higher stiffness = stiffer/slower early expansion (cubic-like)
+    const coreCurve = 0.5 + 0.15 * breathPhaseValue ** sphereCoreStiffness;
+    const finalCoreScale = sphereScaleMin * coreCurve * config.layers.core;
 
     if (coreRef.current && coreMaterialRef.current) {
       coreRef.current.scale.setScalar(finalCoreScale * entranceScale);
 
-      // Update transmission material properties
+      // Update core material with breathing color
       const coreColor = coreColorExhale.clone().lerp(coreColorInhale, breathPhaseValue);
       coreMaterialRef.current.color.copy(coreColor);
 
-      // Modulate transmission and thickness with breath
-      coreMaterialRef.current.transmission = coreTransmission;
-      coreMaterialRef.current.thickness = coreThickness * (0.2 + breathPhaseValue * 0.8);
-      coreMaterialRef.current.chromaticAberration = coreChromaticAberration;
+      // Fixed material properties (breathing color modulation only)
+      coreMaterialRef.current.transmission = 1.0;
+      coreMaterialRef.current.thickness = 1.5 * (0.2 + breathPhaseValue * 0.8);
+      coreMaterialRef.current.chromaticAberration = 0.02;
       coreMaterialRef.current.roughness = 0.1 + (1.0 - breathPhaseValue) * 0.2;
     }
 
@@ -310,10 +314,10 @@ export function BreathingSphere({
       meshRef.current.scale.setScalar(targetScale * entranceScale);
     }
 
-    // 3. Aura: Elastic, airy outer shell. Very large early expansion (balloon fill).
-    // Much larger multiplier for that "balloon" feel.
-    const auraCurve = 0.8 + 2.5 * breathPhaseValue ** 0.5;
-    const finalAuraScale = VISUALS.SPHERE_SCALE_MIN * auraCurve * config.layers.auraScale;
+    // 3. Aura: Elastic outer shell with configurable elasticity
+    // Lower elasticity = bouncy/balloon-fill effect, higher = delayed/stiff
+    const auraCurve = 0.8 + 2.5 * breathPhaseValue ** sphereAuraElasticity;
+    const finalAuraScale = sphereScaleMin * auraCurve * config.layers.aura;
 
     if (auraRef.current) {
       auraRef.current.scale.setScalar(finalAuraScale * entranceScale);
@@ -323,9 +327,8 @@ export function BreathingSphere({
       auraMaterial.uniforms.uTime.value = time;
       auraMaterial.uniforms.uBreathPhase.value = breathPhaseValue;
       auraMaterial.uniforms.uColor.value.copy(color);
-      auraMaterial.uniforms.uOpacity.value =
-        (config.layers.auraOpacityBase + breathPhaseValue * config.layers.auraOpacityRange) *
-        entranceScale;
+      // Fixed aura opacity (0.02 base + 0.05 range)
+      auraMaterial.uniforms.uOpacity.value = (0.02 + breathPhaseValue * 0.05) * entranceScale;
       auraMaterial.uniforms.uFresnelIntensity.value = fresnelValue * 0.5;
     }
   });
@@ -346,10 +349,10 @@ export function BreathingSphere({
           backside
           samples={16}
           resolution={512}
-          transmission={coreTransmission}
+          transmission={1.0}
           roughness={0.2}
-          thickness={coreThickness}
-          chromaticAberration={coreChromaticAberration}
+          thickness={1.5}
+          chromaticAberration={0.02}
           anisotropy={0.1}
           distortion={0.1}
           distortionScale={0.5}
@@ -359,7 +362,7 @@ export function BreathingSphere({
 
       {/* Outer Aura - Soft atmospheric glow */}
       <mesh name="Outer Aura" ref={auraRef}>
-        <icosahedronGeometry args={[1, detail]} />
+        <icosahedronGeometry args={[1, sphereDetail]} />
         <primitive object={auraMaterialRef.current} attach="material" />
       </mesh>
     </group>

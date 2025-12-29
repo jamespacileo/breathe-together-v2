@@ -109,76 +109,26 @@ export const VISUALS = {
 };
 
 /**
- * BreathingSphere Configuration - Grouped by logical category
- * These interfaces define the shape of the sphere's configuration,
- * making it easier to manage presets and understand the component's design.
+ * BreathingSphere Configuration - Internal constants only
+ * @deprecated - BreathingSphere now uses direct prop values for all user-facing configuration
+ * These constants are retained only for internal animation defaults
  */
 
-export interface SphereVisualConfig {
-  opacity: number;
-  chromaticAberration: number;
-  fresnelIntensityBase: number;
-  fresnelIntensityRange: number;
-}
+export const SPHERE_ANIMATION_DEFAULTS = {
+  entranceDelayMs: 200,
+  entranceDurationMs: 800,
+} as const;
 
-export interface SphereAnimationConfig {
-  entranceDelayMs: number;
-  entranceDurationMs: number;
-  enableOrganicPulse: boolean;
-  organicPulseSpeed: number;
-  organicPulseIntensity: number;
-}
+export const SPHERE_LAYER_SCALE = {
+  core: 0.4,
+  aura: 1.5,
+} as const;
 
-export interface SphereGeometryConfig {
-  mainGeometryDetail: number;
-}
-
-export interface SphereLayerConfig {
-  coreScale: number;
-  coreOpacityBase: number;
-  coreOpacityRange: number;
-  auraScale: number;
-  auraOpacityBase: number;
-  auraOpacityRange: number;
-}
-
-export interface SphereConfig {
-  visuals: SphereVisualConfig;
-  animation: SphereAnimationConfig;
-  geometry: SphereGeometryConfig;
-  layers: SphereLayerConfig;
-}
-
-/**
- * Default BreathingSphere configuration - Organic & Natural
- * Enhanced Fresnel glow and warmer core opacity for breathing presence
- */
-export const DEFAULT_SPHERE_CONFIG: SphereConfig = {
-  visuals: {
-    opacity: VISUALS.SPHERE_OPACITY,
-    chromaticAberration: 0.02,
-    fresnelIntensityBase: 0.5, // Reduced to preserve color saturation (was 0.9)
-    fresnelIntensityRange: 0.6, // Reduced to preserve color saturation (was 1.2)
-  },
-  animation: {
-    entranceDelayMs: 200,
-    entranceDurationMs: 800,
-    enableOrganicPulse: true,
-    organicPulseSpeed: 0.5,
-    organicPulseIntensity: 0.05,
-  },
-  geometry: {
-    mainGeometryDetail: 2,
-  },
-  layers: {
-    coreScale: 0.4,
-    coreOpacityBase: 0.3, // Increased from 0.2 (more visible, inviting)
-    coreOpacityRange: 0.5, // Increased from 0.3 (35-80% opacity range, more alive)
-    auraScale: 1.5,
-    auraOpacityBase: 0.02,
-    auraOpacityRange: 0.05,
-  },
-};
+export const SPHERE_VISUAL_DEFAULTS = {
+  fresnelIntensityBase: 0.5, // Fixed glow base
+  fresnelIntensityRange: 0.6, // Fixed glow range
+  chromaticAberration: 0.02, // Fixed core effect
+} as const;
 
 /**
  * Particle Physics Constants
