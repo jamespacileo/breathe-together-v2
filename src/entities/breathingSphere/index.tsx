@@ -17,7 +17,13 @@ interface BreathingSphereProps {
   /**
    * Sphere base color (breath-modulated).
    *
-   * **When to adjust:** Change overall hue of the breathing orb
+   * Main hue of the breathing orb. Color lightly shifts between exhale (darker, more saturated)
+   * and inhale (lighter, warmer). If not provided, uses default warm-cool progression.
+   *
+   * **When to adjust:** Change overall hue for branding or mood; increase saturation for focus, decrease for calm
+   * **Typical range:** Cool blues (#4a8a9a) → Neutral grays → Warm ambers (#d4a574)
+   * **Interacts with:** backgroundColor (contrast), bloomIntensity (glow color), sphereOpacity
+   * **Performance note:** No impact; computed per-frame in shader
    *
    * @type color
    * @default "#d4a574"
@@ -25,7 +31,15 @@ interface BreathingSphereProps {
   color?: string;
 
   /**
-   * Sphere transparency.
+   * Sphere material opacity (transparency).
+   *
+   * Controls how transparent the breathing sphere appears. Lower = more ethereal and subtle,
+   * higher = more solid and commanding presence.
+   *
+   * **When to adjust:** Increase for focus/attention (meditation start), decrease for calm/ambient
+   * **Typical range:** Subtle (0.05) → Ethereal (0.12, default) → Present (0.25) → Solid (0.4+)
+   * **Interacts with:** sphereColor, backgroundColor (contrast), bloomIntensity (glow), fresnel
+   * **Performance note:** No impact; material property only
    *
    * @min 0
    * @max 1
@@ -35,7 +49,15 @@ interface BreathingSphereProps {
   opacity?: number;
 
   /**
-   * Geometry detail for the icosahedron sphere (0-4).
+   * Aura geometry detail (icosahedron subdivision level).
+   *
+   * Higher values = smoother spherical appearance with more polygons.
+   * 0 = angular (20 faces), 1 = 80 faces, 2 = 320 faces, 3 = smooth (1280 faces).
+   *
+   * **When to adjust:** Lower for performance on mobile/older devices, higher for quality on desktop
+   * **Typical range:** Angular (0) → Balanced (2) → Smooth (3, default) → Very Smooth (4)
+   * **Interacts with:** particleDetail (matching level for visual coherence), camera distance
+   * **Performance note:** Geometry cost is O(n²); 2→3 increases face count 4x. Aura always detail level set here
    *
    * @min 0
    * @max 4
@@ -47,7 +69,7 @@ interface BreathingSphereProps {
 
 export function BreathingSphere({
   color,
-  opacity = VISUALS.SPHERE_OPACITY,
+  opacity = 0.12,
   detail = 3, // Smoother (was 2)
 }: BreathingSphereProps = {}) {
   const config = useMemo(

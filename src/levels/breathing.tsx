@@ -24,7 +24,7 @@ export function BreathingLevel({
   backgroundColor = '#0a0f1a',
   sphereColor = '#d4a574',
   sphereOpacity = 0.12,
-  sphereDetail = 2,
+  sphereDetail = 3, // Smoother (was 2) - matches BreathingSphere component
 
   // Lighting defaults
   ambientIntensity = 0.15,
@@ -42,8 +42,8 @@ export function BreathingLevel({
   enableFloor = true,
   floorOpacity = 0.5,
   enablePointLight = true,
-  lightIntensityMin = 0.5,
-  lightIntensityRange = 1.5,
+  lightIntensityMin = 0.3, // Gentle base - matches Environment component
+  lightIntensityRange = 0.9, // Peak at 1.2, reduced from 3.0 - matches Environment component
 
   // Post-processing defaults
   bloomIntensity = 0.5,

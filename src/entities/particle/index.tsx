@@ -17,7 +17,7 @@ import { color, index, offset, ownerId, restPosition, seed, size, targetColor } 
  * Spawns a fixed number of particles based on the provided count.
  */
 export function ParticleSpawner({
-  totalCount = VISUALS.PARTICLE_COUNT,
+  totalCount = 300,
 }: {
   /**
    * Total number of particles to spawn and manage.
@@ -116,7 +116,7 @@ export function ParticleSpawner({
  * Performance: 2 draw calls (user + filler).
  */
 export function ParticleRenderer({
-  totalCount = VISUALS.PARTICLE_COUNT,
+  totalCount = 300,
 }: {
   /**
    * Total number of particles to render.
