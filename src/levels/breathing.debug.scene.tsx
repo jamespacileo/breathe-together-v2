@@ -18,23 +18,22 @@
  * Uses shared types from src/types/sceneProps.ts and centralized defaults.
  */
 
-import { Html } from '@react-three/drei';
-import { useMemo } from 'react';
-import { BreathDebugVisuals } from '../components/BreathDebugVisuals';
-import { ParticleDebugVisuals } from '../components/ParticleDebugVisuals';
-import { type BreathDebugConfig, BreathDebugProvider } from '../contexts/breathDebug';
+import { BreathDebugPanel } from '../components/BreathDebugPanel';
 import type { BreathingDebugSceneProps } from '../types/sceneProps';
 import { BreathingLevel } from './breathing';
 
 /**
  * Debug breathing scene with full manual controls
  *
- * Wraps BreathingLevel with BreathDebugProvider to inject debug configuration
- * into the breath system. Includes visual debug helpers for understanding
- * animation state in real-time.
+ * Simplified scene that wraps BreathingLevel with BreathDebugPanel for debug controls.
+ * BreathDebugPanel encapsulates all debug-only props (manual phase, pause, visualizations)
+ * while BreathingLevel receives all visual and lighting props.
+ *
+ * This separation reduces Triplex sidebar clutter: visual props (18) + debug panel props (9)
+ * instead of all 31 mixed together.
  */
 export function BreathingDebugScene(props: Partial<BreathingDebugSceneProps> = {}) {
-  // Extract debug-specific props
+  // Extract debug-specific props for BreathDebugPanel
   const {
     // Breathing Debug Controls
     enableManualControl = false,
@@ -56,105 +55,23 @@ export function BreathingDebugScene(props: Partial<BreathingDebugSceneProps> = {
     ...breathingLevelProps
   } = props;
 
-  // Build debug config from debug-specific props
-  const debugConfig = useMemo<BreathDebugConfig | null>(() => {
-    // Only create config if we have at least one debug property set
-    const hasDebugProps =
-      enableManualControl ||
-      isPaused ||
-      timeScale !== 1.0 ||
-      jumpToPhase !== undefined ||
-      showOrbitBounds ||
-      showPhaseMarkers ||
-      showTraitValues;
-
-    if (!hasDebugProps) {
-      return null;
-    }
-
-    return {
-      // Manual Controls
-      manualPhaseOverride: enableManualControl ? manualPhase : undefined,
-      isPaused,
-      timeScale,
-      jumpToPhase,
-
-      // Visual Debug
-      showOrbitBounds,
-      showPhaseMarkers,
-      showTraitValues,
-    };
-  }, [
-    enableManualControl,
-    manualPhase,
-    isPaused,
-    timeScale,
-    jumpToPhase,
-    showOrbitBounds,
-    showPhaseMarkers,
-    showTraitValues,
-  ]);
-
   return (
-    <BreathDebugProvider config={debugConfig}>
+    <>
       <BreathingLevel {...breathingLevelProps} />
 
-      {/* Debug Visualizations */}
-      <BreathDebugVisuals
+      <BreathDebugPanel
+        enableManualControl={enableManualControl}
+        manualPhase={manualPhase}
+        isPaused={isPaused}
+        timeScale={timeScale}
+        jumpToPhase={jumpToPhase}
         showOrbitBounds={showOrbitBounds}
         showPhaseMarkers={showPhaseMarkers}
         showTraitValues={showTraitValues}
-      />
-
-      {/* Particle Debug Visualizations */}
-      <ParticleDebugVisuals
         showParticleTypes={showParticleTypes}
         showParticleStats={showParticleStats}
       />
-
-      {/* Debug Control Info Overlay */}
-      {(enableManualControl || isPaused || timeScale !== 1.0 || jumpToPhase !== undefined) && (
-        <Html position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
-          <div
-            style={{
-              position: 'fixed',
-              top: 20,
-              left: 20,
-              background: 'rgba(0, 0, 0, 0.85)',
-              border: '1px solid rgba(255, 200, 0, 0.6)',
-              borderRadius: 8,
-              padding: 16,
-              color: '#ffc800',
-              fontFamily: 'monospace',
-              fontSize: 12,
-              zIndex: 1000,
-              lineHeight: 1.6,
-              maxWidth: 300,
-            }}
-          >
-            <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Breath Debug Controls</div>
-            {enableManualControl && <div>Phase: {manualPhase.toFixed(3)}</div>}
-            {isPaused && <div>Status: ⏸ PAUSED</div>}
-            {timeScale !== 1.0 && <div>Speed: {timeScale.toFixed(1)}x</div>}
-            {jumpToPhase !== undefined && (
-              <div>Jump: {['Inhale', 'Hold-in', 'Exhale', 'Hold-out'][jumpToPhase]}</div>
-            )}
-            <div
-              style={{
-                fontSize: 10,
-                marginTop: 8,
-                opacity: 0.7,
-                color: '#ffcc99',
-              }}
-            >
-              Debug traits active.
-              <br />
-              Production app unaffected.
-            </div>
-          </div>
-        </Html>
-      )}
-    </BreathDebugProvider>
+    </>
   );
 }
 

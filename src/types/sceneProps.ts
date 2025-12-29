@@ -38,21 +38,21 @@ export interface SharedVisualProps {
 }
 
 export interface SharedLightingProps {
-  /** @min 0 @max 1 @step 0.05 */
+  /** @group "Lighting" @label "Ambient Intensity" @min 0 @max 1 @step 0.05 */
   ambientIntensity?: number;
-  /** @type color */
+  /** @group "Lighting" @label "Ambient Color" @type color */
   ambientColor?: string;
-  /** @min 0 @max 2 @step 0.1 */
+  /** @group "Lighting" @label "Key Intensity" @min 0 @max 2 @step 0.1 */
   keyIntensity?: number;
-  /** @type color */
+  /** @group "Lighting" @label "Key Color" @type color */
   keyColor?: string;
-  /** @min 0 @max 1 @step 0.05 */
+  /** @group "Lighting" @label "Fill Intensity" @min 0 @max 1 @step 0.05 */
   fillIntensity?: number;
-  /** @type color */
+  /** @group "Lighting" @label "Fill Color" @type color */
   fillColor?: string;
-  /** @min 0 @max 0.5 @step 0.02 */
+  /** @group "Lighting" @label "Rim Intensity" @min 0 @max 0.5 @step 0.02 */
   rimIntensity?: number;
-  /** @type color */
+  /** @group "Lighting" @label "Rim Color" @type color */
   rimColor?: string;
 }
 
