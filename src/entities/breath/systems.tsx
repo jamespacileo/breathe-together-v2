@@ -29,31 +29,40 @@ import {
 
 /**
  * Damping configuration for breath traits
+ *
+ * NOTE: Damping speeds increased significantly to allow custom easing curves
+ * in breathCalc.ts to work properly. The easing curves already include
+ * overshoot-and-settle patterns - heavy damping absorbs these effects.
+ *
+ * Speed values: Higher = faster response (less damping)
+ * - 0.8-1.0: Near-instant, preserves easing curves
+ * - 0.3-0.5: Moderate smoothing, absorbs overshoot
+ * - 0.1-0.2: Heavy smoothing, very sluggish
  */
 const DAMP_CONFIG = [
   {
     trait: breathPhase,
     targetTrait: targetBreathPhase,
     velocityTrait: velocityBreathPhase,
-    speed: 0.3,
+    speed: 0.9, // Near-instant to preserve easing overshoot (was 0.3)
   },
   {
     trait: orbitRadius,
     targetTrait: targetOrbitRadius,
     velocityTrait: velocityOrbitRadius,
-    speed: 0.4,
+    speed: 0.85, // Fast response for particles (was 0.4)
   },
   {
     trait: sphereScale,
     targetTrait: targetSphereScale,
     velocityTrait: velocitySphereScale,
-    speed: 0.25,
+    speed: 0.85, // Fast response for globe (was 0.25)
   },
   {
     trait: crystallization,
     targetTrait: targetCrystallization,
     velocityTrait: velocityCrystallization,
-    speed: 0.5,
+    speed: 0.7, // Slightly smoother for visual effect (was 0.5)
   },
 ] as const;
 

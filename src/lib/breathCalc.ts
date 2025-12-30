@@ -27,64 +27,68 @@ function easeInOutSine(t: number): number {
 }
 
 /**
- * Soft inhale: Gentle sine curve with overshoot at peak
+ * Soft inhale: Gentle sine curve with brief overshoot at peak
  *
- * Feel: Breath fills lungs smoothly, slightly "overflows", then settles
- * Visual: 0 → 0.97 (smooth) → 1.025 (peak) → 1.0 (settle)
+ * Feel: Breath fills lungs smoothly, briefly "overflows", then settles
+ * Visual: 0 → 0.99 (smooth) → 1.012 (brief peak) → 1.0 (settle)
+ *
+ * Overshoot is minimal (~1.2%) and happens in final 8% of phase
  */
 function easeInhale(t: number): number {
-  if (t < 0.85) {
-    // Main breath: smooth sine ease-in-out
-    return easeInOutSine(t / 0.85) * 0.97;
+  if (t < 0.92) {
+    // Main breath: smooth sine ease-in-out (92% of phase)
+    return easeInOutSine(t / 0.92) * 0.99;
   }
-  // Final 15%: overshoot to ~1.025 then settle to 1.0
-  const localT = (t - 0.85) / 0.15;
-  const overshootAmount = 0.025; // 2.5% overshoot
+  // Final 8%: brief overshoot to ~1.012 then settle to 1.0
+  const localT = (t - 0.92) / 0.08;
+  const overshootAmount = 0.012; // 1.2% overshoot (subtle)
   const overshootCurve = Math.sin(localT * Math.PI) * overshootAmount;
-  return 0.97 + 0.03 * easeOutSine(localT) + overshootCurve;
+  return 0.99 + 0.01 * easeOutSine(localT) + overshootCurve;
 }
 
 /**
- * Soft exhale: Gentle sine release with undershoot at bottom
+ * Soft exhale: Gentle sine release with brief undershoot at bottom
  *
- * Feel: Breath releases naturally, "empties" slightly past zero, settles
- * Visual: 1 → 0.03 (smooth) → -0.02 (dip) → 0.0 (settle)
+ * Feel: Breath releases naturally, briefly dips past zero, settles
+ * Visual: 1 → 0.01 (smooth) → -0.01 (brief dip) → 0.0 (settle)
+ *
+ * Undershoot is minimal (~1%) and happens in final 8% of phase
  */
 function easeExhale(t: number): number {
-  if (t < 0.85) {
-    // Main release: smooth sine-based descent
-    return 1 - easeInOutSine(t / 0.85) * 0.97;
+  if (t < 0.92) {
+    // Main release: smooth sine-based descent (92% of phase)
+    return 1 - easeInOutSine(t / 0.92) * 0.99;
   }
-  // Final 15%: undershoot to ~-0.02 then settle to 0.0
-  const localT = (t - 0.85) / 0.15;
-  const undershootAmount = 0.02; // 2% undershoot
+  // Final 8%: brief undershoot to ~-0.01 then settle to 0.0
+  const localT = (t - 0.92) / 0.08;
+  const undershootAmount = 0.01; // 1% undershoot (subtle)
   const undershootCurve = -Math.sin(localT * Math.PI) * undershootAmount;
-  return 0.03 * (1 - easeOutSine(localT)) + undershootCurve;
+  return 0.01 * (1 - easeOutSine(localT)) + undershootCurve;
 }
 
 /**
- * Hold-in: Settling after inhale overshoot + gentle micro-movement
+ * Hold-in: Brief settling from inhale, then stable with subtle aliveness
  *
- * Feel: Breath is full, body settles, subtle aliveness
+ * Feel: Breath is full, brief settle, then stable hold
  */
 function easeHoldIn(t: number): number {
-  // Start slightly above 1 (continuing from inhale overshoot), settle toward 1
-  const settleFromOvershoot = 1 + 0.015 * (1 - easeOutSine(t * 0.5));
-  // Gentle micro-movement during hold
-  const microMovement = Math.sin(t * Math.PI * 0.8) * 0.008;
+  // Quick settle in first 20%, then stable with tiny micro-movement
+  const settleFromOvershoot = 1 + 0.008 * (1 - easeOutSine(Math.min(t * 5, 1)));
+  // Very subtle micro-movement (barely perceptible)
+  const microMovement = Math.sin(t * Math.PI * 0.6) * 0.003;
   return settleFromOvershoot + microMovement;
 }
 
 /**
- * Hold-out: Settling after exhale undershoot + anticipation for next inhale
+ * Hold-out: Brief settling from exhale, then stable with subtle anticipation
  *
- * Feel: Breath is empty, body settles, builds toward next inhale
+ * Feel: Breath is empty, brief settle, builds slightly toward next inhale
  */
 function easeHoldOut(t: number): number {
-  // Start slightly below 0 (continuing from exhale undershoot), settle toward 0
-  const settleFromUndershoot = -0.01 * (1 - easeOutSine(t * 0.5));
-  // Slight anticipation rise toward end (body preparing for inhale)
-  const anticipation = easeInSine(t) * 0.015;
+  // Quick settle in first 20%, then stable
+  const settleFromUndershoot = -0.005 * (1 - easeOutSine(Math.min(t * 5, 1)));
+  // Very subtle anticipation rise toward end
+  const anticipation = easeInSine(t) * 0.008;
   return settleFromUndershoot + anticipation;
 }
 
