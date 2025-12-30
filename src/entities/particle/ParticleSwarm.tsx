@@ -16,16 +16,13 @@
  * - Colors: Monument Valley 4-color palette
  */
 
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { getMonumentValleyMoodColor } from '../../lib/colors';
-import { createGlassRefractionMaterial } from '../../lib/shaders';
 import { breathPhase } from '../breath/traits';
-import { useRefractionRenderPipeline } from './hooks/useRefractionRenderPipeline';
-import { createBackfaceMaterial } from './materials/createBackfaceMaterial';
 
 export interface ParticleSwarmProps {
   /**
@@ -108,8 +105,10 @@ function smoothstep(t: number): number {
 export function ParticleSwarm({
   capacity = 300,
   users,
-  enableRefraction = true,
-  refractionQuality = 1024,
+  // biome-ignore lint/correctness/noUnusedFunctionParameters: Kept for prop interface compatibility with scene composition
+  enableRefraction,
+  // biome-ignore lint/correctness/noUnusedFunctionParameters: Kept for prop interface compatibility with scene composition
+  refractionQuality,
   baseRadius = 6.0,
   expansionRange = 2.0,
   baseShardSize = 4.0,
@@ -118,7 +117,6 @@ export function ParticleSwarm({
   rotationSpeedY = 0.003,
 }: ParticleSwarmProps) {
   const world = useWorld();
-  const { gl, scene, camera } = useThree();
 
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const matrixRef = useRef(new THREE.Matrix4());
@@ -307,33 +305,17 @@ export function ParticleSwarm({
   });
 
   /**
-   * Geometry: Low-poly icosahedron
-   * Size: inversely proportional to count (matches HTML artifact)
+   * Geometry and Material setup
+   * Standardized for performant "frosted/matte" look
    */
-  const geometry = useMemo(() => new THREE.IcosahedronGeometry(shardSize, 0), [shardSize]);
+  const geometry = useMemo(() => new THREE.IcosahedronGeometry(1, 0), []);
 
-  // Back-face material for refraction pipeline
-  const backfaceMaterial = useMemo(() => createBackfaceMaterial(), []);
-
-  // Render targets for refraction
-  const renderTargets = useRefractionRenderPipeline(enableRefraction, refractionQuality);
-
-  // Glass refraction material
-  const refractionMaterial = useMemo(() => {
-    if (!renderTargets) return null;
-    const material = createGlassRefractionMaterial();
-    material.uniforms.uEnvMap.value = renderTargets.envFBO.texture;
-    material.uniforms.uBackfaceMap.value = renderTargets.backfaceFBO.texture;
-    return material;
-  }, [renderTargets]);
-
-  // Fallback material (when refraction disabled)
-  const fallbackMaterial = useMemo(() => {
-    return new THREE.MeshBasicMaterial({
-      color: 0xe6dcd3, // Monument Valley warm neutral (filler color)
+  const material = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
       transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.8,
+      metalness: 0.1,
+      roughness: 0.8,
       side: THREE.DoubleSide,
     });
   }, []);
@@ -342,78 +324,13 @@ export function ParticleSwarm({
   useEffect(() => {
     return () => {
       geometry.dispose();
-      backfaceMaterial.dispose();
-      refractionMaterial?.dispose();
-      fallbackMaterial.dispose();
+      material.dispose();
     };
-  }, [geometry, backfaceMaterial, refractionMaterial, fallbackMaterial]);
-
-  /**
-   * 3-pass rendering for frosted glass effect
-   * PASS 1: Environment (no particles)
-   * PASS 2: Backfaces (normal capture)
-   * PASS 3: Final (refraction + color)
-   */
-  useFrame(() => {
-    if (!enableRefraction || !renderTargets || !refractionMaterial || !meshRef.current) return;
-
-    const mesh = meshRef.current;
-    const { envFBO, backfaceFBO } = renderTargets;
-
-    gl.autoClear = false;
-
-    // PASS 1: Environment
-    mesh.visible = false;
-    gl.setRenderTarget(envFBO);
-    gl.setClearColor(0x000000, 0);
-    gl.clear();
-    gl.render(scene, camera);
-
-    // PASS 2: Backfaces
-    mesh.visible = true;
-    mesh.material = backfaceMaterial;
-    scene.background = null;
-
-    gl.setRenderTarget(backfaceFBO);
-    gl.setClearColor(0x000000, 0);
-    gl.clear();
-    gl.clearDepth();
-    gl.render(scene, camera);
-
-    // PASS 3: Final composite
-    mesh.material = refractionMaterial;
-
-    gl.setRenderTarget(null);
-
-    // R3F handles the final render to screen with the refractionMaterial active
-  }, 1); // Run after state updates but before render
-
-  /**
-   * Update shader uniforms each frame
-   */
-  useFrame((state) => {
-    if (!refractionMaterial) return;
-
-    const mesh = meshRef.current;
-    if (!mesh) return;
-
-    const breathEntity = world.queryFirst(breathPhase);
-    if (!breathEntity) return;
-
-    const phaseAttr = breathEntity.get(breathPhase);
-    const phase = phaseAttr?.value ?? 0;
-
-    refractionMaterial.uniforms.uBreathPhase.value = phase;
-    refractionMaterial.uniforms.uResolution.value.set(state.size.width, state.size.height);
-  });
+  }, [geometry, material]);
 
   return (
     <group name="Particle Swarm">
-      <instancedMesh
-        ref={meshRef}
-        args={[geometry, refractionMaterial ?? fallbackMaterial, capacity]}
-        frustumCulled={true}
-      />
+      <instancedMesh ref={meshRef} args={[geometry, material, capacity]} frustumCulled={true} />
     </group>
   );
 }

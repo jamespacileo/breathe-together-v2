@@ -1,60 +1,46 @@
-/**
- * Environment - Simple calming meditation environment with gradient background and clouds.
- * Provides a serene blue-violet gradient with slowly drifting clouds and soft lighting.
- */
-
-import { useMemo, useRef } from 'react';
+import { Environment as EnvironmentMap } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
+import { useEffect } from 'react';
 import * as THREE from 'three';
 
 interface EnvironmentProps {
-  /**
-   * Enable/disable environment rendering.
-   *
-   * @group "Configuration"
-   * @default true
-   */
   enabled?: boolean;
 }
 
-/**
- * Environment component - Monument Valley inspired gradient background with lighting.
- *
- * Features:
- * - Warm neutral gradient background (Monument Valley aesthetic)
- * - Simple three-light setup for optimal globe + shard visibility
- * - Minimal design without visual clutter
- */
 export function Environment({ enabled = true }: EnvironmentProps = {}) {
-  const gradientMesh = useRef<THREE.Mesh>(null);
+  const { scene } = useThree();
 
-  // Simple background material (solid color instead of shader)
-  const gradientMaterial = useMemo(() => {
-    return new THREE.MeshBasicMaterial({
-      color: 0xfaf8f3, // Monument Valley off-white
-      side: THREE.BackSide,
-      depthWrite: false,
-    });
-  }, []);
-
+  // Set scene background color once
+  useEffect(() => {
+    scene.background = new THREE.Color(0xfaf8f3);
+  }, [scene]);
 
   if (!enabled) return null;
 
   return (
     <>
-      {/* Background sphere with gradient shader */}
-      <mesh ref={gradientMesh} renderOrder={-1000} frustumCulled={false}>
-        <sphereGeometry args={[50, 32, 32]} />
-        <primitive
-          object={gradientMaterial}
-          attach="material"
-          depthTest={false}
-          depthWrite={false}
-        />
-      </mesh>
+      {/* 
+        High-quality Environment Map 
+        Provides realistic reflections for those ceramic and frosted surfaces
+      */}
+      <EnvironmentMap preset="studio" blur={0.8} />
 
-      {/* Lighting */}
-      <ambientLight intensity={0.8} color="#fffef7" />
-      <directionalLight position={[10, 10, 10]} intensity={0.4} color="#fff" />
+      {/* 
+        Balanced Studio Lighting Rig
+        - Key Light: Strong light from front-top-right
+        - Fill Light: Soft light from opposite side
+        - Back Light: Highlights the silhouette (especially for the shards)
+      */}
+      <ambientLight intensity={0.4} color="#ffffff" />
+
+      {/* Key Light */}
+      <directionalLight position={[10, 10, 10]} intensity={1.2} color="#fffaf0" castShadow />
+
+      {/* Fill Light (Cooler tone) */}
+      <directionalLight position={[-10, 5, 5]} intensity={0.6} color="#e0f0f8" />
+
+      {/* Back Light (Highlight edges) */}
+      <spotLight position={[0, 10, -15]} intensity={1.5} angle={0.6} penumbra={1} color="#ffffff" />
     </>
   );
 }

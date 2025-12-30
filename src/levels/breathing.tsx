@@ -18,7 +18,7 @@ import type { BreathingLevelProps } from '../types/sceneProps';
  * - PostProcessing: Bloom effects
  */
 export function BreathingLevel({
-  bloom = 'medium',
+  bloom = 'subtle',
   particleDensity,
   // biome-ignore lint/correctness/noUnusedFunctionParameters: Kept for prop interface compatibility
   enableRefraction,
@@ -37,7 +37,7 @@ export function BreathingLevel({
     <Suspense fallback={null}>
       <Environment enabled={showEnvironment} />
 
-      {showGlobe && <EarthGlobe />}
+      {showGlobe && <EarthGlobe globeScale={2.0} rotationSpeed={0.1} />}
 
       {showParticles && (
         <ParticleSwarm
@@ -48,7 +48,9 @@ export function BreathingLevel({
         />
       )}
 
-      {showParticles && <AtmosphericParticles count={100} size={0.08} baseOpacity={0.1} breathingOpacity={0.15} />}
+      {showParticles && (
+        <AtmosphericParticles count={100} size={0.08} baseOpacity={0.1} breathingOpacity={0.15} />
+      )}
 
       <PostProcessing bloom={bloom} />
     </Suspense>
