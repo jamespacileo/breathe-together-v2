@@ -17,7 +17,6 @@ const TUNING_DEFAULTS = {
   refraction: 1.4,
   breath: 0.3,
   expansion: 2.0,
-  earthRotationSpeed: 0.1,
   atmosphericParticleCount: 100,
 };
 
@@ -65,7 +64,7 @@ export function BreathingLevel({
           polar={[-Math.PI * 0.3, Math.PI * 0.3]}
           azimuth={[-Infinity, Infinity]}
         >
-          {showGlobe && <EarthGlobe rotationSpeed={TUNING_DEFAULTS.earthRotationSpeed} />}
+          {showGlobe && <EarthGlobe />}
 
           {showParticles && <ParticleSwarm capacity={harmony} users={moods} />}
 
