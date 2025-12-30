@@ -7,7 +7,9 @@
  * - Slow Y-axis rotation
  * - Soft fresnel rim for atmospheric glow
  * - Layered atmosphere halo (3 pastel-colored translucent spheres)
- * - Sparkle aura (floating dust particles around the globe)
+ * - Inner glow (additive blended fresnel for warm light bloom)
+ * - Animated mist layer (noise-based haze that breathes)
+ * - Sparkle aura (visible floating dust particles)
  * - Equator ring (subtle rose gold accent ring)
  *
  * Visual style: Monument Valley pastel aesthetic with soft, ethereal glow.
@@ -70,6 +72,96 @@ void main() {
 }
 `;
 
+// Glow shader - cheap additive fresnel glow
+const glowVertexShader = `
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+void main() {
+  vNormal = normalize(normalMatrix * normal);
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vViewPosition = -mvPosition.xyz;
+  gl_Position = projectionMatrix * mvPosition;
+}
+`;
+
+const glowFragmentShader = `
+uniform vec3 glowColor;
+uniform float glowIntensity;
+uniform float breathPhase;
+
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+void main() {
+  vec3 viewDir = normalize(vViewPosition);
+  // Fresnel - stronger at edges
+  float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 2.5);
+  // Breathing pulse
+  float pulse = 1.0 + breathPhase * 0.3;
+  float alpha = fresnel * glowIntensity * pulse;
+  gl_FragColor = vec4(glowColor, alpha);
+}
+`;
+
+// Mist shader - subtle animated noise haze
+const mistVertexShader = `
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+varying vec2 vUv;
+
+void main() {
+  vNormal = normalize(normalMatrix * normal);
+  vUv = uv;
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vViewPosition = -mvPosition.xyz;
+  gl_Position = projectionMatrix * mvPosition;
+}
+`;
+
+const mistFragmentShader = `
+uniform float time;
+uniform float breathPhase;
+uniform vec3 mistColor;
+
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+varying vec2 vUv;
+
+// Simple noise function
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+void main() {
+  vec3 viewDir = normalize(vViewPosition);
+  float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 1.5);
+
+  // Animated noise for misty effect
+  vec2 uv = vUv * 4.0 + time * 0.02;
+  float n = noise(uv) * 0.5 + noise(uv * 2.0) * 0.3 + noise(uv * 4.0) * 0.2;
+
+  // Breathing modulation
+  float breath = 0.6 + breathPhase * 0.4;
+
+  // Combine fresnel edge with noise
+  float alpha = fresnel * n * 0.15 * breath;
+
+  gl_FragColor = vec4(mistColor, alpha);
+}
+`;
+
 /**
  * Atmosphere halo configuration - pastel layers around the globe
  */
@@ -95,8 +187,12 @@ interface EarthGlobeProps {
   showSparkles?: boolean;
   /** Show equator ring @default true */
   showRing?: boolean;
-  /** Sparkle count @default 40 */
+  /** Sparkle count @default 60 */
   sparkleCount?: number;
+  /** Show inner glow effect @default true */
+  showGlow?: boolean;
+  /** Show mist/haze layer @default true */
+  showMist?: boolean;
 }
 
 /**
@@ -110,7 +206,9 @@ export function EarthGlobe({
   showAtmosphere = true,
   showSparkles = true,
   showRing = true,
-  sparkleCount = 40,
+  sparkleCount = 60,
+  showGlow = true,
+  showMist = true,
 }: Partial<EarthGlobeProps> = {}) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
@@ -141,12 +239,51 @@ export function EarthGlobe({
     [earthTexture],
   );
 
-  // Cleanup material on unmount (Sphere handles geometry disposal)
+  // Create glow material - additive blended fresnel glow
+  const glowMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: {
+          glowColor: { value: new THREE.Color('#ffe8d6') }, // Warm cream glow
+          glowIntensity: { value: 0.6 },
+          breathPhase: { value: 0 },
+        },
+        vertexShader: glowVertexShader,
+        fragmentShader: glowFragmentShader,
+        side: THREE.FrontSide,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    [],
+  );
+
+  // Create mist material - animated noise haze
+  const mistMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: {
+          time: { value: 0 },
+          breathPhase: { value: 0 },
+          mistColor: { value: new THREE.Color('#f0ebe6') }, // Soft warm white
+        },
+        vertexShader: mistVertexShader,
+        fragmentShader: mistFragmentShader,
+        side: THREE.FrontSide,
+        transparent: true,
+        depthWrite: false,
+      }),
+    [],
+  );
+
+  // Cleanup materials on unmount
   useEffect(() => {
     return () => {
       material.dispose();
+      glowMaterial.dispose();
+      mistMaterial.dispose();
     };
-  }, [material]);
+  }, [material, glowMaterial, mistMaterial]);
 
   /**
    * Update globe scale, rotation, and shader uniforms
@@ -159,8 +296,12 @@ export function EarthGlobe({
       const breathEntity = world?.queryFirst?.(breathPhase);
       if (breathEntity) {
         const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
-        // Update shader uniform
+        // Update shader uniforms
         material.uniforms.breathPhase.value = phase;
+        glowMaterial.uniforms.breathPhase.value = phase;
+        mistMaterial.uniforms.breathPhase.value = phase;
+        mistMaterial.uniforms.time.value = state.clock.elapsedTime;
+
         // Subtle pulse: 1.0 to 1.06 (6% scale change)
         const scale = 1.0 + phase * 0.06;
         groupRef.current.scale.set(scale, scale, scale);
@@ -222,14 +363,24 @@ export function EarthGlobe({
           </mesh>
         ))}
 
-      {/* Soft sparkle aura - floating dust particles */}
+      {/* Inner glow - additive blended fresnel */}
+      {showGlow && (
+        <Sphere args={[radius * 1.02, 32, 32]} material={glowMaterial} frustumCulled={false} />
+      )}
+
+      {/* Mist layer - animated noise haze */}
+      {showMist && (
+        <Sphere args={[radius * 1.15, 32, 32]} material={mistMaterial} frustumCulled={false} />
+      )}
+
+      {/* Soft sparkle aura - floating dust particles (more visible) */}
       {showSparkles && (
         <Sparkles
           count={sparkleCount}
-          size={2}
-          scale={[radius * 3, radius * 3, radius * 3]}
-          speed={0.3}
-          opacity={0.2}
+          size={4}
+          scale={[radius * 3.5, radius * 3.5, radius * 3.5]}
+          speed={0.25}
+          opacity={0.45}
           color="#f8d0a8"
         />
       )}
