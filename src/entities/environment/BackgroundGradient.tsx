@@ -60,11 +60,11 @@ float fbm(vec2 p) {
 }
 
 void main() {
-  // Monument Valley inspired palette - visible pastels with saturation
-  vec3 skyTop = vec3(0.75, 0.82, 0.92);       // #c0d1eb Soft sky blue
-  vec3 skyMid = vec3(0.95, 0.80, 0.75);       // #f2ccc0 Dusty rose/peach
-  vec3 horizon = vec3(1.0, 0.70, 0.55);       // #ffb38d Warm apricot
-  vec3 warmGlow = vec3(0.98, 0.60, 0.50);     // #fa9980 Sunset coral
+  // Creamy neutral background - soft warm tones
+  vec3 skyTop = vec3(0.96, 0.94, 0.91);       // #f5f0e8 Warm cream
+  vec3 skyMid = vec3(0.98, 0.95, 0.90);       // #faf2e6 Soft ivory
+  vec3 horizon = vec3(0.99, 0.94, 0.88);      // #fcf0e0 Warm white
+  vec3 warmGlow = vec3(0.98, 0.92, 0.85);     // #faebb9 Subtle warm glow
 
   // Vertical position for gradient
   float y = vUv.y;
@@ -92,19 +92,19 @@ void main() {
   float cloudMask = smoothstep(0.2, 0.55, clouds * 0.5 + clouds2 * 0.5);
   cloudMask *= smoothstep(0.1, 0.4, y) * smoothstep(0.95, 0.6, y);
 
-  // Cloud color - warm white that complements the gradient
-  vec3 cloudColor = vec3(1.0, 0.96, 0.92);
+  // Cloud color - pure warm white
+  vec3 cloudColor = vec3(1.0, 0.99, 0.97);
 
-  // Blend clouds subtly into sky
-  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.25);
+  // Blend clouds very subtly into sky
+  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
 
   // Very subtle vignette - just darkens corners slightly
   vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.2, vignetteUv * 0.2);
-  color *= mix(0.95, 1.0, vignette);
+  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
+  color *= mix(0.97, 1.0, vignette);
 
   // Paper texture noise (very subtle)
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.01;
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
   color += noise;
 
   gl_FragColor = vec4(color, 1.0);

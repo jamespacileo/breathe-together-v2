@@ -61,62 +61,62 @@ export function Environment({
       {/* Animated gradient background - renders behind everything */}
       <BackgroundGradient />
 
-      {/* Volumetric 3D clouds - soft wisps, low opacity to not cover gradient */}
+      {/* Volumetric 3D clouds - pastel colored wisps */}
       {showClouds && (
         <Clouds ref={cloudsRef} material={THREE.MeshBasicMaterial}>
-          {/* Main cloud bank - upper left */}
+          {/* Soft pink cloud - upper left */}
           <Cloud
             position={[-15, 12, -25]}
-            opacity={cloudOpacity * 0.3}
+            opacity={cloudOpacity * 0.5}
             speed={cloudSpeed}
             segments={30}
             bounds={[12, 3, 8]}
             volume={6}
-            color="#f2ccc0"
+            color="#f8b4c4"
             fade={40}
           />
-          {/* Secondary cloud - upper right */}
+          {/* Soft lavender cloud - upper right */}
           <Cloud
             position={[18, 14, -30]}
-            opacity={cloudOpacity * 0.25}
+            opacity={cloudOpacity * 0.45}
             speed={cloudSpeed * 0.8}
             segments={25}
             bounds={[10, 2.5, 6]}
             volume={5}
-            color="#e8d0c8"
+            color="#c4b8e8"
             fade={35}
           />
-          {/* Wispy cloud - center high */}
+          {/* Soft sky blue cloud - center high */}
           <Cloud
             position={[0, 20, -40]}
-            opacity={cloudOpacity * 0.2}
+            opacity={cloudOpacity * 0.4}
             speed={cloudSpeed * 1.2}
             segments={20}
             bounds={[8, 2, 5]}
             volume={4}
-            color="#d8e0f0"
+            color="#a8d4e8"
             fade={30}
           />
-          {/* Low horizon cloud - left */}
+          {/* Soft peach cloud - left horizon */}
           <Cloud
             position={[-20, 5, -45]}
-            opacity={cloudOpacity * 0.2}
+            opacity={cloudOpacity * 0.4}
             speed={cloudSpeed * 0.5}
             segments={25}
             bounds={[15, 2, 10]}
             volume={4}
-            color="#ffd8c0"
+            color="#f8d0a8"
             fade={45}
           />
-          {/* Low horizon cloud - right */}
+          {/* Soft mint cloud - right horizon */}
           <Cloud
             position={[22, 6, -42]}
-            opacity={cloudOpacity * 0.18}
+            opacity={cloudOpacity * 0.35}
             speed={cloudSpeed * 0.6}
             segments={22}
             bounds={[12, 1.5, 8]}
             volume={3}
-            color="#ffe0d0"
+            color="#b8e8d4"
             fade={40}
           />
         </Clouds>
