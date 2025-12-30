@@ -47,12 +47,6 @@ interface GaiaUIProps {
   /** Particle count (harmony) */
   harmony: number;
   setHarmony: (v: number) => void;
-  /** Index of Refraction - controls light bending through glass */
-  ior: number;
-  setIor: (v: number) => void;
-  /** Glass depth - controls backface normal blending/distortion */
-  glassDepth: number;
-  setGlassDepth: (v: number) => void;
   /** Orbit radius - how far particles orbit from center */
   orbitRadius: number;
   setOrbitRadius: (v: number) => void;
@@ -67,10 +61,6 @@ interface GaiaUIProps {
 export function GaiaUI({
   harmony,
   setHarmony,
-  ior,
-  setIor,
-  glassDepth,
-  setGlassDepth,
   orbitRadius,
   setOrbitRadius,
   shardSize,
@@ -386,54 +376,6 @@ export function GaiaUI({
                 step="0.1"
                 value={orbitRadius}
                 onChange={(e) => setOrbitRadius(parseFloat(e.target.value))}
-                style={inputStyle}
-              />
-            </label>
-          </div>
-
-          {/* === GLASS SECTION === */}
-          <div style={sectionStyle}>
-            <div
-              style={{
-                fontSize: '0.55rem',
-                color: colors.textDim,
-                marginBottom: '12px',
-                letterSpacing: '0.2em',
-              }}
-            >
-              GLASS
-            </div>
-
-            {/* IOR - Index of Refraction */}
-            <label style={{ marginBottom: '14px', display: 'block' }}>
-              <div style={labelStyle}>
-                <span>Refraction</span>
-                <span style={{ fontWeight: 400 }}>{ior.toFixed(2)}</span>
-              </div>
-              <input
-                type="range"
-                min="1.0"
-                max="2.5"
-                step="0.01"
-                value={ior}
-                onChange={(e) => setIor(parseFloat(e.target.value))}
-                style={inputStyle}
-              />
-            </label>
-
-            {/* Glass Depth */}
-            <label style={{ display: 'block' }}>
-              <div style={labelStyle}>
-                <span>Depth</span>
-                <span style={{ fontWeight: 400 }}>{glassDepth.toFixed(2)}</span>
-              </div>
-              <input
-                type="range"
-                min="0.0"
-                max="1.0"
-                step="0.01"
-                value={glassDepth}
-                onChange={(e) => setGlassDepth(parseFloat(e.target.value))}
                 style={inputStyle}
               />
             </label>

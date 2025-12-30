@@ -6,7 +6,6 @@ import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
-import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -15,8 +14,6 @@ import type { BreathingLevelProps } from '../types/sceneProps';
  */
 const TUNING_DEFAULTS = {
   particleCounts: { sparse: 24, normal: 48, dense: 96 },
-  ior: 1.3, // Index of Refraction
-  backfaceIntensity: 0.3, // Glass depth/distortion
   orbitRadius: 4.5, // Base orbit radius
   shardSize: 0.5, // Max shard size
   atmosphereDensity: 100, // Atmospheric particle count
@@ -24,7 +21,7 @@ const TUNING_DEFAULTS = {
 
 /**
  * BreathingLevel - Core meditation environment.
- * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ * Simplified rendering without FBO pipeline to prevent WebGL context loss.
  */
 export function BreathingLevel({
   particleDensity,
@@ -41,8 +38,6 @@ export function BreathingLevel({
         ? TUNING_DEFAULTS.particleCounts.dense
         : TUNING_DEFAULTS.particleCounts.normal,
   );
-  const [ior, setIor] = useState(TUNING_DEFAULTS.ior);
-  const [glassDepth, setGlassDepth] = useState(TUNING_DEFAULTS.backfaceIntensity);
   const [orbitRadius, setOrbitRadius] = useState(TUNING_DEFAULTS.orbitRadius);
   const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
   const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
@@ -52,52 +47,45 @@ export function BreathingLevel({
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
-        {/* 3-Pass FBO Refraction Pipeline handles background + refraction rendering */}
-        <RefractionPipeline ior={ior} backfaceIntensity={glassDepth}>
-          {/* Monument Valley inspired atmosphere - clouds, lighting, fog */}
-          {showEnvironment && <Environment showClouds={true} showStars={true} />}
+        {/* Monument Valley inspired atmosphere - clouds, lighting, fog */}
+        {showEnvironment && <Environment showClouds={true} showStars={true} />}
 
-          {/* Wrap rotatable entities in PresentationControls */}
-          <PresentationControls
-            global
-            cursor={true}
-            snap={false}
-            speed={1}
-            damping={0.3}
-            polar={[-Math.PI * 0.3, Math.PI * 0.3]}
-            azimuth={[-Infinity, Infinity]}
-          >
-            {showGlobe && <EarthGlobe />}
+        {/* Wrap rotatable entities in PresentationControls */}
+        <PresentationControls
+          global
+          cursor={true}
+          snap={false}
+          speed={1}
+          damping={0.3}
+          polar={[-Math.PI * 0.3, Math.PI * 0.3]}
+          azimuth={[-Infinity, Infinity]}
+        >
+          {showGlobe && <EarthGlobe />}
 
-            {showParticles && (
-              <ParticleSwarm
-                count={harmony}
-                users={moods}
-                baseRadius={orbitRadius}
-                maxShardSize={shardSize}
-              />
-            )}
+          {showParticles && (
+            <ParticleSwarm
+              count={harmony}
+              users={moods}
+              baseRadius={orbitRadius}
+              maxShardSize={shardSize}
+            />
+          )}
 
-            {showParticles && (
-              <AtmosphericParticles
-                count={atmosphereDensity}
-                size={0.08}
-                baseOpacity={0.1}
-                breathingOpacity={0.15}
-              />
-            )}
-          </PresentationControls>
-        </RefractionPipeline>
+          {showParticles && (
+            <AtmosphericParticles
+              count={atmosphereDensity}
+              size={0.08}
+              baseOpacity={0.1}
+              breathingOpacity={0.15}
+            />
+          )}
+        </PresentationControls>
 
-        {/* UI stays OUTSIDE pipeline (fixed HUD) */}
+        {/* UI stays fixed (HUD) */}
         <Html fullscreen>
           <GaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
-            ior={ior}
-            setIor={setIor}
-            glassDepth={glassDepth}
-            setGlassDepth={setGlassDepth}
             orbitRadius={orbitRadius}
             setOrbitRadius={setOrbitRadius}
             shardSize={shardSize}
