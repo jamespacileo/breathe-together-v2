@@ -3,6 +3,7 @@ import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GaiaUI } from '../components/GaiaUI';
 import { EarthGlobe } from '../entities/earthGlobe';
+import { AtmosphericClouds } from '../entities/environment/AtmosphericClouds';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -53,6 +54,9 @@ export function BreathingLevel({
       <Suspense fallback={null}>
         {/* 3-Pass FBO Refraction Pipeline handles background + refraction rendering */}
         <RefractionPipeline ior={ior} backfaceIntensity={glassDepth}>
+          {/* Atmospheric clouds - outside PresentationControls for static background */}
+          {showEnvironment && <AtmosphericClouds opacity={0.5} speed={0.4} />}
+
           {/* Wrap rotatable entities in PresentationControls */}
           <PresentationControls
             global

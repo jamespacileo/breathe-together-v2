@@ -97,17 +97,50 @@ void main() {
 
 const bgFragmentShader = `
 varying vec2 vUv;
+
+// Multi-stop gradient for Monument Valley sunset aesthetic
+vec3 sampleGradient(float t) {
+  // 5-stop gradient: warm peach → soft coral → dusty rose → lavender → soft sky blue
+  vec3 c0 = vec3(0.98, 0.82, 0.70);  // #fad1b3 Warm peach (bottom)
+  vec3 c1 = vec3(0.96, 0.75, 0.72);  // #f5c0b8 Soft coral
+  vec3 c2 = vec3(0.92, 0.78, 0.82);  // #ebc7d1 Dusty rose/pink
+  vec3 c3 = vec3(0.85, 0.82, 0.92);  // #d9d1eb Soft lavender
+  vec3 c4 = vec3(0.82, 0.88, 0.96);  // #d1e0f5 Soft sky blue (top)
+
+  // Smooth interpolation between stops
+  if (t < 0.25) {
+    return mix(c0, c1, smoothstep(0.0, 0.25, t));
+  } else if (t < 0.45) {
+    return mix(c1, c2, smoothstep(0.25, 0.45, t));
+  } else if (t < 0.65) {
+    return mix(c2, c3, smoothstep(0.45, 0.65, t));
+  } else {
+    return mix(c3, c4, smoothstep(0.65, 1.0, t));
+  }
+}
+
 void main() {
-  // Monument Valley "Valley" level tones
-  vec3 top = vec3(0.98, 0.96, 0.93);    // #faf5ed Off-white/Cream
-  vec3 bottom = vec3(0.95, 0.85, 0.80); // #f2d9cc Soft Terracotta/Peach
+  // Base vertical gradient
+  float t = vUv.y;
+  vec3 color = sampleGradient(t);
 
-  // Very smooth vertical gradient
-  float t = smoothstep(0.0, 1.0, vUv.y);
-  vec3 color = mix(bottom, top, t);
+  // Subtle horizontal atmospheric bands (distant haze layers)
+  float band1 = smoothstep(0.28, 0.32, t) * smoothstep(0.36, 0.32, t);
+  float band2 = smoothstep(0.58, 0.62, t) * smoothstep(0.66, 0.62, t);
+  color = mix(color, color * 1.03, band1 * 0.3);
+  color = mix(color, color * 1.02, band2 * 0.2);
 
-  // Subtle noise for paper texture feel
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.03;
+  // Subtle radial vignette from center (depth/atmosphere)
+  vec2 center = vUv - vec2(0.5);
+  float vignette = 1.0 - dot(center, center) * 0.15;
+  color *= vignette;
+
+  // Subtle warm highlight at horizon (sun glow)
+  float horizonGlow = exp(-pow((t - 0.15) * 4.0, 2.0)) * 0.08;
+  color += vec3(1.0, 0.9, 0.75) * horizonGlow;
+
+  // Paper texture noise (very subtle)
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
 
   gl_FragColor = vec4(color + noise, 1.0);
 }
