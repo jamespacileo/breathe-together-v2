@@ -37,7 +37,7 @@ export function BreathEntity() {
   const world = useWorld();
   const debugConfig = useBreathDebug();
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ECS entity initialization with multiple trait setup steps
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ECS entity initialization with multiple trait setup steps - refactoring would reduce readability
   useEffect(() => {
     try {
       // Check if it already exists
