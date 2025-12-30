@@ -10,9 +10,11 @@ interface EnvironmentProps {
 export function Environment({ enabled = true }: EnvironmentProps = {}) {
   const { scene } = useThree();
 
-  // Set scene background color once
+  // Set scene background color once - using a soft, meditative off-white/warm gray
   useEffect(() => {
-    scene.background = new THREE.Color(0xfaf8f3);
+    scene.background = new THREE.Color(0xf2f0ed);
+    // Add subtle fog to blend the horizon
+    scene.fog = new THREE.Fog(0xf2f0ed, 10, 50);
   }, [scene]);
 
   if (!enabled) return null;
@@ -23,7 +25,7 @@ export function Environment({ enabled = true }: EnvironmentProps = {}) {
         High-quality Environment Map 
         Provides realistic reflections for those ceramic and frosted surfaces
       */}
-      <EnvironmentMap preset="studio" blur={0.8} />
+      <EnvironmentMap preset="apartment" blur={0.8} />
 
       {/* 
         Balanced Studio Lighting Rig
@@ -31,16 +33,16 @@ export function Environment({ enabled = true }: EnvironmentProps = {}) {
         - Fill Light: Soft light from opposite side
         - Back Light: Highlights the silhouette (especially for the shards)
       */}
-      <ambientLight intensity={0.4} color="#ffffff" />
+      <ambientLight intensity={0.5} color="#ffffff" />
 
       {/* Key Light */}
-      <directionalLight position={[10, 10, 10]} intensity={1.2} color="#fffaf0" castShadow />
+      <directionalLight position={[5, 10, 5]} intensity={1.5} color="#fffcf5" castShadow />
 
       {/* Fill Light (Cooler tone) */}
-      <directionalLight position={[-10, 5, 5]} intensity={0.6} color="#e0f0f8" />
+      <directionalLight position={[-10, 5, 2]} intensity={0.4} color="#f0f7ff" />
 
-      {/* Back Light (Highlight edges) */}
-      <spotLight position={[0, 10, -15]} intensity={1.5} angle={0.6} penumbra={1} color="#ffffff" />
+      {/* Back Light / Rim Light */}
+      <spotLight position={[0, 10, -10]} intensity={2} angle={0.5} penumbra={1} color="#ffffff" />
     </>
   );
 }

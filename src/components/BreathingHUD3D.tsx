@@ -41,7 +41,7 @@ export function BreathingHUD3D() {
             borderColor="rgba(140, 123, 108, 0.1)"
           >
             {/* Phase Name: e.g., "INHALE" */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Container flexDirection="column" gap={4}>
               <Text
                 ref={phaseNameRef}
                 fontSize={12}
@@ -55,7 +55,7 @@ export function BreathingHUD3D() {
               <Text ref={timerRef} fontSize={20} color="#8c7b6c" fontWeight={300}>
                 4s
               </Text>
-            </div>
+            </Container>
 
             {/* Progress Bar Container */}
             <Container
@@ -76,7 +76,7 @@ export function BreathingHUD3D() {
             </Container>
 
             {/* User Count: e.g., "75 together" */}
-            <div style={{ textAlign: 'right' }}>
+            <Container flexDirection="column" alignItems="flex-end">
               <Text fontSize={10} color="#b8a896" letterSpacing={0.1} fontWeight={600}>
                 PRESENCE
               </Text>
@@ -86,7 +86,7 @@ export function BreathingHUD3D() {
                   together
                 </Text>
               </Text>
-            </div>
+            </Container>
           </Container>
         </Fullscreen>
       </Suspense>

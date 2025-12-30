@@ -51,12 +51,17 @@ export function BreathDebugVisuals({
   showTraitValues = false,
 }: BreathDebugVisualsProps) {
   const world = useWorld();
-  const [currentValues, setCurrentValues] = useState<TraitValues>({
+
+  // Store current values in ref to avoid repeated object allocations
+  const valuesRef = useRef<TraitValues>({
     phase: 0,
     orbit: VISUALS.PARTICLE_ORBIT_MAX,
     scale: 1,
     phaseType: 0,
   });
+
+  // Use state for Html overlay only (needed for DOM updates), ref for Three.js visuals
+  const [, setForceUpdate] = useState(0);
 
   // Update values every frame
   useFrame(() => {
@@ -64,12 +69,15 @@ export function BreathDebugVisuals({
       const breath = world.queryFirst(breathPhase, orbitRadius, sphereScale, phaseType);
       if (!breath || !world.has(breath)) return;
 
-      setCurrentValues({
+      valuesRef.current = {
         phase: breath.get(breathPhase)?.value ?? 0,
         orbit: breath.get(orbitRadius)?.value ?? VISUALS.PARTICLE_ORBIT_MAX,
         scale: breath.get(sphereScale)?.value ?? 1,
         phaseType: breath.get(phaseType)?.value ?? 0,
-      });
+      };
+
+      // Throttle HTML updates to every 4 frames (~15fps) instead of 60fps
+      if (Math.random() < 0.25) setForceUpdate((v) => v + 1);
     } catch (_e) {
       // Ignore stale world errors
     }
@@ -100,7 +108,7 @@ export function BreathDebugVisuals({
 
           {/* Current orbit (updates based on breath phase) */}
           <mesh>
-            <sphereGeometry args={[currentValues.orbit, 32, 32]} />
+            <sphereGeometry args={[valuesRef.current.orbit, 32, 32]} />
             <meshBasicMaterial color="#ffff00" wireframe opacity={0.5} transparent />
           </mesh>
         </group>
@@ -116,7 +124,7 @@ export function BreathDebugVisuals({
           <mesh position={[0, 2, 0]}>
             <torusGeometry args={[0.3, 0.05, 16, 32]} />
             <meshBasicMaterial
-              color={currentValues.phaseType === 0 ? '#00ff00' : '#003300'}
+              color={valuesRef.current.phaseType === 0 ? '#00ff00' : '#003300'}
               toneMapped={false}
             />
           </mesh>
@@ -125,7 +133,7 @@ export function BreathDebugVisuals({
           <mesh position={[2, 0, 0]}>
             <torusGeometry args={[0.3, 0.05, 16, 32]} />
             <meshBasicMaterial
-              color={currentValues.phaseType === 1 ? '#0000ff' : '#000033'}
+              color={valuesRef.current.phaseType === 1 ? '#0000ff' : '#000033'}
               toneMapped={false}
             />
           </mesh>
@@ -134,7 +142,7 @@ export function BreathDebugVisuals({
           <mesh position={[0, -2, 0]}>
             <torusGeometry args={[0.3, 0.05, 16, 32]} />
             <meshBasicMaterial
-              color={currentValues.phaseType === 2 ? '#ff0000' : '#330000'}
+              color={valuesRef.current.phaseType === 2 ? '#ff0000' : '#330000'}
               toneMapped={false}
             />
           </mesh>
@@ -143,7 +151,7 @@ export function BreathDebugVisuals({
           <mesh position={[-2, 0, 0]}>
             <torusGeometry args={[0.3, 0.05, 16, 32]} />
             <meshBasicMaterial
-              color={currentValues.phaseType === 3 ? '#ffff00' : '#333300'}
+              color={valuesRef.current.phaseType === 3 ? '#ffff00' : '#333300'}
               toneMapped={false}
             />
           </mesh>
@@ -170,10 +178,12 @@ export function BreathDebugVisuals({
               whiteSpace: 'nowrap',
             }}
           >
-            <div>Phase: {currentValues.phase.toFixed(3)}</div>
-            <div>Type: {['Inhale', 'Hold-in', 'Exhale', 'Hold-out'][currentValues.phaseType]}</div>
-            <div>Orbit: {currentValues.orbit.toFixed(2)}</div>
-            <div>Scale: {currentValues.scale.toFixed(2)}</div>
+            <div>Phase: {valuesRef.current.phase.toFixed(3)}</div>
+            <div>
+              Type: {['Inhale', 'Hold-in', 'Exhale', 'Hold-out'][valuesRef.current.phaseType]}
+            </div>
+            <div>Orbit: {valuesRef.current.orbit.toFixed(2)}</div>
+            <div>Scale: {valuesRef.current.scale.toFixed(2)}</div>
           </div>
         </Html>
       )}
