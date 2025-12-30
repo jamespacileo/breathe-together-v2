@@ -48,7 +48,8 @@ export function BreathingLevel({
   const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
   const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
 
-  // Settings modal state (controlled by TopRightControls)
+  // UI modal states (controlled by TopRightControls)
+  const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
@@ -95,10 +96,13 @@ export function BreathingLevel({
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
-          {/* Top-right control icons (tune + audio toggle) */}
-          <TopRightControls onOpenSettings={() => setShowSettings(true)} />
+          {/* Top-right control icons (audio + tune + settings) */}
+          <TopRightControls
+            onOpenTuneControls={() => setShowTuneControls(true)}
+            onOpenSettings={() => setShowSettings(true)}
+          />
 
-          {/* Main UI with breathing phase, inspirational text, and settings modal */}
+          {/* Main UI with breathing phase, inspirational text, and modals */}
           <SimpleGaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
@@ -112,6 +116,8 @@ export function BreathingLevel({
             setShardSize={setShardSize}
             atmosphereDensity={atmosphereDensity}
             setAtmosphereDensity={setAtmosphereDensity}
+            showTuneControls={showTuneControls}
+            onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
           />

@@ -10,11 +10,13 @@ import { useContext } from 'react';
 import { AudioContext } from '../audio/AudioProvider';
 
 interface TopRightControlsProps {
-  /** Callback to open settings modal */
+  /** Callback to open tune/animation controls */
+  onOpenTuneControls: () => void;
+  /** Callback to open settings/mood modal */
   onOpenSettings: () => void;
 }
 
-export function TopRightControls({ onOpenSettings }: TopRightControlsProps) {
+export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRightControlsProps) {
   // Use useContext directly to avoid throwing error when provider is missing
   // This allows the component to render gracefully without audio controls
   const audio = useContext(AudioContext);
@@ -138,10 +140,62 @@ export function TopRightControls({ onOpenSettings }: TopRightControlsProps) {
         </button>
       )}
 
-      {/* Tune/Settings Icon */}
+      {/* Tune/Animation Controls Icon */}
       <button
         type="button"
-        title="Settings"
+        title="Tune Animation"
+        onClick={onOpenTuneControls}
+        onPointerDown={stopPropagation}
+        style={{
+          background: colors.bg,
+          backdropFilter: 'blur(20px)',
+          border: `1px solid ${colors.border}`,
+          borderRadius: '50%',
+          width: '44px',
+          height: '44px',
+          minWidth: '44px',
+          minHeight: '44px',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: colors.icon,
+          opacity: 0.9,
+          transition: 'all 0.3s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = '1';
+          e.currentTarget.style.background = colors.bgHover;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = '0.9';
+          e.currentTarget.style.background = colors.bg;
+        }}
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          aria-labelledby="tune-icon-title"
+        >
+          <title id="tune-icon-title">Tune animation controls</title>
+          {/* Horizontal sliders icon */}
+          <line x1="4" y1="6" x2="20" y2="6" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="8" cy="6" r="2" strokeWidth="1.5" />
+          <line x1="4" y1="12" x2="20" y2="12" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="14" cy="12" r="2" strokeWidth="1.5" />
+          <line x1="4" y1="18" x2="20" y2="18" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="10" cy="18" r="2" strokeWidth="1.5" />
+        </svg>
+      </button>
+
+      {/* Settings/Mood Icon */}
+      <button
+        type="button"
+        title="Settings & Mood"
         onClick={onOpenSettings}
         onPointerDown={stopPropagation}
         style={{

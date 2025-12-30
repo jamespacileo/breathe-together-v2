@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { InspirationalText } from './InspirationalText';
@@ -62,6 +62,10 @@ interface SimpleGaiaUIProps {
   /** Atmosphere density - number of ambient floating particles */
   atmosphereDensity: number;
   setAtmosphereDensity: (v: number) => void;
+  /** Optional external control for tune controls visibility */
+  showTuneControls?: boolean;
+  /** Optional callback when tune controls visibility changes */
+  onShowTuneControlsChange?: (show: boolean) => void;
   /** Optional external control for settings modal visibility */
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
@@ -93,10 +97,12 @@ export function SimpleGaiaUI({
   setShardSize,
   atmosphereDensity,
   setAtmosphereDensity,
+  showTuneControls: externalShowTuneControls,
+  onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
 }: SimpleGaiaUIProps) {
-  const [isControlsOpen, setIsControlsOpen] = useState(false);
+  const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
@@ -105,7 +111,20 @@ export function SimpleGaiaUI({
   const [showMoodSelect, setShowMoodSelect] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
 
-  // Use external control if provided, otherwise use internal state
+  // Use external control for tune controls if provided, otherwise use internal state
+  const isControlsOpen = externalShowTuneControls ?? internalIsControlsOpen;
+  const setIsControlsOpen = useCallback(
+    (value: boolean) => {
+      if (onShowTuneControlsChange) {
+        onShowTuneControlsChange(value);
+      } else {
+        setInternalIsControlsOpen(value);
+      }
+    },
+    [onShowTuneControlsChange],
+  );
+
+  // Use external control for settings if provided, otherwise use internal state
   const showSettings = externalShowSettings ?? internalShowSettings;
   const setShowSettings = (value: boolean) => {
     if (onShowSettingsChange) {
@@ -224,7 +243,7 @@ export function SimpleGaiaUI({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [setIsControlsOpen]);
 
   // Focus Mode: Fade out UI after inactivity
   useEffect(() => {
