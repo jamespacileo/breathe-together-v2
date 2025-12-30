@@ -137,12 +137,43 @@ export const createFresnelMaterial = (noiseIntensity: number = 0.05) =>
     fragmentShader: FRESNEL_FRAGMENT_SHADER,
   });
 // ============================================================================
+// PAINTED BACKGROUND SHADER - Minimalist Gradient with Paper Texture
+// ============================================================================
+
+export const PAINTED_BACKGROUND_VERTEX_SHADER = `
+    varying vec2 vUv;
+    void main() {
+        vUv = uv;
+        // Full screen quad in clip space
+        gl_Position = vec4(position, 1.0);
+    }
+`;
+
+export const PAINTED_BACKGROUND_FRAGMENT_SHADER = `
+    varying vec2 vUv;
+    uniform float uTime;
+
+    void main() {
+        // Palette: Monument Valley "Valley" level tones
+        vec3 top = vec3(0.98, 0.96, 0.93);   // Off-white/Cream
+        vec3 bottom = vec3(0.95, 0.85, 0.80); // Soft Terracotta/Peach
+        
+        // Very smooth vertical gradient
+        float t = smoothstep(0.0, 1.0, vUv.y);
+        vec3 color = mix(bottom, top, t);
+        
+        // Subtle noise for paper texture feel
+        float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.03;
+        
+        gl_FragColor = vec4(color + noise, 1.0);
+    }
+`;
+
+// ============================================================================
 // GLASS REFRACTION SHADER - Multiside glass with mood-colored reflections
 // ============================================================================
 
 export const GLASS_REFRACTION_VERTEX_SHADER = `
-	attribute vec3 instanceColor;
-
 	varying vec3 vWorldPosition;
 	varying vec3 vWorldNormal;
 	varying vec3 vEyeVector;
@@ -150,25 +181,22 @@ export const GLASS_REFRACTION_VERTEX_SHADER = `
 	varying vec2 vScreenUV;
 
 	void main() {
-		// Apply instance transform to position and normal
-		vec4 worldPosition = instanceMatrix * vec4(position, 1.0);
+		// Position in world space (InstancedMesh handles instanceMatrix automatically)
+		vec4 worldPosition = modelMatrix * vec4(position, 1.0);
 		vWorldPosition = worldPosition.xyz;
 
-		// Transform normal to world space (inverse transpose of model matrix)
-		mat3 normalMatrix = mat3(instanceMatrix);
-		vWorldNormal = normalize(normalMatrix * normal);
+		// Transform normal to world space (simple mat3 for normal transformation)
+		vWorldNormal = normalize(mat3(modelMatrix) * normal);
 
 		// Calculate eye vector (camera to vertex in world space)
 		vEyeVector = normalize(vWorldPosition - cameraPosition);
 
-		// Pass instance color (mood color) to fragment shader
-		vMoodColor = instanceColor;
+		// Mood color (white fallback)
+		vMoodColor = vec3(1.0);
 
-		// Calculate screen-space position
+		// Calculate clip position and screen UV
 		vec4 clipPosition = projectionMatrix * viewMatrix * worldPosition;
 		gl_Position = clipPosition;
-
-		// Calculate screen UV (0-1 range) for render target sampling
 		vScreenUV = clipPosition.xy / clipPosition.w * 0.5 + 0.5;
 	}
 `;
@@ -200,57 +228,46 @@ export const GLASS_REFRACTION_FRAGMENT_SHADER = `
 
 		// === 1. BREATH-SYNCHRONIZED INDEX OF REFRACTION ===
 		float breathEased = smoothstep(0.0, 1.0, uBreathPhase);
-		float ior = mix(uIORMin, uIORMax, breathEased);
+		// Note: Reference uses fixed IOR 1.3 usually, but lets stick to dynamic or fixed param
+		// Reference: ior: 1.3
+		float ior = mix(uIORMin, uIORMax, breathEased); 
 
 		// === 2. MULTISIDE REFRACTION (Front + Back normals) ===
 		vec3 backfaceNormal = texture2D(uBackfaceMap, vScreenUV).rgb * 2.0 - 1.0;
-		vec3 combinedNormal = worldNormal * (1.0 - uBackfaceMix) - backfaceNormal * uBackfaceMix;
-		combinedNormal = normalize(combinedNormal);
+		// Reference uses simple mixing: 
+		// vec3 normal = normalize(worldNormal * (1.0 - backfaceIntensity) - backfaceNormal * backfaceIntensity);
+		vec3 combinedNormal = normalize(worldNormal * (1.0 - uBackfaceMix) - backfaceNormal * uBackfaceMix);
 
 		// === 3. REFRACTION CALCULATION ===
 		vec3 refractedVector = refract(eyeVector, combinedNormal, 1.0 / ior);
-
-		// Handle total internal reflection
-		bool isTotalInternalReflection = (length(refractedVector) < 0.01);
-		if (isTotalInternalReflection) {
-			refractedVector = reflect(eyeVector, combinedNormal);
-		}
-
-		// Convert refracted vector to screen UV offset
-		vec2 refractionOffset = refractedVector.xy * uRefractionStrength;
+		
+		// Very subtle distortion for a clean, polished look (Reference: 0.05)
+		vec2 refractionOffset = refractedVector.xy * uRefractionStrength; 
 		vec2 refractedUV = vScreenUV + refractionOffset;
-		refractedUV = clamp(refractedUV, 0.0, 1.0);
 
 		// Sample environment texture with refracted UV
-		vec3 refractedColor = texture2D(uEnvMap, refractedUV).rgb;
+		vec3 tex = texture2D(uEnvMap, refractedUV).rgb;
 
-		// === 4. FRESNEL REFLECTION ===
-		float fresnelDot = abs(dot(eyeVector, worldNormal));
-		float fresnel = pow(1.0 - fresnelDot, uFresnelPower);
+		// === 1. FROSTED TINT ===
+		// "Instead of adding light (glow), we multiply the refraction by the mood color."
+		vec3 tintedRefraction = tex * mix(vec3(1.0), vMoodColor, uGlassTint); // uGlassTint ~ 0.5
 
-		// === 5. MOOD-COLORED REFLECTION ===
-		vec3 reflectedVector = reflect(eyeVector, worldNormal);
-		vec2 reflectionOffset = reflectedVector.xy * 0.1;
-		vec2 reflectedUV = clamp(vScreenUV + reflectionOffset, 0.0, 1.0);
+		// === 2. MATTE BODY ===
+		// "Mix in a bit of the raw solid color to make it look semi-opaque/milky"
+		vec3 bodyColor = mix(tintedRefraction, vMoodColor, 0.25);
 
-		vec3 reflectedColor = texture2D(uEnvMap, reflectedUV).rgb;
-		vec3 moodReflection = mix(reflectedColor, reflectedColor * vMoodColor, uMoodReflectionStrength);
+		// === 3. FRESNEL / RIM ===
+		// "A sharper, whiter rim to mimic the clean edges in Monument Valley art"
+		float fresnel = pow(1.0 - clamp(dot(combinedNormal, -eyeVector), 0.0, 1.0), uFresnelPower); // Reference: 3.0
 
-		// === 6. GLASS BODY TINT ===
-		vec3 tintedRefraction = mix(refractedColor, refractedColor * vMoodColor, uGlassTint);
+		// === 4. SOFT TOP-DOWN LIGHT ===
+		// "Simulates a soft ambient environment"
+		float topLight = smoothstep(0.0, 1.0, combinedNormal.y) * 0.1; // Reference: 0.1
 
-		// === 7. FINAL COLOR COMPOSITION ===
-		vec3 finalColor = mix(tintedRefraction, moodReflection, fresnel);
+		vec3 finalColor = mix(bodyColor, vec3(1.0), fresnel * 0.4);
+		finalColor += vec3(1.0) * topLight;
 
-		// Add subtle mood glow during inhale
-		vec3 moodGlow = vMoodColor * fresnel * breathEased * 0.3;
-		finalColor += moodGlow;
-
-		// === 8. OPACITY ===
-		float finalOpacity = uOpacity + (fresnel * 0.3);
-		finalOpacity = clamp(finalOpacity, 0.0, 1.0);
-
-		gl_FragColor = vec4(finalColor, finalOpacity);
+		gl_FragColor = vec4(finalColor, uOpacity);
 	}
 `;
 
@@ -279,9 +296,9 @@ export const createGlassRefractionMaterial = (): THREE.ShaderMaterial => {
 
       // Appearance parameters
       uMoodReflectionStrength: { value: 0.5 },
-      uGlassTint: { value: 0.2 },
+      uGlassTint: { value: 0.5 }, // Reference: 0.5
       uFresnelPower: { value: 3.0 },
-      uOpacity: { value: 0.85 },
+      uOpacity: { value: 1.0 },
     },
     vertexShader: GLASS_REFRACTION_VERTEX_SHADER,
     fragmentShader: GLASS_REFRACTION_FRAGMENT_SHADER,

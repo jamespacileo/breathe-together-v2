@@ -176,15 +176,15 @@ export interface BreathingDebugProps {
 
 export interface EntityVisibilityProps {
   /**
-   * Show BreathingSphere entity.
+   * Show EarthGlobe entity (Monument Valley styled Earth with rotation).
    *
    * @group "Entity Visibility"
    * @default true
    */
-  showSphere?: boolean;
+  showGlobe?: boolean;
 
   /**
-   * Show ParticleSwarm entity.
+   * Show ParticleSwarm entity (orbiting icosahedral shards).
    *
    * @group "Entity Visibility"
    * @default true
@@ -192,7 +192,7 @@ export interface EntityVisibilityProps {
   showParticles?: boolean;
 
   /**
-   * Show Environment entity (lighting, shadows, backdrop, stars, sparkles).
+   * Show Environment entity (lighting, shadows, backdrop).
    *
    * @group "Entity Visibility"
    * @default true

@@ -1,41 +1,30 @@
-/**
- * BreathingLevel - Core meditation environment.
- *
- * This component serves as the primary composition layer for the breathing experience,
- * integrating the central sphere, particle swarm, lighting, and environment.
- *
- * TRIPLEX COMPOSITION PATTERN:
- * This scene follows a "Transparent Pass-through" pattern. It exposes high-level
- * configuration props (presets, density, mood) while delegating fine-grained visual
- * properties (colors, scales, opacities) to the individual entity components.
- *
- * - Entity components (BreathingSphere, ParticleSwarm, etc.) own their canonical defaults.
- * - BreathingLevel only provides defaults for scene-wide properties (background, bloom).
- * - This ensures a single source of truth and allows for deep visual tuning in Triplex
- *   by selecting the specific entity in the scene graph.
- */
-
 import { Suspense } from 'react';
 import { PostProcessing } from '../components/PostProcessing';
-import { BreathingSphere } from '../entities/breathingSphere';
+import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
+import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { usePresence } from '../hooks/usePresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
- * Main breathing meditation level.
+ * BreathingLevel - Core meditation environment.
  *
- * **Debug Note:** Entity visibility toggles (showSphere, showParticles, etc.) are debug-only
- * and default to true. They are primarily used in debug scenes to isolate specific entities.
+ * Monument Valley inspired breathing meditation with enhanced visual elements:
+ * - EarthGlobe: Central Earth with frosted glass overlay
+ * - AtmosphericParticles: Floating ambient particles
+ * - ParticleSwarm: Orbiting icosahedral shards
+ * - Environment: Gradient background and lighting
+ * - PostProcessing: Bloom effects
  */
 export function BreathingLevel({
   bloom = 'medium',
   particleDensity,
-  enableRefraction = true,
-  refractionQuality = 1024,
+  // biome-ignore lint/correctness/noUnusedFunctionParameters: Kept for prop interface compatibility
+  enableRefraction,
+  refractionQuality,
   // DEBUG-ONLY: Entity visibility toggles (all default true)
-  showSphere = true,
+  showGlobe = true,
   showParticles = true,
   showEnvironment = true,
 }: Partial<BreathingLevelProps> = {}) {
@@ -46,17 +35,20 @@ export function BreathingLevel({
 
   return (
     <Suspense fallback={null}>
-      {showEnvironment && <Environment enabled={showEnvironment} />}
+      <Environment enabled={showEnvironment} />
 
-      {showSphere && <BreathingSphere />}
+      {showGlobe && <EarthGlobe />}
+
       {showParticles && (
         <ParticleSwarm
           capacity={particleCount}
           users={moods}
-          enableRefraction={enableRefraction}
+          enableRefraction={false}
           refractionQuality={refractionQuality}
         />
       )}
+
+      {showParticles && <AtmosphericParticles count={100} size={0.08} baseOpacity={0.1} breathingOpacity={0.15} />}
 
       <PostProcessing bloom={bloom} />
     </Suspense>

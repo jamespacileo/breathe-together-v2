@@ -12,7 +12,7 @@
  * See docs/triplex/06-composition-patterns.md for full guidelines.
  */
 
-import { BreathingSphere } from '../../src/entities/breathingSphere';
+import { EarthGlobe } from '../../src/entities/earthGlobe';
 import { Environment } from '../../src/entities/environment';
 import type { BreathingDebugSceneProps, BreathingLevelProps } from '../../src/types/sceneProps';
 
@@ -35,7 +35,7 @@ export function RecommendedScene({ ...props }: Partial<BreathingLevelProps> = {}
     <>
       <Environment />
 
-      <BreathingSphere />
+      <EarthGlobe />
     </>
   );
 }
@@ -77,10 +77,10 @@ export function DebugScene({ ...restProps }: Partial<BreathingDebugSceneProps> =
  * changes, the scene default becomes stale and confusing.
  */
 export function AntiPatternRedundantDefaults({
-  // ❌ BAD: Duplicated from BreathingSphere
-  sphereOpacity = 0.12,
+  // ❌ BAD: Duplicated from EarthGlobe
+  globeScale = 2.5,
 }: {
-  sphereOpacity?: number;
+  globeScale?: number;
 } = {}) {
-  return <BreathingSphere mainOpacity={sphereOpacity} />;
+  return <EarthGlobe globeScale={globeScale} />;
 }

@@ -13,11 +13,10 @@ export function createBackfaceMaterial(): THREE.ShaderMaterial {
       varying vec3 vWorldNormal;
 
       void main() {
-        // Transform normal to world space
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        // Transform normal to view space
+        vWorldNormal = normalize(normalMatrix * normal);
 
-        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
 
