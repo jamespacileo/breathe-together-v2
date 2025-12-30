@@ -79,7 +79,7 @@ export function AtmosphericParticles({
 
   // Helper to update layer opacity
   const updateLayerOpacity = (
-    ref: React.RefObject<THREE.Points>,
+    ref: React.RefObject<THREE.Points | null>,
     baseMultiplier: number,
     breathMultiplier: number,
     phase: number,
