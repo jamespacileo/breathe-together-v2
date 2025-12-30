@@ -208,19 +208,24 @@ export function ParticleSwarm({
     <CubeCamera resolution={256} frames={1} envMap={texture}>
       {(envTexture) => (
         <group ref={groupRef} name="Particle Swarm">
-          {shards.map((shard) => (
-            <primitive key={shard.id} object={shard.mesh}>
-              <MeshRefractionMaterial
-                envMap={envTexture}
-                color={shard.color}
-                ior={ior}
-                aberrationStrength={aberrationStrength}
-                bounces={bounces}
-                fresnel={fresnel}
-                toneMapped={false}
-              />
-            </primitive>
-          ))}
+          {shards.map((shard) => {
+            // Lighten color for more transparent gem effect
+            const lightColor = shard.color.clone().lerp(new THREE.Color('#ffffff'), 0.3);
+            return (
+              <primitive key={shard.id} object={shard.mesh}>
+                <MeshRefractionMaterial
+                  envMap={envTexture}
+                  color={lightColor}
+                  ior={ior}
+                  aberrationStrength={aberrationStrength}
+                  bounces={bounces}
+                  fresnel={fresnel}
+                  fastChroma={true}
+                  toneMapped={false}
+                />
+              </primitive>
+            );
+          })}
         </group>
       )}
     </CubeCamera>

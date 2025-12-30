@@ -14,11 +14,13 @@ import type { BreathingLevelProps } from '../types/sceneProps';
  */
 const TUNING_DEFAULTS = {
   particleCounts: { sparse: 24, normal: 48, dense: 96 },
-  ior: 2.4, // Index of Refraction (gem-like: 2.4, glass-like: 1.3)
-  aberrationStrength: 0.02, // Chromatic aberration/color separation
+  ior: 2.75, // Index of Refraction (higher = more pronounced gem refraction)
+  aberrationStrength: 0.03, // Chromatic aberration/rainbow edges
   orbitRadius: 4.5, // Base orbit radius
   shardSize: 0.5, // Max shard size
   atmosphereDensity: 100, // Atmospheric particle count
+  fresnel: 0.9, // Edge glow intensity (higher = stronger rim light)
+  bounces: 3, // Light bounce depth
 };
 
 /**
@@ -45,6 +47,8 @@ export function BreathingLevel({
   const [orbitRadius, setOrbitRadius] = useState(TUNING_DEFAULTS.orbitRadius);
   const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
   const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
+  const [fresnel] = useState(TUNING_DEFAULTS.fresnel);
+  const [bounces] = useState(TUNING_DEFAULTS.bounces);
 
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
 
@@ -74,6 +78,8 @@ export function BreathingLevel({
               maxShardSize={shardSize}
               ior={ior}
               aberrationStrength={glassDepth}
+              fresnel={fresnel}
+              bounces={bounces}
             />
           )}
 
