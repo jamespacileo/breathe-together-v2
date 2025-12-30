@@ -52,20 +52,11 @@ const PHASES = [
   },
 ];
 
-export interface PhaseTiming {
-  phaseIndex: number;
-  phaseProgress: number;
-  cycleTime: number;
-}
-
 /**
  * Compute phase timing from elapsed time using BREATH_PHASES
- * Optionally scales durations to fit a custom cycle length.
+ * Internal helper for calculateBreathState
  */
-export function getPhaseTiming(
-  elapsedTime: number,
-  cycleSeconds: number = BREATH_TOTAL_CYCLE,
-): PhaseTiming {
+function getPhaseTiming(elapsedTime: number, cycleSeconds: number = BREATH_TOTAL_CYCLE) {
   const scale = cycleSeconds / BREATH_TOTAL_CYCLE;
   const phaseDurations = [
     BREATH_PHASES.INHALE * scale,
@@ -95,20 +86,6 @@ export function getPhaseTiming(
 }
 
 /**
- * Derive visual parameters (sphere scale, orbit radius) from breath phase.
- * Shared between different breathing algorithms for consistency.
- */
-export function deriveVisualsFromPhase(breathPhase: number) {
-  const sphereScale =
-    VISUALS.SPHERE_SCALE_MIN + breathPhase * (VISUALS.SPHERE_SCALE_MAX - VISUALS.SPHERE_SCALE_MIN);
-  const orbitRadius =
-    VISUALS.PARTICLE_ORBIT_MAX -
-    breathPhase * (VISUALS.PARTICLE_ORBIT_MAX - VISUALS.PARTICLE_ORBIT_MIN);
-
-  return { sphereScale, orbitRadius };
-}
-
-/**
  * Calculate all breathing values for a given UTC time
  * Returns a snapshot of the current breath state
  */
@@ -120,8 +97,12 @@ export function calculateBreathState(elapsedTime: number): BreathState {
   const breathPhase = phase.target(easedProgress);
   const crystallization = phase.crystal(easedProgress);
 
-  // Calculate derived visual targets using shared helper
-  const { sphereScale, orbitRadius } = deriveVisualsFromPhase(breathPhase);
+  // Derive visual parameters from breath phase
+  const sphereScale =
+    VISUALS.SPHERE_SCALE_MIN + breathPhase * (VISUALS.SPHERE_SCALE_MAX - VISUALS.SPHERE_SCALE_MIN);
+  const orbitRadius =
+    VISUALS.PARTICLE_ORBIT_MAX -
+    breathPhase * (VISUALS.PARTICLE_ORBIT_MAX - VISUALS.PARTICLE_ORBIT_MIN);
 
   return {
     breathPhase,

@@ -45,21 +45,3 @@ export function generateFibonacciSphere(count: number): FibonacciPoint[] {
 
   return points;
 }
-
-/**
- * Convert spherical coordinates to cartesian
- * @param theta Longitude (0 to 2π)
- * @param phi Latitude (0 to π)
- * @param radius Distance from origin
- * @returns [x, y, z] cartesian coordinates
- */
-export function sphericalToCartesian(
-  theta: number,
-  phi: number,
-  radius: number,
-): [number, number, number] {
-  const x = Math.sin(phi) * Math.cos(theta) * radius;
-  const y = Math.cos(phi) * radius;
-  const z = Math.sin(phi) * Math.sin(theta) * radius;
-  return [x, y, z];
-}

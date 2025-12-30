@@ -32,74 +32,15 @@ export const BREATH_PHASES = {
 export const BREATH_TOTAL_CYCLE = 16; // seconds
 
 /**
- * Visual Constants
+ * Visual Constants - Breathing animation parameters
+ * Only includes values actually used in breath calculations
  */
 export const VISUALS = {
-  // Sphere - Organic warmth with saturated cool-warm color journey
-  SPHERE_SCALE_MIN: 0.3, // Significantly reduced (was 0.6)
-  SPHERE_SCALE_MAX: 0.7, // Significantly reduced (was 1.4)
-  SPHERE_COLOR_EXHALE: '#4A8A9A', // Meditation teal-blue (deep, saturated)
-  SPHERE_COLOR_INHALE: '#D4A574', // Warm amber-sand (meditation gold)
+  // Sphere scale during breathing animation
+  SPHERE_SCALE_MIN: 0.3,
+  SPHERE_SCALE_MAX: 0.7,
 
-  // Particles
-  PARTICLE_ORBIT_MIN: 0.75, // Tighter to small sphere surface (was 0.8)
-  PARTICLE_ORBIT_MAX: 6.0, // Much wider expansion (was 4.5)
-  PARTICLE_SIZE: 0.05,
-  PARTICLE_FILLER_COLOR: '#6B8A9C',
-  PARTICLE_COLOR_DAMPING: 1.5,
-
-  // Physics Tunables (Static - legacy)
-  PARTICLE_DRAG: 0.8,
-  SPRING_STIFFNESS: 5.0,
-
-  // Reactive Physics (Phase 2 & 3)
-  // Inhale: Tight and fast (higher stiffness, lower drag for energy)
-  // Exhale: Loose and viscous (lower stiffness, higher drag for relaxation)
-  PARTICLE_DRAG_INHALE: 0.7,
-  PARTICLE_DRAG_EXHALE: 0.9,
-  SPRING_STIFFNESS_INHALE: 12.0, // Snappier gathering (was 8.0)
-  SPRING_STIFFNESS_EXHALE: 3.0,
-
-  JITTER_STRENGTH: 0.1,
-  REPULSION_POWER: 2.0,
-  REPULSION_STRENGTH: 1.5,
-
-  // Lighting - Warm-cool balance with meditation colors
-  FILL_LIGHT_INTENSITY: 0.12, // Very subtle cool fill (reduced from 0.3)
-  FILL_LIGHT_COLOR: '#4A7B8A', // Deep teal-blue (changed from #8ababa)
-  RIM_LIGHT_INTENSITY: 0.08, // Very subtle rim (reduced from 0.2)
-  RIM_LIGHT_COLOR: '#6BA8B5', // Medium cyan-blue (changed from #e0f0f8)
-};
-
-/**
- * Particle Physics Constants
- * Tuning parameters for the particle simulation
- * Extracted from hardcoded values in src/entities/particle/systems.tsx (Dec 2024)
- */
-export const PARTICLE_PHYSICS = {
-  // Wind / Turbulence
-  WIND_BASE_STRENGTH: 0.45, // Stronger wind feel (was 0.2)
-  WIND_FREQUENCY_SCALE: 0.5, // Frequency multiplier for Simplex noise
-  WIND_TIME_SCALE: 0.2, // Time scale for wind animation
-
-  // Wind noise offsets (to decorrelate X/Y/Z axes)
-  WIND_NOISE_OFFSET_X: 100,
-  WIND_NOISE_OFFSET_Y: 200,
-  WIND_NOISE_OFFSET_Z: 0, // Z uses the base s value
-
-  // Jitter / Shiver (high-frequency vibration during holds)
-  JITTER_FREQUENCY_X: 60, // Sin() frequency for X jitter
-  JITTER_FREQUENCY_Y: 61, // Sin() frequency for Y jitter
-  JITTER_FREQUENCY_Z: 59, // Sin() frequency for Z jitter (prime to avoid alignment)
-
-  // Jitter phase offsets (to decorrelate axes)
-  JITTER_PHASE_OFFSET_Y: 10,
-  JITTER_PHASE_OFFSET_Z: 20,
-
-  // Sphere Repulsion
-  REPULSION_RADIUS_OFFSET: 0.4, // Additional radius beyond sphere scale for repulsion boundary
-  REPULSION_STRENGTH_MULTIPLIER: 20, // Overall strength multiplier for repulsion force
-
-  // Noise threshold (avoid computing forces below this strength)
-  FORCE_THRESHOLD: 0.001,
+  // Particle orbit radius during breathing animation
+  PARTICLE_ORBIT_MIN: 0.75,
+  PARTICLE_ORBIT_MAX: 6.0,
 } as const;

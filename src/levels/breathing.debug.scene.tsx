@@ -13,7 +13,6 @@
  */
 
 import { BreathDebugPanel } from '../components/BreathDebugPanel';
-import { CanvasProvider, GlobalProvider } from '../contexts/triplex';
 import type { BreathingDebugSceneProps } from '../types/sceneProps';
 import { BreathingLevel } from './breathing';
 
@@ -92,22 +91,20 @@ export function BreathingDebugScene({
   ...breathingLevelProps
 }: Partial<BreathingDebugSceneProps> = {}) {
   return (
-    <GlobalProvider>
-      <CanvasProvider>
-        <BreathingLevel {...breathingLevelProps} />
+    <>
+      <BreathingLevel {...breathingLevelProps} />
 
-        <BreathDebugPanel
-          enableManualControl={enableManualControl}
-          manualPhase={manualPhase}
-          isPaused={isPaused}
-          timeScale={timeScale}
-          jumpToPhase={jumpToPhase}
-          showOrbitBounds={showOrbitBounds}
-          showPhaseMarkers={showPhaseMarkers}
-          showTraitValues={showTraitValues}
-        />
-      </CanvasProvider>
-    </GlobalProvider>
+      <BreathDebugPanel
+        enableManualControl={enableManualControl}
+        manualPhase={manualPhase}
+        isPaused={isPaused}
+        timeScale={timeScale}
+        jumpToPhase={jumpToPhase}
+        showOrbitBounds={showOrbitBounds}
+        showPhaseMarkers={showPhaseMarkers}
+        showTraitValues={showTraitValues}
+      />
+    </>
   );
 }
 

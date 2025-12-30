@@ -69,11 +69,6 @@ export const MOOD_METADATA: Record<MoodId, MoodConfig> = {
 
 export const MOODS: MoodConfig[] = Object.values(MOOD_METADATA);
 
-export function getMoodGradient(moodId: MoodId): string {
-  const mood = MOOD_METADATA[moodId] || MOOD_METADATA.moment;
-  return `linear-gradient(135deg, ${mood.color}, ${mood.secondaryColor || mood.color})`;
-}
-
 /**
  * Organic & Natural color system with warm-cool balance
  * Background: Dark with purple undertone
@@ -99,27 +94,6 @@ export const BASE_COLORS = {
 };
 
 /**
- * Phase-specific colors for the breathing sphere
- * Refined with temperature journey: Cool exhale → Warm inhale
- */
-export const SPHERE_PHASE_COLORS = {
-  inhale: { r: 0.49, g: 0.78, b: 0.83 }, // Soft Cyan (#7ec8d4)
-  holdIn: { r: 0.55, g: 0.85, b: 0.9 }, // Brighter Cyan (#8dd9e5)
-  exhale: { r: 0.4, g: 0.7, b: 0.75 }, // Deeper Cyan (#6ab3c0)
-  holdOut: { r: 0.35, g: 0.65, b: 0.7 }, // Muted Cyan (#5aa6b3)
-};
-
-/**
- * Temperature color accents for warmth injection during inhale
- * Very subtle overlay to add warmth without being obvious
- */
-export const WARMTH_ACCENT = {
-  exhale: '#1a4d6d', // Cool deep blue
-  inhale: '#9fd9e8', // Warm light cyan with peachy undertone
-  warmthOverlay: '#ffd9b3', // Warm peach (opacity: 0.08 for subtlety)
-};
-
-/**
  * Monument Valley Palette - simplified 4-mood aesthetic
  * Matches the HTML artifact color scheme
  */
@@ -128,15 +102,6 @@ export const MONUMENT_VALLEY_PALETTE = {
   peace: '#06d6a0', // Teal (calm, flowing)
   solitude: '#118ab2', // Sky blue (introspective)
   love: '#ef476f', // Rose pink (warm, connective)
-} as const;
-
-/**
- * Earth Globe colors for Monument Valley aesthetic
- */
-export const GLOBE_COLORS = {
-  base: '#f5ebe0', // Warm neutral (land)
-  ocean: '#118ab2', // Sky blue
-  atmosphere: '#7ec8d4', // Soft cyan
 } as const;
 
 /**
@@ -173,22 +138,4 @@ export function getMoodColor(moodId: MoodId | '' | undefined): string {
   if (!moodId) return BASE_COLORS.primary;
   const mood = MOOD_METADATA[moodId as MoodId];
   return mood?.color ?? BASE_COLORS.primary;
-}
-
-/**
- * Convert mood counts to color counts for particle rendering
- * @param moodCounts - Record of mood IDs to user counts
- * @returns Record of hex colors to user counts
- */
-export function getMoodColorCounts(moodCounts: Record<MoodId, number>): Record<string, number> {
-  const colorCounts: Record<string, number> = {};
-
-  for (const [moodId, count] of Object.entries(moodCounts)) {
-    if (count > 0) {
-      const color = getMoodColor(moodId as MoodId);
-      colorCounts[color] = (colorCounts[color] || 0) + count;
-    }
-  }
-
-  return colorCounts;
 }
