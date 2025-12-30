@@ -242,9 +242,10 @@ export function TitleCard() {
     position: 'fixed',
     top: spacing.xl,
     left: spacing.xl,
-    zIndex: zIndex.base,
+    zIndex: zIndex.dropdown,
     opacity: isVisible ? 1 : 0,
     transition: `opacity ${animation.duration.slow} ${animation.easing.ease}`,
+    pointerEvents: 'auto', // Allow text selection if needed
   };
 
   return (

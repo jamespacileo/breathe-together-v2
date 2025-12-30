@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { type CSSProperties, useCallback, useState } from 'react';
 import {
   SessionCompleteModal,
   type SessionConfig,
@@ -8,6 +8,18 @@ import {
   TitleCard,
   WelcomeModal,
 } from './components';
+
+/**
+ * Overlay container style - positions UI layer above 3D canvas
+ * Uses pointer-events: none on container so canvas remains interactive,
+ * child components set pointer-events: auto on their interactive areas.
+ */
+const overlayStyle: CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 100, // Above canvas
+  pointerEvents: 'none',
+};
 
 export interface GaiaUIOverlayProps {
   /** Show welcome modal on first load */
@@ -86,7 +98,7 @@ export function GaiaUIOverlay({
   }, []);
 
   return (
-    <>
+    <div style={overlayStyle}>
       {/* Title Card - always visible */}
       <TitleCard />
 
@@ -107,7 +119,7 @@ export function GaiaUIOverlay({
           stats={sessionStats}
         />
       )}
-    </>
+    </div>
   );
 }
 
