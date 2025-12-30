@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
+import { BREATH_PHASES, BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { InspirationalText } from './InspirationalText';
 
@@ -95,6 +95,9 @@ export function SimpleGaiaUI({
   const [hasEntered, setHasEntered] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
   const [showKeyHint, setShowKeyHint] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showMoodSelect, setShowMoodSelect] = useState(false);
+  const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
 
   // Phase indicator refs for RAF updates (no React re-renders)
   const phaseNameRef = useRef<HTMLSpanElement>(null);
@@ -108,13 +111,19 @@ export function SimpleGaiaUI({
     return () => clearTimeout(timer);
   }, []);
 
-  // Welcome message: Auto-dismiss after 8 seconds
+  // Welcome message: Auto-dismiss after 8 seconds, then show mood select
   useEffect(() => {
     if (showWelcome) {
-      const timer = setTimeout(() => setShowWelcome(false), 8000);
+      const timer = setTimeout(() => {
+        setShowWelcome(false);
+        // Show mood selection after welcome if no mood selected yet
+        if (!selectedMood) {
+          setTimeout(() => setShowMoodSelect(true), 500);
+        }
+      }, 8000);
       return () => clearTimeout(timer);
     }
-  }, [showWelcome]);
+  }, [showWelcome, selectedMood]);
 
   // Show keyboard hint after 30 seconds
   useEffect(() => {
@@ -253,6 +262,48 @@ export function SimpleGaiaUI({
     e.stopPropagation();
   };
 
+  // Mood categories for simplified selection
+  const moodCategories = [
+    {
+      name: 'Joy',
+      color: MONUMENT_VALLEY_PALETTE.joy,
+      moods: [
+        { id: 'grateful' as MoodId, label: 'Grateful' },
+        { id: 'celebrating' as MoodId, label: 'Celebrating' },
+      ],
+      description: 'Energetic & celebratory',
+    },
+    {
+      name: 'Peace',
+      color: MONUMENT_VALLEY_PALETTE.peace,
+      moods: [
+        { id: 'moment' as MoodId, label: 'Taking a moment' },
+        { id: 'here' as MoodId, label: 'Just here' },
+      ],
+      description: 'Present & grounded',
+    },
+    {
+      name: 'Solitude',
+      color: MONUMENT_VALLEY_PALETTE.solitude,
+      moods: [
+        { id: 'anxious' as MoodId, label: 'Releasing tension' },
+        { id: 'processing' as MoodId, label: 'Processing feelings' },
+      ],
+      description: 'Introspective & reflective',
+    },
+    {
+      name: 'Love',
+      color: MONUMENT_VALLEY_PALETTE.love,
+      moods: [{ id: 'preparing' as MoodId, label: 'Preparing' }],
+      description: 'Connecting & readying',
+    },
+  ];
+
+  const handleMoodSelect = (mood: MoodId) => {
+    setSelectedMood(mood);
+    setShowMoodSelect(false);
+  };
+
   return (
     <div
       style={{
@@ -268,6 +319,356 @@ export function SimpleGaiaUI({
     >
       {/* Inspirational Text - Above & Beyond style messages */}
       <InspirationalText />
+
+      {/* Top-Left: App Branding + Settings */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '32px',
+          left: '32px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          pointerEvents: 'auto',
+          opacity: hasEntered ? 0.85 : 0,
+          transform: `translateY(${hasEntered ? 0 : -8}px)`,
+          transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        }}
+      >
+        {/* App Name */}
+        <div>
+          <h1
+            style={{
+              fontFamily: "'Cormorant Garamond', Georgia, serif",
+              fontSize: '1.4rem',
+              fontWeight: 300,
+              margin: 0,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: colors.text,
+            }}
+          >
+            Breathe Together
+          </h1>
+        </div>
+
+        {/* Settings Icon */}
+        <button
+          type="button"
+          onClick={() => setShowSettings(true)}
+          onPointerDown={stopPropagation}
+          aria-label="Open settings"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '8px',
+            color: colors.textDim,
+            opacity: 0.6,
+            transition: 'opacity 0.3s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = '1';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = '0.6';
+          }}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            aria-labelledby="settings-icon-title"
+          >
+            <title id="settings-icon-title">Settings icon</title>
+            <circle cx="12" cy="12" r="3" strokeWidth="1.5" />
+            <path d="M12 1v6m0 6v6M1 12h6m6 0h6" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: Modal backdrop overlay requires onClick for dismissal; role="presentation" indicates non-interactive semantics
+        <div
+          role="presentation"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.3)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 300,
+            pointerEvents: 'auto',
+          }}
+          onClick={() => setShowSettings(false)}
+          onPointerDown={stopPropagation}
+        >
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: Content container stops event propagation to prevent backdrop dismissal; role="presentation" indicates non-interactive semantics */}
+          <div
+            role="presentation"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={stopPropagation}
+            style={{
+              background: colors.glass,
+              backdropFilter: 'blur(40px)',
+              borderRadius: '32px',
+              border: `1px solid ${colors.border}`,
+              padding: '40px',
+              maxWidth: '420px',
+              width: '90%',
+            }}
+          >
+            <h2
+              style={{
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontSize: '1.8rem',
+                fontWeight: 300,
+                margin: '0 0 24px 0',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                color: colors.text,
+              }}
+            >
+              Settings
+            </h2>
+
+            {/* Current Mood */}
+            <div style={{ marginBottom: '24px' }}>
+              <div
+                style={{
+                  fontSize: '0.7rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  color: colors.textDim,
+                  marginBottom: '12px',
+                }}
+              >
+                Your Current Mood
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSettings(false);
+                  setShowMoodSelect(true);
+                }}
+                onPointerDown={stopPropagation}
+                style={{
+                  background: colors.glass,
+                  border: `1px solid ${colors.border}`,
+                  padding: '12px 20px',
+                  borderRadius: '24px',
+                  fontSize: '0.85rem',
+                  color: colors.text,
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span>{selectedMood ? selectedMood : 'Select a mood'}</span>
+                <span style={{ opacity: 0.5 }}>→</span>
+              </button>
+            </div>
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowSettings(false)}
+              onPointerDown={stopPropagation}
+              style={{
+                background: colors.accent,
+                color: '#fff',
+                border: 'none',
+                padding: '12px 28px',
+                borderRadius: '24px',
+                fontSize: '0.7rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.12em',
+                fontWeight: 600,
+                cursor: 'pointer',
+                width: '100%',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mood Selection Modal */}
+      {showMoodSelect && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: Modal backdrop overlay requires onClick for dismissal; role="presentation" indicates non-interactive semantics
+        <div
+          role="presentation"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.3)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 300,
+            pointerEvents: 'auto',
+          }}
+          onClick={() => setShowMoodSelect(false)}
+          onPointerDown={stopPropagation}
+        >
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: Content container stops event propagation to prevent backdrop dismissal; role="presentation" indicates non-interactive semantics */}
+          <div
+            role="presentation"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={stopPropagation}
+            style={{
+              background: colors.glass,
+              backdropFilter: 'blur(40px)',
+              borderRadius: '32px',
+              border: `1px solid ${colors.border}`,
+              padding: '40px',
+              maxWidth: '520px',
+              width: '90%',
+              maxHeight: '85vh',
+              overflow: 'auto',
+            }}
+          >
+            <h2
+              style={{
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontSize: '1.8rem',
+                fontWeight: 300,
+                margin: '0 0 12px 0',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                color: colors.text,
+                textAlign: 'center',
+              }}
+            >
+              How are you feeling?
+            </h2>
+            <p
+              style={{
+                fontSize: '0.85rem',
+                color: colors.textDim,
+                textAlign: 'center',
+                marginBottom: '32px',
+                lineHeight: 1.6,
+              }}
+            >
+              Choose a mood to add your presence to the shared breathing space
+            </p>
+
+            {/* Mood Categories */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {moodCategories.map((category) => (
+                <div
+                  key={category.name}
+                  style={{
+                    padding: '20px',
+                    background: 'rgba(255, 255, 255, 0.3)',
+                    borderRadius: '20px',
+                    border: `2px solid ${category.color}20`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        background: category.color,
+                        boxShadow: `0 0 12px ${category.color}60`,
+                      }}
+                    />
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '1rem',
+                          fontWeight: 500,
+                          color: colors.text,
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        {category.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.65rem',
+                          color: colors.textDim,
+                          letterSpacing: '0.03em',
+                        }}
+                      >
+                        {category.description}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mood Options */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {category.moods.map((mood) => (
+                      <button
+                        key={mood.id}
+                        type="button"
+                        onClick={() => handleMoodSelect(mood.id)}
+                        onPointerDown={stopPropagation}
+                        style={{
+                          background:
+                            selectedMood === mood.id ? category.color : 'rgba(255, 255, 255, 0.5)',
+                          color: selectedMood === mood.id ? '#fff' : colors.text,
+                          border: 'none',
+                          padding: '10px 18px',
+                          borderRadius: '16px',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          fontWeight: selectedMood === mood.id ? 600 : 400,
+                        }}
+                      >
+                        {mood.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Skip Button */}
+            <button
+              type="button"
+              onClick={() => setShowMoodSelect(false)}
+              onPointerDown={stopPropagation}
+              style={{
+                background: 'transparent',
+                color: colors.textDim,
+                border: 'none',
+                padding: '16px',
+                fontSize: '0.7rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                cursor: 'pointer',
+                width: '100%',
+                marginTop: '16px',
+                opacity: 0.7,
+              }}
+            >
+              Skip for now
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Welcome Message - First-time user guidance */}
       {showWelcome && (
