@@ -253,15 +253,15 @@ export function SimpleGaiaUI({
     };
   }, [isControlsOpen]);
 
-  // Design Tokens - refined warm palette
+  // Design Tokens - refined warm palette with improved contrast
   const colors = {
-    text: '#7a6b5e',
-    textDim: '#a89888',
+    text: '#5a4d42', // Darker for better contrast (was #7a6b5e)
+    textDim: '#8b7a6a', // Darker secondary text (was #a89888)
     textGlow: '#c4a882',
     border: 'rgba(160, 140, 120, 0.12)',
     glass: 'rgba(252, 250, 246, 0.72)',
     accent: '#c9a06c',
-    accentGlow: 'rgba(201, 160, 108, 0.4)',
+    accentGlow: 'rgba(201, 160, 108, 0.5)', // Stronger glow (was 0.4)
   };
 
   const labelStyle: React.CSSProperties = {
@@ -1101,7 +1101,7 @@ export function SimpleGaiaUI({
               letterSpacing: isMobile ? '0.15em' : '0.18em',
               textTransform: 'uppercase',
               color: colors.text,
-              textShadow: `0 1px 12px ${colors.accentGlow}`,
+              textShadow: `0 2px 16px ${colors.accentGlow}, 0 1px 4px rgba(0, 0, 0, 0.1)`, // Stronger shadow for contrast
             }}
           >
             Inhale
@@ -1115,7 +1115,7 @@ export function SimpleGaiaUI({
               color: colors.textDim,
               minWidth: '1em',
               textAlign: 'center',
-              opacity: 0.8,
+              opacity: 0.9, // Increased from 0.8 for better visibility
             }}
           >
             4
@@ -1150,7 +1150,7 @@ export function SimpleGaiaUI({
           style={{
             fontSize: isMobile ? '0.7rem' : '0.65rem',
             color: colors.textDim,
-            opacity: 0.6,
+            opacity: 0.7, // Increased from 0.6 for better readability
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
             marginTop: isMobile ? '2px' : '4px',

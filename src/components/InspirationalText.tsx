@@ -106,11 +106,11 @@ export function InspirationalText() {
 
   // Design tokens matching GaiaUI warm palette
   const colors = {
-    text: '#5a4d42',
-    textGlow: 'rgba(201, 160, 108, 0.7)',
-    subtleGlow: 'rgba(255, 252, 245, 0.95)',
-    // Soft backdrop - warm cream with gentle opacity
-    backdropInner: 'rgba(253, 251, 247, 0.4)',
+    text: '#3d3229', // Darker for better contrast (was #5a4d42)
+    textGlow: 'rgba(201, 160, 108, 0.8)', // Stronger glow (was 0.7)
+    subtleGlow: 'rgba(255, 252, 245, 1)', // Full opacity for stronger glow (was 0.95)
+    // Soft backdrop - warm cream with slightly higher opacity for better contrast
+    backdropInner: 'rgba(253, 251, 247, 0.5)', // Increased from 0.4
     backdropOuter: 'rgba(253, 251, 247, 0)',
   };
 
@@ -143,21 +143,21 @@ export function InspirationalText() {
 
   const textStyle: React.CSSProperties = {
     fontFamily: "'Cormorant Garamond', Georgia, serif",
-    // Mobile: Dynamic viewport-based sizing to fill available width
+    // Mobile: Dynamic viewport-based sizing to fill available width - increased max size
     fontSize: isMobile
-      ? 'clamp(1.3rem, 7vw, 2.2rem)' // Mobile: Larger, viewport-scaled (7vw fills width better)
+      ? 'clamp(1.4rem, 7.5vw, 2.5rem)' // Mobile: Larger max 2.5rem (was 2.2rem), 7.5vw (was 7vw)
       : isTablet
-        ? 'clamp(1.4rem, 4.5vw, 2.2rem)' // Tablet: Medium size
+        ? 'clamp(1.5rem, 5vw, 2.4rem)' // Tablet: Slightly larger (was 2.2rem max)
         : 'clamp(1.6rem, 3.5vw, 2.8rem)', // Desktop: Original large size
     fontWeight: 300,
     letterSpacing: isMobile ? '0.12em' : '0.22em', // Tighter spacing for better fit
     textTransform: 'uppercase',
     color: colors.text,
     textShadow: `
-      0 0 25px ${colors.subtleGlow},
-      0 0 50px ${colors.textGlow},
-      0 1px 6px rgba(0, 0, 0, 0.1)
-    `,
+      0 0 30px ${colors.subtleGlow},
+      0 0 60px ${colors.textGlow},
+      0 2px 8px rgba(0, 0, 0, 0.15)
+    `, // Stronger shadows for better contrast
     textAlign: 'center',
     lineHeight: isMobile ? 1.1 : 1.2, // Tighter line height on mobile
     userSelect: 'none',
