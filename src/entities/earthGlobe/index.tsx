@@ -9,7 +9,7 @@
 
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 import { breathPhase } from '../breath/traits';
@@ -36,6 +36,16 @@ export function EarthGlobe({
   const groupRef = useRef<THREE.Group>(null);
   const world = useWorld();
   const rotationRef = useRef(0);
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  // Load earth texture on mount
+  useEffect(() => {
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load('/textures/earth-texture.png', (loadedTexture) => {
+      loadedTexture.colorSpace = THREE.SRGBColorSpace;
+      setTexture(loadedTexture);
+    });
+  }, []);
 
   // Create geometries
   const globeGeometry = useMemo(() => new THREE.SphereGeometry(globeScale, 32, 32), [globeScale]);
@@ -44,15 +54,16 @@ export function EarthGlobe({
     [globeScale],
   );
 
-  // Globe material - warm earth tones for visibility
+  // Globe material - use texture if loaded, fallback to color
   const globeMaterial = useMemo(
     () =>
       new THREE.MeshPhongMaterial({
-        color: 0x8b6f47, // Warm brown/earth tone
-        emissive: 0x2a2415,
-        shininess: 20,
+        map: texture || undefined,
+        color: texture ? 0xffffff : 0x8b6f47, // White if texture, brown if fallback
+        emissive: texture ? 0x000000 : 0x2a2415,
+        shininess: texture ? 10 : 20,
       }),
-    [],
+    [texture],
   );
 
   // Frosted glass overlay material
@@ -75,8 +86,9 @@ export function EarthGlobe({
       overlayGeometry.dispose();
       globeMaterial.dispose();
       overlayMaterial.dispose();
+      texture?.dispose();
     };
-  }, [globeGeometry, overlayGeometry, globeMaterial, overlayMaterial]);
+  }, [globeGeometry, overlayGeometry, globeMaterial, overlayMaterial, texture]);
 
   /**
    * Update globe scale based on breathing animation
