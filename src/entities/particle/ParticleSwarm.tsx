@@ -139,6 +139,10 @@ interface ShardData {
   targetScale: number;
   /** Stable ID for tracking across updates */
   id: string;
+  /** Spawn origin position (for arrival animation) */
+  spawnOrigin: THREE.Vector3;
+  /** Target orbit radius (for arrival animation) */
+  targetRadius: number;
 }
 
 /**
@@ -221,6 +225,7 @@ const SPAWN_STAGGER_DELAY = 80; // milliseconds between sequential spawns
  * @param shardSize - Size of the shard geometry
  * @param baseRadius - Base orbit radius
  * @param spawnDelay - Delay before spawn animation starts (for staggering)
+ * @param globeRadius - Globe radius for spawn origin calculation
  * @returns ShardData with initialized lifecycle state
  */
 function createShard(
@@ -231,6 +236,7 @@ function createShard(
   shardSize: number,
   baseRadius: number,
   spawnDelay: number = 0,
+  globeRadius: number = 1.5,
 ): ShardData {
   const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
   applyVertexColors(geometry, color);
@@ -240,9 +246,12 @@ function createShard(
   const theta = Math.sqrt(totalCount * Math.PI) * phi;
   const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
 
+  // Start at globe surface for spawn animation
+  const spawnOrigin = direction.clone().multiplyScalar(globeRadius + shardSize);
+
   const mesh = new THREE.Mesh(geometry, material);
   mesh.userData.useRefraction = true; // Mark for RefractionPipeline
-  mesh.position.copy(direction).multiplyScalar(baseRadius);
+  mesh.position.copy(spawnOrigin); // Start at spawn origin
   mesh.lookAt(0, 0, 0);
   mesh.frustumCulled = false;
   mesh.scale.setScalar(0); // Start at scale 0 for spawn animation
@@ -255,6 +264,8 @@ function createShard(
     stateChangeTime: Date.now() + spawnDelay,
     targetScale: 1.0,
     id: `shard-${Date.now()}-${index}`,
+    spawnOrigin,
+    targetRadius: baseRadius,
   };
 }
 
@@ -270,6 +281,7 @@ function addNewShards(
   material: THREE.Material,
   shardSize: number,
   baseRadius: number,
+  globeRadius: number,
   group: THREE.Group,
   currentShards: ShardData[],
   currentPhysics: ShardPhysicsState[],
@@ -291,6 +303,7 @@ function addNewShards(
       shardSize,
       baseRadius,
       i * SPAWN_STAGGER_DELAY,
+      globeRadius,
     );
 
     // Add to scene
@@ -342,7 +355,7 @@ function updateShardColors(
 }
 
 /**
- * Update shard scale based on lifecycle state
+ * Update shard scale and position based on lifecycle state
  * Returns true if shard should be removed
  * Extracted to reduce complexity of animation loop
  */
@@ -351,26 +364,43 @@ function updateShardLifecycleAnimation(shard: ShardData, now: number): boolean {
   const progress = Math.min(elapsed / SPAWN_ANIMATION_DURATION, 1);
 
   if (shard.lifecycleState === 'spawning') {
-    // Scale from 0 → targetScale using easeInhale curve
+    // Animate from spawn origin → target orbit position with easeInhale curve
     const easedProgress = easeInhale(progress);
+
+    // Scale from 0 → targetScale
     shard.mesh.scale.setScalar(easedProgress * shard.targetScale);
+
+    // Position: interpolate from spawnOrigin to targetRadius
+    const currentRadius =
+      shard.spawnOrigin.length() +
+      (shard.targetRadius - shard.spawnOrigin.length()) * easedProgress;
+    shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
 
     if (progress >= 1) {
       shard.lifecycleState = 'active';
+      // Ensure final position is exact
+      shard.mesh.position.copy(shard.direction).multiplyScalar(shard.targetRadius);
     }
     return false;
   }
 
   if (shard.lifecycleState === 'removing') {
-    // Scale from targetScale → 0 using easeExhale curve
+    // Animate from target orbit position → spawn origin with easeExhale curve
     const easedProgress = easeExhale(progress);
     const reverseProgress = 1 - easedProgress;
+
+    // Scale from targetScale → 0
     shard.mesh.scale.setScalar(reverseProgress * shard.targetScale);
+
+    // Position: interpolate from targetRadius back to spawnOrigin
+    const currentRadius =
+      shard.targetRadius - (shard.targetRadius - shard.spawnOrigin.length()) * easedProgress;
+    shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
 
     return progress >= 1; // Mark for removal
   }
 
-  // Active state: maintain full scale
+  // Active state: maintain full scale (position handled by physics)
   shard.mesh.scale.setScalar(shard.targetScale);
   return false;
 }
@@ -485,6 +515,7 @@ export function ParticleSwarm({
         material,
         shardSize,
         baseRadius,
+        globeRadius,
         group,
         currentShards,
         currentPhysics,
@@ -502,7 +533,7 @@ export function ParticleSwarm({
 
     prevCountRef.current = count;
     prevUsersRef.current = users;
-  }, [count, users, baseRadius, shardSize, material]);
+  }, [count, users, baseRadius, shardSize, material, globeRadius]);
 
   // Initial setup: create all shards on first mount
   // biome-ignore lint/correctness/useExhaustiveDependencies: Effect runs once on mount - guarded by shardsRef.current.length check
@@ -522,11 +553,12 @@ export function ParticleSwarm({
       const color =
         colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
 
-      const shard = createShard(i, count, color, material, shardSize, baseRadius);
+      const shard = createShard(i, count, color, material, shardSize, baseRadius, 0, globeRadius);
 
       // Initial shards start in 'active' state with full scale (no spawn animation on load)
       shard.lifecycleState = 'active';
       shard.mesh.scale.setScalar(1.0);
+      shard.mesh.position.copy(shard.direction).multiplyScalar(baseRadius); // Set to final position
 
       group.add(shard.mesh);
       newShards.push(shard);
