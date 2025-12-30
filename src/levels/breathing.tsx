@@ -14,11 +14,11 @@ import type { BreathingLevelProps } from '../types/sceneProps';
  */
 const TUNING_DEFAULTS = {
   particleCounts: { sparse: 24, normal: 48, dense: 96 },
-  refraction: 1.3, // IOR matching reference
-  backfaceIntensity: 0.3, // Backface normal blending
-  baseRadius: 4.5, // Orbit radius matching reference
-  expansion: 2.0, // Breathing expansion
-  atmosphericParticleCount: 100,
+  ior: 1.3, // Index of Refraction
+  backfaceIntensity: 0.3, // Glass depth/distortion
+  orbitRadius: 4.5, // Base orbit radius
+  shardSize: 0.5, // Max shard size
+  atmosphereDensity: 100, // Atmospheric particle count
 };
 
 /**
@@ -26,7 +26,6 @@ const TUNING_DEFAULTS = {
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
  */
 export function BreathingLevel({
-  bloom = 'none',
   particleDensity,
   // DEBUG-ONLY: Entity visibility toggles (all default true)
   showGlobe = true,
@@ -41,9 +40,11 @@ export function BreathingLevel({
         ? TUNING_DEFAULTS.particleCounts.dense
         : TUNING_DEFAULTS.particleCounts.normal,
   );
-  const [refraction, setRefraction] = useState(TUNING_DEFAULTS.refraction);
-  const [breath, setBreath] = useState(0.3);
-  const [expansion, setExpansion] = useState(TUNING_DEFAULTS.expansion);
+  const [ior, setIor] = useState(TUNING_DEFAULTS.ior);
+  const [glassDepth, setGlassDepth] = useState(TUNING_DEFAULTS.backfaceIntensity);
+  const [orbitRadius, setOrbitRadius] = useState(TUNING_DEFAULTS.orbitRadius);
+  const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
+  const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
 
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
 
@@ -51,7 +52,7 @@ export function BreathingLevel({
     <ErrorBoundary>
       <Suspense fallback={null}>
         {/* 3-Pass FBO Refraction Pipeline handles background + refraction rendering */}
-        <RefractionPipeline ior={refraction} backfaceIntensity={TUNING_DEFAULTS.backfaceIntensity}>
+        <RefractionPipeline ior={ior} backfaceIntensity={glassDepth}>
           {/* Wrap rotatable entities in PresentationControls */}
           <PresentationControls
             global
@@ -68,13 +69,14 @@ export function BreathingLevel({
               <ParticleSwarm
                 count={harmony}
                 users={moods}
-                baseRadius={TUNING_DEFAULTS.baseRadius}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
               />
             )}
 
             {showParticles && (
               <AtmosphericParticles
-                count={TUNING_DEFAULTS.atmosphericParticleCount}
+                count={atmosphereDensity}
                 size={0.08}
                 baseOpacity={0.1}
                 breathingOpacity={0.15}
@@ -88,12 +90,16 @@ export function BreathingLevel({
           <GaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
-            refraction={refraction}
-            setRefraction={setRefraction}
-            breath={breath}
-            setBreath={setBreath}
-            expansion={expansion}
-            setExpansion={setExpansion}
+            ior={ior}
+            setIor={setIor}
+            glassDepth={glassDepth}
+            setGlassDepth={setGlassDepth}
+            orbitRadius={orbitRadius}
+            setOrbitRadius={setOrbitRadius}
+            shardSize={shardSize}
+            setShardSize={setShardSize}
+            atmosphereDensity={atmosphereDensity}
+            setAtmosphereDensity={setAtmosphereDensity}
           />
         </Html>
       </Suspense>

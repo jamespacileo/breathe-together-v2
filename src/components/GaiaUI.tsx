@@ -2,25 +2,39 @@ import { useEffect, useState } from 'react';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 
 interface GaiaUIProps {
+  /** Particle count (harmony) */
   harmony: number;
   setHarmony: (v: number) => void;
-  refraction: number;
-  setRefraction: (v: number) => void;
-  breath: number;
-  setBreath: (v: number) => void;
-  expansion: number;
-  setExpansion: (v: number) => void;
+  /** Index of Refraction - controls light bending through glass */
+  ior: number;
+  setIor: (v: number) => void;
+  /** Glass depth - controls backface normal blending/distortion */
+  glassDepth: number;
+  setGlassDepth: (v: number) => void;
+  /** Orbit radius - how far particles orbit from center */
+  orbitRadius: number;
+  setOrbitRadius: (v: number) => void;
+  /** Shard size - maximum size of glass shards */
+  shardSize: number;
+  setShardSize: (v: number) => void;
+  /** Atmosphere density - number of ambient floating particles */
+  atmosphereDensity: number;
+  setAtmosphereDensity: (v: number) => void;
 }
 
 export function GaiaUI({
   harmony,
   setHarmony,
-  refraction,
-  setRefraction,
-  breath,
-  setBreath,
-  expansion,
-  setExpansion,
+  ior,
+  setIor,
+  glassDepth,
+  setGlassDepth,
+  orbitRadius,
+  setOrbitRadius,
+  shardSize,
+  setShardSize,
+  atmosphereDensity,
+  setAtmosphereDensity,
 }: GaiaUIProps) {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -80,6 +94,17 @@ export function GaiaUI({
     borderRadius: '2px',
     appearance: 'none',
     background: colors.border,
+  };
+
+  const sectionStyle: React.CSSProperties = {
+    marginBottom: '16px',
+    paddingBottom: '16px',
+    borderBottom: `1px solid ${colors.border}`,
+  };
+
+  // Stop pointer events from propagating to PresentationControls
+  const stopPropagation = (e: React.PointerEvent | React.MouseEvent) => {
+    e.stopPropagation();
   };
 
   return (
@@ -147,6 +172,8 @@ export function GaiaUI({
         <button
           type="button"
           onClick={() => setIsControlsOpen(!isControlsOpen)}
+          onPointerDown={stopPropagation}
+          onPointerMove={stopPropagation}
           style={{
             background: colors.glass,
             border: `1px solid ${colors.border}`,
@@ -165,99 +192,183 @@ export function GaiaUI({
           {isControlsOpen ? 'Close Settings' : 'Tune Aesthetic'}
         </button>
 
-        {/* Controls Panel */}
+        {/* Controls Panel - stop propagation to prevent scene rotation while dragging sliders */}
         <div
+          onPointerDown={stopPropagation}
+          onPointerMove={stopPropagation}
+          onPointerUp={stopPropagation}
           style={{
             background: colors.glass,
             backdropFilter: 'blur(40px)',
             padding: isControlsOpen ? '24px' : '0px',
             borderRadius: '24px',
             border: `1px solid ${isControlsOpen ? colors.border : 'transparent'}`,
-            width: '240px',
-            maxHeight: isControlsOpen ? '450px' : '0px',
+            width: '260px',
+            maxHeight: isControlsOpen ? '600px' : '0px',
             overflow: 'hidden',
             opacity: isControlsOpen ? 1 : 0,
             transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
             boxShadow: '0 20px 50px rgba(138, 131, 124, 0.08)',
           }}
         >
-          <div style={{ marginBottom: '20px' }}>
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-            <label style={labelStyle}>
-              <span>Harmony</span>
-              <span style={{ fontWeight: 400 }}>{harmony}</span>
-            </label>
-            <input
-              type="range"
-              min="10"
-              max="600"
-              step="10"
-              value={harmony}
-              onChange={(e) => setHarmony(parseInt(e.target.value, 10))}
-              style={inputStyle}
-            />
+          {/* === PARTICLES SECTION === */}
+          <div style={sectionStyle}>
+            <div
+              style={{
+                fontSize: '0.55rem',
+                color: colors.textDim,
+                marginBottom: '12px',
+                letterSpacing: '0.2em',
+              }}
+            >
+              PARTICLES
+            </div>
+
+            {/* Harmony - Particle Count */}
+            <div style={{ marginBottom: '14px' }}>
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
+              <label style={labelStyle}>
+                <span>Harmony</span>
+                <span style={{ fontWeight: 400 }}>{harmony}</span>
+              </label>
+              <input
+                type="range"
+                min="12"
+                max="200"
+                step="1"
+                value={harmony}
+                onChange={(e) => setHarmony(parseInt(e.target.value, 10))}
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Shard Size */}
+            <div style={{ marginBottom: '14px' }}>
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
+              <label style={labelStyle}>
+                <span>Shard Size</span>
+                <span style={{ fontWeight: 400 }}>{shardSize.toFixed(2)}</span>
+              </label>
+              <input
+                type="range"
+                min="0.1"
+                max="1.2"
+                step="0.02"
+                value={shardSize}
+                onChange={(e) => setShardSize(parseFloat(e.target.value))}
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Orbit Radius */}
+            <div>
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
+              <label style={labelStyle}>
+                <span>Orbit</span>
+                <span style={{ fontWeight: 400 }}>{orbitRadius.toFixed(1)}</span>
+              </label>
+              <input
+                type="range"
+                min="2.0"
+                max="8.0"
+                step="0.1"
+                value={orbitRadius}
+                onChange={(e) => setOrbitRadius(parseFloat(e.target.value))}
+                style={inputStyle}
+              />
+            </div>
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-            <label style={labelStyle}>
-              <span>Refraction</span>
-              <span style={{ fontWeight: 400 }}>{refraction.toFixed(2)}</span>
-            </label>
-            <input
-              type="range"
-              min="1.0"
-              max="2.0"
-              step="0.01"
-              value={refraction}
-              onChange={(e) => setRefraction(parseFloat(e.target.value))}
-              style={inputStyle}
-            />
+          {/* === GLASS SECTION === */}
+          <div style={sectionStyle}>
+            <div
+              style={{
+                fontSize: '0.55rem',
+                color: colors.textDim,
+                marginBottom: '12px',
+                letterSpacing: '0.2em',
+              }}
+            >
+              GLASS
+            </div>
+
+            {/* IOR - Index of Refraction */}
+            <div style={{ marginBottom: '14px' }}>
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
+              <label style={labelStyle}>
+                <span>Refraction</span>
+                <span style={{ fontWeight: 400 }}>{ior.toFixed(2)}</span>
+              </label>
+              <input
+                type="range"
+                min="1.0"
+                max="2.5"
+                step="0.01"
+                value={ior}
+                onChange={(e) => setIor(parseFloat(e.target.value))}
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Glass Depth */}
+            <div>
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
+              <label style={labelStyle}>
+                <span>Depth</span>
+                <span style={{ fontWeight: 400 }}>{glassDepth.toFixed(2)}</span>
+              </label>
+              <input
+                type="range"
+                min="0.0"
+                max="1.0"
+                step="0.01"
+                value={glassDepth}
+                onChange={(e) => setGlassDepth(parseFloat(e.target.value))}
+                style={inputStyle}
+              />
+            </div>
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-            <label style={labelStyle}>
-              <span>Breath</span>
-              <span style={{ fontWeight: 400 }}>{breath.toFixed(2)}</span>
-            </label>
-            <input
-              type="range"
-              min="0.05"
-              max="1.5"
-              step="0.05"
-              value={breath}
-              onChange={(e) => setBreath(parseFloat(e.target.value))}
-              style={inputStyle}
-            />
-          </div>
+          {/* === ATMOSPHERE SECTION === */}
+          <div style={{ marginBottom: '16px' }}>
+            <div
+              style={{
+                fontSize: '0.55rem',
+                color: colors.textDim,
+                marginBottom: '12px',
+                letterSpacing: '0.2em',
+              }}
+            >
+              ATMOSPHERE
+            </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-            <label style={labelStyle}>
-              <span>Expansion</span>
-              <span style={{ fontWeight: 400 }}>{expansion.toFixed(2)}</span>
-            </label>
-            <input
-              type="range"
-              min="0.5"
-              max="5.0"
-              step="0.1"
-              value={expansion}
-              onChange={(e) => setExpansion(parseFloat(e.target.value))}
-              style={inputStyle}
-            />
+            {/* Atmosphere Density */}
+            <div>
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
+              <label style={labelStyle}>
+                <span>Density</span>
+                <span style={{ fontWeight: 400 }}>{atmosphereDensity}</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="300"
+                step="10"
+                value={atmosphereDensity}
+                onChange={(e) => setAtmosphereDensity(parseInt(e.target.value, 10))}
+                style={inputStyle}
+              />
+            </div>
           </div>
 
           {/* Mood Legend */}
           <div
             style={{
-              marginTop: '10px',
-              paddingTop: '20px',
+              paddingTop: '16px',
               borderTop: `1px solid ${colors.border}`,
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
-              gap: '12px',
+              gap: '10px',
             }}
           >
             {Object.entries(MONUMENT_VALLEY_PALETTE).map(([name, color]) => (
@@ -267,7 +378,7 @@ export function GaiaUI({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  fontSize: '0.6rem',
+                  fontSize: '0.55rem',
                   textTransform: 'uppercase',
                   letterSpacing: '0.05em',
                   opacity: 0.8,
