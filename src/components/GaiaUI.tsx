@@ -318,12 +318,11 @@ export function GaiaUI({
             </div>
 
             {/* Harmony - Particle Count */}
-            <div style={{ marginBottom: '14px' }}>
-              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-              <label style={labelStyle}>
+            <label style={{ marginBottom: '14px', display: 'block' }}>
+              <div style={labelStyle}>
                 <span>Harmony</span>
                 <span style={{ fontWeight: 400 }}>{harmony}</span>
-              </label>
+              </div>
               <input
                 type="range"
                 min="12"
@@ -333,15 +332,14 @@ export function GaiaUI({
                 onChange={(e) => setHarmony(parseInt(e.target.value, 10))}
                 style={inputStyle}
               />
-            </div>
+            </label>
 
             {/* Shard Size */}
-            <div style={{ marginBottom: '14px' }}>
-              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-              <label style={labelStyle}>
+            <label style={{ marginBottom: '14px', display: 'block' }}>
+              <div style={labelStyle}>
                 <span>Shard Size</span>
                 <span style={{ fontWeight: 400 }}>{shardSize.toFixed(2)}</span>
-              </label>
+              </div>
               <input
                 type="range"
                 min="0.1"
@@ -351,15 +349,14 @@ export function GaiaUI({
                 onChange={(e) => setShardSize(parseFloat(e.target.value))}
                 style={inputStyle}
               />
-            </div>
+            </label>
 
             {/* Orbit Radius */}
-            <div>
-              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-              <label style={labelStyle}>
+            <label style={{ display: 'block' }}>
+              <div style={labelStyle}>
                 <span>Orbit</span>
                 <span style={{ fontWeight: 400 }}>{orbitRadius.toFixed(1)}</span>
-              </label>
+              </div>
               <input
                 type="range"
                 min="2.0"
@@ -369,7 +366,7 @@ export function GaiaUI({
                 onChange={(e) => setOrbitRadius(parseFloat(e.target.value))}
                 style={inputStyle}
               />
-            </div>
+            </label>
           </div>
 
           {/* === GLASS SECTION === */}
@@ -386,12 +383,11 @@ export function GaiaUI({
             </div>
 
             {/* IOR - Index of Refraction */}
-            <div style={{ marginBottom: '14px' }}>
-              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-              <label style={labelStyle}>
+            <label style={{ marginBottom: '14px', display: 'block' }}>
+              <div style={labelStyle}>
                 <span>Refraction</span>
                 <span style={{ fontWeight: 400 }}>{ior.toFixed(2)}</span>
-              </label>
+              </div>
               <input
                 type="range"
                 min="1.0"
@@ -401,15 +397,14 @@ export function GaiaUI({
                 onChange={(e) => setIor(parseFloat(e.target.value))}
                 style={inputStyle}
               />
-            </div>
+            </label>
 
             {/* Glass Depth */}
-            <div>
-              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-              <label style={labelStyle}>
+            <label style={{ display: 'block' }}>
+              <div style={labelStyle}>
                 <span>Depth</span>
                 <span style={{ fontWeight: 400 }}>{glassDepth.toFixed(2)}</span>
-              </label>
+              </div>
               <input
                 type="range"
                 min="0.0"
@@ -419,7 +414,7 @@ export function GaiaUI({
                 onChange={(e) => setGlassDepth(parseFloat(e.target.value))}
                 style={inputStyle}
               />
-            </div>
+            </label>
           </div>
 
           {/* === ATMOSPHERE SECTION === */}
@@ -436,12 +431,11 @@ export function GaiaUI({
             </div>
 
             {/* Atmosphere Density */}
-            <div>
-              {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-              <label style={labelStyle}>
+            <label style={{ display: 'block' }}>
+              <div style={labelStyle}>
                 <span>Density</span>
                 <span style={{ fontWeight: 400 }}>{atmosphereDensity}</span>
-              </label>
+              </div>
               <input
                 type="range"
                 min="0"
@@ -451,7 +445,7 @@ export function GaiaUI({
                 onChange={(e) => setAtmosphereDensity(parseInt(e.target.value, 10))}
                 style={inputStyle}
               />
-            </div>
+            </label>
           </div>
 
           {/* Mood Legend */}
