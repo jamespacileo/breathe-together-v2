@@ -1,0 +1,109 @@
+name: Preview Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Biome checks
+        run: npm run check:ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Type check
+        run: npm run typecheck
+
+  deploy-preview:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Deploy Preview
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy Preview to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --name breathe-together-v2-pr-${{ github.event.pull_request.number }}
+
+      - name: Comment PR with preview URL
+        uses: actions/github-script@v7
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const workerName = `breathe-together-v2-pr-${prNumber}`;
+            const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+            const previewUrl = `https://${workerName}.palladio-registry.workers.dev`;
+            const dashboardUrl = `https://dash.cloudflare.com/${accountId}/workers-and-pages/application/workers/${workerName}`;
+            const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.body.includes('<!-- preview-comment -->')
+            );
+
+            const body = [
+              '<!-- preview-comment -->',
+              '## 🚀 Preview Deployment',
+              '',
+              '| Info | Value |',
+              '|------|-------|',
+              `| **Preview URL** | ${previewUrl} |`,
+              `| **Dashboard** | [View Worker](${dashboardUrl}) |`,
+              `| **Last deployed** | ${timestamp} |`,
+              '',
+              '---',
+              '<sub>This preview will be automatically deleted when the PR is closed.</sub>'
+            ].join('\n');
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body,
+              });
+            }
