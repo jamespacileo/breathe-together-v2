@@ -4,9 +4,11 @@ import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 interface GaiaUIProps {
   harmony: number;
   setHarmony: (v: number) => void;
+  refraction: number;
+  setRefraction: (v: number) => void;
 }
 
-export function GaiaUI({ harmony, setHarmony }: GaiaUIProps) {
+export function GaiaUI({ harmony, setHarmony, refraction, setRefraction }: GaiaUIProps) {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
 
@@ -175,10 +177,27 @@ export function GaiaUI({ harmony, setHarmony }: GaiaUIProps) {
             <input
               type="range"
               min="10"
-              max="600"
-              step="10"
+              max="200"
+              step="1"
               value={harmony}
               onChange={(e) => setHarmony(parseInt(e.target.value, 10))}
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
+            <label style={labelStyle}>
+              <span>Refraction</span>
+              <span style={{ fontWeight: 400 }}>{refraction.toFixed(2)}</span>
+            </label>
+            <input
+              type="range"
+              min="1.0"
+              max="2.0"
+              step="0.01"
+              value={refraction}
+              onChange={(e) => setRefraction(parseFloat(e.target.value))}
               style={inputStyle}
             />
           </div>

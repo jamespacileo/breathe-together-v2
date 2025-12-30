@@ -79,9 +79,9 @@ export function DebugScene({ ...restProps }: Partial<BreathingDebugSceneProps> =
  */
 export function AntiPatternRedundantDefaults({
   // ❌ BAD: Duplicated from EarthGlobe
-  rotationSpeed = 0.5,
+  radius = 2.4,
 }: {
-  rotationSpeed?: number;
+  radius?: number;
 } = {}) {
-  return <EarthGlobe rotationSpeed={rotationSpeed} />;
+  return <EarthGlobe radius={radius} />;
 }
