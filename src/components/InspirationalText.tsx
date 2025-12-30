@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { CYCLES_PER_MESSAGE, MESSAGES } from '../config/inspirationalMessages';
 import { BREATH_TOTAL_CYCLE } from '../constants';
-import { calculatePhaseInfo } from '../lib/breathPhase';
 import { useViewport } from '../hooks/useViewport';
+import { calculatePhaseInfo } from '../lib/breathPhase';
 
 /**
  * Breathing Phase Timeline:
@@ -48,6 +48,7 @@ function easeInQuad(t: number): number {
  * Performance: Uses RAF loop with direct DOM updates (no React state for animation)
  * Mobile Responsive: Reduces spacing and font size on mobile to maximize 3D scene visibility
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: RAF loop with phase calculations and multiple style conditions requires higher complexity
 export function InspirationalText() {
   const topWrapperRef = useRef<HTMLDivElement>(null);
   const bottomWrapperRef = useRef<HTMLDivElement>(null);

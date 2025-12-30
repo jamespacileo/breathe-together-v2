@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
-import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
+import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { InspirationalText } from './InspirationalText';
 
 // Phase configuration
@@ -83,6 +83,7 @@ interface SimpleGaiaUIProps {
  * - Stacks elements vertically on narrow screens
  * - Adjusts modal sizing for small viewports
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: UI component with multiple modals, animations, and responsive states requires higher complexity
 export function SimpleGaiaUI({
   harmony,
   setHarmony,
@@ -123,7 +124,6 @@ export function SimpleGaiaUI({
   const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32); // Mobile: 16px, Tablet: 24px, Desktop: 32px
   const modalPadding = getResponsiveSpacing(deviceType, 24, 32, 40); // Mobile: 24px, Tablet: 32px, Desktop: 40px
   const controlsPanelWidth = isMobile ? '100%' : '260px'; // Full width on mobile
-  const controlsPanelPosition = isMobile ? 'bottom' : 'bottomRight'; // Bottom center on mobile
 
   // Entrance animation
   useEffect(() => {
