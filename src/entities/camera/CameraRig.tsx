@@ -92,8 +92,8 @@ export function CameraRig({
         controlsRef.current.minDistance = dynamicDistance;
         controlsRef.current.maxDistance = dynamicDistance;
 
-        // Lock target to origin (0,0,0) - scene rotation is handled by RotatableScene
-        // This keeps the OrbitControls centered while RotatableScene handles all rotation
+        // Lock target to origin (0,0,0) - scene rotation is handled by PresentationControls
+        // This keeps the OrbitControls centered while PresentationControls handles all rotation
         damp3(controlsRef.current.target, ORIGIN, lerpSpeed, delta);
 
         controlsRef.current.update();

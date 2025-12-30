@@ -1,13 +1,11 @@
-import { Html } from '@react-three/drei';
+import { Environment, Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GaiaUI } from '../components/GaiaUI';
-import { PostProcessing } from '../components/PostProcessing';
 import { EarthGlobe } from '../entities/earthGlobe';
-import { Environment } from '../entities/environment';
+import { Environment as SceneEnvironment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
-import { RotatableScene } from '../entities/rotatableScene';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -52,10 +50,21 @@ export function BreathingLevel({
     <ErrorBoundary>
       <Suspense fallback={null}>
         {/* Environment stays OUTSIDE rotatable group (fixed background) */}
-        <Environment enabled={showEnvironment} />
+        <SceneEnvironment enabled={showEnvironment} />
 
-        {/* Wrap rotatable entities in RotatableScene */}
-        <RotatableScene enableRotation={true}>
+        {/* Add HDR environment for realistic reflections on ceramic surfaces */}
+        <Environment preset="city" environmentIntensity={0.5} />
+
+        {/* Wrap rotatable entities in PresentationControls */}
+        <PresentationControls
+          global
+          cursor={true}
+          snap={false}
+          speed={1}
+          damping={0.3}
+          polar={[-Math.PI * 0.3, Math.PI * 0.3]}
+          azimuth={[-Infinity, Infinity]}
+        >
           {showGlobe && <EarthGlobe rotationSpeed={TUNING_DEFAULTS.earthRotationSpeed} />}
 
           {showParticles && <ParticleSwarm capacity={harmony} users={moods} />}
@@ -68,7 +77,7 @@ export function BreathingLevel({
               breathingOpacity={0.15}
             />
           )}
-        </RotatableScene>
+        </PresentationControls>
 
         {/* UI stays OUTSIDE rotatable group (fixed HUD) */}
         <Html fullscreen>
@@ -83,8 +92,6 @@ export function BreathingLevel({
             setExpansion={setExpansion}
           />
         </Html>
-
-        <PostProcessing bloom={bloom} />
       </Suspense>
     </ErrorBoundary>
   );

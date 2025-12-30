@@ -36,7 +36,8 @@ export function FrostedGlassMaterial({
   const backfaceFbo = useFBO();
 
   const materialRef = useRef<NodeMaterial>(null);
-  const isDisposed = useRef(false);
+  // Track disposed materials per-instance to avoid race conditions on prop changes
+  const disposedMaterialsRef = useRef(new WeakSet<THREE.Material>());
 
   const backfaceMaterial = useMemo(
     () =>
@@ -80,11 +81,17 @@ export function FrostedGlassMaterial({
     // Use instanceColor attribute if available (NodeMaterial convention)
     const tint = attribute('instanceColor', 'vec3');
 
+    // 1. FROSTED TINT: Multiply refraction by mood color (colored glass filter)
     const tintedRefraction = background.rgb.mul(mix(vec3(1.0), tint, 0.5));
+
+    // 2. MATTE BODY: Mix in raw solid color for semi-opaque/milky look
     const bodyColor = mix(tintedRefraction, tint, 0.25);
 
+    // 3. ILLUSTRATIVE RIM: Sharp white rim for clean edges
     const dotProduct = combinedNormal.dot(eyeDir.negate()).clamp(0, 1);
     const rim = float(1.0).sub(dotProduct).pow(3.0);
+
+    // 4. SOFT TOP-DOWN LIGHT: Ambient environment simulation
     const topLight = combinedNormal.y.smoothstep(0.0, 1.0).mul(0.1);
 
     const finalColor = mix(bodyColor, vec3(1.0), rim.mul(0.4)).add(topLight);
@@ -97,11 +104,11 @@ export function FrostedGlassMaterial({
   }, [backfaceFbo, ior, backfaceIntensity, baseColor]);
 
   // GPU memory cleanup: dispose materials, FBO on unmount or dependency change
-  // Sets isDisposed flag to prevent useFrame from accessing disposed resources
+  // Marks disposed materials in WeakSet to prevent useFrame from accessing them
   useEffect(() => {
-    isDisposed.current = false;
     return () => {
-      isDisposed.current = true;
+      disposedMaterialsRef.current.add(backfaceMaterial);
+      disposedMaterialsRef.current.add(tslMaterial);
       backfaceMaterial.dispose();
       tslMaterial.dispose();
       backfaceFbo.dispose();
@@ -110,7 +117,7 @@ export function FrostedGlassMaterial({
 
   useFrame((state) => {
     // Prevent rendering with disposed materials during prop changes or unmount
-    if (isDisposed.current) return;
+    if (disposedMaterialsRef.current.has(tslMaterial)) return;
 
     const mesh = state.scene.getObjectByName('Particle Swarm Mesh') as THREE.InstancedMesh;
     if (!mesh) return;

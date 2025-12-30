@@ -31,8 +31,8 @@ export function Environment({ enabled = true }: EnvironmentProps = {}) {
     <group>
       <BackgroundGradient />
 
-      {/* Soft, even ambient lighting */}
-      <ambientLight intensity={0.6} color="#ffffff" />
+      {/* Soft, even ambient lighting - reduced intensity to account for Environment map */}
+      <ambientLight intensity={0.4} color="#ffffff" />
     </group>
   );
 }

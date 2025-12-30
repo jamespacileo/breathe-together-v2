@@ -73,6 +73,9 @@ export function breathSystem(world: World, delta: number) {
 
   if (!breathEntity) {
     // Entity not spawned yet, skip this frame
+    if (import.meta.env.DEV) {
+      console.warn('[breathSystem] No breath entity found - breathing animation disabled');
+    }
     return;
   }
 

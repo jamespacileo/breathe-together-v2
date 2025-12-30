@@ -22,7 +22,7 @@ export interface ParticleSwarmProps {
   baseShardSize?: number;
 }
 
-export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: ParticleSwarmProps) {
+export function ParticleSwarm({ capacity = 300, users, baseShardSize = 4.0 }: ParticleSwarmProps) {
   const world = useWorld();
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const matrixRef = useRef(new THREE.Matrix4());
@@ -46,6 +46,11 @@ export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: Pa
     const targetColors = new Float32Array(capacity * 3);
     const fillerCol = new THREE.Color('#e6dcd3');
 
+    const tempMatrix = new THREE.Matrix4();
+    const tempQuat = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    const center = new THREE.Vector3(0, 0, 0);
+
     for (let i = 0; i < capacity; i++) {
       const phi = Math.acos(-1 + (2 * i) / capacity);
       const theta = Math.sqrt(capacity * Math.PI) * phi;
@@ -55,7 +60,13 @@ export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: Pa
       directions[i * 3 + 1] = dir.y;
       directions[i * 3 + 2] = dir.z;
 
-      rotations[i * 4 + 3] = 1; // Identity w
+      // Initial rotation: look at center
+      tempMatrix.lookAt(dir, center, up);
+      tempQuat.setFromRotationMatrix(tempMatrix);
+      rotations[i * 4] = tempQuat.x;
+      rotations[i * 4 + 1] = tempQuat.y;
+      rotations[i * 4 + 2] = tempQuat.z;
+      rotations[i * 4 + 3] = tempQuat.w;
 
       colors[i * 3] = fillerCol.r;
       colors[i * 3 + 1] = fillerCol.g;
@@ -107,12 +118,9 @@ export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: Pa
     }
 
     const currentRadius = breathEntity.get(orbitRadius)?.value ?? 6.0;
-    const currentSphereScale = breathEntity.get(sphereScale)?.value ?? 1.0;
 
-    // Smart scaling: balance angular coverage and globe proximity
-    const angularScale = (currentRadius * baseShardSize) / Math.sqrt(capacity);
-    const proximityScale = Math.max(0, (currentRadius - currentSphereScale * 1.02) * 0.8);
-    const dynamicScale = Math.min(angularScale, proximityScale);
+    // Simple scaling matching the illustrative example: baseSize / sqrt(capacity)
+    const dynamicScale = baseShardSize / Math.sqrt(capacity);
 
     for (let i = 0; i < capacity; i++) {
       // Position
@@ -122,7 +130,7 @@ export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: Pa
         data.directions[i * 3 + 2] * currentRadius,
       );
 
-      // Rotation
+      // Rotation: Apply continuous local rotation to the stored orientation
       tempQuatRef.current.set(
         data.rotations[i * 4],
         data.rotations[i * 4 + 1],
@@ -143,7 +151,7 @@ export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: Pa
       matrixRef.current.compose(tempPosRef.current, tempQuatRef.current, tempScaleRef.current);
       mesh.setMatrixAt(i, matrixRef.current);
 
-      // Color
+      // Color interpolation
       for (let j = 0; j < 3; j++) {
         data.colors[i * 3 + j] += (data.targetColors[i * 3 + j] - data.colors[i * 3 + j]) * 0.1;
       }
