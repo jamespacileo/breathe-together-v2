@@ -91,7 +91,7 @@ export function BreathingDebugScene({
   ...breathingLevelProps
 }: Partial<BreathingDebugSceneProps> = {}) {
   return (
-    <>
+    <group>
       <BreathingLevel {...breathingLevelProps} />
 
       <BreathDebugPanel
@@ -104,7 +104,7 @@ export function BreathingDebugScene({
         showPhaseMarkers={showPhaseMarkers}
         showTraitValues={showTraitValues}
       />
-    </>
+    </group>
   );
 }
 

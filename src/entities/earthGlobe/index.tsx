@@ -102,8 +102,11 @@ export function EarthGlobe({
         rotationRef.current += rotationSpeed * delta;
         groupRef.current.rotation.y = rotationRef.current;
       }
-    } catch (_e) {
+    } catch (error) {
       // Ignore ECS errors during unmount/remount
+      if (import.meta.env.DEV) {
+        console.warn('[EarthGlobe] ECS error (expected during Triplex hot-reload):', error);
+      }
     }
   });
 

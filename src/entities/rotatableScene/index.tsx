@@ -124,16 +124,11 @@ export function RotatableScene({
       {/* Invisible event capture sphere - responds to pointer events anywhere in scene */}
       <mesh
         visible={false}
-        // biome-ignore lint/suspicious/noExplicitAny: React Three Fiber event types don't match perfectly with ThreeEvent
-        onPointerDown={onPointerDown as any}
-        // biome-ignore lint/suspicious/noExplicitAny: React Three Fiber event types don't match perfectly with ThreeEvent
-        onPointerMove={onPointerMove as any}
-        // biome-ignore lint/suspicious/noExplicitAny: React Three Fiber event types don't match perfectly with ThreeEvent
-        onPointerUp={onPointerUp as any}
-        // biome-ignore lint/suspicious/noExplicitAny: React Three Fiber event types don't match perfectly with ThreeEvent
-        onPointerLeave={onPointerUp as any}
-        // biome-ignore lint/suspicious/noExplicitAny: Handle interrupted interactions (drag outside window, touch cancel)
-        onPointerCancel={onPointerUp as any}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
         <sphereGeometry args={[20, 8, 8]} />
         <meshBasicMaterial transparent opacity={0} />
@@ -144,5 +139,3 @@ export function RotatableScene({
     </group>
   );
 }
-
-export default RotatableScene;

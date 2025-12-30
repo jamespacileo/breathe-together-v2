@@ -53,10 +53,12 @@ const PHASES = [
 ];
 
 /**
- * Compute phase timing from elapsed time using BREATH_PHASES
- * Internal helper for calculateBreathState
+ * Calculate all breathing values for a given UTC time
+ * Returns a snapshot of the current breath state
  */
-function getPhaseTiming(elapsedTime: number, cycleSeconds: number = BREATH_TOTAL_CYCLE) {
+export function calculateBreathState(elapsedTime: number): BreathState {
+  // Compute phase timing
+  const cycleSeconds = BREATH_TOTAL_CYCLE;
   const scale = cycleSeconds / BREATH_TOTAL_CYCLE;
   const phaseDurations = [
     BREATH_PHASES.INHALE * scale,
@@ -82,15 +84,7 @@ function getPhaseTiming(elapsedTime: number, cycleSeconds: number = BREATH_TOTAL
   const phaseTime = cycleTime - accumulatedTime;
   const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
 
-  return { phaseIndex, phaseProgress, cycleTime };
-}
-
-/**
- * Calculate all breathing values for a given UTC time
- * Returns a snapshot of the current breath state
- */
-export function calculateBreathState(elapsedTime: number): BreathState {
-  const { phaseIndex, phaseProgress } = getPhaseTiming(elapsedTime);
+  // Calculate breathing state
   const phase = PHASES[phaseIndex];
   const easedProgress = phase.ease(phaseProgress);
 

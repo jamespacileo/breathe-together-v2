@@ -27,15 +27,17 @@ export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: Pa
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const matrixRef = useRef(new THREE.Matrix4());
   const colorRef = useRef(new THREE.Color());
+  const reusableColorRef = useRef(new THREE.Color());
 
-  const tempPos = useRef(new THREE.Vector3()).current;
-  const tempQuat = useRef(new THREE.Quaternion()).current;
-  const tempScale = useRef(new THREE.Vector3(1, 1, 1)).current;
+  // Refs without extracting .current - prevents 60fps allocations
+  const tempPosRef = useRef(new THREE.Vector3());
+  const tempQuatRef = useRef(new THREE.Quaternion());
+  const tempScaleRef = useRef(new THREE.Vector3(1, 1, 1));
 
-  const axisX = useRef(new THREE.Vector3(1, 0, 0)).current;
-  const axisY = useRef(new THREE.Vector3(0, 1, 0)).current;
-  const deltaQuatX = useRef(new THREE.Quaternion()).current;
-  const deltaQuatY = useRef(new THREE.Quaternion()).current;
+  const axisXRef = useRef(new THREE.Vector3(1, 0, 0));
+  const axisYRef = useRef(new THREE.Vector3(0, 1, 0));
+  const deltaQuatXRef = useRef(new THREE.Quaternion());
+  const deltaQuatYRef = useRef(new THREE.Quaternion());
 
   const data = useMemo(() => {
     const directions = new Float32Array(capacity * 3);
@@ -66,32 +68,43 @@ export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: Pa
   }, [capacity]);
 
   useEffect(() => {
-    const fillerCol = new THREE.Color('#e6dcd3');
+    reusableColorRef.current.set('#e6dcd3');
     let idx = 0;
     if (users) {
       for (const [moodId, count] of Object.entries(users)) {
-        const col = new THREE.Color(getMonumentValleyMoodColor(moodId as MoodId));
+        reusableColorRef.current.set(getMonumentValleyMoodColor(moodId as MoodId));
         for (let i = 0; i < (count ?? 0) && idx < capacity; i++, idx++) {
-          data.targetColors[idx * 3] = col.r;
-          data.targetColors[idx * 3 + 1] = col.g;
-          data.targetColors[idx * 3 + 2] = col.b;
+          data.targetColors[idx * 3] = reusableColorRef.current.r;
+          data.targetColors[idx * 3 + 1] = reusableColorRef.current.g;
+          data.targetColors[idx * 3 + 2] = reusableColorRef.current.b;
         }
       }
     }
     while (idx < capacity) {
-      data.targetColors[idx * 3] = fillerCol.r;
-      data.targetColors[idx * 3 + 1] = fillerCol.g;
-      data.targetColors[idx * 3 + 2] = fillerCol.b;
+      reusableColorRef.current.set('#e6dcd3');
+      data.targetColors[idx * 3] = reusableColorRef.current.r;
+      data.targetColors[idx * 3 + 1] = reusableColorRef.current.g;
+      data.targetColors[idx * 3 + 2] = reusableColorRef.current.b;
       idx++;
     }
   }, [users, data, capacity]);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 300-particle transformation + color interpolation + trait validation (dev-only) requires multiple operations
   useFrame((_state) => {
     const mesh = meshRef.current;
     if (!mesh) return;
 
     const breathEntity = world.queryFirst(orbitRadius, sphereScale);
     if (!breathEntity) return;
+
+    if (import.meta.env.DEV) {
+      if (!breathEntity.has?.(orbitRadius)) {
+        console.warn('[ParticleSwarm] orbitRadius trait missing - entity may be corrupt');
+      }
+      if (!breathEntity.has?.(sphereScale)) {
+        console.warn('[ParticleSwarm] sphereScale trait missing - entity may be corrupt');
+      }
+    }
 
     const currentRadius = breathEntity.get(orbitRadius)?.value ?? 6.0;
     const currentSphereScale = breathEntity.get(sphereScale)?.value ?? 1.0;
@@ -103,31 +116,31 @@ export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: Pa
 
     for (let i = 0; i < capacity; i++) {
       // Position
-      tempPos.set(
+      tempPosRef.current.set(
         data.directions[i * 3] * currentRadius,
         data.directions[i * 3 + 1] * currentRadius,
         data.directions[i * 3 + 2] * currentRadius,
       );
 
       // Rotation
-      tempQuat.set(
+      tempQuatRef.current.set(
         data.rotations[i * 4],
         data.rotations[i * 4 + 1],
         data.rotations[i * 4 + 2],
         data.rotations[i * 4 + 3],
       );
-      deltaQuatX.setFromAxisAngle(axisX, 0.002);
-      deltaQuatY.setFromAxisAngle(axisY, 0.003);
-      tempQuat.multiply(deltaQuatX).multiply(deltaQuatY);
+      deltaQuatXRef.current.setFromAxisAngle(axisXRef.current, 0.002);
+      deltaQuatYRef.current.setFromAxisAngle(axisYRef.current, 0.003);
+      tempQuatRef.current.multiply(deltaQuatXRef.current).multiply(deltaQuatYRef.current);
 
-      data.rotations[i * 4] = tempQuat.x;
-      data.rotations[i * 4 + 1] = tempQuat.y;
-      data.rotations[i * 4 + 2] = tempQuat.z;
-      data.rotations[i * 4 + 3] = tempQuat.w;
+      data.rotations[i * 4] = tempQuatRef.current.x;
+      data.rotations[i * 4 + 1] = tempQuatRef.current.y;
+      data.rotations[i * 4 + 2] = tempQuatRef.current.z;
+      data.rotations[i * 4 + 3] = tempQuatRef.current.w;
 
       // Compose
-      tempScale.set(dynamicScale, dynamicScale, dynamicScale);
-      matrixRef.current.compose(tempPos, tempQuat, tempScale);
+      tempScaleRef.current.set(dynamicScale, dynamicScale, dynamicScale);
+      matrixRef.current.compose(tempPosRef.current, tempQuatRef.current, tempScaleRef.current);
       mesh.setMatrixAt(i, matrixRef.current);
 
       // Color

@@ -33,9 +33,12 @@ export function KootaSystems({
       if (breathSystemEnabled) {
         breathSystem(world, delta);
       }
-    } catch (_e) {
+    } catch (error) {
       // Silently catch ECS errors during unmount/remount in Triplex
       // This prevents the "data_7_$f.store" crash when the world is stale
+      if (import.meta.env.DEV) {
+        console.warn('[breathSystem] ECS error (expected during Triplex hot-reload):', error);
+      }
     }
   });
 

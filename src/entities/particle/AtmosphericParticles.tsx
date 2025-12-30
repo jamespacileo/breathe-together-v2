@@ -187,5 +187,3 @@ export function AtmosphericParticles({
 
   return <points ref={pointsRef} geometry={geometry} material={material} />;
 }
-
-export default AtmosphericParticles;

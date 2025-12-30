@@ -1,7 +1,6 @@
 import { Container, Fullscreen, Root, Text } from '@react-three/uikit';
 import { Suspense, useRef } from 'react';
 import { useBreathPhaseDisplay3D } from '../hooks/useBreathPhaseDisplay3D';
-import { usePresence } from '../hooks/usePresence';
 
 /**
  * Minimal HUD for breathing meditation using @react-three/uikit
@@ -9,11 +8,11 @@ import { usePresence } from '../hooks/usePresence';
  * Style: Subtle, transparent, minimalist
  */
 export function BreathingHUD3D() {
-  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
+  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit v1.0.60 doesn't export component types; using any for JSX props
   const phaseNameRef = useRef<any>(null);
-  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
+  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit v1.0.60 doesn't export component types; using any for JSX props
   const timerRef = useRef<any>(null);
-  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
+  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit v1.0.60 doesn't export component types; using any for JSX props
   const progressBarRef = useRef<any>(null);
 
   // Hook manages RAF loop for 60fps updates
@@ -23,7 +22,7 @@ export function BreathingHUD3D() {
     progressBarRef,
   });
 
-  const { count: userCount = 0 } = usePresence();
+  const userCount = 75;
 
   return (
     <Root>

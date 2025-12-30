@@ -7,6 +7,9 @@ import * as THREE from 'three';
 import type { OrbitControls } from 'three-stdlib';
 import { breathPhase } from '../breath/traits';
 
+// Reusable origin vector to prevent 60fps allocations
+const ORIGIN = new THREE.Vector3(0, 0, 0);
+
 interface CameraRigProps {
   /**
    * Mouse parallax movement intensity (orbital camera offset).
@@ -55,6 +58,10 @@ export function CameraRig({
       const breathEntity = world.queryFirst(breathPhase);
       if (!breathEntity) return;
 
+      if (import.meta.env.DEV && !breathEntity.has?.(breathPhase)) {
+        console.warn('[CameraRig] breathPhase trait missing - entity may be corrupt');
+      }
+
       const phase = breathEntity.get(breathPhase)?.value ?? 0;
       lastPhase.current = phase;
 
@@ -87,12 +94,15 @@ export function CameraRig({
 
         // Lock target to origin (0,0,0) - scene rotation is handled by RotatableScene
         // This keeps the OrbitControls centered while RotatableScene handles all rotation
-        damp3(controlsRef.current.target, new THREE.Vector3(0, 0, 0), lerpSpeed, delta);
+        damp3(controlsRef.current.target, ORIGIN, lerpSpeed, delta);
 
         controlsRef.current.update();
       }
-    } catch (_e) {
+    } catch (error) {
       // Ignore stale world errors
+      if (import.meta.env.DEV) {
+        console.warn('[CameraRig] Unexpected error (expected during Triplex hot-reload):', error);
+      }
     }
   });
 

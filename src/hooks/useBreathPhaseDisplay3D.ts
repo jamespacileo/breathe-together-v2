@@ -3,16 +3,29 @@ import { useWorld } from 'koota/react';
 import { useRef } from 'react';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
 import { phaseType, rawProgress } from '../entities/breath/traits';
+import type { UikitContainerRef, UikitTextRef } from '../types/uikit';
 
 export const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'];
 
+// Computed once at module load time (not on every function call)
+const PHASE_DURATIONS = [
+  BREATH_PHASES.INHALE,
+  BREATH_PHASES.HOLD_IN,
+  BREATH_PHASES.EXHALE,
+  BREATH_PHASES.HOLD_OUT,
+];
+
+const PHASE_START_TIMES = PHASE_DURATIONS.reduce<number[]>((acc, _duration, index) => {
+  if (index === 0) return [0];
+  const lastStart = acc[index - 1] ?? 0;
+  acc.push(lastStart + (PHASE_DURATIONS[index - 1] ?? 0));
+  return acc;
+}, []);
+
 interface PhaseDisplay3DRefs {
-  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
-  phaseNameRef: React.RefObject<any>;
-  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
-  timerRef: React.RefObject<any>;
-  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
-  progressBarRef: React.RefObject<any>;
+  phaseNameRef: UikitTextRef;
+  timerRef: UikitTextRef;
+  progressBarRef: UikitContainerRef;
 }
 
 /**
@@ -26,33 +39,30 @@ export function useBreathPhaseDisplay3D(refs: PhaseDisplay3DRefs): void {
   const world = useWorld();
   const prevPhaseRef = useRef<number>(-1);
 
-  const phaseDurations = [
-    BREATH_PHASES.INHALE,
-    BREATH_PHASES.HOLD_IN,
-    BREATH_PHASES.EXHALE,
-    BREATH_PHASES.HOLD_OUT,
-  ];
-
-  const phaseStartTimes = phaseDurations.reduce<number[]>((acc, _duration, index) => {
-    if (index === 0) return [0];
-    const lastStart = acc[index - 1] ?? 0;
-    acc.push(lastStart + (phaseDurations[index - 1] ?? 0));
-    return acc;
-  }, []);
-
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: HUD update logic requires state checks and multiple text property updates across refs - refactoring would reduce readability
   useFrame(() => {
     try {
       const breathEntity = world.queryFirst(phaseType, rawProgress);
       if (!breathEntity || !world.has(breathEntity)) return;
 
+      if (import.meta.env.DEV) {
+        if (!breathEntity.has?.(phaseType)) {
+          console.warn('[useBreathPhaseDisplay3D] phaseType trait missing - entity may be corrupt');
+        }
+        if (!breathEntity.has?.(rawProgress)) {
+          console.warn(
+            '[useBreathPhaseDisplay3D] rawProgress trait missing - entity may be corrupt',
+          );
+        }
+      }
+
       const currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
       const currentRawProgress = Math.min(
         1,
         Math.max(0, breathEntity.get(rawProgress)?.value ?? 0),
       );
-      const phaseStartTime = phaseStartTimes[currentPhaseType] ?? 0;
-      const phaseDuration = phaseDurations[currentPhaseType] ?? phaseDurations[0] ?? 1;
+      const phaseStartTime = PHASE_START_TIMES[currentPhaseType] ?? 0;
+      const phaseDuration = PHASE_DURATIONS[currentPhaseType] ?? PHASE_DURATIONS[0] ?? 1;
 
       // Update phase name on transition
       if (currentPhaseType !== prevPhaseRef.current) {
@@ -89,8 +99,14 @@ export function useBreathPhaseDisplay3D(refs: PhaseDisplay3DRefs): void {
           refs.progressBarRef.current.style.width = `${progressPercent}%`;
         }
       }
-    } catch (_e) {
+    } catch (error) {
       // Ignore stale world errors
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[useBreathPhaseDisplay3D] ECS error (expected during Triplex hot-reload):',
+          error,
+        );
+      }
     }
   });
 }

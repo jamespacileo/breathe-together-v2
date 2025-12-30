@@ -1,5 +1,5 @@
 import { Html } from '@react-three/drei';
-import { Suspense, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GaiaUI } from '../components/GaiaUI';
 import { PostProcessing } from '../components/PostProcessing';
@@ -8,8 +8,20 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RotatableScene } from '../entities/rotatableScene';
-import { usePresence } from '../hooks/usePresence';
+import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
+
+/**
+ * Tuning defaults for visual aesthetics
+ */
+const TUNING_DEFAULTS = {
+  particleCounts: { sparse: 150, normal: 300, dense: 600 },
+  refraction: 1.4,
+  breath: 0.3,
+  expansion: 2.0,
+  earthRotationSpeed: 0.1,
+  atmosphericParticleCount: 100,
+};
 
 /**
  * BreathingLevel - Core meditation environment.
@@ -24,13 +36,17 @@ export function BreathingLevel({
 }: Partial<BreathingLevelProps> = {}) {
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
-    particleDensity === 'sparse' ? 150 : particleDensity === 'dense' ? 600 : 300,
+    particleDensity === 'sparse'
+      ? TUNING_DEFAULTS.particleCounts.sparse
+      : particleDensity === 'dense'
+        ? TUNING_DEFAULTS.particleCounts.dense
+        : TUNING_DEFAULTS.particleCounts.normal,
   );
-  const [refraction, setRefraction] = useState(1.4);
-  const [breath, setBreath] = useState(0.3);
-  const [expansion, setExpansion] = useState(2.0);
+  const [refraction, setRefraction] = useState(TUNING_DEFAULTS.refraction);
+  const [breath, setBreath] = useState(TUNING_DEFAULTS.breath);
+  const [expansion, setExpansion] = useState(TUNING_DEFAULTS.expansion);
 
-  const { moods } = usePresence();
+  const moods = useMemo(() => generateMockPresence(300).moods, []);
 
   return (
     <ErrorBoundary>
@@ -40,13 +56,13 @@ export function BreathingLevel({
 
         {/* Wrap rotatable entities in RotatableScene */}
         <RotatableScene enableRotation={true}>
-          {showGlobe && <EarthGlobe rotationSpeed={0.1} />}
+          {showGlobe && <EarthGlobe rotationSpeed={TUNING_DEFAULTS.earthRotationSpeed} />}
 
           {showParticles && <ParticleSwarm capacity={harmony} users={moods} />}
 
           {showParticles && (
             <AtmosphericParticles
-              count={100}
+              count={TUNING_DEFAULTS.atmosphericParticleCount}
               size={0.08}
               baseOpacity={0.1}
               breathingOpacity={0.15}

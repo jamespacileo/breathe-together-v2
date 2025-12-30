@@ -28,11 +28,11 @@ export function Environment({ enabled = true }: EnvironmentProps = {}) {
   if (!enabled) return null;
 
   return (
-    <>
+    <group>
       <BackgroundGradient />
 
       {/* Soft, even ambient lighting */}
       <ambientLight intensity={0.6} color="#ffffff" />
-    </>
+    </group>
   );
 }
