@@ -8,9 +8,11 @@
  * Features:
  * - Smooth join animation: shards grow from globe surface (2s)
  * - Smooth leave animation: shards shrink to globe surface (2s)
- * - Wave effect: multiple joins staggered for visual flow
+ * - Wave effect: multiple joins staggered for visual flow (capped at 1.5s max)
  * - Position interpolation: smooth gliding when count changes
  * - Randomized colors: prevents mood clustering
+ * - Handles rapid updates: joining shards can transition to leaving mid-animation
+ * - Large batch support: stagger delay scales down for big changes
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -41,8 +43,8 @@ const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
 };
 
 /**
- * Shuffle array in place using Fisher-Yates algorithm
- * This ensures colors are randomly distributed, preventing mood clustering
+ * Shuffle array using Fisher-Yates algorithm
+ * Ensures colors are randomly distributed, preventing mood clustering
  */
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
@@ -55,12 +57,6 @@ function shuffleArray<T>(array: T[]): T[] {
 
 /**
  * Build color distribution array from presence data with randomization
- *
- * Converts mood counts into a shuffled array of Three.js Color instances.
- * Shuffling prevents mood clustering - colors are distributed randomly.
- *
- * @param users - Mood distribution from presence data
- * @returns Shuffled array of colors, one per user
  */
 function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefined): THREE.Color[] {
   if (!users) return [];
@@ -74,7 +70,6 @@ function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefin
       }
     }
   }
-  // Shuffle to prevent mood clustering
   return shuffleArray(colorDistribution);
 }
 
@@ -97,7 +92,8 @@ function applyVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Col
  * Returns unit vector direction for even distribution on sphere
  */
 function getFibonacciPosition(index: number, total: number): THREE.Vector3 {
-  const phi = Math.acos(-1 + (2 * index) / total);
+  if (total <= 0) return new THREE.Vector3(0, 1, 0);
+  const phi = Math.acos(-1 + (2 * index) / Math.max(total, 1));
   const theta = Math.sqrt(total * Math.PI) * phi;
   return new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
 }
@@ -127,46 +123,42 @@ export interface ParticleSwarmProps {
   maxShardSize?: number;
   /** Duration of join/leave animations in seconds @default 2 */
   animationDuration?: number;
-  /** Delay between staggered join animations in seconds @default 0.15 */
+  /** Base delay between staggered animations in seconds @default 0.1 */
   staggerDelay?: number;
+  /** Maximum total stagger time for large batches @default 1.5 */
+  maxStaggerTime?: number;
 }
 
 /**
  * Animation states for shard lifecycle
  */
-type ShardAnimationState = 'joining' | 'stable' | 'leaving' | 'removed';
+type ShardAnimationState = 'joining' | 'stable' | 'leaving';
 
 interface ShardData {
   mesh: THREE.Mesh;
   direction: THREE.Vector3;
-  targetDirection: THREE.Vector3; // For smooth position transitions
+  targetDirection: THREE.Vector3;
   geometry: THREE.IcosahedronGeometry;
   color: THREE.Color;
-  id: number; // Unique identifier for tracking
+  id: number;
 }
 
 /**
  * Physics + animation state for each shard
  */
 interface ShardPhysicsState {
-  /** Current interpolated radius (spring-smoothed) */
+  id: number;
   currentRadius: number;
-  /** Radial velocity for spring physics */
   velocity: number;
-  /** Phase offset for subtle wave effect (0-0.05 range) */
   phaseOffset: number;
-  /** Seed for ambient floating motion (unique per shard) */
   ambientSeed: number;
-  /** Previous frame's target radius (for detecting expansion) */
   previousTarget: number;
-  /** Animation state (joining, stable, leaving, removed) */
   animationState: ShardAnimationState;
-  /** Animation progress (0-1) */
   animationProgress: number;
-  /** Delay before animation starts (for stagger effect) */
   animationDelay: number;
-  /** Current scale (0-1, for join/leave animations) */
   scale: number;
+  /** For reversing: tracks if we're going from join→leave mid-animation */
+  reversedFromScale: number;
 }
 
 // Spring physics constants
@@ -192,18 +184,19 @@ export function ParticleSwarm({
   buffer = 0.3,
   maxShardSize = 0.6,
   animationDuration = 2,
-  staggerDelay = 0.15,
+  staggerDelay = 0.1,
+  maxStaggerTime = 1.5,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
-  const prevCountRef = useRef<number>(0);
+  const targetCountRef = useRef<number>(0);
   const colorPoolRef = useRef<THREE.Color[]>([]);
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
-    () => Math.min(baseShardSize / Math.sqrt(count), maxShardSize),
+    () => Math.min(baseShardSize / Math.sqrt(Math.max(count, 1)), maxShardSize),
     [baseShardSize, count, maxShardSize],
   );
   const minOrbitRadius = useMemo(
@@ -211,8 +204,22 @@ export function ParticleSwarm({
     [globeRadius, shardSize, buffer],
   );
 
-  // Create shared material (will be swapped by RefractionPipeline)
+  // Create shared material
   const material = useMemo(() => createFrostedGlassMaterial(), []);
+
+  /**
+   * Calculate effective stagger delay for batch size
+   * Scales down for large batches to keep total wave time reasonable
+   */
+  const getEffectiveStaggerDelay = useCallback(
+    (batchSize: number): number => {
+      if (batchSize <= 1) return 0;
+      // Cap total stagger time, distribute evenly
+      const totalTime = Math.min(batchSize * staggerDelay, maxStaggerTime);
+      return totalTime / batchSize;
+    },
+    [staggerDelay, maxStaggerTime],
+  );
 
   /**
    * Create a new shard with geometry, color, and initial position
@@ -225,9 +232,8 @@ export function ParticleSwarm({
       const direction = getFibonacciPosition(index, total);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData.useRefraction = true;
-      // Start at globe surface (will animate outward)
       mesh.position.copy(direction).multiplyScalar(globeRadius);
-      mesh.scale.setScalar(0); // Start invisible
+      mesh.scale.setScalar(0);
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
 
@@ -247,10 +253,11 @@ export function ParticleSwarm({
    * Create initial physics state for a shard
    */
   const createPhysicsState = useCallback(
-    (index: number, delay: number, isJoining: boolean): ShardPhysicsState => {
+    (shardId: number, index: number, delay: number, isJoining: boolean): ShardPhysicsState => {
       const goldenRatio = (1 + Math.sqrt(5)) / 2;
       return {
-        currentRadius: globeRadius, // Start at globe surface
+        id: shardId,
+        currentRadius: globeRadius,
         velocity: 0,
         phaseOffset: ((index * goldenRatio) % 1) * MAX_PHASE_OFFSET,
         ambientSeed: index * 137.508,
@@ -259,6 +266,7 @@ export function ParticleSwarm({
         animationProgress: 0,
         animationDelay: delay,
         scale: isJoining ? 0 : 1,
+        reversedFromScale: 0,
       };
     },
     [globeRadius],
@@ -269,99 +277,155 @@ export function ParticleSwarm({
     colorPoolRef.current = buildColorDistribution(users);
   }, [users]);
 
+  /**
+   * Recalculate target positions for all active (non-leaving) shards
+   */
+  const recalculateTargetPositions = useCallback((targetCount: number) => {
+    const currentShards = shardsRef.current;
+    const physics = physicsRef.current;
+
+    // Count active shards (not leaving)
+    let activeIndex = 0;
+    for (let i = 0; i < currentShards.length; i++) {
+      if (physics[i] && physics[i].animationState !== 'leaving') {
+        currentShards[i].targetDirection = getFibonacciPosition(activeIndex, targetCount);
+        activeIndex++;
+      }
+    }
+  }, []);
+
   // Handle count changes - add/remove shards with animations
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Shard lifecycle management requires coordinated add/remove logic with position recalculation - refactoring would reduce readability
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
 
-    const prevCount = prevCountRef.current;
     const currentShards = shardsRef.current;
-    const currentPhysics = physicsRef.current;
+    const physics = physicsRef.current;
     const colorPool = colorPoolRef.current;
 
-    // Calculate how many shards to add or remove
-    const countDiff = count - prevCount;
+    // Count currently "active" shards (joining or stable, not leaving)
+    const activeCount = physics.filter((p) => p.animationState !== 'leaving').length;
+    const diff = count - activeCount;
 
-    if (countDiff > 0) {
-      // Adding new shards (users joining)
-      for (let i = 0; i < countDiff; i++) {
+    if (diff > 0) {
+      // Adding new shards
+      const effectiveDelay = getEffectiveStaggerDelay(diff);
+
+      for (let i = 0; i < diff; i++) {
         const newIndex = currentShards.length;
-        // Get color from pool or random fallback
         const color =
-          colorPool[newIndex % colorPool.length] ??
+          colorPool[newIndex % Math.max(colorPool.length, 1)] ??
           MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
 
         const shard = createShard(newIndex, count, color);
         group.add(shard.mesh);
         currentShards.push(shard);
 
-        // Staggered delay for wave effect
-        const delay = i * staggerDelay;
-        currentPhysics.push(createPhysicsState(newIndex, delay, true));
+        const delay = i * effectiveDelay;
+        physics.push(createPhysicsState(shard.id, newIndex, delay, true));
       }
 
-      // Update target positions for all shards (redistribute on sphere)
-      for (let i = 0; i < currentShards.length; i++) {
-        currentShards[i].targetDirection = getFibonacciPosition(i, count);
-      }
-    } else if (countDiff < 0) {
-      // Removing shards (users leaving)
-      const removeCount = Math.abs(countDiff);
-      const removeIndices: number[] = [];
+      recalculateTargetPositions(count);
+    } else if (diff < 0) {
+      // Removing shards - mark for leaving
+      const removeCount = Math.abs(diff);
+      const effectiveDelay = getEffectiveStaggerDelay(removeCount);
 
-      // Mark last N shards for removal (most recently added leave first - LIFO)
-      for (let i = 0; i < removeCount && currentShards.length - 1 - i >= 0; i++) {
-        const idx = currentShards.length - 1 - i;
-        if (currentPhysics[idx] && currentPhysics[idx].animationState !== 'leaving') {
-          currentPhysics[idx].animationState = 'leaving';
-          currentPhysics[idx].animationProgress = 0;
-          currentPhysics[idx].animationDelay = i * staggerDelay;
-          removeIndices.push(idx);
+      // Find shards to remove (prefer those still joining, then stable ones from the end)
+      // First, try to cancel any still-joining shards with pending delays
+      const joiningWithDelay: number[] = [];
+      const joiningActive: number[] = [];
+      const stableIndices: number[] = [];
+
+      for (let i = physics.length - 1; i >= 0; i--) {
+        const p = physics[i];
+        if (p.animationState === 'leaving') continue;
+
+        if (p.animationState === 'joining') {
+          if (p.animationDelay > 0 && p.animationProgress === 0) {
+            joiningWithDelay.push(i);
+          } else {
+            joiningActive.push(i);
+          }
+        } else {
+          stableIndices.push(i);
         }
       }
 
-      // Update target positions for remaining shards
-      const remainingCount = currentShards.length - removeCount;
-      for (let i = 0; i < currentShards.length; i++) {
-        if (!removeIndices.includes(i)) {
-          // Find new index in remaining set
-          const newIdx =
-            currentShards.slice(0, i + 1).filter((_, j) => !removeIndices.includes(j)).length - 1;
-          currentShards[i].targetDirection = getFibonacciPosition(newIdx, remainingCount);
+      // Prioritize removal: pending joins first, then active joins, then stable
+      const removalOrder = [...joiningWithDelay, ...joiningActive, ...stableIndices];
+      let removed = 0;
+      let staggerIndex = 0;
+
+      for (const idx of removalOrder) {
+        if (removed >= removeCount) break;
+
+        const p = physics[idx];
+
+        // If shard hasn't started animating yet, instant remove it
+        if (p.animationState === 'joining' && p.animationDelay > 0 && p.animationProgress === 0) {
+          // Instant cancel - remove immediately
+          const shard = currentShards[idx];
+          shard.geometry.dispose();
+          group.remove(shard.mesh);
+          currentShards.splice(idx, 1);
+          physics.splice(idx, 1);
+          removed++;
+          continue;
         }
+
+        // Transition to leaving state
+        if (p.animationState === 'joining') {
+          // Reverse mid-animation: start from current scale
+          p.reversedFromScale = p.scale;
+          p.animationProgress = 0;
+        } else {
+          p.reversedFromScale = 1;
+          p.animationProgress = 0;
+        }
+
+        p.animationState = 'leaving';
+        p.animationDelay = staggerIndex * effectiveDelay;
+        staggerIndex++;
+        removed++;
       }
+
+      recalculateTargetPositions(count);
     }
 
-    prevCountRef.current = count;
-  }, [count, createShard, createPhysicsState, staggerDelay]);
+    targetCountRef.current = count;
+  }, [
+    count,
+    createShard,
+    createPhysicsState,
+    getEffectiveStaggerDelay,
+    recalculateTargetPositions,
+  ]);
 
   // Initialize on first mount
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || prevCountRef.current !== 0) return;
+    if (!group || targetCountRef.current !== 0) return;
 
     const colorPool = colorPoolRef.current.length > 0 ? colorPoolRef.current : MOOD_COLORS;
 
-    // Create initial shards
     for (let i = 0; i < count; i++) {
       const color = colorPool[i % colorPool.length];
       const shard = createShard(i, count, color);
-      // Initial shards start stable (already present)
       shard.mesh.scale.setScalar(1);
       shard.mesh.position.copy(shard.direction).multiplyScalar(baseRadius);
       group.add(shard.mesh);
       shardsRef.current.push(shard);
 
-      const physics = createPhysicsState(i, 0, false);
+      const physics = createPhysicsState(shard.id, i, 0, false);
       physics.currentRadius = baseRadius;
       physics.scale = 1;
       physicsRef.current.push(physics);
     }
 
-    prevCountRef.current = count;
+    targetCountRef.current = count;
 
-    // Cleanup on unmount
     return () => {
       for (const shard of shardsRef.current) {
         shard.geometry.dispose();
@@ -387,7 +451,6 @@ export function ParticleSwarm({
     const group = groupRef.current;
     if (currentShards.length === 0 || physics.length === 0 || !group) return;
 
-    // Cap delta to prevent physics explosion on tab switch
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
 
@@ -404,17 +467,15 @@ export function ParticleSwarm({
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
-    // Track indices to remove after animation completes
     const toRemove: number[] = [];
 
-    // Update each shard
     for (let i = 0; i < currentShards.length; i++) {
       const shard = currentShards[i];
       const shardState = physics[i];
+      if (!shard || !shardState) continue;
 
-      // Handle join/leave animations
+      // Handle animations
       if (shardState.animationState === 'joining') {
-        // Update animation progress (with delay)
         if (shardState.animationDelay > 0) {
           shardState.animationDelay -= clampedDelta;
         } else {
@@ -424,98 +485,90 @@ export function ParticleSwarm({
             shardState.animationState = 'stable';
           }
         }
-        // Ease scale from 0 to 1
         shardState.scale = easeInOutCubic(Math.min(shardState.animationProgress, 1));
       } else if (shardState.animationState === 'leaving') {
-        // Update animation progress (with delay)
         if (shardState.animationDelay > 0) {
           shardState.animationDelay -= clampedDelta;
         } else {
           shardState.animationProgress += clampedDelta / animationDuration;
           if (shardState.animationProgress >= 1) {
             shardState.animationProgress = 1;
-            shardState.animationState = 'removed';
             toRemove.push(i);
           }
         }
-        // Ease scale from 1 to 0
-        shardState.scale = 1 - easeInOutCubic(Math.min(shardState.animationProgress, 1));
+        // Ease from reversedFromScale to 0
+        const startScale = shardState.reversedFromScale;
+        shardState.scale =
+          startScale * (1 - easeInOutCubic(Math.min(shardState.animationProgress, 1)));
       }
 
-      // Apply scale
+      // Apply scale (minimum to prevent invisible mesh issues)
       shard.mesh.scale.setScalar(Math.max(shardState.scale, 0.001));
 
-      // Smoothly interpolate direction toward target (for position redistribution)
+      // Smoothly interpolate direction toward target
       shard.direction.lerp(shard.targetDirection, POSITION_LERP_SPEED * clampedDelta);
 
-      // Apply phase offset for wave effect
+      // Calculate target radius based on animation state
       const offsetBreathPhase = currentBreathPhase + shardState.phaseOffset;
 
-      // Calculate target radius with phase offset applied
-      // During join animation, interpolate from globe to orbit radius
-      const baseTargetRadius =
-        shardState.animationState === 'leaving'
-          ? THREE.MathUtils.lerp(
-              targetRadius,
-              globeRadius,
-              easeInOutCubic(shardState.animationProgress),
-            )
-          : shardState.animationState === 'joining'
-            ? THREE.MathUtils.lerp(
-                globeRadius,
-                targetRadius,
-                easeInOutCubic(shardState.animationProgress),
-              )
-            : targetRadius;
+      let baseTargetRadius: number;
+      if (shardState.animationState === 'leaving') {
+        baseTargetRadius = THREE.MathUtils.lerp(
+          targetRadius,
+          globeRadius,
+          easeInOutCubic(shardState.animationProgress),
+        );
+      } else if (shardState.animationState === 'joining') {
+        baseTargetRadius = THREE.MathUtils.lerp(
+          globeRadius,
+          targetRadius,
+          easeInOutCubic(shardState.animationProgress),
+        );
+      } else {
+        baseTargetRadius = targetRadius;
+      }
 
       const phaseTargetRadius =
         baseTargetRadius + (1 - offsetBreathPhase) * (baseRadius - targetRadius) * 0.15;
-
-      // Clamp target to prevent penetrating globe
       const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
 
-      // Detect expansion (exhale) and apply velocity boost
+      // Spring physics
       const targetDelta = clampedTarget - shardState.previousTarget;
       if (targetDelta > 0.001) {
         shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
       }
       shardState.previousTarget = clampedTarget;
 
-      // Spring physics: F = -k(x - target) - c*v
       const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
       const dampingForce = -shardState.velocity * SPRING_DAMPING;
-      const totalForce = springForce + dampingForce;
-
-      // Integrate velocity and position
-      shardState.velocity += totalForce * clampedDelta;
+      shardState.velocity += (springForce + dampingForce) * clampedDelta;
       shardState.currentRadius += shardState.velocity * clampedDelta;
 
-      // Ambient floating motion (reduced during animations)
-      const ambientScale = shardState.animationState === 'stable' ? 1 : shardState.scale * 0.5;
+      // Ambient motion (reduced during animations)
+      const ambientMult = shardState.animationState === 'stable' ? 1 : shardState.scale * 0.5;
       const seed = shardState.ambientSeed;
-      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE * ambientScale;
-      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE * ambientScale;
-      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE * ambientScale;
+      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE * ambientMult;
+      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE * ambientMult;
+      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE * ambientMult;
 
-      // Compute final position: spring-smoothed radius + ambient offset
       shard.mesh.position
         .copy(shard.direction)
         .multiplyScalar(shardState.currentRadius)
         .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
 
-      // Continuous rotation
       shard.mesh.rotation.x += 0.002;
       shard.mesh.rotation.y += 0.003;
     }
 
-    // Remove completed leave animations
+    // Remove completed leave animations (reverse order to maintain indices)
     if (toRemove.length > 0) {
-      // Remove in reverse order to maintain indices
       for (let i = toRemove.length - 1; i >= 0; i--) {
         const idx = toRemove[i];
         const shard = currentShards[idx];
-        shard.geometry.dispose();
-        group.remove(shard.mesh);
+        if (shard) {
+          shard.geometry.dispose();
+          group.remove(shard.mesh);
+        }
         currentShards.splice(idx, 1);
         physics.splice(idx, 1);
       }
