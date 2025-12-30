@@ -65,11 +65,7 @@
       "timeout": 10000,
       "documentation": {
         "purpose": "Maintain TypeScript strict mode type safety",
-        "validates": [
-          "No type errors",
-          "Strict mode compliance",
-          "Type inference correctness"
-        ],
+        "validates": ["No type errors", "Strict mode compliance", "Type inference correctness"],
         "impact": "High - prevents runtime errors",
         "executionTime": "~1-2 seconds"
       }
@@ -97,6 +93,24 @@
         ],
         "impact": "High - ensures consistent code style and catches common errors",
         "executionTime": "~200ms"
+      }
+    },
+    {
+      "name": "slack-notify",
+      "description": "Sends Slack notification after successful code validation (optional)",
+      "event": "PostToolUse",
+      "matcher": ["Bash"],
+      "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/slack-notify.sh",
+      "enabled": false,
+      "phase": "optional",
+      "priority": "low",
+      "timeout": 5000,
+      "documentation": {
+        "purpose": "Notify team when Claude Code validates code changes",
+        "validates": [],
+        "impact": "Low - informational only, does not block workflow",
+        "executionTime": "~500ms",
+        "requirements": ["SLACK_WEBHOOK_URL environment variable must be set"]
       }
     }
   ],
