@@ -5,9 +5,10 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  build:
+  # CI/CD validation checks (runs in parallel with preview)
+  validate:
     runs-on: ubuntu-latest
-    name: Build
+    name: Code Validation
     steps:
       - uses: actions/checkout@v4
 
@@ -29,8 +30,8 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+  # Preview deployment (runs immediately, no dependencies)
   deploy-preview:
-    needs: build
     runs-on: ubuntu-latest
     name: Deploy Preview
     permissions:
@@ -199,13 +200,14 @@ jobs:
               ]
             }
 
-  notify-failure:
-    needs: [build, deploy-preview]
-    if: failure()
+  # Notify when validation checks pass
+  notify-validation-success:
+    needs: validate
+    if: success()
     runs-on: ubuntu-latest
-    name: Notify Slack on Failure
+    name: Notify Validation Success
     steps:
-      - name: Notify Slack - Build Failed
+      - name: Notify Slack - Validation Passed
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -217,7 +219,71 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "❌ Preview Build Failed",
+                    "text": "✅ Code Validation Passed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*PR:*\n<${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n`${{ github.head_ref }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Checks:*\nBiome ✓ • TypeCheck ✓ • Build ✓"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "All validation checks passed • ${{ github.repository }}"
+                    }
+                  ]
+                }
+              ]
+            }
+
+  # Notify on failures (validation or deployment)
+  notify-failure:
+    needs: [validate, deploy-preview]
+    if: always() && (needs.validate.result == 'failure' || needs.deploy-preview.result == 'failure')
+    runs-on: ubuntu-latest
+    name: Notify Failures
+    steps:
+      - name: Notify Slack - Failure
+        uses: slackapi/slack-github-action@v2.0.0
+        env:
+          VALIDATION_FAILED: ${{ needs.validate.result == 'failure' }}
+          DEPLOYMENT_FAILED: ${{ needs.deploy-preview.result == 'failure' }}
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ ${{ needs.validate.result == 'failure' && needs.deploy-preview.result == 'failure' && 'Validation & Deployment Failed' || needs.validate.result == 'failure' && 'Code Validation Failed' || 'Preview Deployment Failed' }}",
                     "emoji": true
                   }
                 },
@@ -244,6 +310,19 @@ jobs:
                     {
                       "type": "mrkdwn",
                       "text": "*Commit:*\n`${{ github.event.pull_request.head.sha }}`"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Validation:*\n${{ needs.validate.result == 'success' && '✅ Passed' || needs.validate.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Deployment:*\n${{ needs.deploy-preview.result == 'success' && '✅ Deployed' || needs.deploy-preview.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }}"
                     }
                   ]
                 },
