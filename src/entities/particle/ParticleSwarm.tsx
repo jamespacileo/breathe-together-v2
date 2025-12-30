@@ -523,6 +523,11 @@ export function ParticleSwarm({
         colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
 
       const shard = createShard(i, count, color, material, shardSize, baseRadius);
+
+      // Initial shards start in 'active' state with full scale (no spawn animation on load)
+      shard.lifecycleState = 'active';
+      shard.mesh.scale.setScalar(1.0);
+
       group.add(shard.mesh);
       newShards.push(shard);
 
