@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { InspirationalText } from './InspirationalText';
@@ -115,14 +115,15 @@ export function SimpleGaiaUI({
   // Use external control for tune controls if provided, otherwise use internal state
   const isControlsOpen = externalShowTuneControls ?? internalIsControlsOpen;
   const setIsControlsOpen = useCallback(
-    (value: boolean) => {
+    (value: SetStateAction<boolean>) => {
+      const newValue = typeof value === 'function' ? value(isControlsOpen) : value;
       if (onShowTuneControlsChange) {
-        onShowTuneControlsChange(value);
+        onShowTuneControlsChange(newValue);
       } else {
-        setInternalIsControlsOpen(value);
+        setInternalIsControlsOpen(newValue);
       }
     },
-    [onShowTuneControlsChange],
+    [onShowTuneControlsChange, isControlsOpen],
   );
 
   // Use external control for settings if provided, otherwise use internal state
