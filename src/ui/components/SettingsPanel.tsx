@@ -2,9 +2,11 @@ import { type CSSProperties, useEffect, useState } from 'react';
 import { Button } from '../primitives/Button';
 import { GlassCard } from '../primitives/GlassCard';
 import { Divider, HStack, VStack } from '../primitives/Stack';
-import { Heading, Label, Text } from '../primitives/Text';
+import { Label, Text } from '../primitives/Text';
 import { animation, zIndex } from '../tokens';
+import { colors } from '../tokens/colors';
 import { spacing } from '../tokens/spacing';
+import { typography } from '../tokens/typography';
 import { Slider, Toggle } from './Slider';
 
 // Mood palette for legend
@@ -16,10 +18,16 @@ const MOOD_PALETTE = {
 };
 
 export interface SettingsState {
-  harmony: number;
-  refraction: number;
-  breath: number;
-  expansion: number;
+  // Particle settings
+  harmony: number; // Particle count
+  shardSize: number; // Max shard size
+  orbitRadius: number; // How far particles orbit
+  // Glass settings
+  refraction: number; // Index of refraction (IOR)
+  glassDepth: number; // Backface intensity
+  // Atmosphere
+  atmosphereDensity: number; // Ambient particle count
+  // Experience
   audioEnabled: boolean;
   hapticsEnabled: boolean;
 }
@@ -39,7 +47,7 @@ export interface SettingsPanelProps {
  * SettingsPanel - Collapsible settings panel
  *
  * Bottom-right positioned panel with sliders for visual tuning.
- * Uses glass morphism aesthetic.
+ * Uses glass morphism aesthetic with sectioned controls.
  */
 export function SettingsPanel({
   settings,
@@ -96,61 +104,62 @@ export function SettingsPanel({
 
   const panelStyle: CSSProperties = {
     width: '280px',
-    maxHeight: isOpen ? '500px' : '0px',
+    maxHeight: isOpen ? '600px' : '0px',
     overflow: 'hidden',
     opacity: isOpen ? 1 : 0,
     transition: `all ${animation.duration.slow} ${animation.easing.easeInOut}`,
+  };
+
+  const sectionHeaderStyle: CSSProperties = {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    letterSpacing: typography.letterSpacing.widest,
+    textTransform: 'uppercase',
+    color: colors.text.dim,
+    marginBottom: spacing.sm,
   };
 
   return (
     <div style={containerStyle}>
       {/* Toggle Button */}
       <Button variant="secondary" size="sm" onClick={() => setIsOpen(!isOpen)}>
-        {isOpen ? 'Close' : 'Tune Aesthetic'}
+        {isOpen ? 'Close' : 'Tune'}
       </Button>
 
       {/* Settings Panel */}
       <div style={panelStyle}>
         <GlassCard intensity="strong" padding="lg">
           <VStack gap="lg">
-            {/* Visual Settings */}
+            {/* === PARTICLES SECTION === */}
             <VStack gap="md">
+              <span style={sectionHeaderStyle}>Particles</span>
+
               <Slider
                 label="Harmony"
                 value={settings.harmony}
                 onChange={(v) => onSettingsChange({ harmony: v })}
-                min={10}
-                max={600}
-                step={10}
-                formatValue={(v) => String(v)}
+                min={12}
+                max={200}
+                step={1}
+                formatValue={(v) => String(Math.round(v))}
               />
 
               <Slider
-                label="Refraction"
-                value={settings.refraction}
-                onChange={(v) => onSettingsChange({ refraction: v })}
-                min={1.0}
-                max={2.0}
-                step={0.01}
+                label="Shard Size"
+                value={settings.shardSize}
+                onChange={(v) => onSettingsChange({ shardSize: v })}
+                min={0.1}
+                max={1.2}
+                step={0.02}
                 formatValue={(v) => v.toFixed(2)}
               />
 
               <Slider
-                label="Breath"
-                value={settings.breath}
-                onChange={(v) => onSettingsChange({ breath: v })}
-                min={0.05}
-                max={1.5}
-                step={0.05}
-                formatValue={(v) => v.toFixed(2)}
-              />
-
-              <Slider
-                label="Expansion"
-                value={settings.expansion}
-                onChange={(v) => onSettingsChange({ expansion: v })}
-                min={0.5}
-                max={5.0}
+                label="Orbit"
+                value={settings.orbitRadius}
+                onChange={(v) => onSettingsChange({ orbitRadius: v })}
+                min={2.0}
+                max={8.0}
                 step={0.1}
                 formatValue={(v) => v.toFixed(1)}
               />
@@ -158,8 +167,53 @@ export function SettingsPanel({
 
             <Divider />
 
-            {/* Audio & Haptics */}
+            {/* === GLASS SECTION === */}
+            <VStack gap="md">
+              <span style={sectionHeaderStyle}>Glass</span>
+
+              <Slider
+                label="Refraction"
+                value={settings.refraction}
+                onChange={(v) => onSettingsChange({ refraction: v })}
+                min={1.0}
+                max={2.5}
+                step={0.01}
+                formatValue={(v) => v.toFixed(2)}
+              />
+
+              <Slider
+                label="Depth"
+                value={settings.glassDepth}
+                onChange={(v) => onSettingsChange({ glassDepth: v })}
+                min={0.0}
+                max={1.0}
+                step={0.01}
+                formatValue={(v) => v.toFixed(2)}
+              />
+            </VStack>
+
+            <Divider />
+
+            {/* === ATMOSPHERE SECTION === */}
+            <VStack gap="md">
+              <span style={sectionHeaderStyle}>Atmosphere</span>
+
+              <Slider
+                label="Density"
+                value={settings.atmosphereDensity}
+                onChange={(v) => onSettingsChange({ atmosphereDensity: v })}
+                min={0}
+                max={300}
+                step={10}
+                formatValue={(v) => String(Math.round(v))}
+              />
+            </VStack>
+
+            <Divider />
+
+            {/* === EXPERIENCE SECTION === */}
             <VStack gap="sm">
+              <span style={sectionHeaderStyle}>Experience</span>
               <Toggle
                 label="Audio cues"
                 checked={settings.audioEnabled}
@@ -245,7 +299,7 @@ export function TitleCard() {
     zIndex: zIndex.dropdown,
     opacity: isVisible ? 1 : 0,
     transition: `opacity ${animation.duration.slow} ${animation.easing.ease}`,
-    pointerEvents: 'auto', // Allow text selection if needed
+    pointerEvents: 'auto',
   };
 
   return (
@@ -254,12 +308,16 @@ export function TitleCard() {
         <Text variant="label" color="dim" style={{ letterSpacing: '0.3em' }}>
           Digital Artifact / 002
         </Text>
-        <Heading
-          level={2}
-          style={{ fontWeight: 300, letterSpacing: '0.1em', textTransform: 'uppercase' }}
+        <Text
+          variant="h2"
+          style={{
+            fontWeight: 300,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+          }}
         >
           Gaia <span style={{ opacity: 0.5, fontWeight: 600 }}>·</span> Breathing
-        </Heading>
+        </Text>
       </VStack>
     </div>
   );

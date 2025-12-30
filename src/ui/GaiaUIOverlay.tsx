@@ -1,5 +1,6 @@
 import { type CSSProperties, useCallback, useState } from 'react';
 import {
+  PhaseIndicator,
   SessionCompleteModal,
   type SessionConfig,
   type SessionStats,
@@ -22,6 +23,24 @@ const overlayStyle: CSSProperties = {
   pointerEvents: 'none',
 };
 
+/**
+ * Default tuning values matching the visual aesthetic
+ */
+const DEFAULT_SETTINGS: SettingsState = {
+  // Particles
+  harmony: 48,
+  shardSize: 0.5,
+  orbitRadius: 4.5,
+  // Glass
+  refraction: 1.3,
+  glassDepth: 0.3,
+  // Atmosphere
+  atmosphereDensity: 100,
+  // Experience
+  audioEnabled: false,
+  hapticsEnabled: false,
+};
+
 export interface GaiaUIOverlayProps {
   /** Show welcome modal on first load */
   showWelcome?: boolean;
@@ -33,20 +52,12 @@ export interface GaiaUIOverlayProps {
   onSettingsChange?: (settings: SettingsState) => void;
 }
 
-const DEFAULT_SETTINGS: SettingsState = {
-  harmony: 200,
-  refraction: 1.5,
-  breath: 0.5,
-  expansion: 2.0,
-  audioEnabled: false,
-  hapticsEnabled: false,
-};
-
 /**
  * GaiaUIOverlay - Main UI overlay component
  *
  * Combines all DOM-based UI elements:
  * - Title card (upper left)
+ * - Phase indicator (bottom center)
  * - Settings panel (bottom right)
  * - Welcome modal (on first load)
  * - Session complete modal (after session ends)
@@ -77,8 +88,10 @@ export function GaiaUIOverlay({
       setWelcomeOpen(false);
       setSessionActive(true);
       onSessionStart?.(config);
+      // Trigger initial settings callback
+      onSettingsChange?.(settings);
     },
-    [onSessionStart],
+    [onSessionStart, onSettingsChange, settings],
   );
 
   // Reserved for future use when session timer completes
@@ -103,6 +116,9 @@ export function GaiaUIOverlay({
       {/* Title Card - always visible */}
       <TitleCard />
 
+      {/* Phase Indicator - visible during active session */}
+      {sessionActive && <PhaseIndicator />}
+
       {/* Settings Panel - visible during active session */}
       {sessionActive && (
         <SettingsPanel settings={settings} onSettingsChange={handleSettingsChange} />
@@ -125,4 +141,4 @@ export function GaiaUIOverlay({
 }
 
 // Export session complete handler for use in parent components
-export type { SessionStats, SessionConfig };
+export type { SessionStats, SessionConfig, SettingsState };

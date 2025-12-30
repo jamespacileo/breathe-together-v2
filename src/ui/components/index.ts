@@ -5,6 +5,7 @@
  */
 
 export { Modal, ModalActions, type ModalProps } from './Modal';
+export { PhaseIndicator, type PhaseIndicatorProps } from './PhaseIndicator';
 export {
   SessionCompleteModal,
   type SessionCompleteModalProps,

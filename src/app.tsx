@@ -27,8 +27,21 @@ declare module '@react-three/fiber' {
 // biome-ignore lint/suspicious/noExplicitAny: R3F v9 migration guide requires casting THREE to any for extend()
 extend(THREE as any);
 
+/**
+ * Default visual settings - matches GaiaUIOverlay defaults
+ */
+const DEFAULT_VISUAL_SETTINGS = {
+  harmony: 48,
+  shardSize: 0.5,
+  orbitRadius: 4.5,
+  refraction: 1.3,
+  glassDepth: 0.3,
+  atmosphereDensity: 100,
+};
+
 export function App() {
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
   const presence = usePresence();
 
   const handleSessionStart = useCallback((config: SessionConfig) => {
@@ -37,8 +50,14 @@ export function App() {
   }, []);
 
   const handleSettingsChange = useCallback((settings: SettingsState) => {
-    console.log('Settings changed:', settings);
-    // TODO: Apply settings to visual entities
+    setVisualSettings({
+      harmony: settings.harmony,
+      shardSize: settings.shardSize,
+      orbitRadius: settings.orbitRadius,
+      refraction: settings.refraction,
+      glassDepth: settings.glassDepth,
+      atmosphereDensity: settings.atmosphereDensity,
+    });
   }, []);
 
   return (
@@ -54,7 +73,14 @@ export function App() {
           <CameraRig />
           <KootaSystems breathSystemEnabled={true}>
             <BreathEntity />
-            <BreathingLevel />
+            <BreathingLevel
+              harmony={visualSettings.harmony}
+              shardSize={visualSettings.shardSize}
+              orbitRadius={visualSettings.orbitRadius}
+              ior={visualSettings.refraction}
+              glassDepth={visualSettings.glassDepth}
+              atmosphereDensity={visualSettings.atmosphereDensity}
+            />
           </KootaSystems>
         </Canvas>
       </div>

@@ -1,52 +1,66 @@
-import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { PresentationControls } from '@react-three/drei';
+import { Suspense, useMemo } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { GaiaUI } from '../components/GaiaUI';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { generateMockPresence } from '../lib/mockPresence';
-import type { BreathingLevelProps } from '../types/sceneProps';
+
+/**
+ * Visual tuning props passed from app.tsx via GaiaUIOverlay settings
+ */
+export interface BreathingLevelProps {
+  /** Particle count (harmony) */
+  harmony?: number;
+  /** Index of Refraction - controls light bending through glass */
+  ior?: number;
+  /** Glass depth - controls backface normal blending/distortion */
+  glassDepth?: number;
+  /** Orbit radius - how far particles orbit from center */
+  orbitRadius?: number;
+  /** Shard size - maximum size of glass shards */
+  shardSize?: number;
+  /** Atmosphere density - number of ambient floating particles */
+  atmosphereDensity?: number;
+  /** DEBUG-ONLY: Show/hide globe entity */
+  showGlobe?: boolean;
+  /** DEBUG-ONLY: Show/hide particles */
+  showParticles?: boolean;
+  /** DEBUG-ONLY: Show/hide environment */
+  showEnvironment?: boolean;
+}
 
 /**
  * Tuning defaults for visual aesthetics (matching reference)
  */
-const TUNING_DEFAULTS = {
-  particleCounts: { sparse: 24, normal: 48, dense: 96 },
-  ior: 1.3, // Index of Refraction
-  backfaceIntensity: 0.3, // Glass depth/distortion
-  orbitRadius: 4.5, // Base orbit radius
-  shardSize: 0.5, // Max shard size
-  atmosphereDensity: 100, // Atmospheric particle count
+const DEFAULTS = {
+  harmony: 48,
+  ior: 1.3,
+  glassDepth: 0.3,
+  orbitRadius: 4.5,
+  shardSize: 0.5,
+  atmosphereDensity: 100,
 };
 
 /**
  * BreathingLevel - Core meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * All visual tuning is controlled via props from app.tsx settings panel.
  */
 export function BreathingLevel({
-  particleDensity,
-  // DEBUG-ONLY: Entity visibility toggles (all default true)
+  harmony = DEFAULTS.harmony,
+  ior = DEFAULTS.ior,
+  glassDepth = DEFAULTS.glassDepth,
+  orbitRadius = DEFAULTS.orbitRadius,
+  shardSize = DEFAULTS.shardSize,
+  atmosphereDensity = DEFAULTS.atmosphereDensity,
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-}: Partial<BreathingLevelProps> = {}) {
-  // UI State for tuning the aesthetic
-  const [harmony, setHarmony] = useState(
-    particleDensity === 'sparse'
-      ? TUNING_DEFAULTS.particleCounts.sparse
-      : particleDensity === 'dense'
-        ? TUNING_DEFAULTS.particleCounts.dense
-        : TUNING_DEFAULTS.particleCounts.normal,
-  );
-  const [ior, setIor] = useState(TUNING_DEFAULTS.ior);
-  const [glassDepth, setGlassDepth] = useState(TUNING_DEFAULTS.backfaceIntensity);
-  const [orbitRadius, setOrbitRadius] = useState(TUNING_DEFAULTS.orbitRadius);
-  const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
-  const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
-
+}: BreathingLevelProps = {}) {
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
 
   return (
@@ -89,25 +103,6 @@ export function BreathingLevel({
             )}
           </PresentationControls>
         </RefractionPipeline>
-
-        {/* UI stays OUTSIDE pipeline (fixed HUD) */}
-        {/* style prop ensures Html wrapper doesn't block events for DOM UI above */}
-        <Html fullscreen style={{ pointerEvents: 'none' }}>
-          <GaiaUI
-            harmony={harmony}
-            setHarmony={setHarmony}
-            ior={ior}
-            setIor={setIor}
-            glassDepth={glassDepth}
-            setGlassDepth={setGlassDepth}
-            orbitRadius={orbitRadius}
-            setOrbitRadius={setOrbitRadius}
-            shardSize={shardSize}
-            setShardSize={setShardSize}
-            atmosphereDensity={atmosphereDensity}
-            setAtmosphereDensity={setAtmosphereDensity}
-          />
-        </Html>
       </Suspense>
     </ErrorBoundary>
   );
