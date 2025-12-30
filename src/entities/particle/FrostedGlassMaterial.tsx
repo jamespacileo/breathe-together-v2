@@ -32,6 +32,7 @@ void main() {
 `;
 
 // Fragment shader - fresnel rim + breathing luminosity
+// Harmonized with globe's visual style (muted earth tones, matching rim colors)
 const shardFragmentShader = `
 uniform float breathPhase;
 uniform float time;
@@ -43,31 +44,38 @@ varying vec3 vColor;
 void main() {
   vec3 viewDir = normalize(vViewPosition);
 
-  // Fresnel rim effect - soft edge glow
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+  // Fresnel rim effect - matched to globe's fresnel falloff (pow 4.0 → 3.5 for shards)
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.5);
 
   // Breathing luminosity pulse - subtle brightness shift
-  // Peak brightness during hold phases (phase 0.25-0.5 and 0.75-1.0)
-  float breathLuminosity = 1.0 + breathPhase * 0.12;
+  float breathLuminosity = 1.0 + breathPhase * 0.10;
 
   // Subtle saturation boost based on viewing angle
-  // Faces pointing toward camera are slightly more saturated
-  float facingBoost = max(dot(vNormal, viewDir), 0.0) * 0.08;
+  float facingBoost = max(dot(vNormal, viewDir), 0.0) * 0.06;
 
-  // Apply mood color with luminosity and saturation
+  // Apply mood color with luminosity
   vec3 baseColor = vColor * breathLuminosity;
 
-  // Mix in a warm white rim glow (like the globe)
-  vec3 rimColor = vec3(0.98, 0.96, 0.94); // Soft warm white
-  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.25);
+  // Warm earth-tone tint (matches globe's palette: cream/peach undertone)
+  // Subtle 8% blend toward globe's warm cream color
+  vec3 earthTint = vec3(0.94, 0.88, 0.82); // Warm cream from globe
+  baseColor = mix(baseColor, earthTint, 0.08);
 
-  // Subtle inner luminance - very gentle glow from within
-  float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
-  colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
+  // Rim color matched exactly to globe's rim: vec3(0.94, 0.90, 0.86)
+  vec3 rimColor = vec3(0.94, 0.90, 0.86); // Globe's muted warm cream
+  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.30);
 
-  // Slight desaturation toward edges for atmospheric feel
+  // Subtle atmosphere hint at edges - warm peach from globe's inner atmosphere
+  vec3 atmosphereHint = vec3(0.97, 0.82, 0.66); // Globe's #f8d0a8 atmosphere
+  colorWithRim = mix(colorWithRim, atmosphereHint, fresnel * 0.12);
+
+  // Subtle inner luminance - warm glow from within (matches globe's glow #efe5da)
+  float innerGlow = (1.0 - fresnel) * 0.04 * (1.0 + breathPhase * 0.25);
+  colorWithRim += vec3(0.94, 0.90, 0.85) * innerGlow;
+
+  // Slight desaturation toward edges for atmospheric cohesion
   vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
-  vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
+  vec3 finalColor = mix(desaturated, colorWithRim, 0.82 + facingBoost);
 
   gl_FragColor = vec4(finalColor, 1.0);
 }
