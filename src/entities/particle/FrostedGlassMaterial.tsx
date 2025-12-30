@@ -1,30 +1,38 @@
 /**
- * FrostedGlassMaterial - Placeholder material for refraction pipeline
+ * FrostedGlassMaterial - Simplified glass material without render targets
  *
- * Actual rendering is handled by RefractionPipeline via material swapping.
- * This component provides a simple placeholder and marks meshes for refraction.
+ * Uses MeshPhysicalMaterial with transmission for glass effect.
+ * This approach avoids WebGL context leaks from complex refraction pipelines.
  *
- * For the refraction effect to work:
- * 1. Mesh must have userData.useRefraction = true
- * 2. Mesh geometry must have a 'color' attribute with per-vertex mood colors
- * 3. RefractionPipeline must be present in the scene tree
+ * Visual features:
+ * - Transmission for light passing through
+ * - Roughness for frosted appearance
+ * - Per-vertex colors for mood-based tinting
  */
 
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 
 interface FrostedGlassMaterialProps {
-  /** Base color for non-refraction fallback @default '#ffffff' */
+  /** Base color for material @default '#ffffff' */
   color?: string;
 }
 
 export function FrostedGlassMaterial({ color = '#ffffff' }: FrostedGlassMaterialProps) {
-  // Simple placeholder material - actual rendering uses RefractionPipeline shaders
+  // MeshPhysicalMaterial with transmission - no render targets needed
   const material = useMemo(
     () =>
-      new THREE.MeshBasicMaterial({
+      new THREE.MeshPhysicalMaterial({
         color,
-        vertexColors: true, // Enable per-vertex colors
+        vertexColors: true, // Enable per-vertex colors for mood tinting
+        transmission: 0.9, // Glass-like transparency
+        opacity: 1,
+        metalness: 0.0,
+        roughness: 0.3, // Frosted glass appearance
+        thickness: 0.5, // Simulated glass thickness
+        envMapIntensity: 1.0,
+        clearcoat: 0.1, // Subtle surface reflection
+        clearcoatRoughness: 0.2,
       }),
     [color],
   );
@@ -42,9 +50,17 @@ export function FrostedGlassMaterial({ color = '#ffffff' }: FrostedGlassMaterial
 /**
  * Creates a frosted glass material instance for imperative use
  */
-export function createFrostedGlassMaterial(): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({
+export function createFrostedGlassMaterial(): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({
     color: '#ffffff',
     vertexColors: true,
+    transmission: 0.9,
+    opacity: 1,
+    metalness: 0.0,
+    roughness: 0.3,
+    thickness: 0.5,
+    envMapIntensity: 1.0,
+    clearcoat: 0.1,
+    clearcoatRoughness: 0.2,
   });
 }

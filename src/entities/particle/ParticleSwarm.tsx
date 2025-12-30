@@ -3,7 +3,7 @@
  *
  * Uses separate Mesh objects (not InstancedMesh) to match reference exactly.
  * Each mesh has per-vertex color attribute for mood coloring.
- * Rendered via RefractionPipeline 3-pass FBO system.
+ * Rendered with MeshPhysicalMaterial for frosted glass appearance.
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -134,7 +134,6 @@ export function ParticleSwarm({
       const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
 
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.userData.useRefraction = true; // Mark for RefractionPipeline
       mesh.position.copy(direction).multiplyScalar(baseRadius);
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
