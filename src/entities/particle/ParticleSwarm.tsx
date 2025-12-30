@@ -3,9 +3,10 @@
  *
  * Uses separate Mesh objects (not InstancedMesh) to match reference exactly.
  * Each mesh has per-vertex color attribute for mood coloring.
- * Rendered via RefractionPipeline 3-pass FBO system.
+ * Rendered with MeshTransmissionMaterial for gem-like pastel aesthetic.
  */
 
+import { MeshTransmissionMaterial } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
@@ -13,7 +14,6 @@ import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { orbitRadius, sphereScale } from '../breath/traits';
-import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
 const MOOD_COLORS = [
@@ -41,9 +41,11 @@ export interface ParticleSwarmProps {
 }
 
 interface ShardData {
-  mesh: THREE.Mesh;
-  direction: THREE.Vector3;
   geometry: THREE.IcosahedronGeometry;
+  direction: THREE.Vector3;
+  color: THREE.Color;
+  initialPosition: THREE.Vector3;
+  meshRef: React.RefObject<THREE.Mesh>;
 }
 
 export function ParticleSwarm({
@@ -57,7 +59,6 @@ export function ParticleSwarm({
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
-  const shardsRef = useRef<ShardData[]>([]);
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -69,13 +70,9 @@ export function ParticleSwarm({
     [globeRadius, shardSize, buffer],
   );
 
-  // Create shared material (will be swapped by RefractionPipeline)
-  const material = useMemo(() => createFrostedGlassMaterial(), []);
-
-  // Create shards with per-vertex colors
+  // Create shard data (geometries, positions, colors)
   const shards = useMemo(() => {
     const result: ShardData[] = [];
-    const currentShardSize = shardSize;
 
     // Build color distribution from users prop or random
     const colorDistribution: THREE.Color[] = [];
@@ -101,17 +98,19 @@ export function ParticleSwarm({
     }
 
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.IcosahedronGeometry(currentShardSize, 0);
+      const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
+
+      // Get mood color
+      const color =
+        colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
 
       // Set per-vertex color attribute
-      const mood =
-        colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
       const vertexCount = geometry.attributes.position.count;
       const colors = new Float32Array(vertexCount * 3);
       for (let c = 0; c < colors.length; c += 3) {
-        colors[c] = mood.r;
-        colors[c + 1] = mood.g;
-        colors[c + 2] = mood.b;
+        colors[c] = color.r;
+        colors[c + 1] = color.g;
+        colors[c + 2] = color.b;
       }
       geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
@@ -119,56 +118,32 @@ export function ParticleSwarm({
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
       const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+      const initialPosition = direction.clone().multiplyScalar(baseRadius);
 
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.userData.useRefraction = true; // Mark for RefractionPipeline
-      mesh.position.copy(direction).multiplyScalar(baseRadius);
-      mesh.lookAt(0, 0, 0);
-      mesh.frustumCulled = false;
-
-      result.push({ mesh, direction, geometry });
+      result.push({
+        geometry,
+        direction,
+        color,
+        initialPosition,
+        // biome-ignore lint/suspicious/noExplicitAny: React.createRef() type inference issue
+        meshRef: { current: null } as any,
+      });
     }
 
     return result;
-  }, [count, users, baseRadius, shardSize, material]);
+  }, [count, users, baseRadius, shardSize]);
 
-  // Add meshes to group and store ref
+  // Cleanup geometries on unmount
   useEffect(() => {
-    const group = groupRef.current;
-    if (!group) return;
-
-    // Clear previous children
-    while (group.children.length > 0) {
-      group.remove(group.children[0]);
-    }
-
-    // Add new shards
-    for (const shard of shards) {
-      group.add(shard.mesh);
-    }
-    shardsRef.current = shards;
-
-    // Cleanup on unmount
     return () => {
       for (const shard of shards) {
         shard.geometry.dispose();
-        group.remove(shard.mesh);
       }
     };
   }, [shards]);
 
-  // Cleanup material on unmount
-  useEffect(() => {
-    return () => {
-      material.dispose();
-    };
-  }, [material]);
-
   // Animation loop - update positions and rotations
   useFrame(() => {
-    const currentShards = shardsRef.current;
-    if (currentShards.length === 0) return;
-
     // Get breathing state from ECS
     let breathingRadius = baseRadius;
     try {
@@ -184,17 +159,49 @@ export function ParticleSwarm({
     const currentRadius = Math.max(breathingRadius, minOrbitRadius);
 
     // Update each shard
-    for (const shard of currentShards) {
+    for (const shard of shards) {
+      const mesh = shard.meshRef.current;
+      if (!mesh) continue;
+
       // Update position based on clamped breathing radius
-      shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
+      mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
 
       // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
-      shard.mesh.rotation.x += 0.002;
-      shard.mesh.rotation.y += 0.003;
+      mesh.rotation.x += 0.002;
+      mesh.rotation.y += 0.003;
     }
   });
 
-  return <group ref={groupRef} name="Particle Swarm" />;
+  return (
+    <group ref={groupRef} name="Particle Swarm">
+      {shards.map((shard, index) => (
+        <mesh
+          // biome-ignore lint/suspicious/noArrayIndexKey: Shards are static and never reordered
+          key={index}
+          ref={shard.meshRef}
+          geometry={shard.geometry}
+          position={shard.initialPosition}
+          frustumCulled={false}
+          onUpdate={(mesh) => {
+            mesh.lookAt(0, 0, 0);
+          }}
+        >
+          <MeshTransmissionMaterial
+            transmissionSampler
+            transmission={1.0}
+            thickness={0.3}
+            roughness={0.15}
+            chromaticAberration={0.06}
+            anisotropicBlur={0.05}
+            samples={4}
+            resolution={256}
+            color={shard.color}
+            vertexColors
+          />
+        </mesh>
+      ))}
+    </group>
+  );
 }
 
 export default ParticleSwarm;
