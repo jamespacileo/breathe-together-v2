@@ -461,3 +461,208 @@ Modified but staged changes:
 - `vite` — Build tool
 
 See `package.json` for full dependency tree and versions.
+
+## Three.js Memory Management Patterns
+
+All Three.js resources (geometries, materials, textures, render targets) consume GPU memory. React's lifecycle requires manual cleanup on unmount to prevent GPU memory leaks.
+
+### GPU Resource Disposal Pattern
+
+**Required pattern for all Three.js objects created with useMemo/useState:**
+
+```typescript
+const material = useMemo(() => new THREE.ShaderMaterial({
+  uniforms: { time: { value: 0 } },
+  fragmentShader: glslFragmentShader,
+}), [glslFragmentShader]);
+
+const geometry = useMemo(() => new THREE.IcosahedronGeometry(1, 4), []);
+
+// CRITICAL: Always cleanup on unmount or when dependencies change
+useEffect(() => {
+  return () => {
+    material.dispose();
+    geometry.dispose();
+  };
+}, [material, geometry]);
+```
+
+### Resources That MUST Be Disposed
+
+1. **Geometries**: `geometry.dispose()`
+   - BufferGeometry, IcosahedronGeometry, SphereGeometry, BoxGeometry, etc.
+   - Memory usage: Vertex data × buffer count
+
+2. **Materials**: `material.dispose()`
+   - MeshBasicMaterial, ShaderMaterial, MeshTransmissionMaterial, MeshStandardMaterial, etc.
+   - Memory usage: Shader programs + uniforms + textures
+
+3. **Textures**: `texture.dispose()`
+   - Texture, DataTexture, VideoTexture, CanvasTexture
+   - Memory usage: Image data (width × height × 4 bytes per pixel)
+
+4. **Render Targets**: `renderTarget.dispose()`
+   - WebGLRenderTarget, WebGLCubeRenderTarget
+   - Memory usage: Target textures + depth buffer
+
+### Resources That DON'T Need Disposal
+
+- **drei components**: (`<Box />`, `<Sphere />`, `<Stars />`, `<Sparkles />`) — automatically disposed
+- **Primitive wrappers**: `<primitive object={existingMesh} />` — ownership belongs to creator
+- **Static imports**: Textures via `useLoader` — cached globally by React Three Fiber
+- **Built-in geometries from drei**: Handled internally
+
+### Common Pitfall: Ref-Based Disposal
+
+When storing materials in refs, **dispose ref.current**, not the ref itself:
+
+```typescript
+// ❌ WRONG: Only disposes the wrapper object
+const { materialRef } = useMemo(() => ({
+  materialRef: { current: createFresnelMaterial(intensity) }
+}), [intensity]);
+// NO cleanup! Material is leaked!
+
+// ✅ CORRECT: Dispose the actual material object
+useEffect(() => {
+  return () => {
+    materialRef.current?.dispose();
+  };
+}, []);
+```
+
+### Debugging GPU Memory Leaks
+
+1. Open Chrome DevTools → Memory tab
+2. Take heap snapshot before component mounts
+3. Mount/unmount component 5-10 times
+4. Take second heap snapshot
+5. Compare: Look for retained `THREE.BufferGeometry` and `THREE.Material` instances
+6. Check "Detached DOM trees" for orphaned WebGL contexts
+
+**Example leak signature**: `THREE.WebGLRenderer > WebGLContext > Textures array`
+
+### Performance Impact
+
+GPU memory leaks are **critical** because:
+- WebGL context can run out of memory → "WebGL context lost" errors
+- Memory not freed → browser crashes on sustained use
+- Particularly bad on mobile (lower VRAM)
+
+**Solution**: Always pair `useMemo` geometry/material creation with `useEffect` cleanup.
+
+## Biome Linting Guidelines
+
+### When to Use biome-ignore Comments
+
+**biome-ignore comments must include a justification**. Never suppress without explaining why.
+
+#### Approved Use Cases
+
+**1. ECS Framework Workarounds**
+
+```typescript
+try {
+  breathEntity.get(sometrait);
+} catch (_e) {
+  // Silently catch ECS errors during unmount/remount in Triplex
+  // The Koota world becomes stale during hot-reload transitions
+}
+```
+
+**2. Third-Party Type Limitations**
+
+```typescript
+// biome-ignore lint/suspicious/noExplicitAny: MeshTransmissionMaterial doesn't export instance type in @react-three/drei
+const transmissionRef = useRef<any>(null);
+```
+
+**3. Performance-Critical Complexity**
+
+```typescript
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Particle physics simulation requires multiple force calculations (spring, wind, jitter, repulsion) - refactoring would reduce readability
+useFrame((state, delta) => {
+  // Complex multi-force physics loop
+});
+```
+
+#### Disallowed Use Cases
+
+- ❌ "Fix later" comments → Create a separate issue or fix immediately
+- ❌ Suppressing `useExhaustiveDependencies` without specific explanation
+- ❌ Hiding type errors that should be properly typed
+- ❌ Working around Biome bugs → Report upstream instead
+
+### Empty Catch Blocks
+
+**Only allowed for Koota ECS stale world errors:**
+
+```typescript
+// Pattern
+try {
+  // ECS operation
+} catch (_e) {
+  // Silently catch ECS errors during unmount/remount in Triplex
+}
+```
+
+**Rationale:** Triplex hot-reload invalidates the Koota world while components are still mounted. Checking world validity before every operation would be too verbose and degrade developer experience.
+
+**Alternative considered but rejected:** Checking `world.has(entity)` before operations. Too verbose (10+ extra lines per entity access).
+
+### Hook Dependencies (`useExhaustiveDependencies`)
+
+This rule is now **error** level (was warning). All external variables in hooks must be explicitly listed as dependencies.
+
+**Correct:**
+```typescript
+useEffect(() => {
+  const effect = () => console.log(dependency);
+  effect();
+}, [dependency]); // ✅ dependency is in the array
+```
+
+**Incorrect:**
+```typescript
+useEffect(() => {
+  const effect = () => console.log(dependency);
+  effect();
+  // ❌ Missing 'dependency' in array — will break on re-renders
+}, []);
+```
+
+### TypeScript `any` Usage
+
+**Zero tolerance except for:**
+1. Third-party libraries without exported types (@react-three/uikit refs)
+2. Three.js material refs when type is inaccessible
+3. External data structures with unknown shape
+
+**Always prefer:**
+- `unknown` for truly unknown types
+- Proper interface definition for data
+- Type assertions with comments explaining runtime safety
+
+**Example:**
+```typescript
+// ❌ No explanation
+const ref = useRef<any>(null);
+
+// ✅ Justified
+// biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit v1.0.60 doesn't export Container/Text types; using Object3D fallback
+const ref = useRef<any>(null);
+```
+
+### Optional Chain vs Logical AND
+
+Rule `useOptionalChain` is now **error** level. Use `?.` instead of `&&` chains:
+
+**Correct:**
+```typescript
+const value = obj?.prop?.nested; // ✅ Modern, short-circuit safe
+```
+
+**Incorrect:**
+```typescript
+const value = obj && obj.prop && obj.prop.nested; // ❌ Verbose, same result
+```

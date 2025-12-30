@@ -472,6 +472,14 @@ export function BreathingSphere({
     };
   }, [mainNoiseIntensity, auraNoiseIntensity]);
 
+  // Cleanup Three.js materials on unmount or dependency change
+  useEffect(() => {
+    return () => {
+      materialRef.current?.dispose();
+      auraMaterialRef.current?.dispose();
+    };
+  }, [materialRef, auraMaterialRef]);
+
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex animation loop with multiple material properties and transitions
   useFrame((state) => {
     if (!meshRef.current || !materialRef.current) return;

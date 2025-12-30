@@ -30,14 +30,10 @@ import type { BreathingDebugSceneProps, BreathingLevelProps } from '../../src/ty
  * Advantage: Single source of truth. Clean scene code.
  * Disadvantage: Entity defaults not visible in scene file (but visible in Triplex).
  */
-export function RecommendedScene({
-  // Scene-owned (has defaults here)
-  environmentPreset = 'studio',
-  environmentAtmosphere,
-}: Partial<BreathingLevelProps> = {}) {
+export function RecommendedScene() {
   return (
     <>
-      <Environment preset={environmentPreset} atmosphere={environmentAtmosphere} />
+      <Environment />
 
       <BreathingSphere />
     </>
@@ -55,13 +51,8 @@ export function RecommendedScene({
  * - Creating a variant scene (debug, preset, theme)
  * - Scene intentionally uses different defaults
  */
-export function DebugScene({
-  // Override for debug: cosmic environment
-  environmentPreset = 'cosmic',
-
-  ...restProps
-}: Partial<BreathingDebugSceneProps> = {}) {
-  return <RecommendedScene environmentPreset={environmentPreset} {...restProps} />;
+export function DebugScene({ ...restProps }: Partial<BreathingDebugSceneProps> = {}) {
+  return <RecommendedScene {...restProps} />;
 }
 
 // ============================================================================

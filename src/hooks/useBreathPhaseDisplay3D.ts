@@ -1,15 +1,16 @@
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useRef } from 'react';
+import type { Object3D } from 'three';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
 import { phaseType, rawProgress } from '../entities/breath/traits';
 
 export const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'];
 
 interface PhaseDisplay3DRefs {
-  phaseNameRef: React.RefObject<any>;
-  timerRef: React.RefObject<any>;
-  progressBarRef: React.RefObject<any>;
+  phaseNameRef: React.RefObject<Object3D>;
+  timerRef: React.RefObject<Object3D>;
+  progressBarRef: React.RefObject<Object3D>;
 }
 
 /**
@@ -37,6 +38,7 @@ export function useBreathPhaseDisplay3D(refs: PhaseDisplay3DRefs): void {
     return acc;
   }, []);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: HUD update logic requires state checks and multiple text property updates across refs - refactoring would reduce readability
   useFrame(() => {
     try {
       const breathEntity = world.queryFirst(phaseType, rawProgress);

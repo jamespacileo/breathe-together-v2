@@ -14,15 +14,15 @@
       "**/*.ts",
       "**/*.tsx",
       "**/*.json",
-      "!**/node_modules/**",
-      "!**/dist/**",
-      "!**/build/**",
-      "!**/.vite/**",
-      "!**/coverage/**",
-      "!**/public/**",
-      "!**/.triplex/**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/.vite",
+      "!**/coverage",
+      "!**/public",
+      "!**/.triplex",
       "!**/*.d.ts",
-      "!**/.github/**",
+      "!**/.github",
       "!**/vite.config.*"
     ]
   },
@@ -49,23 +49,28 @@
       "correctness": {
         "noUnusedVariables": "error",
         "noUnusedImports": "warn",
-        "useExhaustiveDependencies": "warn",
-        "noUndeclaredVariables": "error"
+        "useExhaustiveDependencies": "error",
+        "noUndeclaredVariables": "error",
+        "noChildrenProp": "error",
+        "noVoidElementsWithChildren": "error"
       },
       "suspicious": {
-        "noExplicitAny": "warn",
+        "noExplicitAny": "error",
         "noDoubleEquals": "warn",
         "noConsole": {
           "level": "off",
           "options": {
             "allow": ["log"]
           }
-        }
+        },
+        "noEmptyBlockStatements": "off"
       },
       "style": {
         "useConst": "error",
         "useTemplate": "warn",
-        "noNonNullAssertion": "warn"
+        "noNonNullAssertion": "warn",
+        "useExportType": "warn",
+        "useImportType": "warn"
       },
       "complexity": {
         "noExcessiveCognitiveComplexity": {

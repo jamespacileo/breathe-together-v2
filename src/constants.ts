@@ -64,40 +64,6 @@ export const VISUALS = {
   REPULSION_POWER: 2.0,
   REPULSION_STRENGTH: 1.5,
 
-  // Environment - Organic & Natural with atmospheric depth
-  // Nebula shader colors (per preset) - vibrant, saturated for visibility
-  NEBULA_COLOR_EXHALE_MEDITATION: '#4a80b8', // Rich saturated ocean blue (calm)
-  NEBULA_COLOR_INHALE_MEDITATION: '#d89060', // Warm saturated golden amber (warm)
-  NEBULA_COLOR_EXHALE_COSMIC: '#4a3580', // Deep vibrant purple (cosmic)
-  NEBULA_COLOR_INHALE_COSMIC: '#8050a8', // Bright magenta-purple (ethereal)
-  NEBULA_COLOR_EXHALE_MINIMAL: '#2a2824', // Warm dark taupe (subtle, minimal)
-  NEBULA_COLOR_INHALE_MINIMAL: '#2a2824', // Same (no transition, as intended)
-  NEBULA_COLOR_EXHALE_STUDIO: '#3a3834', // Warm neutral grey (balanced)
-  NEBULA_COLOR_INHALE_STUDIO: '#4a4238', // Slightly warmer grey (subtle transition)
-
-  // Gradient background colors (per preset) - breath-synchronized vertical gradient
-  // Bottom colors are darkened (60% lightness) for grounding effect
-  // Top colors match nebula colors for atmospheric continuity
-  GRADIENT_BOTTOM_EXHALE_MEDITATION: '#1a2d3d', // Dark ocean blue
-  GRADIENT_TOP_EXHALE_MEDITATION: '#4a80b8', // Saturated blue
-  GRADIENT_BOTTOM_INHALE_MEDITATION: '#4d2f20', // Dark amber
-  GRADIENT_TOP_INHALE_MEDITATION: '#d89060', // Warm golden amber
-
-  GRADIENT_BOTTOM_EXHALE_COSMIC: '#1d132d', // Deep space purple
-  GRADIENT_TOP_EXHALE_COSMIC: '#4a3580', // Vibrant purple
-  GRADIENT_BOTTOM_INHALE_COSMIC: '#2d1a38', // Dark magenta
-  GRADIENT_TOP_INHALE_COSMIC: '#8050a8', // Bright magenta
-
-  GRADIENT_BOTTOM_EXHALE_MINIMAL: '#0f0e0b', // Very dark taupe
-  GRADIENT_TOP_EXHALE_MINIMAL: '#2a2824', // Dark taupe
-  GRADIENT_BOTTOM_INHALE_MINIMAL: '#0f0e0b', // Same (no transition)
-  GRADIENT_TOP_INHALE_MINIMAL: '#2a2824', // Same
-
-  GRADIENT_BOTTOM_EXHALE_STUDIO: '#15140f', // Very dark grey
-  GRADIENT_TOP_EXHALE_STUDIO: '#3a3834', // Neutral grey
-  GRADIENT_BOTTOM_INHALE_STUDIO: '#1c1814', // Dark warm grey
-  GRADIENT_TOP_INHALE_STUDIO: '#4a4238', // Warmer grey
-
   // Lighting - Warm-cool balance with meditation colors
   FILL_LIGHT_INTENSITY: 0.12, // Very subtle cool fill (reduced from 0.3)
   FILL_LIGHT_COLOR: '#4A7B8A', // Deep teal-blue (changed from #8ababa)

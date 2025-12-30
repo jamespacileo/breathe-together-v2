@@ -1,15 +1,16 @@
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import { createNoise3D } from 'simplex-noise';
 import * as THREE from 'three';
-import { attribute, cameraPosition, dot, float, normalView, positionWorld } from 'three/tsl';
-import { MeshBasicNodeMaterial } from 'three/webgpu';
 import type { MoodId } from '../../constants';
 import { VISUALS } from '../../constants';
 import { MOOD_METADATA } from '../../lib/colors';
 import { generateFibonacciSphere } from '../../lib/fibonacciSphere';
+import { createGlassRefractionMaterial } from '../../lib/shaders';
 import { breathPhase, crystallization, orbitRadius, sphereScale } from '../breath/traits';
+import { useRefractionRenderPipeline } from './hooks/useRefractionRenderPipeline';
+import { createBackfaceMaterial } from './materials/createBackfaceMaterial';
 
 const noise3D = createNoise3D();
 
@@ -22,18 +23,35 @@ export interface ParticleSwarmProps {
    * User mood distribution (mood ID → count).
    */
   users?: Partial<Record<MoodId, number>>;
+  /**
+   * Enable glass refraction effect for particles.
+   */
+  enableRefraction?: boolean;
+  /**
+   * Refraction render target quality (512 | 1024 | 2048).
+   */
+  refractionQuality?: number;
 }
 
 /**
- * Simplified ParticleSwarm using Three Shading Language (TSL).
- * Vibrant neon icosahedrons that respond to user mood and breath.
+ * ParticleSwarm with optional glass refraction effect.
+ * Icosahedrons respond to user mood and breath synchronization.
+ * Can render as neon particles (default) or glass-like refractive particles.
  */
-export function ParticleSwarm({ capacity = 300, users }: ParticleSwarmProps) {
+export function ParticleSwarm({
+  capacity = 300,
+  users,
+  enableRefraction = true,
+  refractionQuality = 1024,
+}: ParticleSwarmProps) {
   const world = useWorld();
+  const { gl } = useThree();
 
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const matrixRef = useRef(new THREE.Matrix4());
   const colorRef = useRef(new THREE.Color());
+  // Reusable Vector3 for physics calculations (avoid per-frame allocation)
+  const tempForceRef = useRef(new THREE.Vector3());
 
   // Constants
   const MIN_SCALE = 0.12;
@@ -108,6 +126,7 @@ export function ParticleSwarm({ capacity = 300, users }: ParticleSwarmProps) {
     }
   }, [users, data, capacity]);
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex particle physics simulation requires multiple force calculations (spring, wind, jitter, repulsion) - refactoring would harm performance and readability
   useFrame((state, delta) => {
     const mesh = meshRef.current;
     if (!mesh) return;
@@ -137,7 +156,7 @@ export function ParticleSwarm({ capacity = 300, users }: ParticleSwarmProps) {
       lerp(VISUALS.PARTICLE_DRAG_EXHALE, VISUALS.PARTICLE_DRAG_INHALE, phase) ** (delta * 60);
 
     const time = state.clock.elapsedTime;
-    const tempForce = new THREE.Vector3();
+    const tempForce = tempForceRef.current;
 
     for (let i = 0; i < capacity; i++) {
       const rest = data.restPositions;
@@ -208,31 +227,124 @@ export function ParticleSwarm({ capacity = 300, users }: ParticleSwarmProps) {
 
   const geometry = useMemo(() => new THREE.IcosahedronGeometry(1, 0), []);
 
-  const material = useMemo(() => {
-    const material = new MeshBasicNodeMaterial({
+  // Back-face material for capturing normals in refraction pass
+  const backfaceMaterial = useMemo(() => createBackfaceMaterial(), []);
+
+  // Render targets for refraction pipeline
+  const renderTargets = useRefractionRenderPipeline(enableRefraction, refractionQuality);
+
+  // Glass refraction material (used when enableRefraction = true)
+  const refractionMaterial = useMemo(() => {
+    if (!renderTargets) return null;
+    const material = createGlassRefractionMaterial();
+    material.uniforms.uEnvMap.value = renderTargets.envFBO.texture;
+    material.uniforms.uBackfaceMap.value = renderTargets.backfaceFBO.texture;
+    return material;
+  }, [renderTargets]);
+
+  // Fallback material (basic neon, used when refraction disabled)
+  const fallbackMaterial = useMemo(() => {
+    const material = new THREE.MeshBasicMaterial({
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-
-    const viewDir = cameraPosition.sub(positionWorld).normalize();
-    const normal = normalView;
-    const fresnel = float(1.0).sub(dot(normal, viewDir)).max(0).pow(3.0);
-
-    const instanceCol = attribute('instanceColor', 'vec3');
-    const neonColor = instanceCol.mul(float(0.5).add(fresnel.mul(5.0)));
-    const alpha = float(0.1).add(fresnel.mul(0.7));
-
-    material.colorNode = neonColor;
-    material.opacityNode = alpha;
-
     return material;
   }, []);
 
+  // Cleanup: Dispose materials on unmount
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      backfaceMaterial.dispose();
+      refractionMaterial?.dispose();
+      fallbackMaterial.dispose();
+    };
+  }, [geometry, backfaceMaterial, refractionMaterial, fallbackMaterial]);
+
+  const { scene, camera } = useThree();
+
+  // 3-pass render loop for glass refraction
+  useFrame(() => {
+    if (!enableRefraction || !renderTargets || !refractionMaterial || !meshRef.current) return;
+
+    const mesh = meshRef.current;
+    const { envFBO, backfaceFBO } = renderTargets;
+
+    // Store original state
+    const originalMaterial = mesh.material;
+    const originalVisible = mesh.visible;
+    const originalBackground = scene.background;
+    const originalAutoClear = gl.autoClear;
+
+    gl.autoClear = false;
+
+    // ============================================
+    // PASS 1: Render environment to envFBO
+    // ============================================
+    mesh.visible = false;
+    gl.setRenderTarget(envFBO);
+    gl.setClearColor(0x000000, 0);
+    gl.clear();
+    gl.render(scene, camera);
+
+    // ============================================
+    // PASS 2: Render particle back-faces to backfaceFBO
+    // ============================================
+    mesh.visible = true;
+    mesh.material = backfaceMaterial;
+    scene.background = null;
+
+    gl.setRenderTarget(backfaceFBO);
+    gl.setClearColor(0x000000, 0);
+    gl.clear();
+    gl.clearDepth();
+    gl.render(scene, camera);
+
+    // ============================================
+    // PASS 3: Final render with refraction to screen
+    // ============================================
+    mesh.material = refractionMaterial;
+    scene.background = originalBackground;
+
+    gl.setRenderTarget(null);
+    gl.setClearColor(0x000000, 1);
+    gl.clear();
+    gl.render(scene, camera);
+
+    // Restore state
+    mesh.material = originalMaterial;
+    mesh.visible = originalVisible;
+    scene.background = originalBackground;
+    gl.autoClear = originalAutoClear;
+  }, -100); // Priority -100: run BEFORE default R3F render
+
+  // Update refraction shader uniforms each frame
+  useFrame((state) => {
+    if (!refractionMaterial) return;
+
+    const mesh = meshRef.current;
+    if (!mesh) return;
+
+    const breathEntity = world.queryFirst(orbitRadius, sphereScale, crystallization, breathPhase);
+    if (!breathEntity) return;
+
+    const phaseAttr = breathEntity.get(breathPhase);
+    const phase = phaseAttr?.value ?? 0;
+
+    // Update uniforms
+    refractionMaterial.uniforms.uBreathPhase.value = phase;
+    refractionMaterial.uniforms.uResolution.value.set(state.size.width, state.size.height);
+  });
+
   return (
     <group name="Particle Swarm">
-      <instancedMesh ref={meshRef} args={[geometry, material, capacity]} frustumCulled={false} />
+      <instancedMesh
+        ref={meshRef}
+        args={[geometry, refractionMaterial ?? fallbackMaterial, capacity]}
+        frustumCulled={true}
+      />
     </group>
   );
 }

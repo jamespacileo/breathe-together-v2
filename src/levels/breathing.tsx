@@ -31,9 +31,9 @@ import type { BreathingLevelProps } from '../types/sceneProps';
  */
 export function BreathingLevel({
   bloom = 'medium',
-  environmentPreset = 'studio',
-  environmentAtmosphere,
   particleDensity,
+  enableRefraction = true,
+  refractionQuality = 1024,
   // DEBUG-ONLY: Entity visibility toggles (all default true)
   showSphere = true,
   showParticles = true,
@@ -46,12 +46,17 @@ export function BreathingLevel({
 
   return (
     <Suspense fallback={null}>
-      {showEnvironment && (
-        <Environment preset={environmentPreset} atmosphere={environmentAtmosphere} />
-      )}
+      {showEnvironment && <Environment enabled={showEnvironment} />}
 
       {showSphere && <BreathingSphere />}
-      {showParticles && <ParticleSwarm capacity={particleCount} users={moods} />}
+      {showParticles && (
+        <ParticleSwarm
+          capacity={particleCount}
+          users={moods}
+          enableRefraction={enableRefraction}
+          refractionQuality={refractionQuality}
+        />
+      )}
 
       <PostProcessing bloom={bloom} />
     </Suspense>

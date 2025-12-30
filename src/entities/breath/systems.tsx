@@ -150,7 +150,7 @@ export function breathSystem(world: World, delta: number) {
 
   // 2. Damp current values toward targets using maath/easing
   // Use explicit velocity traits to maintain damping state across frames.
-  DAMP_CONFIG.forEach(({ trait, targetTrait, velocityTrait, speed }) => {
+  DAMP_CONFIG.forEach(({ trait, targetTrait, _velocityTrait, speed }) => {
     const current = breathEntity.get(trait);
     const target = breathEntity.get(targetTrait);
     if (current && target) {

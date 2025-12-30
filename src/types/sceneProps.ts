@@ -18,36 +18,53 @@ export interface SharedVisualProps {
    * @enum ["sparse", "normal", "dense"]
    */
   particleDensity?: 'sparse' | 'normal' | 'dense';
+
+  /**
+   * Enable glass refraction effect for particles.
+   *
+   * When enabled, particles become translucent icosahedrons that refract
+   * and reflect the background scene with mood-colored tints. Creates a
+   * crystalline, gem-like appearance that breathes with the meditation cycle.
+   *
+   * **When to adjust:** Disable on low-end devices for better performance.
+   * Performance cost: ~4ms overhead per frame at 1024 quality.
+   *
+   * @group "Particle Swarm"
+   * @default true
+   */
+  enableRefraction?: boolean;
+
+  /**
+   * Refraction render target quality (resolution).
+   *
+   * Controls the sharpness of refracted backgrounds seen through particles.
+   * Higher values = sharper refraction but slower rendering.
+   *
+   * **When to adjust:**
+   * - 512: Mobile devices, low-end hardware (faster, visible pixelation)
+   * - 1024: Desktop/laptop, balanced quality (recommended)
+   * - 2048: High-end hardware, maximum clarity
+   *
+   * **Interacts with:** enableRefraction, particleCount
+   * **Performance note:** 512 = ~2ms/frame, 1024 = ~4ms/frame, 2048 = ~8ms/frame
+   *
+   * @group "Particle Swarm"
+   * @enum [512, 1024, 2048]
+   * @default 1024
+   */
+  refractionQuality?: 512 | 1024 | 2048;
 }
 
 export interface SharedEnvironmentProps {
   /**
-   * Environment mood preset - controls lighting, shadows, HDR environment, and backdrop colors.
+   * Enable/disable the environment background and lighting.
    *
-   * - **meditation**: Soft, gentle lighting with calm blues/teals and starfield
-   * - **cosmic**: Dramatic, contrasted lighting with deep purples and dense stars
-   * - **minimal**: Balanced, neutral lighting with subtle atmosphere
-   * - **studio**: Bright, even lighting with warm tones and stars
+   * Renders a calming gradient background with drifting clouds and soft lighting.
    *
    * @group "Environment"
-   * @enum ["meditation", "cosmic", "minimal", "studio"]
+   * @default true
    */
-  environmentPreset?: 'meditation' | 'cosmic' | 'minimal' | 'studio';
-
-  /**
-   * Atmospheric density multiplier (affects star count, sparkle opacity, point light intensity).
-   *
-   * Controls the intensity of all atmospheric elements:
-   * - 0.0: Minimal atmosphere, faint effects
-   * - 0.5: Balanced atmosphere (default)
-   * - 1.0: Rich, dense atmosphere with maximum sparkles and stars
-   *
-   * @group "Environment"
-   * @min 0
-   * @max 1
-   * @step 0.1
-   */
-  environmentAtmosphere?: number;
+  showEnvironment?: boolean;
 }
 
 export interface SharedPostProcessingProps {
