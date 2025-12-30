@@ -1,6 +1,8 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
+import { BreathSparkles } from '../components/BreathSparkles';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { PhaseOverlay3D } from '../components/PhaseOverlay3D';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -72,7 +74,13 @@ export function BreathingLevel({
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
-            {showGlobe && <EarthGlobe />}
+            {showGlobe && <EarthGlobe showSparkles={false} />}
+
+            {/* Phase overlay text - centered on globe */}
+            <PhaseOverlay3D />
+
+            {/* Breath-synced sparkles - intensify toward phase transitions */}
+            <BreathSparkles radius={3} count={100} />
 
             {showParticles && (
               <ParticleSwarm
