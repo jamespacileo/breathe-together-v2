@@ -12,9 +12,9 @@
  * See docs/triplex/06-composition-patterns.md for full guidelines.
  */
 
-import { BreathingSphere } from '../entities/breathingSphere';
-import { Environment } from '../entities/environment';
-import type { BreathingDebugSceneProps, BreathingLevelProps } from '../types/sceneProps';
+import { BreathingSphere } from '../../src/entities/breathingSphere';
+import { Environment } from '../../src/entities/environment';
+import type { BreathingDebugSceneProps, BreathingLevelProps } from '../../src/types/sceneProps';
 
 // ============================================================================
 // PATTERN: Entity Owns Defaults (RECOMMENDED)

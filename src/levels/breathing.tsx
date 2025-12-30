@@ -19,7 +19,7 @@ import { Suspense } from 'react';
 import { PostProcessing } from '../components/PostProcessing';
 import { BreathingSphere } from '../entities/breathingSphere';
 import { Environment } from '../entities/environment';
-import { Balanced } from '../entities/particle/presets';
+import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { usePresence } from '../hooks/usePresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -51,7 +51,7 @@ export function BreathingLevel({
       )}
 
       {showSphere && <BreathingSphere />}
-      {showParticles && <Balanced capacity={particleCount} users={moods} />}
+      {showParticles && <ParticleSwarm capacity={particleCount} users={moods} />}
 
       <PostProcessing bloom={bloom} />
     </Suspense>

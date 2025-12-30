@@ -51,7 +51,7 @@ export function BreathingHUD3D() {
           </Text>
 
           {/* Timer: e.g., "4s" */}
-          <Text ref={timerRef} fontSize={24} color="#fffef7" width="auto" fontFamily="monospace">
+          <Text ref={timerRef} fontSize={24} color="#fffef7" width="auto">
             4s
           </Text>
 

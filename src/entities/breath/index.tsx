@@ -7,11 +7,9 @@
 
 import { useWorld } from 'koota/react';
 import { useEffect } from 'react';
-import { useBreathCurveConfig } from '../../contexts/BreathCurveContext';
 import { useBreathController } from '../../contexts/breathController';
 import { useBreathDebug } from '../../contexts/breathDebug';
 import {
-  breathCurveConfig,
   breathPhase,
   crystallization,
   debugPhaseJump,
@@ -35,11 +33,9 @@ import {
 /**
  * Component that spawns the breath entity once on mount
  * Must be rendered early in the app initialization
- * Also reads breath curve configuration from context
  */
 export function BreathEntity() {
   const world = useWorld();
-  const curveConfig = useBreathCurveConfig();
   const debugConfig = useBreathDebug();
   const controllerConfig = useBreathController();
 
@@ -66,7 +62,6 @@ export function BreathEntity() {
           velocityOrbitRadius,
           velocitySphereScale,
           velocityCrystallization,
-          breathCurveConfig,
         );
       } else {
         // Ensure all new traits are added to existing entity (for hot-reloading/updates)
@@ -80,15 +75,6 @@ export function BreathEntity() {
         if (!entity.has(velocitySphereScale)) entity.add(velocitySphereScale);
         if (!entity.has(targetCrystallization)) entity.add(targetCrystallization);
         if (!entity.has(velocityCrystallization)) entity.add(velocityCrystallization);
-        if (!entity.has(breathCurveConfig)) entity.add(breathCurveConfig);
-      }
-
-      // Update curve config trait from context
-      if (entity && world.has(entity)) {
-        entity.set(breathCurveConfig, {
-          curveType: curveConfig.curveType,
-          waveDelta: curveConfig.waveDelta ?? 0.05,
-        });
       }
 
       // ============================================================
@@ -151,7 +137,7 @@ export function BreathEntity() {
       // and multiple components might depend on it. It will be cleaned up
       // when the world is destroyed.
     };
-  }, [world, curveConfig.curveType, curveConfig.waveDelta, debugConfig, controllerConfig]);
+  }, [world, debugConfig, controllerConfig]);
 
   return null; // This component renders nothing
 }

@@ -55,16 +55,6 @@ export const targetCrystallization = trait({ value: 0 });
 export const velocityCrystallization = trait({ value: 0 });
 
 /**
- * Breath curve configuration
- * Stores which breathing algorithm to use (phase-based or rounded-wave)
- * Updated by BreathEntity when context changes
- */
-export const breathCurveConfig = trait({
-  curveType: 'phase-based' as 'phase-based' | 'rounded-wave',
-  waveDelta: 0.05,
-});
-
-/**
  * DEBUG TRAITS - Only spawned in debug/Triplex contexts
  * Allow manual control of breathing animation without affecting production
  */

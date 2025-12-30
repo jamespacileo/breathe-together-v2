@@ -19,31 +19,6 @@ export const MOOD_IDS = [
 export type MoodId = (typeof MOOD_IDS)[number];
 
 /**
- * Avatar IDs - all valid avatars in the application
- */
-export const AVATAR_IDS = ['teal', 'lavender', 'amber', 'sage', 'coral', 'indigo'] as const;
-
-export type AvatarId = (typeof AVATAR_IDS)[number];
-
-/**
- * Set of valid mood IDs for O(1) lookup validation
- */
-export const VALID_MOODS = new Set<string>(MOOD_IDS);
-
-/**
- * Empty moods template - all moods initialized to 0
- */
-export const EMPTY_MOODS: Record<MoodId, number> = {
-  moment: 0,
-  anxious: 0,
-  processing: 0,
-  preparing: 0,
-  grateful: 0,
-  celebrating: 0,
-  here: 0,
-};
-
-/**
  * Breathing Cycle Constants (Asymmetric for natural feel)
  * Total cycle remains 16 seconds for global sync
  */
@@ -129,28 +104,6 @@ export const VISUALS = {
   RIM_LIGHT_INTENSITY: 0.08, // Very subtle rim (reduced from 0.2)
   RIM_LIGHT_COLOR: '#6BA8B5', // Medium cyan-blue (changed from #e0f0f8)
 };
-
-/**
- * BreathingSphere Configuration - Internal constants only
- * @deprecated - BreathingSphere now uses direct prop values for all user-facing configuration
- * These constants are retained only for internal animation defaults
- */
-
-export const SPHERE_ANIMATION_DEFAULTS = {
-  entranceDelayMs: 200,
-  entranceDurationMs: 800,
-} as const;
-
-export const SPHERE_LAYER_SCALE = {
-  core: 0.4,
-  aura: 1.5,
-} as const;
-
-export const SPHERE_VISUAL_DEFAULTS = {
-  fresnelIntensityBase: 0.5, // Fixed glow base
-  fresnelIntensityRange: 0.6, // Fixed glow range
-  chromaticAberration: 0.02, // Fixed core effect
-} as const;
 
 /**
  * Particle Physics Constants

@@ -1,18 +1,12 @@
 /**
  * Breath system - updates breath entity every frame
  * Uses UTC time for global synchronization
- *
- * Supports multiple breathing algorithms:
- * - phase-based: Production curve with discrete phases
- * - rounded-wave: Experimental curve with smooth transitions
  */
 import type { World } from 'koota';
 import { easing } from 'maath';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../../constants';
 import { calculateBreathState } from '../../lib/breathCalc';
-import { calculateBreathStateRounded } from '../../lib/breathCalcRounded';
 import {
-  breathCurveConfig,
   breathPhase,
   crystallization,
   debugPhaseJump,
@@ -142,20 +136,8 @@ export function breathSystem(world: World, delta: number) {
     elapsed = Date.now() / 1000;
   }
 
-  // Read curve config from entity trait (defaults to phase-based)
-  const config = breathEntity.get(breathCurveConfig);
-  const curveType = config?.curveType ?? 'phase-based';
-  const waveDelta = config?.waveDelta ?? 0.05;
-
-  // Select calculation function based on curve type
-  const state =
-    curveType === 'rounded-wave'
-      ? calculateBreathStateRounded(elapsed, {
-          delta: waveDelta,
-          amplitude: 1.0,
-          cycleSeconds: BREATH_TOTAL_CYCLE,
-        })
-      : calculateBreathState(elapsed);
+  // Calculate breathing state using phase-based algorithm
+  const state = calculateBreathState(elapsed);
 
   // 1. Update discrete traits and targets
   breathEntity.set(targetBreathPhase, { value: state.breathPhase });
