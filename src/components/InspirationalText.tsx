@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CYCLES_PER_MESSAGE, MESSAGES } from '../config/inspirationalMessages';
-import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
-
-// Pre-computed phase timing
-const PHASE_DURATIONS = [
-  BREATH_PHASES.INHALE,
-  BREATH_PHASES.HOLD_IN,
-  BREATH_PHASES.EXHALE,
-  BREATH_PHASES.HOLD_OUT,
-];
+import { BREATH_TOTAL_CYCLE } from '../constants';
+import { calculatePhaseInfo } from '../lib/breathPhase';
 
 /**
  * Breathing Phase Timeline:
@@ -42,29 +35,6 @@ function easeInQuad(t: number): number {
 }
 
 /**
- * Calculate current phase from cycle time
- */
-function getPhaseInfo(cycleTime: number): { phaseIndex: number; phaseProgress: number } {
-  let accumulatedTime = 0;
-  let phaseIndex = 0;
-
-  for (let i = 0; i < PHASE_DURATIONS.length; i++) {
-    const duration = PHASE_DURATIONS[i] ?? 0;
-    if (cycleTime < accumulatedTime + duration) {
-      phaseIndex = i;
-      break;
-    }
-    accumulatedTime += duration;
-  }
-
-  const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
-  const phaseTime = cycleTime - accumulatedTime;
-  const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
-
-  return { phaseIndex, phaseProgress };
-}
-
-/**
  * InspirationalText - Above & Beyond style inspirational messages
  *
  * Displays centered text above and below the breathing globe that
@@ -90,7 +60,7 @@ export function InspirationalText() {
     const updateText = () => {
       const now = Date.now() / 1000;
       const cycleTime = now % BREATH_TOTAL_CYCLE;
-      const { phaseIndex, phaseProgress } = getPhaseInfo(cycleTime);
+      const { phaseIndex, phaseProgress } = calculatePhaseInfo(cycleTime);
 
       // Calculate opacity based on breathing phase
       const opacity = calculateOpacity(phaseIndex, phaseProgress);

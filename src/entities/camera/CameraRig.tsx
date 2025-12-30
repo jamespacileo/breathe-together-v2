@@ -5,6 +5,7 @@ import { damp3 } from 'maath/easing';
 import { useRef } from 'react';
 import * as THREE from 'three';
 import type { OrbitControls } from 'three-stdlib';
+import * as logger from '../../lib/logger';
 import { breathPhase } from '../breath/traits';
 
 // Reusable origin vector to prevent 60fps allocations
@@ -58,8 +59,8 @@ export function CameraRig({
       const breathEntity = world.queryFirst(breathPhase);
       if (!breathEntity) return;
 
-      if (import.meta.env.DEV && !breathEntity.has?.(breathPhase)) {
-        console.warn('[CameraRig] breathPhase trait missing - entity may be corrupt');
+      if (!breathEntity.has?.(breathPhase)) {
+        logger.warn('[CameraRig] breathPhase trait missing - entity may be corrupt');
       }
 
       const phase = breathEntity.get(breathPhase)?.value ?? 0;
@@ -100,9 +101,7 @@ export function CameraRig({
       }
     } catch (error) {
       // Ignore stale world errors
-      if (import.meta.env.DEV) {
-        console.warn('[CameraRig] Unexpected error (expected during Triplex hot-reload):', error);
-      }
+      logger.warn('[CameraRig] Unexpected error (expected during Triplex hot-reload):', error);
     }
   });
 

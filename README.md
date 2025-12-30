@@ -2,10 +2,32 @@
 
 <!-- Test comment for CI/CD verification -->
 
-- [Koota](https://github.com/pmndrs/koota) for state management, powering the core behavior loop.
-- [Vite](https://vitejs.dev/) for bundling and running the game outside of Triplex.
-- [React Three Fiber](https://github.com/pmndrs/react-three-fiber) for rendering 3D components.
-- [TypeScript](https://www.typescriptlang.org/) for type safety and better developer experience.
+A 3D interactive breathing meditation application that synchronizes users globally using UTC time to breathe together in a box breathing pattern (4 phases: inhale, hold, exhale, hold).
+
+## Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server with Triplex visual editor
+npm run dev
+
+# Open http://localhost:5173 in your browser
+```
+
+## Documentation
+
+- **[CLAUDE.md](./CLAUDE.md)** - Comprehensive project documentation (architecture, ECS patterns, development guide)
+- **[TRIPLEX_QUICKSTART.md](./TRIPLEX_QUICKSTART.md)** - Visual 3D component editor guide
+- **[DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md)** - Development patterns and best practices
+
+## Tech Stack
+
+- [Koota](https://github.com/pmndrs/koota) for ECS state management, powering the core behavior loop
+- [Vite](https://vitejs.dev/) for blazing-fast builds and HMR
+- [React Three Fiber](https://github.com/pmndrs/react-three-fiber) for declarative 3D rendering
+- [TypeScript](https://www.typescriptlang.org/) for type safety and developer experience
 
 ## Introduction
 
@@ -44,6 +66,17 @@ Try modifying some and see what happens!
   - `app.tsx` — Root of the React app.
   - `providers.tsx` — Providers declared here are used in both `app.tsx `and `/.triplex/providers.tsx`.
 
+## Essential Commands
+
+```bash
+npm run dev          # Start Vite dev server with Triplex (localhost:5173)
+npm run build        # Production build to dist/
+npm run typecheck    # TypeScript type checking
+npm run lint         # Run Biome linter
+npm run format       # Format code with Biome
+npm run check        # Lint + format with auto-fix
+```
+
 ## Deployments
 
 This template comes with out-of-the-box [GitHub pages deployments](https://pages.github.com/). For every commit to the default branch a deployment will be initiated.
@@ -54,3 +87,27 @@ To successfully deploy you'll need to enable GitHub pages for your repository:
 1. Find the "Pages" page
 1. Change `source` to `GitHub Actions`
 1. You're ready! ✅
+
+## Troubleshooting
+
+### TypeScript errors after pulling changes
+```bash
+npm install  # Reinstall dependencies
+npm run typecheck  # Verify types
+```
+
+### Triplex not loading
+- Ensure dev server is running on port 5173
+- Check browser console for WebGL errors
+- Try clearing browser cache and restarting dev server
+
+### WebGL context lost
+- Restart the browser tab
+- Check for GPU memory leaks (see CLAUDE.md "Three.js Memory Management")
+- Reduce `particleCount` in scene props
+
+### Hot reload issues with ECS
+- This is expected during Triplex hot-reload (Koota world becomes stale)
+- Refresh the page to reset the ECS world
+
+For more detailed troubleshooting, see [CLAUDE.md](./CLAUDE.md).
