@@ -1,10 +1,9 @@
 /**
  * ParticleSwarm - Monument Valley inspired icosahedral shards
  *
- * Refactored to Three Shader Language (TSL).
- * - Radial breathing synced with orbitRadius trait.
- * - Dynamic scaling to prevent peer-overlap and globe-penetration.
- * - Custom illustrative glass refraction material.
+ * Uses separate Mesh objects (not InstancedMesh) to match reference exactly.
+ * Each mesh has per-vertex color attribute for mood coloring.
+ * Rendered via RefractionPipeline 3-pass FBO system.
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -12,178 +11,190 @@ import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
-import { getMonumentValleyMoodColor } from '../../lib/colors';
+import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { orbitRadius, sphereScale } from '../breath/traits';
-import { FrostedGlassMaterial } from './FrostedGlassMaterial';
+import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
+
+// Convert palette to THREE.Color array for random selection
+const MOOD_COLORS = [
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+];
 
 export interface ParticleSwarmProps {
-  capacity?: number;
+  /** Number of shards (default 48 matches reference) */
+  count?: number;
+  /** Users by mood for color distribution */
   users?: Partial<Record<MoodId, number>>;
+  /** Base radius for orbit @default 4.5 */
+  baseRadius?: number;
+  /** Base size for shards @default 4.0 */
   baseShardSize?: number;
+  /** Globe radius for minimum distance calculation @default 1.5 */
+  globeRadius?: number;
+  /** Buffer distance between shard surface and globe surface @default 0.3 */
+  buffer?: number;
+  /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
+  maxShardSize?: number;
 }
 
-export function ParticleSwarm({ capacity = 300, users, baseShardSize = 4.0 }: ParticleSwarmProps) {
+interface ShardData {
+  mesh: THREE.Mesh;
+  direction: THREE.Vector3;
+  geometry: THREE.IcosahedronGeometry;
+}
+
+export function ParticleSwarm({
+  count = 48,
+  users,
+  baseRadius = 4.5,
+  baseShardSize = 4.0,
+  globeRadius = 1.5,
+  buffer = 0.3,
+  maxShardSize = 0.6,
+}: ParticleSwarmProps) {
   const world = useWorld();
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const matrixRef = useRef(new THREE.Matrix4());
-  const colorRef = useRef(new THREE.Color());
-  const reusableColorRef = useRef(new THREE.Color());
+  const groupRef = useRef<THREE.Group>(null);
+  const shardsRef = useRef<ShardData[]>([]);
 
-  // Refs without extracting .current - prevents 60fps allocations
-  const tempPosRef = useRef(new THREE.Vector3());
-  const tempQuatRef = useRef(new THREE.Quaternion());
-  const tempScaleRef = useRef(new THREE.Vector3(1, 1, 1));
+  // Calculate shard size (capped to prevent oversized shards at low counts)
+  const shardSize = useMemo(
+    () => Math.min(baseShardSize / Math.sqrt(count), maxShardSize),
+    [baseShardSize, count, maxShardSize],
+  );
+  const minOrbitRadius = useMemo(
+    () => globeRadius + shardSize + buffer,
+    [globeRadius, shardSize, buffer],
+  );
 
-  const axisXRef = useRef(new THREE.Vector3(1, 0, 0));
-  const axisYRef = useRef(new THREE.Vector3(0, 1, 0));
-  const deltaQuatXRef = useRef(new THREE.Quaternion());
-  const deltaQuatYRef = useRef(new THREE.Quaternion());
+  // Create shared material (will be swapped by RefractionPipeline)
+  const material = useMemo(() => createFrostedGlassMaterial(), []);
 
-  const data = useMemo(() => {
-    const directions = new Float32Array(capacity * 3);
-    const rotations = new Float32Array(capacity * 4);
-    const colors = new Float32Array(capacity * 3);
-    const targetColors = new Float32Array(capacity * 3);
-    const fillerCol = new THREE.Color('#e6dcd3');
+  // Create shards with per-vertex colors
+  const shards = useMemo(() => {
+    const result: ShardData[] = [];
+    const currentShardSize = shardSize;
 
-    const tempMatrix = new THREE.Matrix4();
-    const tempQuat = new THREE.Quaternion();
-    const up = new THREE.Vector3(0, 1, 0);
-    const center = new THREE.Vector3(0, 0, 0);
-
-    for (let i = 0; i < capacity; i++) {
-      const phi = Math.acos(-1 + (2 * i) / capacity);
-      const theta = Math.sqrt(capacity * Math.PI) * phi;
-      const dir = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
-
-      directions[i * 3] = dir.x;
-      directions[i * 3 + 1] = dir.y;
-      directions[i * 3 + 2] = dir.z;
-
-      // Initial rotation: look at center
-      tempMatrix.lookAt(dir, center, up);
-      tempQuat.setFromRotationMatrix(tempMatrix);
-      rotations[i * 4] = tempQuat.x;
-      rotations[i * 4 + 1] = tempQuat.y;
-      rotations[i * 4 + 2] = tempQuat.z;
-      rotations[i * 4 + 3] = tempQuat.w;
-
-      colors[i * 3] = fillerCol.r;
-      colors[i * 3 + 1] = fillerCol.g;
-      colors[i * 3 + 2] = fillerCol.b;
-      targetColors[i * 3] = fillerCol.r;
-      targetColors[i * 3 + 1] = fillerCol.g;
-      targetColors[i * 3 + 2] = fillerCol.b;
-    }
-    return { directions, rotations, colors, targetColors };
-  }, [capacity]);
-
-  useEffect(() => {
-    reusableColorRef.current.set('#e6dcd3');
-    let idx = 0;
+    // Build color distribution from users prop or random
+    const colorDistribution: THREE.Color[] = [];
     if (users) {
-      for (const [moodId, count] of Object.entries(users)) {
-        reusableColorRef.current.set(getMonumentValleyMoodColor(moodId as MoodId));
-        for (let i = 0; i < (count ?? 0) && idx < capacity; i++, idx++) {
-          data.targetColors[idx * 3] = reusableColorRef.current.r;
-          data.targetColors[idx * 3 + 1] = reusableColorRef.current.g;
-          data.targetColors[idx * 3 + 2] = reusableColorRef.current.b;
+      const moodToColor: Record<MoodId, THREE.Color> = {
+        grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
+        celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
+        moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
+        here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
+        anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
+        processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
+        preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+      };
+
+      for (const [moodId, moodCount] of Object.entries(users)) {
+        const color = moodToColor[moodId as MoodId];
+        if (color) {
+          for (let i = 0; i < (moodCount ?? 0); i++) {
+            colorDistribution.push(color);
+          }
         }
       }
     }
-    while (idx < capacity) {
-      reusableColorRef.current.set('#e6dcd3');
-      data.targetColors[idx * 3] = reusableColorRef.current.r;
-      data.targetColors[idx * 3 + 1] = reusableColorRef.current.g;
-      data.targetColors[idx * 3 + 2] = reusableColorRef.current.b;
-      idx++;
-    }
-  }, [users, data, capacity]);
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 300-particle transformation + color interpolation + trait validation (dev-only) requires multiple operations
-  useFrame((_state) => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
+    for (let i = 0; i < count; i++) {
+      const geometry = new THREE.IcosahedronGeometry(currentShardSize, 0);
 
-    const breathEntity = world.queryFirst(orbitRadius, sphereScale);
-    if (!breathEntity) return;
-
-    if (import.meta.env.DEV) {
-      if (!breathEntity.has?.(orbitRadius)) {
-        console.warn('[ParticleSwarm] orbitRadius trait missing - entity may be corrupt');
+      // Set per-vertex color attribute
+      const mood =
+        colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
+      const vertexCount = geometry.attributes.position.count;
+      const colors = new Float32Array(vertexCount * 3);
+      for (let c = 0; c < colors.length; c += 3) {
+        colors[c] = mood.r;
+        colors[c + 1] = mood.g;
+        colors[c + 2] = mood.b;
       }
-      if (!breathEntity.has?.(sphereScale)) {
-        console.warn('[ParticleSwarm] sphereScale trait missing - entity may be corrupt');
-      }
-    }
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-    const currentRadius = breathEntity.get(orbitRadius)?.value ?? 6.0;
+      // Fibonacci sphere distribution
+      const phi = Math.acos(-1 + (2 * i) / count);
+      const theta = Math.sqrt(count * Math.PI) * phi;
+      const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
 
-    // Simple scaling matching the illustrative example: baseSize / sqrt(capacity)
-    const dynamicScale = baseShardSize / Math.sqrt(capacity);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.userData.useRefraction = true; // Mark for RefractionPipeline
+      mesh.position.copy(direction).multiplyScalar(baseRadius);
+      mesh.lookAt(0, 0, 0);
+      mesh.frustumCulled = false;
 
-    for (let i = 0; i < capacity; i++) {
-      // Position
-      tempPosRef.current.set(
-        data.directions[i * 3] * currentRadius,
-        data.directions[i * 3 + 1] * currentRadius,
-        data.directions[i * 3 + 2] * currentRadius,
-      );
-
-      // Rotation: Apply continuous local rotation to the stored orientation
-      tempQuatRef.current.set(
-        data.rotations[i * 4],
-        data.rotations[i * 4 + 1],
-        data.rotations[i * 4 + 2],
-        data.rotations[i * 4 + 3],
-      );
-      deltaQuatXRef.current.setFromAxisAngle(axisXRef.current, 0.002);
-      deltaQuatYRef.current.setFromAxisAngle(axisYRef.current, 0.003);
-      tempQuatRef.current.multiply(deltaQuatXRef.current).multiply(deltaQuatYRef.current);
-
-      data.rotations[i * 4] = tempQuatRef.current.x;
-      data.rotations[i * 4 + 1] = tempQuatRef.current.y;
-      data.rotations[i * 4 + 2] = tempQuatRef.current.z;
-      data.rotations[i * 4 + 3] = tempQuatRef.current.w;
-
-      // Compose
-      tempScaleRef.current.set(dynamicScale, dynamicScale, dynamicScale);
-      matrixRef.current.compose(tempPosRef.current, tempQuatRef.current, tempScaleRef.current);
-      mesh.setMatrixAt(i, matrixRef.current);
-
-      // Color interpolation
-      for (let j = 0; j < 3; j++) {
-        data.colors[i * 3 + j] += (data.targetColors[i * 3 + j] - data.colors[i * 3 + j]) * 0.1;
-      }
-      colorRef.current.setRGB(data.colors[i * 3], data.colors[i * 3 + 1], data.colors[i * 3 + 2]);
-      mesh.setColorAt(i, colorRef.current);
+      result.push({ mesh, direction, geometry });
     }
 
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  });
+    return result;
+  }, [count, users, baseRadius, shardSize, material]);
 
-  const geometry = useMemo(() => new THREE.IcosahedronGeometry(1, 0), []);
+  // Add meshes to group and store ref
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
 
-  // GPU memory cleanup: dispose geometry on unmount
+    // Clear previous children
+    while (group.children.length > 0) {
+      group.remove(group.children[0]);
+    }
+
+    // Add new shards
+    for (const shard of shards) {
+      group.add(shard.mesh);
+    }
+    shardsRef.current = shards;
+
+    // Cleanup on unmount
+    return () => {
+      for (const shard of shards) {
+        shard.geometry.dispose();
+        group.remove(shard.mesh);
+      }
+    };
+  }, [shards]);
+
+  // Cleanup material on unmount
   useEffect(() => {
     return () => {
-      geometry.dispose();
+      material.dispose();
     };
-  }, [geometry]);
+  }, [material]);
 
-  return (
-    <group name="Particle Swarm">
-      <instancedMesh
-        ref={meshRef}
-        name="Particle Swarm Mesh"
-        args={[geometry, undefined, capacity]}
-        frustumCulled={false}
-      >
-        <FrostedGlassMaterial />
-      </instancedMesh>
-    </group>
-  );
+  // Animation loop - update positions and rotations
+  useFrame(() => {
+    const currentShards = shardsRef.current;
+    if (currentShards.length === 0) return;
+
+    // Get breathing state from ECS
+    let breathingRadius = baseRadius;
+    try {
+      const breathEntity = world.queryFirst(orbitRadius, sphereScale);
+      if (breathEntity) {
+        breathingRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
+      }
+    } catch {
+      // Ignore ECS errors during unmount/remount in Triplex
+    }
+
+    // Clamp radius to prevent shards from penetrating globe
+    const currentRadius = Math.max(breathingRadius, minOrbitRadius);
+
+    // Update each shard
+    for (const shard of currentShards) {
+      // Update position based on clamped breathing radius
+      shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
+
+      // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
+      shard.mesh.rotation.x += 0.002;
+      shard.mesh.rotation.y += 0.003;
+    }
+  });
+
+  return <group ref={groupRef} name="Particle Swarm" />;
 }
 
 export default ParticleSwarm;

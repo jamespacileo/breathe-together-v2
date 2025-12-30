@@ -1,5 +1,6 @@
 import { Stats } from '@react-three/drei';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, extend, type ThreeToJSXElements } from '@react-three/fiber';
+import * as THREE from 'three';
 import { BreathingHUD3D } from './components/BreathingHUD3D';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAppState } from './contexts/appState';
@@ -39,13 +40,20 @@ function ScreenRouter() {
   );
 }
 
+// Extend R3F with Three.js types (cast required per R3F v9 migration guide)
+declare module '@react-three/fiber' {
+  interface ThreeElements extends ThreeToJSXElements<typeof THREE> {}
+}
+// biome-ignore lint/suspicious/noExplicitAny: R3F v9 migration guide requires casting THREE to any for extend()
+extend(THREE as any);
+
 export function App() {
   return (
     <ErrorBoundary>
       <Canvas
         shadows={false}
         camera={{ position: [0, 0, 10], fov: 45 }}
-        gl={{ localClippingEnabled: true }}
+        gl={{ antialias: true, alpha: true, localClippingEnabled: true }}
       >
         <Stats />
         <CameraRig />

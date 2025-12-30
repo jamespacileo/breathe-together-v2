@@ -5,14 +5,14 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Monument Valley Palette - simplified 4-mood aesthetic
- * Matches the HTML artifact color scheme
+ * Monument Valley Palette - saturated colors for frosted ceramic shards
+ * These colors are tinted through the refraction shader for the illustrative look
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  joy: '#ffbe0b', // Yellow (bright, energetic)
-  peace: '#06d6a0', // Teal (calm, flowing)
-  solitude: '#118ab2', // Sky blue (introspective)
-  love: '#ef476f', // Rose pink (warm, connective)
+  joy: '#ffbe0b', // Warm Yellow (saturated)
+  peace: '#06d6a0', // Teal/Mint (saturated)
+  solitude: '#118ab2', // Deep Blue (saturated)
+  love: '#ef476f', // Warm Rose (saturated)
 } as const;
 
 /**

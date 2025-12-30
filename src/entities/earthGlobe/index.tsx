@@ -1,91 +1,118 @@
 /**
- * EarthGlobe - Central core visualization (ceramic earth sphere)
+ * EarthGlobe - Central core visualization (textured ceramic earth sphere)
  *
- * Smooth sphere that:
- * - Uses a stylized Monument Valley earth texture
- * - Breathes with the meditation cycle (via ECS sphereScale trait)
- * - Rotates slowly on Y-axis
+ * Features:
+ * - SphereGeometry with proper UVs for earth texture mapping
+ * - Stylized Monument Valley earth texture
+ * - MeshStandardMaterial for ceramic/illustrative look
+ * - Subtle pulse animation (1.0 → 1.04, 4% scale change)
+ * - Slow Y-axis rotation
+ *
+ * Note: Does NOT use refraction pipeline - renders as textured ceramic sphere
  */
 
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useLoader } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
-import { sphereScale } from '../breath/traits';
-import { CoreMaterial } from './CoreMaterial';
+import { breathPhase } from '../breath/traits';
 
 /**
  * EarthGlobe component props
  */
 interface EarthGlobeProps {
-  /** Rotation speed in radians per second @default 0.08 */
-  rotationSpeed?: number;
-  /** Enable continuous Y-axis rotation @default true */
-  enableRotation?: boolean;
+  /** Core radius @default 1.5 */
+  radius?: number;
   /** Resolution of the sphere (segments) @default 64 */
   resolution?: number;
-  /** Tint color for the ceramic look @default '#ffffff' */
-  tintColor?: string;
+  /** Enable continuous Y-axis rotation @default true */
+  enableRotation?: boolean;
+  /** Texture path @default '/textures/earth-texture.png' */
+  texturePath?: string;
 }
 
 /**
- * EarthGlobe - Renders a smooth ceramic sphere with stylized earth texture
+ * EarthGlobe - Renders a textured ceramic earth sphere as the central core
  */
 export function EarthGlobe({
-  rotationSpeed = 0.08,
-  enableRotation = true,
+  radius = 1.5,
   resolution = 64,
-  tintColor = '#ffffff',
+  enableRotation = true,
+  texturePath = '/textures/earth-texture.png',
 }: Partial<EarthGlobeProps> = {}) {
-  const groupRef = useRef<THREE.Group>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
   const world = useWorld();
-  const rotationRef = useRef(0);
 
-  // Sphere geometry - high resolution for smooth ceramic look and clean UVs
-  const geometry = useMemo(() => new THREE.SphereGeometry(1, resolution, resolution), [resolution]);
+  // Load earth texture
+  const earthTexture = useLoader(THREE.TextureLoader, texturePath);
+
+  // Configure texture for proper sphere mapping
+  useEffect(() => {
+    earthTexture.colorSpace = THREE.SRGBColorSpace;
+    earthTexture.wrapS = THREE.RepeatWrapping;
+    earthTexture.wrapT = THREE.ClampToEdgeWrapping;
+  }, [earthTexture]);
+
+  // Create material with earth texture - illustrative look (no lighting required)
+  const material = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: earthTexture,
+        side: THREE.FrontSide,
+      }),
+    [earthTexture],
+  );
+
+  // Sphere geometry with proper UVs for texture mapping
+  const geometry = useMemo(
+    () => new THREE.SphereGeometry(radius, resolution, resolution),
+    [radius, resolution],
+  );
 
   // Cleanup GPU resources on unmount
   useEffect(() => {
     return () => {
       geometry.dispose();
+      material.dispose();
     };
-  }, [geometry]);
+  }, [geometry, material]);
 
   /**
-   * Update globe scale and rotation in single atomic frame update
-   * Combines ECS sphere scale (breathing) with continuous rotation
+   * Update globe scale and rotation
+   * Uses subtle pulse: 1.0 + breathPhase * 0.04 (4% scale change)
+   * Rotation: -0.001 rad/frame (matching reference)
    */
-  useFrame((_state, delta) => {
-    if (!groupRef.current) return;
+  useFrame(() => {
+    if (!meshRef.current) return;
 
     try {
-      // Update scale from ECS breathing system
-      const breathEntity = world?.queryFirst?.(sphereScale);
+      // Get breath phase for subtle pulse animation
+      const breathEntity = world?.queryFirst?.(breathPhase);
       if (breathEntity) {
-        const scale = breathEntity.get?.(sphereScale)?.value ?? 1;
-        groupRef.current.scale.set(scale, scale, scale);
+        const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
+        // Subtle pulse: 1.0 to 1.04 (4% scale change)
+        const scale = 1.0 + phase * 0.04;
+        meshRef.current.scale.set(scale, scale, scale);
       }
 
-      // Update rotation
+      // Slow rotation (matching reference: -0.001 rad/frame)
       if (enableRotation) {
-        rotationRef.current += rotationSpeed * delta;
-        groupRef.current.rotation.y = rotationRef.current;
+        meshRef.current.rotation.y -= 0.001;
       }
-    } catch (error) {
+    } catch {
       // Ignore ECS errors during unmount/remount in Triplex
-      if (import.meta.env.DEV) {
-        console.warn('[EarthGlobe] ECS error (expected during Triplex hot-reload):', error);
-      }
     }
   });
 
   return (
-    <group ref={groupRef}>
-      <mesh name="Core Mesh" geometry={geometry}>
-        <CoreMaterial tintColor={tintColor} />
-      </mesh>
-    </group>
+    <mesh
+      ref={meshRef}
+      name="Earth Globe"
+      geometry={geometry}
+      material={material}
+      frustumCulled={false}
+    />
   );
 }
 
