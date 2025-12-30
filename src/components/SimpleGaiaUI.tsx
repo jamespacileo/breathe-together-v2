@@ -99,6 +99,10 @@ export function SimpleGaiaUI({
   const [showMoodSelect, setShowMoodSelect] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
 
+  // Animation states for modals
+  const [settingsAnimated, setSettingsAnimated] = useState(false);
+  const [moodSelectAnimated, setMoodSelectAnimated] = useState(false);
+
   // Phase indicator refs for RAF updates (no React re-renders)
   const phaseNameRef = useRef<HTMLSpanElement>(null);
   const timerRef = useRef<HTMLSpanElement>(null);
@@ -111,19 +115,15 @@ export function SimpleGaiaUI({
     return () => clearTimeout(timer);
   }, []);
 
-  // Welcome message: Auto-dismiss after 8 seconds, then show mood select
+  // Welcome message: Auto-dismiss after 8 seconds (but user can click Begin earlier)
   useEffect(() => {
     if (showWelcome) {
       const timer = setTimeout(() => {
         setShowWelcome(false);
-        // Show mood selection after welcome if no mood selected yet
-        if (!selectedMood) {
-          setTimeout(() => setShowMoodSelect(true), 500);
-        }
       }, 8000);
       return () => clearTimeout(timer);
     }
-  }, [showWelcome, selectedMood]);
+  }, [showWelcome]);
 
   // Show keyboard hint after 30 seconds
   useEffect(() => {
@@ -132,6 +132,24 @@ export function SimpleGaiaUI({
     }, 30000);
     return () => clearTimeout(timer);
   }, [isControlsOpen]);
+
+  // Animate settings modal when it appears
+  useEffect(() => {
+    if (showSettings) {
+      const timer = setTimeout(() => setSettingsAnimated(true), 10);
+      return () => clearTimeout(timer);
+    }
+    setSettingsAnimated(false);
+  }, [showSettings]);
+
+  // Animate mood select modal when it appears
+  useEffect(() => {
+    if (showMoodSelect) {
+      const timer = setTimeout(() => setMoodSelectAnimated(true), 10);
+      return () => clearTimeout(timer);
+    }
+    setMoodSelectAnimated(false);
+  }, [showMoodSelect]);
 
   // Phase indicator RAF loop (60fps updates without React state)
   useEffect(() => {
@@ -304,6 +322,14 @@ export function SimpleGaiaUI({
     setShowMoodSelect(false);
   };
 
+  const handleBeginClick = () => {
+    setShowWelcome(false);
+    // Show mood selection after welcome dismisses if no mood selected yet
+    if (!selectedMood) {
+      setTimeout(() => setShowMoodSelect(true), 400);
+    }
+  };
+
   return (
     <div
       style={{
@@ -397,13 +423,14 @@ export function SimpleGaiaUI({
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.3)',
+            background: settingsAnimated ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 300,
             pointerEvents: 'auto',
+            transition: 'background 0.4s ease-out',
           }}
           onClick={() => setShowSettings(false)}
           onPointerDown={stopPropagation}
@@ -421,6 +448,9 @@ export function SimpleGaiaUI({
               padding: '40px',
               maxWidth: '420px',
               width: '90%',
+              opacity: settingsAnimated ? 1 : 0,
+              transform: `scale(${settingsAnimated ? 1 : 0.95})`,
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
             <h2
@@ -510,13 +540,14 @@ export function SimpleGaiaUI({
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.3)',
+            background: moodSelectAnimated ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 300,
             pointerEvents: 'auto',
+            transition: 'background 0.4s ease-out',
           }}
           onClick={() => setShowMoodSelect(false)}
           onPointerDown={stopPropagation}
@@ -536,6 +567,9 @@ export function SimpleGaiaUI({
               width: '90%',
               maxHeight: '85vh',
               overflow: 'auto',
+              opacity: moodSelectAnimated ? 1 : 0,
+              transform: `scale(${moodSelectAnimated ? 1 : 0.95})`,
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
           >
             <h2
@@ -730,7 +764,7 @@ export function SimpleGaiaUI({
           </p>
           <button
             type="button"
-            onClick={() => setShowWelcome(false)}
+            onClick={handleBeginClick}
             onPointerDown={stopPropagation}
             style={{
               background: colors.accent,
