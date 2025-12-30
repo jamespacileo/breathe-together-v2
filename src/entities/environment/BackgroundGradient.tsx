@@ -15,11 +15,11 @@ export function BackgroundGradient() {
         <GradientTexture
           stops={[0, 0.25, 0.45, 0.65, 1]}
           colors={[
-            '#fad1b3', // Warm peach (bottom)
-            '#f5c0b8', // Soft coral
-            '#ebc7d1', // Dusty rose/pink
-            '#d9d1eb', // Soft lavender
-            '#d1e0f5', // Soft sky blue (top)
+            '#f2a680', // Warm terracotta/orange (bottom)
+            '#eb998c', // Soft coral/salmon
+            '#d9a6b8', // Dusty rose/mauve
+            '#c0b8d9', // Soft lavender
+            '#b3c7e6', // Soft sky blue (top)
           ]}
           size={1024}
         />

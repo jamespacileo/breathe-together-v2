@@ -70,7 +70,7 @@ function CloudSprite({
           transparent
           opacity={opacity}
           depthWrite={false}
-          blending={THREE.AdditiveBlending}
+          blending={THREE.NormalBlending}
         />
       </mesh>
     </Billboard>
@@ -94,31 +94,32 @@ export function AtmosphericClouds({
   const cloudTexture = useMemo(() => createCloudTexture(), []);
 
   // Cloud configurations - arranged in layers
+  // Colors are slightly darker/more saturated to be visible against the gradient
   const clouds = useMemo<CloudConfig[]>(
     () => [
-      // Lower horizon clouds - warm tinted, larger
-      { position: [-15, -3, -25], scale: 3.5, color: '#f5d0c0', opacity: opacity * 0.6 },
-      { position: [18, -2, -22], scale: 3.0, color: '#f0c8b8', opacity: opacity * 0.5 },
-      { position: [0, -4, -30], scale: 4.0, color: '#ebc7d1', opacity: opacity * 0.4 },
-      { position: [-25, -1, -28], scale: 2.8, color: '#f8d8c8', opacity: opacity * 0.5 },
-      { position: [25, -3, -26], scale: 3.2, color: '#f0d0c0', opacity: opacity * 0.45 },
+      // Lower horizon clouds - warm tinted, larger (near terracotta/orange part of gradient)
+      { position: [-15, -3, -25], scale: 3.5, color: '#e8c0a8', opacity: opacity * 1.2 },
+      { position: [18, -2, -22], scale: 3.0, color: '#e0b0a0', opacity: opacity * 1.0 },
+      { position: [0, -4, -30], scale: 4.0, color: '#d8a8b0', opacity: opacity * 0.9 },
+      { position: [-25, -1, -28], scale: 2.8, color: '#e8c8b0', opacity: opacity * 1.0 },
+      { position: [25, -3, -26], scale: 3.2, color: '#e0b8a8', opacity: opacity * 0.95 },
 
       // Mid-level clouds - transitional pink/lavender
-      { position: [-12, 5, -28], scale: 2.5, color: '#e0c8d8', opacity: opacity * 0.4 },
-      { position: [14, 6, -26], scale: 2.2, color: '#d8c0d0', opacity: opacity * 0.35 },
-      { position: [-8, 8, -30], scale: 2.8, color: '#d5c5e0', opacity: opacity * 0.3 },
-      { position: [20, 7, -24], scale: 2.0, color: '#e0d0e0', opacity: opacity * 0.35 },
+      { position: [-12, 5, -28], scale: 2.5, color: '#d0a8c0', opacity: opacity * 0.85 },
+      { position: [14, 6, -26], scale: 2.2, color: '#c8a0b8', opacity: opacity * 0.8 },
+      { position: [-8, 8, -30], scale: 2.8, color: '#c0a8c8', opacity: opacity * 0.75 },
+      { position: [20, 7, -24], scale: 2.0, color: '#d0b0c0', opacity: opacity * 0.8 },
 
-      // Upper clouds - cooler blue/lavender tints
-      { position: [8, 12, -32], scale: 2.0, color: '#c8d0e8', opacity: opacity * 0.25 },
-      { position: [-10, 14, -34], scale: 1.8, color: '#d0d8f0', opacity: opacity * 0.2 },
-      { position: [15, 15, -30], scale: 1.5, color: '#d8e0f8', opacity: opacity * 0.2 },
-      { position: [-20, 12, -28], scale: 2.2, color: '#d0d0e8', opacity: opacity * 0.25 },
+      // Upper clouds - cooler blue/lavender tints (near blue part of gradient)
+      { position: [8, 12, -32], scale: 2.0, color: '#a8b8d0', opacity: opacity * 0.7 },
+      { position: [-10, 14, -34], scale: 1.8, color: '#b0c0d8', opacity: opacity * 0.6 },
+      { position: [15, 15, -30], scale: 1.5, color: '#b8c8e0', opacity: opacity * 0.6 },
+      { position: [-20, 12, -28], scale: 2.2, color: '#a8b0d0', opacity: opacity * 0.7 },
 
       // Accent wisps - small, scattered
-      { position: [22, 10, -20], scale: 1.2, color: '#e8d8e0', opacity: opacity * 0.2 },
-      { position: [-22, 4, -18], scale: 1.5, color: '#f0d8d0', opacity: opacity * 0.25 },
-      { position: [5, 18, -35], scale: 1.0, color: '#e0e8f0', opacity: opacity * 0.15 },
+      { position: [22, 10, -20], scale: 1.2, color: '#d0c0c8', opacity: opacity * 0.55 },
+      { position: [-22, 4, -18], scale: 1.5, color: '#d8c0b8', opacity: opacity * 0.65 },
+      { position: [5, 18, -35], scale: 1.0, color: '#c0c8d8', opacity: opacity * 0.5 },
     ],
     [opacity],
   );
