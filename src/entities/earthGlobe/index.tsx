@@ -55,7 +55,7 @@ void main() {
   // Fresnel rim for atmospheric glow
   vec3 viewDir = normalize(vViewPosition);
   float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
-  vec3 rimColor = vec3(0.75, 0.92, 0.88); // Soft teal atmospheric glow
+  vec3 rimColor = vec3(0.96, 0.91, 0.85); // Soft warm cream atmospheric glow
 
   // Breathing modulation - subtle brightness shift
   float breathMod = 1.0 + breathPhase * 0.08;
@@ -244,8 +244,8 @@ export function EarthGlobe({
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
-          glowColor: { value: new THREE.Color('#ffe8d6') }, // Warm cream glow
-          glowIntensity: { value: 0.6 },
+          glowColor: { value: new THREE.Color('#f5e6d3') }, // Soft muted cream glow
+          glowIntensity: { value: 0.4 },
           breathPhase: { value: 0 },
         },
         vertexShader: glowVertexShader,
