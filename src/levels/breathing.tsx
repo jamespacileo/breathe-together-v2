@@ -91,7 +91,8 @@ export function BreathingLevel({
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) */}
-        <Html fullscreen>
+        {/* style prop ensures Html wrapper doesn't block events for DOM UI above */}
+        <Html fullscreen style={{ pointerEvents: 'none' }}>
           <GaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
