@@ -7,6 +7,7 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { ShadowPools } from '../entities/particle/ShadowPools';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -76,6 +77,11 @@ export function BreathingLevel({
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
               />
+            )}
+
+            {/* Shadow pools beneath shards - grounding effect */}
+            {showParticles && (
+              <ShadowPools count={harmony} users={moods} baseRadius={orbitRadius} />
             )}
 
             {showParticles && (

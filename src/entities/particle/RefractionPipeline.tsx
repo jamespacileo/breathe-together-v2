@@ -8,8 +8,10 @@
  */
 
 import { useFrame, useThree } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { breathPhase } from '../breath/traits';
 
 // Backface vertex shader - renders normals from back faces
 const backfaceVertexShader = `
@@ -45,12 +47,14 @@ void main() {
 `;
 
 // Refraction fragment shader - creates frosted glass effect with mood color tinting
+// Now includes breathing-synchronized soft glow halos
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
 uniform vec2 resolution;
 uniform float ior;
 uniform float backfaceIntensity;
+uniform float breathPhaseValue;
 
 varying vec3 vColor;
 varying vec3 worldNormal;
@@ -78,9 +82,15 @@ void main() {
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
   vec3 finalColor = mix(bodyColor, vec3(1.0), fresnel * 0.4);
 
-  // 4. SOFT TOP-DOWN LIGHT
-  float topLight = smoothstep(0.0, 1.0, normal.y) * 0.1;
-  finalColor += vec3(1.0) * topLight;
+  // 4. BREATHING GLOW HALO: Color-matched glow that pulses with breath
+  // Creates soft aura around each shard that intensifies on inhale
+  float glowIntensity = fresnel * (0.3 + breathPhaseValue * 0.5); // 0.3 → 0.8 range
+  vec3 glowColor = vColor * 1.4; // Brighten mood color for glow
+  finalColor += glowColor * glowIntensity * 0.25;
+
+  // 5. SOFT TOP-DOWN LIGHT (slightly breathing-modulated)
+  float topLight = smoothstep(0.0, 1.0, normal.y) * (0.08 + breathPhaseValue * 0.04);
+  finalColor += vec3(1.0, 0.99, 0.97) * topLight;
 
   gl_FragColor = vec4(finalColor, 1.0);
 }
@@ -139,6 +149,7 @@ export function RefractionPipeline({
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
+  const world = useWorld();
 
   // Create render targets
   const { envFBO, backfaceFBO } = useMemo(() => {
@@ -178,6 +189,7 @@ export function RefractionPipeline({
         resolution: { value: new THREE.Vector2(size.width, size.height) },
         ior: { value: ior },
         backfaceIntensity: { value: backfaceIntensity },
+        breathPhaseValue: { value: 0 },
       },
       vertexShader: refractionVertexShader,
       fragmentShader: refractionFragmentShader,
@@ -216,6 +228,17 @@ export function RefractionPipeline({
 
   // 3-pass rendering loop
   useFrame(() => {
+    // Update breath phase uniform for glow halos
+    try {
+      const breathEntity = world?.queryFirst?.(breathPhase);
+      if (breathEntity) {
+        const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
+        refractionMaterial.uniforms.breathPhaseValue.value = phase;
+      }
+    } catch {
+      // Ignore ECS errors during unmount/remount in Triplex
+    }
+
     // Collect all meshes in scene that should use refraction
     const meshes: THREE.Mesh[] = [];
     scene.traverse((obj) => {

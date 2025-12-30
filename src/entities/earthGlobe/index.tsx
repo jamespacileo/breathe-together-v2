@@ -31,7 +31,8 @@ void main() {
 }
 `;
 
-// Fragment shader - texture with fresnel rim glow
+// Fragment shader - watercolor-style texture with fresnel rim glow
+// Features: posterization, edge softening, color bleeding, breathing modulation
 const globeFragmentShader = `
 uniform sampler2D earthTexture;
 uniform float breathPhase;
@@ -41,11 +42,27 @@ varying vec3 vViewPosition;
 varying vec2 vUv;
 
 void main() {
-  // Sample earth texture
+  // Sample earth texture at multiple offsets for color bleeding effect
   vec3 texColor = texture2D(earthTexture, vUv).rgb;
 
-  // Fresnel rim for atmospheric glow
+  // WATERCOLOR EFFECT 1: Color bleeding (sample nearby pixels and blend)
+  vec2 bleedOffset = vec2(0.004, 0.004);
+  vec3 bleedColor1 = texture2D(earthTexture, vUv + bleedOffset).rgb;
+  vec3 bleedColor2 = texture2D(earthTexture, vUv - bleedOffset).rgb;
+  vec3 bleedColor3 = texture2D(earthTexture, vUv + vec2(bleedOffset.x, -bleedOffset.y)).rgb;
+  texColor = mix(texColor, (bleedColor1 + bleedColor2 + bleedColor3) / 3.0, 0.15);
+
+  // WATERCOLOR EFFECT 2: Posterization (reduce color levels for painted look)
+  // More levels on inhale (clearer), fewer on exhale (softer)
+  float levels = 5.0 + breathPhase * 3.0; // Range: 5 → 8 levels
+  texColor = floor(texColor * levels + 0.5) / levels;
+
+  // WATERCOLOR EFFECT 3: Edge darkening (watercolor paint pools at edges)
   vec3 viewDir = normalize(vViewPosition);
+  float edgeFactor = 1.0 - pow(max(dot(vNormal, viewDir), 0.0), 0.6);
+  texColor *= 0.88 + (1.0 - edgeFactor) * 0.12; // Darken edges subtly
+
+  // Fresnel rim for atmospheric glow
   float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
   vec3 rimColor = vec3(0.75, 0.92, 0.88); // Soft teal atmospheric glow
 
@@ -53,11 +70,17 @@ void main() {
   float breathMod = 1.0 + breathPhase * 0.08;
   texColor *= breathMod;
 
-  // Blend texture with fresnel rim
-  vec3 finalColor = mix(texColor, rimColor, fresnel * 0.35);
+  // Blend texture with fresnel rim (breathing-modulated intensity)
+  float rimIntensity = 0.3 + breathPhase * 0.15; // 0.3 → 0.45 range
+  vec3 finalColor = mix(texColor, rimColor, fresnel * rimIntensity);
 
-  // Subtle top-down lighting
-  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.1;
+  // WATERCOLOR EFFECT 4: Soft paper texture overlay
+  float paperNoise = fract(sin(dot(vUv * 100.0, vec2(12.9898, 78.233))) * 43758.5453);
+  paperNoise = (paperNoise - 0.5) * 0.03;
+  finalColor += paperNoise;
+
+  // Subtle top-down lighting (breathing-modulated)
+  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * (0.08 + breathPhase * 0.04);
   finalColor += vec3(1.0, 0.98, 0.95) * topLight;
 
   gl_FragColor = vec4(finalColor, 1.0);

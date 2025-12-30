@@ -2,6 +2,7 @@ import { Stats } from '@react-three/drei';
 import { Canvas, extend, type ThreeToJSXElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { PostProcessing } from './effects/PostProcessing';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
 import { BreathingLevel } from './levels/breathing';
@@ -27,6 +28,8 @@ export function App() {
         <KootaSystems breathSystemEnabled={true}>
           <BreathEntity />
           <BreathingLevel />
+          {/* Post-processing effects: Bloom, Vignette, Noise - breathing synchronized */}
+          <PostProcessing />
         </KootaSystems>
       </Canvas>
     </ErrorBoundary>

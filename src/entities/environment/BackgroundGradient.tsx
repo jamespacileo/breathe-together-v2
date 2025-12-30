@@ -4,12 +4,16 @@
  * Renders as a fullscreen quad behind all other content with:
  * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
  * - Animated procedural clouds using FBM noise
+ * - Breathing-synchronized luminosity modulation
+ * - Enhanced paper texture with film grain
  * - Subtle vignette effect
  */
 
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { breathPhase } from '../breath/traits';
 
 const vertexShader = `
 varying vec2 vUv;
@@ -21,6 +25,7 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
+uniform float breathPhaseValue;
 varying vec2 vUv;
 
 // Simplex noise functions for cloud-like patterns
@@ -98,14 +103,26 @@ void main() {
   // Blend clouds very subtly into sky
   vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
 
-  // Very subtle vignette - just darkens corners slightly
-  vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
-  color *= mix(0.97, 1.0, vignette);
+  // BREATHING LUMINOSITY: Entire background subtly breathes with user
+  // Brighter on inhale (breathPhaseValue=1), dimmer on exhale (breathPhaseValue=0)
+  float breathBrightness = 0.97 + breathPhaseValue * 0.06; // Range: 0.97 → 1.03
+  color *= breathBrightness;
 
-  // Paper texture noise (very subtle)
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
-  color += noise;
+  // Very subtle vignette - just darkens corners slightly
+  // Also modulated by breathing for cohesive feel
+  vec2 vignetteUv = vUv * 2.0 - 1.0;
+  float vignetteStrength = 0.15 + breathPhaseValue * 0.03; // Softer vignette on inhale
+  float vignette = 1.0 - dot(vignetteUv * vignetteStrength, vignetteUv * vignetteStrength);
+  color *= mix(0.96, 1.0, vignette);
+
+  // ENHANCED PAPER TEXTURE: Stronger noise for watercolor feel
+  float paperNoise = snoise(vUv * 800.0) * 0.018; // Increased from 0.008
+
+  // TIME-BASED FILM GRAIN: Adds organic texture variation
+  float filmGrain = fract(sin(dot(vUv + time * 0.1, vec2(12.9898, 78.233))) * 43758.5453);
+  filmGrain = (filmGrain - 0.5) * 0.012; // Subtle grain
+
+  color += paperNoise + filmGrain;
 
   gl_FragColor = vec4(color, 1.0);
 }
@@ -113,11 +130,13 @@ void main() {
 
 export function BackgroundGradient() {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const world = useWorld();
 
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        breathPhaseValue: { value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -127,10 +146,21 @@ export function BackgroundGradient() {
     });
   }, []);
 
-  // Animate time uniform
+  // Animate time uniform and breath phase
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+
+      // Query breath phase from ECS for synchronized luminosity
+      try {
+        const breathEntity = world?.queryFirst?.(breathPhase);
+        if (breathEntity) {
+          const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
+          materialRef.current.uniforms.breathPhaseValue.value = phase;
+        }
+      } catch {
+        // Ignore ECS errors during unmount/remount in Triplex
+      }
     }
   });
 

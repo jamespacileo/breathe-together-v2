@@ -44,6 +44,10 @@ interface ShardData {
   mesh: THREE.Mesh;
   direction: THREE.Vector3;
   geometry: THREE.IcosahedronGeometry;
+  /** Per-shard rotation axis for micro-rotation (normalized) */
+  rotationAxis: THREE.Vector3;
+  /** Per-shard rotation speed (radians per frame) */
+  rotationSpeed: number;
 }
 
 export function ParticleSwarm({
@@ -72,7 +76,8 @@ export function ParticleSwarm({
   // Create shared material (will be swapped by RefractionPipeline)
   const material = useMemo(() => createFrostedGlassMaterial(), []);
 
-  // Create shards with per-vertex colors
+  // Create shards with per-vertex colors and rotation data
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Shard creation requires multiple steps (geometry, colors, positioning, rotation data) - refactoring would reduce readability
   const shards = useMemo(() => {
     const result: ShardData[] = [];
     const currentShardSize = shardSize;
@@ -126,7 +131,17 @@ export function ParticleSwarm({
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
 
-      result.push({ mesh, direction, geometry });
+      // Generate unique rotation axis and speed for micro-rotation
+      // Each shard rotates on its own axis at its own speed for organic feel
+      const rotationAxis = new THREE.Vector3(
+        Math.random() - 0.5,
+        Math.random() - 0.5,
+        Math.random() - 0.5,
+      ).normalize();
+      // Speed range: 0.0008 to 0.004 rad/frame (very slow, subtle)
+      const rotationSpeed = 0.0008 + Math.random() * 0.0032;
+
+      result.push({ mesh, direction, geometry, rotationAxis, rotationSpeed });
     }
 
     return result;
@@ -188,9 +203,9 @@ export function ParticleSwarm({
       // Update position based on clamped breathing radius
       shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
 
-      // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
-      shard.mesh.rotation.x += 0.002;
-      shard.mesh.rotation.y += 0.003;
+      // MICRO-ROTATION: Each shard rotates on its own unique axis
+      // Creates organic, non-uniform motion that feels alive
+      shard.mesh.rotateOnAxis(shard.rotationAxis, shard.rotationSpeed);
     }
   });
 
