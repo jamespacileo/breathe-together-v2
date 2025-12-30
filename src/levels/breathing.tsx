@@ -17,7 +17,8 @@ const TUNING_DEFAULTS = {
   ior: 1.3, // Index of Refraction
   backfaceIntensity: 0.3, // Glass depth/distortion
   orbitRadius: 4.5, // Base orbit radius
-  atmosphericParticleCount: 100,
+  shardSize: 0.5, // Max shard size
+  atmosphereDensity: 100, // Atmospheric particle count
 };
 
 /**
@@ -42,6 +43,8 @@ export function BreathingLevel({
   const [ior, setIor] = useState(TUNING_DEFAULTS.ior);
   const [glassDepth, setGlassDepth] = useState(TUNING_DEFAULTS.backfaceIntensity);
   const [orbitRadius, setOrbitRadius] = useState(TUNING_DEFAULTS.orbitRadius);
+  const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
+  const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
 
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
 
@@ -63,12 +66,17 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm count={harmony} users={moods} baseRadius={orbitRadius} />
+              <ParticleSwarm
+                count={harmony}
+                users={moods}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
+              />
             )}
 
             {showParticles && (
               <AtmosphericParticles
-                count={TUNING_DEFAULTS.atmosphericParticleCount}
+                count={atmosphereDensity}
                 size={0.08}
                 baseOpacity={0.1}
                 breathingOpacity={0.15}
@@ -88,6 +96,10 @@ export function BreathingLevel({
             setGlassDepth={setGlassDepth}
             orbitRadius={orbitRadius}
             setOrbitRadius={setOrbitRadius}
+            shardSize={shardSize}
+            setShardSize={setShardSize}
+            atmosphereDensity={atmosphereDensity}
+            setAtmosphereDensity={setAtmosphereDensity}
           />
         </Html>
       </Suspense>
