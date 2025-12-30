@@ -9,10 +9,11 @@
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
+import { createNoise2D } from 'simplex-noise';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
-import { orbitRadius } from '../breath/traits';
+import { breathPhase, orbitRadius } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
@@ -114,6 +115,9 @@ interface ShardData {
   mesh: THREE.Mesh;
   direction: THREE.Vector3;
   geometry: THREE.IcosahedronGeometry;
+  currentRadius: number; // Current interpolated radius (for smooth following)
+  velocity: number; // Velocity for spring-damped animation
+  index: number; // Shard index for noise variation
 }
 
 export function ParticleSwarm({
@@ -128,6 +132,9 @@ export function ParticleSwarm({
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
+
+  // Create noise generator for organic variation (stable across re-renders)
+  const noise2D = useMemo(() => createNoise2D(), []);
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -166,7 +173,14 @@ export function ParticleSwarm({
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
 
-      result.push({ mesh, direction, geometry });
+      result.push({
+        mesh,
+        direction,
+        geometry,
+        currentRadius: baseRadius, // Initialize at base radius
+        velocity: 0, // Start with zero velocity
+        index: i, // Store index for noise variation
+      });
     }
 
     return result;
@@ -204,31 +218,63 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - update positions and rotations
-  useFrame(() => {
+  // Animation loop - hybrid approach for organic breathing feel
+  useFrame((state) => {
     const currentShards = shardsRef.current;
     if (currentShards.length === 0) return;
 
     // Get breathing state from ECS
     let breathingRadius = baseRadius;
+    let breathIntensity = 0; // 0-1 for scale breathing
     try {
       const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
         breathingRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
+
+        // Get breathPhase for scale animation (0 = exhaled, 1 = inhaled)
+        const phase = breathEntity.get(breathPhase)?.value ?? 0;
+        // Convert to sine wave for smooth swell (0 → 1 → 0 per cycle)
+        breathIntensity = Math.sin(phase * Math.PI);
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
     // Clamp radius to prevent shards from penetrating globe
-    const currentRadius = Math.max(breathingRadius, minOrbitRadius);
+    const targetRadius = Math.max(breathingRadius, minOrbitRadius);
 
-    // Update each shard
+    // Physics constants for organic feel
+    const springStrength = 0.15; // Higher = more responsive, lower = more lag
+    const damping = 0.85; // Higher = less overshoot, lower = more bouncy
+    const noiseAmplitude = 0.08; // ±8% variation per shard
+    const scaleAmplitude = 0.12; // 12% scale variation during breathing
+
+    // Update each shard with hybrid animation
+    const elapsedTime = state.clock.elapsedTime;
+
     for (const shard of currentShards) {
-      // Update position based on clamped breathing radius
-      shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
+      // === 1. Spring-Damped Velocity (Momentum) ===
+      const radiusDelta = targetRadius - shard.currentRadius;
+      shard.velocity += radiusDelta * springStrength;
+      shard.velocity *= damping;
+      shard.currentRadius += shard.velocity;
 
-      // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
+      // === 2. Perlin Noise Modulation (Organic Variation) ===
+      // Slow-moving noise for subtle biological variation
+      const noiseValue = noise2D(shard.index * 0.1, elapsedTime * 0.5);
+      const radiusVariation = noiseValue * noiseAmplitude;
+      const finalRadius = shard.currentRadius * (1 + radiusVariation);
+
+      // === 3. Position Update ===
+      shard.mesh.position.copy(shard.direction).multiplyScalar(finalRadius);
+
+      // === 4. Scale Breathing (Swell) ===
+      // Shards gently expand/contract with breathing
+      const scaleMultiplier = 1.0 + breathIntensity * scaleAmplitude;
+      shard.mesh.scale.setScalar(scaleMultiplier);
+
+      // === 5. Continuous Rotation ===
+      // Matching reference: 0.002 X, 0.003 Y
       shard.mesh.rotation.x += 0.002;
       shard.mesh.rotation.y += 0.003;
     }
