@@ -5,14 +5,14 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Monument Valley Palette - saturated colors for frosted ceramic shards
- * These colors are tinted through the refraction shader for the illustrative look
+ * Monument Valley Palette - soft pastel colors for frosted ceramic shards
+ * Muted tones complement the globe's teal ocean and warm earth aesthetic
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  joy: '#ffbe0b', // Warm Yellow (saturated)
-  peace: '#06d6a0', // Teal/Mint (saturated)
-  solitude: '#118ab2', // Deep Blue (saturated)
-  love: '#ef476f', // Warm Rose (saturated)
+  joy: '#e8c078', // Soft Golden Sand
+  peace: '#7ac5b8', // Soft Seafoam Teal
+  solitude: '#8dafc4', // Dusty Periwinkle Blue
+  love: '#d4a0a0', // Soft Dusty Rose
 } as const;
 
 /**
