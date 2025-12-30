@@ -187,7 +187,7 @@ export function MyComponent({ color = '#4dd9e8' }: Props) { }
 
 **Type definitions:** `src/types/sceneProps.ts`
 - `SharedVisualProps` — backgroundColor, sphereColor, sphereOpacity, etc.
-- `SharedLightingProps` — ambient, key, fill, rim light configuration
+- `SharedEnvironmentProps` — environment preset, atmospheric density
 - `BreathingDebugProps` — manual phase control, pause/play, etc.
 - `ParticleDebugProps` — particle debug flags
 
@@ -240,8 +240,9 @@ All 171+ entity props follow this standardized format for consistent help text:
 
 **Where to find prop documentation:**
 - **Visual props:** `src/entities/breathingSphere/index.tsx` (17 props)
-- **Lighting props:** `src/entities/lighting/index.tsx` (9 props)
-- **Environment props:** `src/entities/environment/index.tsx` (13 props)
+- **Environment props:** `src/entities/environment/index.tsx` (preset, atmosphere)
+  - Uses drei Stage component for professional three-point lighting
+  - Unified preset system: meditation, cosmic, minimal, studio
 - **Particle config:** `src/entities/particle/config.ts` (7 props in geometry/material/size)
 - **Scene props:** `src/types/sceneProps.ts` (all props with full metadata)
 
@@ -281,19 +282,36 @@ All 171+ entity props follow this standardized format for consistent help text:
 
 **Example:**
 ```typescript
-// In src/entities/lighting/index.tsx
-interface LightingProps {
+// In src/entities/environment/index.tsx
+interface EnvironmentProps {
   /**
-   * Ambient light intensity.
-   * @default 0.15
+   * Environment mood preset - controls lighting, shadows, HDR, and backdrop.
+   * @enum ["meditation", "cosmic", "minimal", "studio"]
+   * @default "meditation"
    */
-  ambientIntensity?: number;
+  preset?: 'meditation' | 'cosmic' | 'minimal' | 'studio';
+
+  /**
+   * Atmospheric density multiplier (affects stars, sparkles, point light).
+   * @min 0 @max 1 @step 0.1
+   * @default 0.5
+   */
+  atmosphere?: number;
 }
 
-export function Lighting({
-  ambientIntensity = 0.15,  // ← Literal value
-}: LightingProps) {
-  // ...
+export function Environment({
+  preset = 'meditation',  // ← Literal value
+  atmosphere = 0.5,       // ← Literal value
+}: EnvironmentProps) {
+  const config = PRESET_MAP[preset]; // Maps to Stage preset, HDR, shadows
+  return (
+    <Stage preset={config.stage} intensity={0.4} shadows={config.shadows}>
+      <Backdrop preset={preset} atmosphere={atmosphere} />
+      <BreathStars preset={preset} atmosphere={atmosphere} />
+      <BreathSparkles preset={preset} atmosphere={atmosphere} />
+      <BreathPointLight atmosphere={atmosphere} />
+    </Stage>
+  );
 }
 ```
 
@@ -311,17 +329,17 @@ export function Lighting({
 - **Pattern 1A (Entity Owns):** No scene-level defaults. Use for internal compositions not edited in Triplex.
   ```typescript
   export function BreathingLevel(props: Partial<BreathingLevelProps> = {}) {
-    return <Lighting {...props} />;  // Entities handle their own defaults
+    return <Environment {...props} />;  // Environment handles defaults
   }
   ```
 
 - **Pattern 1B (Re-Declare for Triplex):** Scene re-declares all entity defaults for Triplex visibility. **RECOMMENDED for primary scenes.**
   ```typescript
   export function BreathingLevel({
-    ambientIntensity = 0.15,  // Matches Lighting entity default
-    // ... all other props with matching entity defaults
+    environmentPreset = 'meditation',  // Matches Environment entity default
+    environmentAtmosphere = 0.5,       // Matches Environment entity default
   }: Partial<BreathingLevelProps> = {}) {
-    return <Lighting ambientIntensity={ambientIntensity} />;
+    return <Environment preset={environmentPreset} atmosphere={environmentAtmosphere} />;
   }
   ```
 
