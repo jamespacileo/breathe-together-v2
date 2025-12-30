@@ -1,4 +1,4 @@
-import { Stats } from '@react-three/drei';
+import { Preload, Stats } from '@react-three/drei';
 import { Canvas, extend, type ThreeToJSXElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -28,6 +28,8 @@ export function App() {
           <BreathEntity />
           <BreathingLevel />
         </KootaSystems>
+        {/* Pre-compile shaders and upload textures to GPU */}
+        <Preload all />
       </Canvas>
     </ErrorBoundary>
   );

@@ -7,6 +7,7 @@
  * Pass 3: Render scene with refraction material (samples both FBOs)
  */
 
+import { useFBO } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -29,14 +30,23 @@ void main() {
 `;
 
 // Refraction vertex shader - passes color and calculates eye/normal vectors
+// Supports both per-vertex colors (legacy) and per-instance colors (InstancedMesh)
 const refractionVertexShader = `
-attribute vec3 color;
-varying vec3 vColor;
+#ifdef USE_INSTANCING_COLOR
+  varying vec3 vColor;
+#else
+  attribute vec3 color;
+  varying vec3 vColor;
+#endif
 varying vec3 eyeVector;
 varying vec3 worldNormal;
 
 void main() {
-  vColor = color;
+  #ifdef USE_INSTANCING_COLOR
+    vColor = instanceColor;
+  #else
+    vColor = color;
+  #endif
   vec4 worldPosition = modelMatrix * vec4(position, 1.0);
   eyeVector = normalize(worldPosition.xyz - cameraPosition);
   worldNormal = normalize(modelViewMatrix * vec4(normal, 0.0)).xyz;
@@ -140,12 +150,9 @@ export function RefractionPipeline({
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
 
-  // Create render targets
-  const { envFBO, backfaceFBO } = useMemo(() => {
-    const envFBO = new THREE.WebGLRenderTarget(size.width, size.height);
-    const backfaceFBO = new THREE.WebGLRenderTarget(size.width, size.height);
-    return { envFBO, backfaceFBO };
-  }, [size.width, size.height]);
+  // Create render targets using drei's useFBO (auto-resize, auto-dispose)
+  const envFBO = useFBO(size.width, size.height, { depthBuffer: false });
+  const backfaceFBO = useFBO(size.width, size.height, { depthBuffer: true });
 
   // Create background scene with ortho camera
   const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
@@ -163,7 +170,7 @@ export function RefractionPipeline({
     return { bgScene, orthoCamera, bgMesh };
   }, []);
 
-  // Create materials
+  // Create materials (resolution updated in useFrame for simplicity with useFBO)
   const { backfaceMaterial, refractionMaterial } = useMemo(() => {
     const backfaceMaterial = new THREE.ShaderMaterial({
       vertexShader: backfaceVertexShader,
@@ -175,7 +182,7 @@ export function RefractionPipeline({
       uniforms: {
         envMap: { value: null },
         backfaceMap: { value: null },
-        resolution: { value: new THREE.Vector2(size.width, size.height) },
+        resolution: { value: new THREE.Vector2(1, 1) },
         ior: { value: ior },
         backfaceIntensity: { value: backfaceIntensity },
       },
@@ -184,35 +191,20 @@ export function RefractionPipeline({
     });
 
     return { backfaceMaterial, refractionMaterial };
-  }, [size.width, size.height, ior, backfaceIntensity]);
-
-  // Update uniforms when props change
-  useEffect(() => {
-    refractionMaterial.uniforms.ior.value = ior;
-    refractionMaterial.uniforms.backfaceIntensity.value = backfaceIntensity;
-  }, [ior, backfaceIntensity, refractionMaterial]);
-
-  // Update resolution on resize
-  useEffect(() => {
-    envFBO.setSize(size.width, size.height);
-    backfaceFBO.setSize(size.width, size.height);
-    refractionMaterial.uniforms.resolution.value.set(size.width, size.height);
-  }, [size.width, size.height, envFBO, backfaceFBO, refractionMaterial]);
+  }, [ior, backfaceIntensity]);
 
   // Store original materials for mesh swapping
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
 
-  // Cleanup
+  // Cleanup materials (FBOs are auto-disposed by useFBO)
   useEffect(() => {
     return () => {
-      envFBO.dispose();
-      backfaceFBO.dispose();
       backfaceMaterial.dispose();
       refractionMaterial.dispose();
       bgMesh.geometry.dispose();
       (bgMesh.material as THREE.Material).dispose();
     };
-  }, [envFBO, backfaceFBO, backfaceMaterial, refractionMaterial, bgMesh]);
+  }, [backfaceMaterial, refractionMaterial, bgMesh]);
 
   // 3-pass rendering loop
   useFrame(() => {
@@ -249,9 +241,10 @@ export function RefractionPipeline({
     gl.clear();
     gl.render(bgScene, orthoCamera);
 
-    // Update refraction material uniforms with FBO textures
+    // Update refraction material uniforms with FBO textures and current resolution
     refractionMaterial.uniforms.envMap.value = envFBO.texture;
     refractionMaterial.uniforms.backfaceMap.value = backfaceFBO.texture;
+    refractionMaterial.uniforms.resolution.value.set(size.width, size.height);
 
     // Swap to refraction material and render scene
     for (const mesh of meshes) {

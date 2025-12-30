@@ -6,7 +6,7 @@
  * - Real-time trait values overlay
  */
 
-import { Html } from '@react-three/drei';
+import { Html, Sphere, Torus } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useRef, useState } from 'react';
@@ -95,22 +95,19 @@ export function BreathDebugVisuals({
       {showOrbitBounds && (
         <group ref={orbitsRef}>
           {/* Min orbit (Inhale - particles closest to surface) */}
-          <mesh>
-            <sphereGeometry args={[VISUALS.PARTICLE_ORBIT_MIN, 32, 32]} />
+          <Sphere args={[VISUALS.PARTICLE_ORBIT_MIN, 32, 32]}>
             <meshBasicMaterial color="#00ff00" wireframe opacity={0.3} transparent />
-          </mesh>
+          </Sphere>
 
           {/* Max orbit (Exhale - particles farthest from surface) */}
-          <mesh>
-            <sphereGeometry args={[VISUALS.PARTICLE_ORBIT_MAX, 32, 32]} />
+          <Sphere args={[VISUALS.PARTICLE_ORBIT_MAX, 32, 32]}>
             <meshBasicMaterial color="#ff0000" wireframe opacity={0.3} transparent />
-          </mesh>
+          </Sphere>
 
           {/* Current orbit (updates based on breath phase) */}
-          <mesh>
-            <sphereGeometry args={[valuesRef.current.orbit, 32, 32]} />
+          <Sphere args={[valuesRef.current.orbit, 32, 32]}>
             <meshBasicMaterial color="#ffff00" wireframe opacity={0.5} transparent />
-          </mesh>
+          </Sphere>
         </group>
       )}
 
@@ -121,40 +118,36 @@ export function BreathDebugVisuals({
       {showPhaseMarkers && (
         <group ref={markersRef}>
           {/* Inhale marker (0) - Green (top) */}
-          <mesh position={[0, 2, 0]}>
-            <torusGeometry args={[0.3, 0.05, 16, 32]} />
+          <Torus args={[0.3, 0.05, 16, 32]} position={[0, 2, 0]}>
             <meshBasicMaterial
               color={valuesRef.current.phaseType === 0 ? '#00ff00' : '#003300'}
               toneMapped={false}
             />
-          </mesh>
+          </Torus>
 
           {/* Hold-in marker (1) - Blue (right) */}
-          <mesh position={[2, 0, 0]}>
-            <torusGeometry args={[0.3, 0.05, 16, 32]} />
+          <Torus args={[0.3, 0.05, 16, 32]} position={[2, 0, 0]}>
             <meshBasicMaterial
               color={valuesRef.current.phaseType === 1 ? '#0000ff' : '#000033'}
               toneMapped={false}
             />
-          </mesh>
+          </Torus>
 
           {/* Exhale marker (2) - Red (bottom) */}
-          <mesh position={[0, -2, 0]}>
-            <torusGeometry args={[0.3, 0.05, 16, 32]} />
+          <Torus args={[0.3, 0.05, 16, 32]} position={[0, -2, 0]}>
             <meshBasicMaterial
               color={valuesRef.current.phaseType === 2 ? '#ff0000' : '#330000'}
               toneMapped={false}
             />
-          </mesh>
+          </Torus>
 
           {/* Hold-out marker (3) - Yellow (left) */}
-          <mesh position={[-2, 0, 0]}>
-            <torusGeometry args={[0.3, 0.05, 16, 32]} />
+          <Torus args={[0.3, 0.05, 16, 32]} position={[-2, 0, 0]}>
             <meshBasicMaterial
               color={valuesRef.current.phaseType === 3 ? '#ffff00' : '#333300'}
               toneMapped={false}
             />
-          </mesh>
+          </Torus>
         </group>
       )}
 

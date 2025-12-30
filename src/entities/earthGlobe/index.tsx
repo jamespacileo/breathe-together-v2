@@ -16,6 +16,9 @@ import * as THREE from 'three';
 
 import { breathPhase } from '../breath/traits';
 
+// Preload texture for smoother initial render
+useTexture.preload('/textures/earth-texture.png');
+
 // Vertex shader for textured globe with fresnel
 const globeVertexShader = `
 varying vec3 vNormal;
@@ -87,14 +90,12 @@ export function EarthGlobe({
   const meshRef = useRef<THREE.Mesh>(null);
   const world = useWorld();
 
-  // Load earth texture
-  const earthTexture = useTexture('/textures/earth-texture.png');
-
-  // Configure texture
-  useEffect(() => {
-    earthTexture.colorSpace = THREE.SRGBColorSpace;
-    earthTexture.anisotropy = 16;
-  }, [earthTexture]);
+  // Load earth texture with configuration callback
+  const earthTexture = useTexture('/textures/earth-texture.png', (texture) => {
+    // Configure texture on load (runs once)
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 16;
+  });
 
   // Create shader material with texture
   const material = useMemo(
