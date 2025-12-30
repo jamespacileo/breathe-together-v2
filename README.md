@@ -1,5 +1,7 @@
 # breathe-together-v2
 
+<!-- Test comment for CI/CD verification -->
+
 - [Koota](https://github.com/pmndrs/koota) for state management, powering the core behavior loop.
 - [Vite](https://vitejs.dev/) for bundling and running the game outside of Triplex.
 - [React Three Fiber](https://github.com/pmndrs/react-three-fiber) for rendering 3D components.
