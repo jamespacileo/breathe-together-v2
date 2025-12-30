@@ -1,5 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
+
+// Phase configuration
+const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'] as const;
+const PHASE_DURATIONS = [
+  BREATH_PHASES.INHALE,
+  BREATH_PHASES.HOLD_IN,
+  BREATH_PHASES.EXHALE,
+  BREATH_PHASES.HOLD_OUT,
+];
 
 interface GaiaUIProps {
   /** Particle count (harmony) */
@@ -38,6 +48,70 @@ export function GaiaUI({
 }: GaiaUIProps) {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const [hasEntered, setHasEntered] = useState(false);
+
+  // Phase indicator refs for RAF updates (no React re-renders)
+  const phaseNameRef = useRef<HTMLSpanElement>(null);
+  const timerRef = useRef<HTMLSpanElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+
+  // Entrance animation
+  useEffect(() => {
+    const timer = setTimeout(() => setHasEntered(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Phase indicator RAF loop (60fps updates without React state)
+  useEffect(() => {
+    let animationId: number;
+    let prevPhase = -1;
+
+    const updatePhase = () => {
+      const now = Date.now() / 1000;
+      const cycleTime = now % BREATH_TOTAL_CYCLE;
+
+      // Determine current phase
+      let accumulatedTime = 0;
+      let phaseIndex = 0;
+      for (let i = 0; i < PHASE_DURATIONS.length; i++) {
+        const duration = PHASE_DURATIONS[i] ?? 0;
+        if (cycleTime < accumulatedTime + duration) {
+          phaseIndex = i;
+          break;
+        }
+        accumulatedTime += duration;
+      }
+
+      const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
+      const phaseTime = cycleTime - accumulatedTime;
+      const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+
+      // Update phase name on transition
+      if (phaseIndex !== prevPhase) {
+        prevPhase = phaseIndex;
+        if (phaseNameRef.current) {
+          phaseNameRef.current.textContent = PHASE_NAMES[phaseIndex] ?? 'Breathe';
+        }
+      }
+
+      // Update timer (countdown)
+      if (timerRef.current) {
+        const remaining = Math.ceil((1 - phaseProgress) * phaseDuration);
+        timerRef.current.textContent = `${remaining}`;
+      }
+
+      // Update progress bar
+      if (progressRef.current) {
+        const cycleProgress = (accumulatedTime + phaseTime) / BREATH_TOTAL_CYCLE;
+        progressRef.current.style.width = `${cycleProgress * 100}%`;
+      }
+
+      animationId = requestAnimationFrame(updatePhase);
+    };
+
+    updatePhase();
+    return () => cancelAnimationFrame(animationId);
+  }, []);
 
   // Focus Mode: Fade out UI after inactivity
   useEffect(() => {
@@ -66,13 +140,15 @@ export function GaiaUI({
     };
   }, [isControlsOpen]);
 
-  // Design Tokens
+  // Design Tokens - refined warm palette
   const colors = {
-    text: '#8c7b6c',
-    textDim: '#b8a896',
-    border: 'rgba(140, 123, 108, 0.15)',
-    glass: 'rgba(250, 248, 243, 0.7)',
-    accent: '#d4a574',
+    text: '#7a6b5e', // Slightly warmer, better contrast
+    textDim: '#a89888', // Warmer dim text
+    textGlow: '#c4a882', // Subtle glow color
+    border: 'rgba(160, 140, 120, 0.12)', // Warmer, softer border
+    glass: 'rgba(252, 250, 246, 0.72)', // Slightly warmer glass
+    accent: '#c9a06c', // Warmer gold accent
+    accentGlow: 'rgba(201, 160, 108, 0.4)', // Accent glow
   };
 
   const labelStyle: React.CSSProperties = {
@@ -102,8 +178,8 @@ export function GaiaUI({
     borderBottom: `1px solid ${colors.border}`,
   };
 
-  // Stop pointer events from propagating to PresentationControls
-  const stopPropagation = (e: React.PointerEvent | React.MouseEvent) => {
+  // Stop pointer/touch events from propagating to PresentationControls
+  const stopPropagation = (e: React.PointerEvent | React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
 
@@ -114,43 +190,50 @@ export function GaiaUI({
         inset: 0,
         pointerEvents: 'none',
         color: colors.text,
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         zIndex: 100,
         opacity: isVisible ? 1 : 0,
-        transition: 'opacity 1s ease',
+        transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       {/* Upper-Left: Museum Label Title */}
       <div
+        onPointerDown={stopPropagation}
+        onTouchStart={stopPropagation}
         style={{
           position: 'absolute',
-          top: '40px',
-          left: '40px',
+          top: '36px',
+          left: '36px',
           pointerEvents: 'auto',
+          opacity: hasEntered ? 0.75 : 0,
+          transform: `translateY(${hasEntered ? 0 : -8}px)`,
+          transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         }}
       >
-        <div style={{ opacity: 0.8 }}>
+        <div>
           <div
             style={{
-              fontSize: '0.6rem',
-              letterSpacing: '0.3em',
+              fontSize: '0.55rem',
+              letterSpacing: '0.35em',
               textTransform: 'uppercase',
-              marginBottom: '4px',
+              marginBottom: '6px',
               color: colors.textDim,
+              fontWeight: 500,
             }}
           >
             Digital Artifact / 002
           </div>
           <h1
             style={{
-              fontSize: '1.2rem',
-              fontWeight: 300,
+              fontFamily: "'Cormorant Garamond', Georgia, serif",
+              fontSize: '1.15rem',
+              fontWeight: 400,
               margin: 0,
-              letterSpacing: '0.1em',
+              letterSpacing: '0.12em',
               textTransform: 'uppercase',
             }}
           >
-            Gaia <span style={{ fontWeight: 600, opacity: 0.5 }}>{/*  */}</span> Breathing
+            Gaia Breathing
           </h1>
         </div>
       </div>
@@ -166,6 +249,9 @@ export function GaiaUI({
           flexDirection: 'column',
           alignItems: 'flex-end',
           gap: '12px',
+          opacity: hasEntered ? 1 : 0,
+          transform: `translateY(${hasEntered ? 0 : 10}px)`,
+          transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.2s',
         }}
       >
         {/* Toggle Button */}
@@ -174,22 +260,26 @@ export function GaiaUI({
           onClick={() => setIsControlsOpen(!isControlsOpen)}
           onPointerDown={stopPropagation}
           onPointerMove={stopPropagation}
+          onTouchStart={stopPropagation}
+          onTouchMove={stopPropagation}
           style={{
             background: colors.glass,
             border: `1px solid ${colors.border}`,
-            padding: '8px 16px',
-            borderRadius: '20px',
-            fontSize: '0.65rem',
+            padding: '9px 18px',
+            borderRadius: '24px',
+            fontSize: '0.6rem',
             textTransform: 'uppercase',
-            letterSpacing: '0.1em',
+            letterSpacing: '0.12em',
+            fontWeight: 500,
             color: colors.text,
             cursor: 'pointer',
-            backdropFilter: 'blur(20px)',
-            transition: 'all 0.3s ease',
+            backdropFilter: 'blur(24px)',
+            transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
             pointerEvents: 'auto',
+            boxShadow: '0 4px 20px rgba(160, 140, 120, 0.06)',
           }}
         >
-          {isControlsOpen ? 'Close Settings' : 'Tune Aesthetic'}
+          {isControlsOpen ? 'Close' : 'Tune'}
         </button>
 
         {/* Controls Panel - stop propagation to prevent scene rotation while dragging sliders */}
@@ -197,6 +287,9 @@ export function GaiaUI({
           onPointerDown={stopPropagation}
           onPointerMove={stopPropagation}
           onPointerUp={stopPropagation}
+          onTouchStart={stopPropagation}
+          onTouchMove={stopPropagation}
+          onTouchEnd={stopPropagation}
           style={{
             background: colors.glass,
             backdropFilter: 'blur(40px)',
@@ -396,6 +489,84 @@ export function GaiaUI({
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Centered Phase Indicator */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '44px',
+          left: '50%',
+          transform: `translateX(-50%) translateY(${hasEntered ? 0 : 16}px)`,
+          opacity: hasEntered ? 0.9 : 0,
+          transition: 'all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          pointerEvents: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '14px',
+        }}
+      >
+        {/* Phase Name + Timer */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: '10px',
+          }}
+        >
+          <span
+            ref={phaseNameRef}
+            style={{
+              fontFamily: "'Cormorant Garamond', Georgia, serif",
+              fontSize: '1.5rem',
+              fontWeight: 300,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: colors.text,
+              textShadow: `0 1px 12px ${colors.accentGlow}`,
+            }}
+          >
+            Inhale
+          </span>
+          <span
+            ref={timerRef}
+            style={{
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              fontSize: '0.95rem',
+              fontWeight: 300,
+              color: colors.textDim,
+              minWidth: '1em',
+              textAlign: 'center',
+              opacity: 0.8,
+            }}
+          >
+            4
+          </span>
+        </div>
+
+        {/* Progress Bar */}
+        <div
+          style={{
+            width: '100px',
+            height: '1.5px',
+            background: colors.border,
+            borderRadius: '1px',
+            overflow: 'hidden',
+            boxShadow: `0 0 8px ${colors.accentGlow}`,
+          }}
+        >
+          <div
+            ref={progressRef}
+            style={{
+              height: '100%',
+              width: '0%',
+              background: `linear-gradient(90deg, ${colors.accent}, ${colors.textGlow})`,
+              borderRadius: '1px',
+              transition: 'width 0.08s linear',
+            }}
+          />
         </div>
       </div>
     </div>
