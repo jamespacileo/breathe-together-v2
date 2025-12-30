@@ -1,6 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { PhaseOverlay } from '../components/PhaseOverlay';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -96,13 +97,16 @@ export function BreathingLevel({
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
+          {/* Elegant centered phase overlay with circular countdown */}
+          <PhaseOverlay />
+
           {/* Top-right control icons (audio + tune + settings) */}
           <TopRightControls
             onOpenTuneControls={() => setShowTuneControls(true)}
             onOpenSettings={() => setShowSettings(true)}
           />
 
-          {/* Main UI with breathing phase, inspirational text, and modals */}
+          {/* Main UI with inspirational text and modals */}
           <SimpleGaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
