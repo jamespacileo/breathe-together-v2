@@ -70,8 +70,11 @@ function controlledBreathCurve(t: number, startRamp: number, endRamp: number): n
  * - Soft start (25%): Gentle acceleration, overcoming initial resistance
  * - Steady middle (50%): Constant velocity, controlled even intake
  * - Soft end (25%): Gentle deceleration, lungs filling naturally
+ *
+ * @param t Progress 0-1
+ * @returns Eased progress 0-1
  */
-function easeInhale(t: number): number {
+export function easeInhale(t: number): number {
   return controlledBreathCurve(t, 0.25, 0.25);
 }
 
@@ -84,8 +87,11 @@ function easeInhale(t: number): number {
  * - Extended soft end (30%): Extra gentle landing for relaxation
  *
  * The longer end ramp creates the "letting go" feel essential for relaxation.
+ *
+ * @param t Progress 0-1
+ * @returns Eased progress 0-1
  */
-function easeExhale(t: number): number {
+export function easeExhale(t: number): number {
   // Asymmetric: shorter start ramp, longer end ramp for relaxed finish
   return controlledBreathCurve(t, 0.2, 0.3);
 }
