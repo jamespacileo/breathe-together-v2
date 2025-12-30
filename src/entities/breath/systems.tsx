@@ -2,13 +2,12 @@
  * Breath system - updates breath entity every frame
  * Uses UTC time for global synchronization
  *
- * Simplified architecture (Dec 2024):
- * - Only 2 damped traits: breathPhase, orbitRadius
- * - Removed unused: sphereScale, crystallization, easedProgress
- * - Removed velocity traits (easing.damp manages velocity internally)
+ * Architecture (Dec 2024):
+ * - Direct trait updates (no damping) - easing is already in breathCalc
+ * - Removes lag between HUD and visual animations
+ * - 4 traits: breathPhase, phaseType, rawProgress, orbitRadius
  */
 import type { World } from 'koota';
-import { easing } from 'maath';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../../constants';
 import { calculateBreathState } from '../../lib/breathCalc';
 import {
@@ -19,26 +18,7 @@ import {
   orbitRadius,
   phaseType,
   rawProgress,
-  targetBreathPhase,
-  targetOrbitRadius,
 } from './traits';
-
-/**
- * Damping configuration for breath traits
- * Only breathPhase and orbitRadius need damping (consumed by visual entities)
- */
-const DAMP_CONFIG = [
-  {
-    trait: breathPhase,
-    targetTrait: targetBreathPhase,
-    speed: 0.3,
-  },
-  {
-    trait: orbitRadius,
-    targetTrait: targetOrbitRadius,
-    speed: 0.4,
-  },
-] as const;
 
 /**
  * Main breath system - runs every frame to update breath state
@@ -123,24 +103,13 @@ export function breathSystem(world: World, delta: number) {
   }
 
   // Calculate breathing state using phase-based algorithm
+  // breathCalc already applies smooth easing per-phase (easeOutQuart, easeInSine, etc.)
   const state = calculateBreathState(elapsed);
 
-  // 1. Update discrete traits (no damping needed - consumed directly by HUD)
+  // Set all traits directly - no damping layer needed
+  // This ensures HUD and visual animations are perfectly synchronized
+  breathEntity.set(breathPhase, { value: state.breathPhase });
   breathEntity.set(phaseType, { value: state.phaseType });
   breathEntity.set(rawProgress, { value: state.rawProgress });
-
-  // 2. Update target traits (for damped animation)
-  breathEntity.set(targetBreathPhase, { value: state.breathPhase });
-  breathEntity.set(targetOrbitRadius, { value: state.orbitRadius });
-
-  // 3. Damp current values toward targets using maath/easing
-  // easing.damp stores velocity internally in the current object
-  for (const { trait, targetTrait, speed } of DAMP_CONFIG) {
-    const current = breathEntity.get(trait);
-    const target = breathEntity.get(targetTrait);
-    if (current && target) {
-      easing.damp(current, 'value', target.value, speed, delta);
-      breathEntity.set(trait, current);
-    }
-  }
+  breathEntity.set(orbitRadius, { value: state.orbitRadius });
 }

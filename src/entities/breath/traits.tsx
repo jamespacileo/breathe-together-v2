@@ -2,11 +2,10 @@
  * Breath traits - individual components of breath state
  * Following Koota pattern where traits are simple value containers
  *
- * Simplified architecture (Dec 2024):
- * - Removed unused traits: sphereScale, crystallization, easedProgress
- * - Removed velocity traits (easing.damp stores velocity internally)
- * - Only 6 traits remain: breathPhase, targetBreathPhase, phaseType,
- *   rawProgress, orbitRadius, targetOrbitRadius
+ * Architecture (Dec 2024):
+ * - Direct values from breathCalc (no damping/target intermediates)
+ * - 4 traits: breathPhase, phaseType, rawProgress, orbitRadius
+ * - All values updated directly each frame for perfect HUD/visual sync
  */
 import { trait } from 'koota';
 
@@ -17,7 +16,6 @@ import { trait } from 'koota';
  * Consumed by: EarthGlobe, AtmosphericParticles, CameraRig
  */
 export const breathPhase = trait({ value: 0 });
-export const targetBreathPhase = trait({ value: 0 });
 
 /**
  * Current phase type: 0-3
@@ -42,7 +40,6 @@ export const rawProgress = trait({ value: 0 });
  * Consumed by: ParticleSwarm
  */
 export const orbitRadius = trait({ value: 3.5 });
-export const targetOrbitRadius = trait({ value: 3.5 });
 
 /**
  * DEBUG TRAITS - Only spawned in debug/Triplex contexts

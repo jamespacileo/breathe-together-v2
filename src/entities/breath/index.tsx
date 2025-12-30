@@ -2,7 +2,7 @@
  * Breath entity - central state container for all breathing animations
  * Following Koota pattern where entities are composed of traits
  *
- * Simplified (Dec 2024): Only 6 traits remain after removing unused ones
+ * Architecture (Dec 2024): Only 4 core traits (no damping intermediates)
  * Also supports optional debug traits for manual breathing control in Triplex
  */
 
@@ -17,8 +17,6 @@ import {
   orbitRadius,
   phaseType,
   rawProgress,
-  targetBreathPhase,
-  targetOrbitRadius,
 } from './traits';
 
 /**
@@ -36,20 +34,8 @@ export function BreathEntity() {
       let entity = world.queryFirst(breathPhase);
 
       if (!entity) {
-        // Spawn breath entity with all required traits
-        entity = world.spawn(
-          breathPhase,
-          targetBreathPhase,
-          phaseType,
-          rawProgress,
-          orbitRadius,
-          targetOrbitRadius,
-        );
-      } else {
-        // Ensure all traits are added to existing entity (for hot-reloading)
-        if (!entity.has(targetBreathPhase)) entity.add(targetBreathPhase);
-        if (!entity.has(rawProgress)) entity.add(rawProgress);
-        if (!entity.has(targetOrbitRadius)) entity.add(targetOrbitRadius);
+        // Spawn breath entity with 4 core traits
+        entity = world.spawn(breathPhase, phaseType, rawProgress, orbitRadius);
       }
 
       // ============================================================
