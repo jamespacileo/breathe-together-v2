@@ -32,8 +32,8 @@ const defaultState: AudioState = {
   loadingStates: {},
 };
 
-// Create context
-const AudioContext = createContext<AudioContextValue | null>(null);
+// Create context (exported for direct useContext access when needed)
+export const AudioContext = createContext<AudioContextValue | null>(null);
 
 // Log prefix
 const LOG_PREFIX = '[Audio]';
