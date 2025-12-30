@@ -1,7 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { GaiaUI } from '../components/GaiaUI';
+import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
@@ -89,9 +89,9 @@ export function BreathingLevel({
           </PresentationControls>
         </RefractionPipeline>
 
-        {/* UI stays OUTSIDE pipeline (fixed HUD) */}
+        {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
-          <GaiaUI
+          <SimpleGaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
             ior={ior}

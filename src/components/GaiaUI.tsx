@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAudioAvailable } from '../audio';
 import { BREATH_TOTAL_CYCLE } from '../constants';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
+import { AudioControls } from './AudioControls';
 import { InspirationalText } from './InspirationalText';
 
 // Phase configuration
@@ -45,6 +47,7 @@ export function GaiaUI({
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
+  const audioAvailable = useAudioAvailable();
 
   // Phase indicator refs for RAF updates (no React re-renders)
   const phaseNameRef = useRef<HTMLSpanElement>(null);
@@ -433,6 +436,28 @@ export function GaiaUI({
               />
             </label>
           </div>
+
+          {/* === SOUND SECTION === */}
+          {audioAvailable && (
+            <div style={sectionStyle}>
+              <div
+                style={{
+                  fontSize: '0.55rem',
+                  color: colors.textDim,
+                  marginBottom: '12px',
+                  letterSpacing: '0.2em',
+                }}
+              >
+                SOUND
+              </div>
+              <AudioControls
+                colors={colors}
+                labelStyle={labelStyle}
+                inputStyle={inputStyle}
+                stopPropagation={stopPropagation}
+              />
+            </div>
+          )}
 
           {/* Mood Legend */}
           <div

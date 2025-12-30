@@ -1,6 +1,7 @@
 import { Stats } from '@react-three/drei';
 import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
 import type * as THREE from 'three';
+import { AudioProvider } from './audio';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
@@ -23,8 +24,10 @@ export function App() {
         {import.meta.env.DEV && <Stats />}
         <CameraRig />
         <KootaSystems breathSystemEnabled={true}>
-          <BreathEntity />
-          <BreathingLevel />
+          <AudioProvider>
+            <BreathEntity />
+            <BreathingLevel />
+          </AudioProvider>
         </KootaSystems>
       </Canvas>
     </ErrorBoundary>
