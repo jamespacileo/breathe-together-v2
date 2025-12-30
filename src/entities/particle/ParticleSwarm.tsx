@@ -34,23 +34,40 @@ const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
 };
 
 /**
+ * Fisher-Yates shuffle for randomizing array in-place
+ *
+ * Provides uniform random distribution of elements.
+ * Used to randomize color assignment across particles.
+ *
+ * @param array - Array to shuffle in-place
+ * @returns The same array, now shuffled
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+/**
  * Build color distribution array from presence data
  *
  * Converts mood counts into an array of Three.js Color instances, where each
- * user is represented by their mood color. This array is used for distributing
- * colors across particle shards.
+ * user is represented by their mood color. The array is shuffled to create
+ * a visually random distribution of colors across the sphere.
  *
  * **Example:**
  * ```ts
  * const users = { calm: 3, energized: 2 };
- * // Returns: [calmColor, calmColor, calmColor, energizedColor, energizedColor]
+ * // Returns shuffled: [energizedColor, calmColor, calmColor, energizedColor, calmColor]
  * ```
  *
  * **Performance:** Linear time O(n) where n is total user count. Called once
  * per presence update (typically ~1-5 times per minute).
  *
  * @param users - Mood distribution from presence data (e.g., { calm: 5, energized: 3 })
- * @returns Array of colors, one per user. Empty array if no users.
+ * @returns Shuffled array of colors, one per user. Empty array if no users.
  */
 function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefined): THREE.Color[] {
   if (!users) return [];
@@ -64,7 +81,9 @@ function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefin
       }
     }
   }
-  return colorDistribution;
+
+  // Shuffle for random color distribution across sphere
+  return shuffleArray(colorDistribution);
 }
 
 /**
@@ -123,6 +142,7 @@ interface ShardData {
  * - Spring physics: smooth transitions with settling on holds
  * - Phase offset: subtle wave effect (particles don't move in perfect lockstep)
  * - Ambient seed: unique floating pattern per shard
+ * - Spawn animation: scale + position animation for arrival
  */
 interface ShardPhysicsState {
   /** Current interpolated radius (spring-smoothed) */
@@ -135,6 +155,12 @@ interface ShardPhysicsState {
   ambientSeed: number;
   /** Previous frame's target radius (for detecting expansion) */
   previousTarget: number;
+  /** Spawn animation progress (0 = just spawned, 1 = fully arrived) */
+  spawnProgress: number;
+  /** Staggered spawn delay in seconds (particles appear in waves) */
+  spawnDelay: number;
+  /** Whether spawn animation has started */
+  spawnStarted: boolean;
 }
 
 /**
@@ -177,6 +203,43 @@ const AMBIENT_Y_SCALE = 0.04; // Vertical motion is more subtle
  */
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 
+/**
+ * Spawn animation constants
+ *
+ * Controls the arrival animation for new particles:
+ * - Total duration: how long the full wave takes to complete
+ * - Animation speed: how fast each individual particle scales up
+ * - Start radius: particles spawn from center (globe surface)
+ */
+const SPAWN_WAVE_DURATION = 1.2; // Total time for all particles to start spawning
+const SPAWN_ANIMATION_SPEED = 2.5; // How fast each particle animates (higher = faster)
+const SPAWN_START_RADIUS_FACTOR = 0.3; // Start at 30% of target radius (near globe)
+
+/**
+ * Ease-out back function for organic "pop" effect
+ *
+ * Creates slight overshoot then settle - feels like particles are
+ * "blooming" into existence rather than mechanically appearing.
+ *
+ * @param t - Progress value 0 to 1
+ * @returns Eased value with slight overshoot
+ */
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
+}
+
+/**
+ * Ease-out cubic for smooth position interpolation
+ *
+ * @param t - Progress value 0 to 1
+ * @returns Eased value
+ */
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3;
+}
+
 export function ParticleSwarm({
   count = 48,
   users,
@@ -190,6 +253,7 @@ export function ParticleSwarm({
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+  const spawnStartTimeRef = useRef<number>(-1); // Track when particles started spawning
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -246,24 +310,35 @@ export function ParticleSwarm({
 
     // Add new shards and initialize physics state
     const physicsStates: ShardPhysicsState[] = [];
+    const goldenRatio = (1 + Math.sqrt(5)) / 2;
+
     for (let i = 0; i < shards.length; i++) {
       const shard = shards[i];
       group.add(shard.mesh);
 
-      // Initialize physics state with staggered phase offsets
-      // Use golden ratio distribution for even visual spread
-      const goldenRatio = (1 + Math.sqrt(5)) / 2;
+      // Start at scale 0 for spawn animation
+      shard.mesh.scale.setScalar(0);
+
+      // Calculate staggered spawn delay using golden ratio for even distribution
+      // This creates a wave effect where particles appear in a pleasing sequence
+      const spawnDelay = ((i * goldenRatio) % 1) * SPAWN_WAVE_DURATION;
+
+      // Initialize physics state with spawn animation fields
       physicsStates.push({
-        currentRadius: baseRadius,
+        currentRadius: baseRadius * SPAWN_START_RADIUS_FACTOR, // Start near globe
         velocity: 0,
         phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
         ambientSeed: i * 137.508, // Golden angle in degrees for unique patterns
         previousTarget: baseRadius,
+        spawnProgress: 0,
+        spawnDelay,
+        spawnStarted: false,
       });
     }
 
     shardsRef.current = shards;
     physicsRef.current = physicsStates;
+    spawnStartTimeRef.current = -1; // Reset spawn timer to trigger new wave
 
     // Cleanup on unmount
     return () => {
@@ -281,7 +356,7 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - spring physics + ambient motion
+  // Animation loop - spawn animation + spring physics + ambient motion
   useFrame((state, delta) => {
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
@@ -290,6 +365,12 @@ export function ParticleSwarm({
     // Cap delta to prevent physics explosion on tab switch
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
+
+    // Initialize spawn start time on first frame
+    if (spawnStartTimeRef.current < 0) {
+      spawnStartTimeRef.current = time;
+    }
+    const timeSinceSpawn = time - spawnStartTimeRef.current;
 
     // Get breathing state from ECS
     let targetRadius = baseRadius;
@@ -304,45 +385,80 @@ export function ParticleSwarm({
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
-    // Update each shard with spring physics + ambient motion
+    // Update each shard with spawn animation + spring physics + ambient motion
     for (let i = 0; i < currentShards.length; i++) {
       const shard = currentShards[i];
-      const state = physics[i];
+      const shardState = physics[i];
 
-      // Apply phase offset for wave effect
-      // This creates subtle stagger in breathing motion
-      const offsetBreathPhase = currentBreathPhase + state.phaseOffset;
-
-      // Calculate target radius with phase offset applied
-      // Map breath phase (0-1) to orbit radius range
-      // breathPhase 0 = exhaled (max radius), breathPhase 1 = inhaled (min radius)
-      const phaseTargetRadius =
-        targetRadius + (1 - offsetBreathPhase) * (baseRadius - targetRadius) * 0.15;
-
-      // Clamp target to prevent penetrating globe
-      const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
-
-      // Detect expansion (exhale) and apply velocity boost for immediate response
-      // This overcomes spring lag so exhale feels like an immediate "release"
-      const targetDelta = clampedTarget - state.previousTarget;
-      if (targetDelta > 0.001) {
-        // Expanding outward (exhale starting) - inject outward velocity
-        state.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+      // --- Spawn Animation ---
+      // Check if this shard should start spawning (based on staggered delay)
+      if (!shardState.spawnStarted && timeSinceSpawn >= shardState.spawnDelay) {
+        shardState.spawnStarted = true;
       }
-      state.previousTarget = clampedTarget;
 
-      // Spring physics: F = -k(x - target) - c*v
-      const springForce = (clampedTarget - state.currentRadius) * SPRING_STIFFNESS;
-      const dampingForce = -state.velocity * SPRING_DAMPING;
-      const totalForce = springForce + dampingForce;
+      // Animate spawn progress if started but not complete
+      if (shardState.spawnStarted && shardState.spawnProgress < 1) {
+        shardState.spawnProgress = Math.min(
+          shardState.spawnProgress + clampedDelta * SPAWN_ANIMATION_SPEED,
+          1,
+        );
 
-      // Integrate velocity and position
-      state.velocity += totalForce * clampedDelta;
-      state.currentRadius += state.velocity * clampedDelta;
+        // Scale animation with easeOutBack for organic "pop" effect
+        const scaleT = easeOutBack(shardState.spawnProgress);
+        shard.mesh.scale.setScalar(scaleT);
 
-      // Ambient floating motion (secondary layer)
+        // Position animation: lerp from near-globe to target orbit radius
+        // Uses easeOutCubic for smooth deceleration as it reaches destination
+        const positionT = easeOutCubic(shardState.spawnProgress);
+        const spawnRadius =
+          baseRadius * SPAWN_START_RADIUS_FACTOR +
+          (targetRadius - baseRadius * SPAWN_START_RADIUS_FACTOR) * positionT;
+        shardState.currentRadius = spawnRadius;
+        shardState.previousTarget = spawnRadius;
+      }
+
+      // Skip physics and position updates if not yet spawned
+      if (!shardState.spawnStarted) {
+        continue;
+      }
+
+      // --- Spring Physics (only after spawn animation complete) ---
+      if (shardState.spawnProgress >= 1) {
+        // Apply phase offset for wave effect
+        // This creates subtle stagger in breathing motion
+        const offsetBreathPhase = currentBreathPhase + shardState.phaseOffset;
+
+        // Calculate target radius with phase offset applied
+        // Map breath phase (0-1) to orbit radius range
+        // breathPhase 0 = exhaled (max radius), breathPhase 1 = inhaled (min radius)
+        const phaseTargetRadius =
+          targetRadius + (1 - offsetBreathPhase) * (baseRadius - targetRadius) * 0.15;
+
+        // Clamp target to prevent penetrating globe
+        const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
+
+        // Detect expansion (exhale) and apply velocity boost for immediate response
+        // This overcomes spring lag so exhale feels like an immediate "release"
+        const targetDelta = clampedTarget - shardState.previousTarget;
+        if (targetDelta > 0.001) {
+          // Expanding outward (exhale starting) - inject outward velocity
+          shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+        }
+        shardState.previousTarget = clampedTarget;
+
+        // Spring physics: F = -k(x - target) - c*v
+        const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
+        const dampingForce = -shardState.velocity * SPRING_DAMPING;
+        const totalForce = springForce + dampingForce;
+
+        // Integrate velocity and position
+        shardState.velocity += totalForce * clampedDelta;
+        shardState.currentRadius += shardState.velocity * clampedDelta;
+      }
+
+      // --- Ambient Floating Motion (secondary layer) ---
       // Uses different frequencies per axis for organic feel
-      const seed = state.ambientSeed;
+      const seed = shardState.ambientSeed;
       const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE;
       const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
       const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
@@ -350,7 +466,7 @@ export function ParticleSwarm({
       // Compute final position: spring-smoothed radius + ambient offset
       shard.mesh.position
         .copy(shard.direction)
-        .multiplyScalar(state.currentRadius)
+        .multiplyScalar(shardState.currentRadius)
         .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
 
       // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
