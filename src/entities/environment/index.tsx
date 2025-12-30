@@ -35,9 +35,10 @@ export function Environment({
   const { scene } = useThree();
   const cloudsRef = useRef<THREE.Group>(null);
 
-  // Add subtle fog to blend the horizon
+  // Add very subtle fog - pushed far back to not wash out gradient
   useEffect(() => {
-    scene.fog = new THREE.Fog(0xfff5eb, 15, 60);
+    // Fog starts far away to preserve gradient visibility
+    scene.fog = new THREE.Fog(0xf2ccc0, 40, 100);
     scene.background = null;
 
     return () => {
@@ -58,63 +59,63 @@ export function Environment({
     <group>
       {/* Note: Background gradient is rendered by RefractionPipeline shader */}
 
-      {/* Volumetric 3D clouds - soft, dreamy formations */}
+      {/* Volumetric 3D clouds - soft wisps, low opacity to not cover gradient */}
       {showClouds && (
         <Clouds ref={cloudsRef} material={THREE.MeshBasicMaterial}>
           {/* Main cloud bank - upper left */}
           <Cloud
             position={[-15, 12, -25]}
-            opacity={cloudOpacity * 0.6}
+            opacity={cloudOpacity * 0.3}
             speed={cloudSpeed}
-            segments={40}
+            segments={30}
             bounds={[12, 3, 8]}
-            volume={8}
-            color="#fff5eb"
-            fade={30}
+            volume={6}
+            color="#f2ccc0"
+            fade={40}
           />
           {/* Secondary cloud - upper right */}
           <Cloud
             position={[18, 14, -30]}
-            opacity={cloudOpacity * 0.5}
+            opacity={cloudOpacity * 0.25}
             speed={cloudSpeed * 0.8}
-            segments={35}
+            segments={25}
             bounds={[10, 2.5, 6]}
-            volume={6}
-            color="#ffe8d6"
-            fade={25}
+            volume={5}
+            color="#e8d0c8"
+            fade={35}
           />
           {/* Wispy cloud - center high */}
           <Cloud
-            position={[0, 18, -35]}
-            opacity={cloudOpacity * 0.3}
+            position={[0, 20, -40]}
+            opacity={cloudOpacity * 0.2}
             speed={cloudSpeed * 1.2}
-            segments={25}
+            segments={20}
             bounds={[8, 2, 5]}
             volume={4}
-            color="#fff8f0"
-            fade={20}
+            color="#d8e0f0"
+            fade={30}
           />
           {/* Low horizon cloud - left */}
           <Cloud
-            position={[-20, 5, -40]}
-            opacity={cloudOpacity * 0.4}
+            position={[-20, 5, -45]}
+            opacity={cloudOpacity * 0.2}
             speed={cloudSpeed * 0.5}
-            segments={30}
+            segments={25}
             bounds={[15, 2, 10]}
-            volume={5}
-            color="#ffecd9"
-            fade={35}
+            volume={4}
+            color="#ffd8c0"
+            fade={45}
           />
           {/* Low horizon cloud - right */}
           <Cloud
-            position={[22, 6, -38]}
-            opacity={cloudOpacity * 0.35}
+            position={[22, 6, -42]}
+            opacity={cloudOpacity * 0.18}
             speed={cloudSpeed * 0.6}
-            segments={28}
+            segments={22}
             bounds={[12, 1.5, 8]}
-            volume={4}
-            color="#fff0e0"
-            fade={30}
+            volume={3}
+            color="#ffe0d0"
+            fade={40}
           />
         </Clouds>
       )}

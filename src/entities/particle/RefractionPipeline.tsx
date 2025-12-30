@@ -136,61 +136,51 @@ float fbm(vec2 p) {
 }
 
 void main() {
-  // Monument Valley inspired palette - soft pastels
-  vec3 skyTop = vec3(0.95, 0.90, 0.95);       // #f2e6f2 Soft lavender
-  vec3 skyMid = vec3(0.98, 0.92, 0.88);       // #faebe0 Warm peach cream
-  vec3 horizon = vec3(1.0, 0.85, 0.78);       // #ffd9c7 Golden peach
-  vec3 warmGlow = vec3(1.0, 0.78, 0.68);      // #ffc7ad Sunset coral
+  // Monument Valley inspired palette - visible pastels with more saturation
+  vec3 skyTop = vec3(0.75, 0.82, 0.92);       // #c0d1eb Soft sky blue
+  vec3 skyMid = vec3(0.95, 0.80, 0.75);       // #f2ccc0 Dusty rose/peach
+  vec3 horizon = vec3(1.0, 0.70, 0.55);       // #ffb38d Warm apricot
+  vec3 warmGlow = vec3(0.98, 0.60, 0.50);     // #fa9980 Sunset coral
 
   // Vertical position for gradient
   float y = vUv.y;
 
-  // Multi-stop gradient for rich sky
+  // Smooth multi-stop gradient using smoothstep blending
   vec3 skyColor;
-  if (y > 0.6) {
-    // Top section: lavender to peach cream
-    float t = smoothstep(0.6, 1.0, y);
-    skyColor = mix(skyMid, skyTop, t);
-  } else if (y > 0.3) {
-    // Middle section: peach cream to golden peach
-    float t = smoothstep(0.3, 0.6, y);
-    skyColor = mix(horizon, skyMid, t);
-  } else {
-    // Bottom section: golden peach to sunset coral
-    float t = smoothstep(0.0, 0.3, y);
-    skyColor = mix(warmGlow, horizon, t);
-  }
+  float t1 = smoothstep(0.5, 0.9, y);   // Top transition
+  float t2 = smoothstep(0.25, 0.6, y);  // Middle transition
+  float t3 = smoothstep(0.0, 0.35, y);  // Bottom transition
 
-  // Animated cloud-like wisps using FBM noise
-  vec2 cloudUv = vUv * vec2(2.0, 1.0) + vec2(time * 0.02, 0.0);
-  float clouds = fbm(cloudUv * 3.0);
+  // Layer the colors smoothly
+  skyColor = mix(warmGlow, horizon, t3);
+  skyColor = mix(skyColor, skyMid, t2);
+  skyColor = mix(skyColor, skyTop, t1);
+
+  // Animated cloud-like wisps using FBM noise - more subtle
+  vec2 cloudUv = vUv * vec2(2.0, 1.0) + vec2(time * 0.015, 0.0);
+  float clouds = fbm(cloudUv * 2.5);
 
   // Second layer of clouds moving slightly differently
-  vec2 cloudUv2 = vUv * vec2(1.5, 0.8) + vec2(time * 0.015 + 100.0, time * 0.005);
-  float clouds2 = fbm(cloudUv2 * 2.5);
+  vec2 cloudUv2 = vUv * vec2(1.5, 0.8) + vec2(time * 0.01 + 50.0, time * 0.003);
+  float clouds2 = fbm(cloudUv2 * 2.0);
 
-  // Combine cloud layers with soft blending
-  float cloudMask = smoothstep(0.1, 0.6, clouds * 0.5 + clouds2 * 0.5);
-  cloudMask *= smoothstep(0.0, 0.4, y) * smoothstep(1.0, 0.5, y); // Fade at edges
+  // Combine cloud layers - fade more at top and bottom
+  float cloudMask = smoothstep(0.2, 0.55, clouds * 0.5 + clouds2 * 0.5);
+  cloudMask *= smoothstep(0.1, 0.4, y) * smoothstep(0.95, 0.6, y);
 
-  // Cloud color - soft white with warm tint
-  vec3 cloudColor = vec3(1.0, 0.98, 0.96);
+  // Cloud color - warm white that complements the gradient
+  vec3 cloudColor = vec3(1.0, 0.96, 0.92);
 
-  // Blend clouds into sky
-  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.35);
+  // Blend clouds subtly into sky - reduced intensity
+  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.25);
 
-  // Add subtle horizontal light bands (atmospheric scattering effect)
-  float bands = sin(y * 20.0 + time * 0.1) * 0.015 + 0.015;
-  bands *= smoothstep(0.2, 0.5, y) * smoothstep(0.8, 0.5, y);
-  color += vec3(1.0, 0.95, 0.9) * bands;
-
-  // Subtle vignette for depth
+  // Very subtle vignette - just darkens corners slightly
   vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.3, vignetteUv * 0.3);
-  color *= vignette;
+  float vignette = 1.0 - dot(vignetteUv * 0.2, vignetteUv * 0.2);
+  color *= mix(0.95, 1.0, vignette);
 
   // Paper texture noise (very subtle)
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.01;
   color += noise;
 
   gl_FragColor = vec4(color, 1.0);
