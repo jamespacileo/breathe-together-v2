@@ -133,6 +133,8 @@ interface ShardPhysicsState {
   phaseOffset: number;
   /** Seed for ambient floating motion (unique per shard) */
   ambientSeed: number;
+  /** Previous frame's target radius (for detecting expansion) */
+  previousTarget: number;
 }
 
 /**
@@ -141,9 +143,22 @@ interface ShardPhysicsState {
  * Tuned for controlled relaxation breathing:
  * - Stiffness: responsive but not instant (follows breath naturally)
  * - Damping: settles quickly on holds without oscillation
+ * - Expansion boost: immediate response when exhale begins
  */
 const SPRING_STIFFNESS = 6; // Lower = more lag, higher = snappier
 const SPRING_DAMPING = 4.5; // Lower = oscillates, higher = settles faster
+
+/**
+ * Expansion velocity boost for immediate exhale response
+ *
+ * When target radius increases (exhale starts), inject outward velocity
+ * proportional to target change. This overcomes spring lag and makes
+ * the exhale expansion feel immediate rather than delayed.
+ *
+ * The boost is asymmetric - only applied during expansion (exhale),
+ * not contraction (inhale), for a more natural "release" feel.
+ */
+const EXPANSION_VELOCITY_BOOST = 2.5; // Multiplier for expansion velocity injection
 
 /**
  * Ambient floating motion constants
@@ -243,6 +258,7 @@ export function ParticleSwarm({
         velocity: 0,
         phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
         ambientSeed: i * 137.508, // Golden angle in degrees for unique patterns
+        previousTarget: baseRadius,
       });
     }
 
@@ -305,6 +321,15 @@ export function ParticleSwarm({
 
       // Clamp target to prevent penetrating globe
       const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
+
+      // Detect expansion (exhale) and apply velocity boost for immediate response
+      // This overcomes spring lag so exhale feels like an immediate "release"
+      const targetDelta = clampedTarget - state.previousTarget;
+      if (targetDelta > 0.001) {
+        // Expanding outward (exhale starting) - inject outward velocity
+        state.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+      }
+      state.previousTarget = clampedTarget;
 
       // Spring physics: F = -k(x - target) - c*v
       const springForce = (clampedTarget - state.currentRadius) * SPRING_STIFFNESS;
