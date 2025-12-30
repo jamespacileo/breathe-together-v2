@@ -2,6 +2,7 @@ import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
+import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
@@ -47,6 +48,9 @@ export function BreathingLevel({
   const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
   const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
 
+  // Settings modal state (controlled by TopRightControls)
+  const [showSettings, setShowSettings] = useState(false);
+
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
 
   return (
@@ -91,6 +95,10 @@ export function BreathingLevel({
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
+          {/* Top-right control icons (tune + audio toggle) */}
+          <TopRightControls onOpenSettings={() => setShowSettings(true)} />
+
+          {/* Main UI with breathing phase, inspirational text, and settings modal */}
           <SimpleGaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
@@ -104,6 +112,8 @@ export function BreathingLevel({
             setShardSize={setShardSize}
             atmosphereDensity={atmosphereDensity}
             setAtmosphereDensity={setAtmosphereDensity}
+            showSettings={showSettings}
+            onShowSettingsChange={setShowSettings}
           />
         </Html>
       </Suspense>
