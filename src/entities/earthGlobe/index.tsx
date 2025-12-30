@@ -6,9 +6,11 @@
  * - Subtle pulse animation (1.0 → 1.06, 6% scale change)
  * - Slow Y-axis rotation
  * - Soft fresnel rim for atmospheric glow
+ *
+ * Uses drei's <Sphere> component for simplified geometry management.
  */
 
-import { useTexture } from '@react-three/drei';
+import { Sphere, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
@@ -78,16 +80,17 @@ interface EarthGlobeProps {
 
 /**
  * EarthGlobe - Renders a stylized textured earth as the central core
+ * Uses drei's <Sphere> component for automatic geometry management
  */
 export function EarthGlobe({
   radius = 1.5,
   resolution = 64,
   enableRotation = true,
 }: Partial<EarthGlobeProps> = {}) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
   const world = useWorld();
 
-  // Load earth texture
+  // Load earth texture using drei's useTexture hook
   const earthTexture = useTexture('/textures/earth-texture.png');
 
   // Configure texture
@@ -111,25 +114,18 @@ export function EarthGlobe({
     [earthTexture],
   );
 
-  // Sphere geometry
-  const geometry = useMemo(
-    () => new THREE.SphereGeometry(radius, resolution, resolution),
-    [radius, resolution],
-  );
-
-  // Cleanup GPU resources on unmount
+  // Cleanup material on unmount (Sphere handles geometry disposal)
   useEffect(() => {
     return () => {
-      geometry.dispose();
       material.dispose();
     };
-  }, [geometry, material]);
+  }, [material]);
 
   /**
    * Update globe scale, rotation, and shader uniforms
    */
   useFrame(() => {
-    if (!meshRef.current) return;
+    if (!groupRef.current) return;
 
     try {
       // Get breath phase for animation
@@ -140,12 +136,12 @@ export function EarthGlobe({
         material.uniforms.breathPhase.value = phase;
         // Subtle pulse: 1.0 to 1.06 (6% scale change)
         const scale = 1.0 + phase * 0.06;
-        meshRef.current.scale.set(scale, scale, scale);
+        groupRef.current.scale.set(scale, scale, scale);
       }
 
       // Slow rotation
       if (enableRotation) {
-        meshRef.current.rotation.y -= 0.0008;
+        groupRef.current.rotation.y -= 0.0008;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
@@ -153,13 +149,9 @@ export function EarthGlobe({
   });
 
   return (
-    <mesh
-      ref={meshRef}
-      name="Earth Globe"
-      geometry={geometry}
-      material={material}
-      frustumCulled={false}
-    />
+    <group ref={groupRef} name="Earth Globe">
+      <Sphere args={[radius, resolution, resolution]} material={material} frustumCulled={false} />
+    </group>
   );
 }
 
