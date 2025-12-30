@@ -1,11 +1,17 @@
 import { Container, Fullscreen, Root, Text } from '@react-three/uikit';
 import { Suspense, useRef } from 'react';
 import { useBreathPhaseDisplay3D } from '../hooks/useBreathPhaseDisplay3D';
+import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 
 /**
  * Minimal HUD for breathing meditation using @react-three/uikit
  * Displays: phase name, timer, progress bar, user count
  * Style: Subtle, transparent, minimalist
+ *
+ * Mobile Responsive:
+ * - Scales padding, gaps, and font sizes based on viewport
+ * - Optimized for 320px-480px (mobile), 481px-768px (tablet), 769px+ (desktop)
+ * - Uses safe area padding on mobile to avoid notch/home indicator overlap
  */
 export function BreathingHUD3D() {
   // @react-three/uikit doesn't export runtime instance types.
@@ -24,20 +30,39 @@ export function BreathingHUD3D() {
     progressBarRef,
   });
 
+  const { deviceType, isMobile } = useViewport();
+
+  // Responsive sizing based on device type
+  const padding = getResponsiveSpacing(deviceType, 16, 32, 60); // Mobile: 16px, Tablet: 32px, Desktop: 60px
+  const gap = getResponsiveSpacing(deviceType, 12, 20, 30); // Mobile: 12px, Tablet: 20px, Desktop: 30px
+  const containerPadding = getResponsiveSpacing(deviceType, 12, 16, 24); // Mobile: 12px, Tablet: 16px, Desktop: 24px
+  const borderRadius = getResponsiveSpacing(deviceType, 16, 20, 24); // Mobile: 16px, Tablet: 20px, Desktop: 24px
+
+  // Responsive font sizes
+  const phaseFontSize = isMobile ? 10 : 12; // Smaller phase label on mobile
+  const timerFontSize = isMobile ? 16 : 20; // Smaller timer on mobile
+  const countFontSize = isMobile ? 8 : 10; // Smaller "PRESENCE" label
+  const countNumberSize = isMobile ? 14 : 16; // Smaller presence count
+  const countTextSize = isMobile ? 10 : 12; // Smaller "together" text
+
+  // Progress bar sizing
+  const progressMinWidth = isMobile ? 80 : 120; // Narrower on mobile
+  const progressHeight = 2;
+
   const userCount = 75;
 
   return (
     <Root>
       <Suspense fallback={null}>
-        <Fullscreen flexDirection="column" justifyContent="flex-end" padding={60}>
+        <Fullscreen flexDirection="column" justifyContent="flex-end" padding={padding}>
           {/* Main HUD Container: Bottom bar with phase, timer, progress, count */}
           <Container
             flexDirection="row"
-            gap={30}
+            gap={gap}
             alignItems="center"
             backgroundColor="rgba(250, 248, 243, 0.5)"
-            padding={24}
-            borderRadius={24}
+            padding={containerPadding}
+            borderRadius={borderRadius}
             borderWidth={1}
             borderColor="rgba(140, 123, 108, 0.1)"
           >
@@ -45,7 +70,7 @@ export function BreathingHUD3D() {
             <Container flexDirection="column" gap={4}>
               <Text
                 ref={phaseNameRef}
-                fontSize={12}
+                fontSize={phaseFontSize}
                 color="#d4a574"
                 letterSpacing={0.2}
                 fontWeight={600}
@@ -53,7 +78,7 @@ export function BreathingHUD3D() {
                 INHALE
               </Text>
               {/* Timer: e.g., "4s" */}
-              <Text ref={timerRef} fontSize={20} color="#8c7b6c" fontWeight={300}>
+              <Text ref={timerRef} fontSize={timerFontSize} color="#8c7b6c" fontWeight={300}>
                 4s
               </Text>
             </Container>
@@ -61,15 +86,15 @@ export function BreathingHUD3D() {
             {/* Progress Bar Container */}
             <Container
               flexGrow={1}
-              height={2}
+              height={progressHeight}
               backgroundColor="rgba(140, 123, 108, 0.1)"
               borderRadius={1}
-              minWidth={120}
+              minWidth={progressMinWidth}
             >
               {/* Animated progress fill - width updated by hook */}
               <Container
                 ref={progressBarRef}
-                height={2}
+                height={progressHeight}
                 width="0%"
                 backgroundColor="#d4a574"
                 borderRadius={1}
@@ -78,14 +103,14 @@ export function BreathingHUD3D() {
 
             {/* User Count: e.g., "75 together" */}
             <Container flexDirection="column" alignItems="flex-end">
-              <Text fontSize={10} color="#b8a896" letterSpacing={0.1} fontWeight={600}>
+              <Text fontSize={countFontSize} color="#b8a896" letterSpacing={0.1} fontWeight={600}>
                 PRESENCE
               </Text>
               <Container flexDirection="row" alignItems="baseline" gap={4}>
-                <Text fontSize={16} color="#8c7b6c" fontWeight={400}>
+                <Text fontSize={countNumberSize} color="#8c7b6c" fontWeight={400}>
                   {userCount}
                 </Text>
-                <Text fontSize={12} color="#b8a896">
+                <Text fontSize={countTextSize} color="#b8a896">
                   together
                 </Text>
               </Container>

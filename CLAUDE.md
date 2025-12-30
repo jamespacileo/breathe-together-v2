@@ -412,6 +412,55 @@ The HUD uses **@react-three/uikit** for native 3D UI components inside the Canva
 - `src/hooks/useBreathPhaseDisplay.legacy.ts` - Old DOM ref pattern
 Kept for reference only. Use BreathingHUD3D.tsx instead.
 
+### Mobile Responsiveness (December 2024)
+
+All UI/HUD components now adapt to mobile, tablet, and desktop viewports for optimal user experience across devices.
+
+**Viewport Detection Hook:**
+- `src/hooks/useViewport.ts` - Real-time viewport size and device type detection
+- Breakpoints: Mobile (≤480px), Tablet (481px-768px), Desktop (769px+)
+- Provides: `isMobile`, `isTablet`, `isDesktop`, `width`, `height`, `isPortrait`, `isLandscape`
+- Performance: 100ms debounced resize listener to prevent excessive re-renders
+
+**Responsive Components:**
+
+1. **BreathingHUD3D** (`src/components/BreathingHUD3D.tsx`)
+   - Adaptive padding: 16px (mobile) → 32px (tablet) → 60px (desktop)
+   - Adaptive font sizes: Smaller on mobile for better fit
+   - Progress bar width: 80px (mobile) → 120px (desktop)
+   - All spacing scales proportionally with viewport
+
+2. **SimpleGaiaUI** (`src/components/SimpleGaiaUI.tsx`)
+   - Edge padding: 16px (mobile) → 24px (tablet) → 32px (desktop)
+   - Modal padding: 24px (mobile) → 32px (tablet) → 40px (desktop)
+   - Controls panel: Full width on mobile, fixed 260px on desktop
+   - Controls position: Bottom-center on mobile, bottom-right on desktop
+   - Phase indicator: Scaled fonts and tighter spacing on mobile
+   - Modals: 90% width with smaller border radius on mobile
+
+3. **InspirationalText** (`src/components/InspirationalText.tsx`)
+   - Already uses responsive `clamp()` for padding and font sizes
+   - No changes needed - good baseline pattern
+
+**Responsive Utilities:**
+```typescript
+const { deviceType, isMobile, isTablet } = useViewport();
+const padding = getResponsiveSpacing(deviceType, 16, 24, 32);
+const fontSize = getResponsiveFontSize(deviceType, 0.875, 1, 1.125);
+```
+
+**Mobile-Specific Patterns:**
+- Touch targets: Minimum 44px for buttons (Apple HIG compliance)
+- Safe areas: Adaptive padding prevents notch/home indicator overlap
+- Stacking: Elements stack vertically or center on narrow screens
+- Modals: Use 90% width with reduced padding on mobile
+- Text: Reduced letter-spacing and font sizes for readability
+
+**Testing Mobile Layouts:**
+- Browser DevTools: Toggle device toolbar (Cmd/Ctrl+Shift+M)
+- Test viewports: 320px (iPhone SE), 375px (iPhone), 768px (iPad)
+- Verify: No horizontal overflow, readable text, accessible touch targets
+
 ## Git Status
 
 Branch: `main` (no uncommitted changes in tracked files)
