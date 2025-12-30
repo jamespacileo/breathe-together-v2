@@ -14,6 +14,30 @@ const PHASE_DURATIONS = [
   BREATH_PHASES.HOLD_OUT,
 ];
 
+/**
+ * Calculate current phase state from cycle time
+ */
+function calculatePhaseState(cycleTime: number) {
+  let accumulatedTime = 0;
+  let phaseIndex = 0;
+
+  for (let i = 0; i < PHASE_DURATIONS.length; i++) {
+    const duration = PHASE_DURATIONS[i] ?? 0;
+    if (cycleTime < accumulatedTime + duration) {
+      phaseIndex = i;
+      break;
+    }
+    accumulatedTime += duration;
+  }
+
+  const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
+  const phaseTime = cycleTime - accumulatedTime;
+  const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+  const cycleProgress = (accumulatedTime + phaseTime) / BREATH_TOTAL_CYCLE;
+
+  return { phaseIndex, phaseDuration, phaseProgress, cycleProgress };
+}
+
 export interface PhaseIndicatorProps {
   /** Auto-hide after inactivity */
   autoHide?: boolean;
@@ -50,22 +74,8 @@ export function PhaseIndicator({ autoHide = true, autoHideTimeout = 5000 }: Phas
     const updatePhase = () => {
       const now = Date.now() / 1000;
       const cycleTime = now % BREATH_TOTAL_CYCLE;
-
-      // Determine current phase
-      let accumulatedTime = 0;
-      let phaseIndex = 0;
-      for (let i = 0; i < PHASE_DURATIONS.length; i++) {
-        const duration = PHASE_DURATIONS[i] ?? 0;
-        if (cycleTime < accumulatedTime + duration) {
-          phaseIndex = i;
-          break;
-        }
-        accumulatedTime += duration;
-      }
-
-      const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
-      const phaseTime = cycleTime - accumulatedTime;
-      const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+      const { phaseIndex, phaseDuration, phaseProgress, cycleProgress } =
+        calculatePhaseState(cycleTime);
 
       // Update phase name on transition
       if (phaseIndex !== prevPhase) {
@@ -83,7 +93,6 @@ export function PhaseIndicator({ autoHide = true, autoHideTimeout = 5000 }: Phas
 
       // Update progress bar
       if (progressRef.current) {
-        const cycleProgress = (accumulatedTime + phaseTime) / BREATH_TOTAL_CYCLE;
         progressRef.current.style.width = `${cycleProgress * 100}%`;
       }
 
@@ -175,7 +184,7 @@ export function PhaseIndicator({ autoHide = true, autoHideTimeout = 5000 }: Phas
   };
 
   return (
-    <div style={containerStyle}>
+    <output style={containerStyle} aria-label="Breathing phase indicator">
       {/* Phase Name + Timer */}
       <div
         style={{
@@ -184,18 +193,18 @@ export function PhaseIndicator({ autoHide = true, autoHideTimeout = 5000 }: Phas
           gap: spacing.sm,
         }}
       >
-        <span ref={phaseNameRef} style={phaseNameStyle}>
+        <span ref={phaseNameRef} style={phaseNameStyle} aria-live="polite">
           Inhale
         </span>
-        <span ref={timerRef} style={timerStyle}>
+        <span ref={timerRef} style={timerStyle} aria-hidden="true">
           4
         </span>
       </div>
 
       {/* Progress Bar */}
-      <div style={progressContainerStyle}>
+      <div style={progressContainerStyle} role="progressbar" aria-label="Breathing cycle progress">
         <div ref={progressRef} style={progressBarStyle} />
       </div>
-    </div>
+    </output>
   );
 }
