@@ -1,10 +1,12 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
+import { AtmosphericEffects } from '../components/AtmosphericEffects';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GaiaUI } from '../components/GaiaUI';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
+import { ForegroundParticles } from '../entities/particle/ForegroundParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { generateMockPresence } from '../lib/mockPresence';
@@ -55,7 +57,17 @@ export function BreathingLevel({
         {/* 3-Pass FBO Refraction Pipeline handles background + refraction rendering */}
         <RefractionPipeline ior={ior} backfaceIntensity={glassDepth}>
           {/* Monument Valley inspired atmosphere - clouds, lighting, fog */}
-          {showEnvironment && <Environment showClouds={true} showStars={true} />}
+          {showEnvironment && (
+            <Environment
+              showClouds={true}
+              showStars={true}
+              showForegroundClouds={true}
+              cloudOpacity={0.7}
+            />
+          )}
+
+          {/* Layered depth particles - creates atmospheric depth */}
+          {showParticles && <ForegroundParticles countPerLayer={40} baseOpacity={0.12} />}
 
           {/* Wrap rotatable entities in PresentationControls */}
           <PresentationControls
@@ -81,13 +93,17 @@ export function BreathingLevel({
             {showParticles && (
               <AtmosphericParticles
                 count={atmosphereDensity}
-                size={0.08}
-                baseOpacity={0.1}
-                breathingOpacity={0.15}
+                size={0.1}
+                baseOpacity={0.15}
+                breathingOpacity={0.2}
+                scaleBreathingRange={0.2}
               />
             )}
           </PresentationControls>
         </RefractionPipeline>
+
+        {/* Postprocessing effects for soft atmospheric feel */}
+        <AtmosphericEffects bloomIntensity={0.25} vignetteDarkness={0.35} noiseOpacity={0.02} />
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) */}
         <Html fullscreen>
