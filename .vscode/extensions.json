@@ -1,6 +1,3 @@
 {
-  "recommendations": [
-    "triplex.triplex",
-    "biomejs.biome"
-  ]
+  "recommendations": ["triplex.triplex", "biomejs.biome"]
 }
