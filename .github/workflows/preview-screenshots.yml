@@ -1,0 +1,365 @@
+name: Preview Screenshots
+
+on:
+  workflow_run:
+    workflows: ["Preview Deployment"]
+    types:
+      - completed
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' }}
+    name: Capture Screenshots
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get PR number from workflow run
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Try to get PR number from workflow_run payload
+            const prNumber = context.payload.workflow_run.pull_requests[0]?.number;
+
+            if (prNumber) {
+              core.setOutput('number', prNumber);
+              core.setOutput('found', 'true');
+              console.log(`Found PR #${prNumber} from workflow_run payload`);
+              return;
+            }
+
+            // Fallback: search for PR by head SHA (works for fork PRs too)
+            const headSha = context.payload.workflow_run.head_sha;
+            console.log(`Searching for PR with head SHA: ${headSha}`);
+
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+
+            const matchingPr = prs.find(pr => pr.head.sha === headSha);
+
+            if (matchingPr) {
+              core.setOutput('number', matchingPr.number);
+              core.setOutput('found', 'true');
+              console.log(`Found PR #${matchingPr.number} by SHA match`);
+              return;
+            }
+
+            // Final fallback: search by branch name (same-repo PRs only)
+            const headBranch = context.payload.workflow_run.head_branch;
+            console.log(`Searching for PR with head branch: ${headBranch}`);
+
+            const branchPr = prs.find(pr =>
+              pr.head.ref === headBranch &&
+              pr.head.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`
+            );
+
+            if (branchPr) {
+              core.setOutput('number', branchPr.number);
+              core.setOutput('found', 'true');
+              console.log(`Found PR #${branchPr.number} by branch match`);
+              return;
+            }
+
+            core.setOutput('found', 'false');
+            core.setFailed(`Could not find PR for SHA ${headSha} or branch ${headBranch}`);
+
+      - name: Build preview URL
+        if: steps.pr.outputs.found == 'true'
+        id: preview
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          # Cloudflare Workers subdomain - update if account changes
+          WORKERS_SUBDOMAIN: palladio-registry.workers.dev
+        run: |
+          PREVIEW_URL="https://breathe-together-v2-pr-${PR_NUMBER}.${WORKERS_SUBDOMAIN}"
+          echo "url=${PREVIEW_URL}" >> $GITHUB_OUTPUT
+          echo "Preview URL: ${PREVIEW_URL}"
+
+      - name: Wait for preview to be ready
+        if: steps.pr.outputs.found == 'true'
+        run: |
+          echo "Waiting for preview deployment to be accessible..."
+          PREVIEW_URL="${{ steps.preview.outputs.url }}"
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PREVIEW_URL" || echo "000")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Preview is ready (HTTP $HTTP_STATUS)"
+              exit 0
+            fi
+            echo "Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS: HTTP $HTTP_STATUS, waiting..."
+            sleep 5
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          echo "::warning::Preview may not be fully ready after ${MAX_ATTEMPTS} attempts, proceeding anyway..."
+
+      - name: Setup Node.js
+        if: steps.pr.outputs.found == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        if: steps.pr.outputs.found == 'true'
+        run: |
+          npm init -y
+          npm install playwright@latest
+          npx playwright install chromium --with-deps
+
+      - name: Create screenshot script
+        if: steps.pr.outputs.found == 'true'
+        run: |
+          cat > screenshot.mjs << 'EOF'
+          import { chromium } from 'playwright';
+          import { mkdir } from 'fs/promises';
+          import { existsSync } from 'fs';
+
+          const PREVIEW_URL = process.env.PREVIEW_URL;
+          const SCREENSHOTS_DIR = './screenshots';
+
+          // Viewport configurations
+          const viewports = [
+            { name: 'desktop', width: 1920, height: 1080 },
+            { name: 'tablet', width: 768, height: 1024 },
+            { name: 'mobile', width: 375, height: 667 },
+          ];
+
+          async function captureScreenshots() {
+            if (!existsSync(SCREENSHOTS_DIR)) {
+              await mkdir(SCREENSHOTS_DIR, { recursive: true });
+            }
+
+            let browser;
+            try {
+              browser = await chromium.launch({
+                args: ['--use-gl=angle', '--use-angle=swiftshader'],
+              });
+
+              console.log(`Capturing screenshots from: ${PREVIEW_URL}`);
+
+              for (const viewport of viewports) {
+                console.log(`\nCapturing ${viewport.name} (${viewport.width}x${viewport.height})...`);
+
+                const context = await browser.newContext({
+                  viewport: { width: viewport.width, height: viewport.height },
+                  // Use 1x scale to keep file sizes reasonable
+                  deviceScaleFactor: 1,
+                });
+
+                const page = await context.newPage();
+
+                try {
+                  // Navigate to the preview URL
+                  await page.goto(PREVIEW_URL, {
+                    waitUntil: 'networkidle',
+                    timeout: 60000,
+                  });
+
+                  // Wait for WebGL canvas to render
+                  await page.waitForSelector('canvas', { timeout: 30000 });
+
+                  // Additional wait for Three.js scene to initialize and render
+                  await page.waitForTimeout(5000);
+
+                  // Capture initial state
+                  await page.screenshot({
+                    path: `${SCREENSHOTS_DIR}/${viewport.name}-initial.png`,
+                    fullPage: false,
+                  });
+                  console.log(`  ✓ Captured ${viewport.name}-initial.png`);
+
+                  // Wait a few seconds for breathing animation to progress
+                  await page.waitForTimeout(4000);
+
+                  // Capture mid-cycle state
+                  await page.screenshot({
+                    path: `${SCREENSHOTS_DIR}/${viewport.name}-animation.png`,
+                    fullPage: false,
+                  });
+                  console.log(`  ✓ Captured ${viewport.name}-animation.png`);
+
+                } catch (error) {
+                  console.error(`  ✗ Error capturing ${viewport.name}:`, error.message);
+
+                  // Try to capture whatever is on screen for debugging
+                  try {
+                    await page.screenshot({
+                      path: `${SCREENSHOTS_DIR}/${viewport.name}-error.png`,
+                      fullPage: false,
+                    });
+                    console.log(`  ✓ Captured ${viewport.name}-error.png (fallback)`);
+                  } catch (e) {
+                    console.error(`  ✗ Could not capture fallback screenshot`);
+                  }
+                } finally {
+                  await context.close();
+                }
+              }
+
+              console.log('\nScreenshot capture complete!');
+            } finally {
+              if (browser) {
+                await browser.close();
+              }
+            }
+          }
+
+          captureScreenshots().catch((error) => {
+            console.error('Fatal error:', error);
+            process.exit(1);
+          });
+          EOF
+
+      - name: Capture screenshots
+        id: capture
+        if: steps.pr.outputs.found == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          node screenshot.mjs
+          # Check if we got any screenshots
+          if [ -d "./screenshots" ] && [ "$(ls -A ./screenshots 2>/dev/null)" ]; then
+            echo "has_screenshots=true" >> $GITHUB_OUTPUT
+            echo "Screenshots captured:"
+            ls -la ./screenshots/
+          else
+            echo "has_screenshots=false" >> $GITHUB_OUTPUT
+            echo "::warning::No screenshots were captured"
+          fi
+
+      - name: Upload screenshots as artifact
+        if: steps.pr.outputs.found == 'true' && steps.capture.outputs.has_screenshots == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-screenshots-pr-${{ steps.pr.outputs.number }}
+          path: screenshots/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Comment PR with screenshots
+        if: steps.pr.outputs.found == 'true'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          HAS_SCREENSHOTS: ${{ steps.capture.outputs.has_screenshots }}
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+        with:
+          script: |
+            const fs = require('fs');
+            const prNumber = parseInt(process.env.PR_NUMBER);
+            const previewUrl = process.env.PREVIEW_URL;
+            const workflowRunId = process.env.WORKFLOW_RUN_ID;
+            const hasScreenshots = process.env.HAS_SCREENSHOTS === 'true';
+            const captureOutcome = process.env.CAPTURE_OUTCOME;
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            const artifactUrl = `${repoUrl}/actions/runs/${workflowRunId}`;
+            const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+
+            // List captured screenshots
+            const screenshotsDir = './screenshots';
+            let screenshotFiles = [];
+            try {
+              screenshotFiles = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.png'));
+            } catch (e) {
+              console.log('No screenshots directory found');
+            }
+
+            // Build status indicator
+            let statusEmoji, statusText;
+            if (hasScreenshots && captureOutcome === 'success') {
+              statusEmoji = '✅';
+              statusText = 'Screenshots captured successfully';
+            } else if (hasScreenshots) {
+              statusEmoji = '⚠️';
+              statusText = 'Partial capture (some viewports may have failed)';
+            } else {
+              statusEmoji = '❌';
+              statusText = 'Screenshot capture failed - check workflow logs';
+            }
+
+            const screenshotList = screenshotFiles.length > 0
+              ? screenshotFiles.map(f => `- \`${f}\``).join('\n')
+              : '- No screenshots captured';
+
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.body.includes('<!-- preview-screenshots-comment -->')
+            );
+
+            const bodyParts = [
+              '<!-- preview-screenshots-comment -->',
+              '## 📸 Preview Screenshots',
+              '',
+              `${statusEmoji} ${statusText}`,
+              '',
+              `Screenshots captured from [preview deployment](${previewUrl})`,
+              '',
+            ];
+
+            if (hasScreenshots) {
+              bodyParts.push(
+                '### Captured Views',
+                '',
+                '| Device | Resolution | Screenshots |',
+                '|--------|------------|-------------|',
+                '| 🖥️ Desktop | 1920×1080 | Initial + Animation |',
+                '| 📱 Tablet | 768×1024 | Initial + Animation |',
+                '| 📱 Mobile | 375×667 | Initial + Animation |',
+                '',
+                '<details>',
+                '<summary>Screenshot files</summary>',
+                '',
+                screenshotList,
+                '',
+                '</details>',
+                '',
+                `**[📥 Download Screenshots](${artifactUrl})**`,
+              );
+            }
+
+            bodyParts.push(
+              '',
+              '---',
+              `<sub>Last run: ${timestamp} • [View Workflow Run](${artifactUrl})</sub>`,
+            );
+
+            const body = bodyParts.join('\n');
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body,
+              });
+              console.log('Updated existing screenshot comment');
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body,
+              });
+              console.log('Created new screenshot comment');
+            }
