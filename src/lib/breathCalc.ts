@@ -2,38 +2,71 @@ import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
 
 /**
- * Easing functions for relaxation-focused breathing
+ * Physics-based easing functions for organic breathing animation
  *
- * Designed to feel calming and organic:
- * - Inhale: Gentle filling, smooth throughout
- * - Exhale: Controlled, gradual release - key for relaxation
- * - Holds: Subtle micro-movement for organic feel
+ * Uses spring dynamics and damping principles to create natural motion:
+ * - Inhale: Smootherstep (Perlin) - physically smooth acceleration/deceleration
+ * - Exhale: Viscous release - exponential decay blended for controlled feel
+ * - Holds: Damped oscillation - subtle "alive" movement
+ *
+ * All functions guarantee exact positions at phase boundaries (0 and 1)
+ * while providing the organic feel of physical systems.
  */
 
-/** Inhale easing: Smooth S-curve, gentle and steady */
-function easeInhale(t: number): number {
-  // easeInOutSine - balanced, calming intake
-  return -(Math.cos(Math.PI * t) - 1) / 2;
+/**
+ * Smootherstep (Ken Perlin's improved version)
+ * 6t^5 - 15t^4 + 10t^3
+ *
+ * Has continuous first AND second derivatives at boundaries,
+ * resulting in extremely smooth motion that mimics physical inertia.
+ * Used in physics simulations and procedural animation.
+ */
+function smootherstep(t: number): number {
+  return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
 /**
- * Exhale easing: Controlled, gradual release
- * Starts gently, maintains steady pace - feels like "letting go" slowly
- * This is the key curve for relaxation breathing
+ * Inhale easing: Physics-smooth S-curve
+ *
+ * Uses smootherstep for natural "mass overcoming inertia" feel:
+ * - Starts slow (overcoming resistance)
+ * - Accelerates smoothly through middle
+ * - Decelerates naturally at end (lungs full)
+ */
+function easeInhale(t: number): number {
+  return smootherstep(t);
+}
+
+/**
+ * Exhale easing: Viscous controlled release
+ *
+ * Blends exponential decay with smootherstep:
+ * - Exponential: Models air pressure release (faster start)
+ * - Smootherstep: Adds controlled steadiness
+ * - Result: Natural "letting go" without abrupt changes
  */
 function easeExhale(t: number): number {
-  // Custom curve: gentle start, steady middle, soft landing
-  // Slower than typical easeOut to feel more controlled
-  const sine = -(Math.cos(Math.PI * t) - 1) / 2;
-  // Blend with linear for more controlled, steady feel
-  return sine * 0.7 + t * 0.3;
+  // Exponential release: 1 - (1-t)^2.5 gives faster start, gradual taper
+  const exponentialRelease = 1 - (1 - t) ** 2.5;
+  // Blend with smootherstep for controlled, steady feel
+  const smooth = smootherstep(t);
+  // 40% exponential (natural release) + 60% smooth (controlled)
+  return exponentialRelease * 0.4 + smooth * 0.6;
 }
 
 /**
- * Micro-movement amplitude during hold phases
- * Keeps the scene feeling "alive" - nothing in nature is perfectly still
+ * Damped oscillation parameters for hold phases
+ *
+ * Physics: Underdamped harmonic oscillator creates subtle "breathing"
+ * even during holds - nothing in nature is perfectly still.
+ *
+ * amplitude: 1.2% keeps it subtle but perceptible
+ * damping: Reduces amplitude over the hold phase
+ * frequency: ~1.5 cycles per hold for gentle rhythm
  */
-const HOLD_MICRO_AMPLITUDE = 0.015; // 1.5% subtle oscillation
+const HOLD_AMPLITUDE = 0.012;
+const HOLD_DAMPING = 0.5; // How much oscillation decreases over hold
+const HOLD_FREQUENCY = 1.5; // Oscillation cycles per hold phase
 
 /**
  * Breath Phase Convention:
@@ -87,18 +120,26 @@ export function calculateBreathState(elapsedTime: number): BreathState {
       breathPhase = easeInhale(rawProgress);
       break;
 
-    case 1: // Hold-in: Stay near 1 with subtle micro-movement
-      // Gentle oscillation centered at 1, creates "alive" feeling
-      breathPhase = 1 - HOLD_MICRO_AMPLITUDE * Math.sin(rawProgress * Math.PI * 2);
+    case 1: // Hold-in: Stay near 1 with damped oscillation
+      {
+        // Physics: Underdamped spring oscillation centered at 1
+        // Amplitude decreases over time (damping), creating settling effect
+        const dampedAmplitude1 = HOLD_AMPLITUDE * Math.exp(-HOLD_DAMPING * rawProgress);
+        breathPhase = 1 - dampedAmplitude1 * Math.sin(rawProgress * Math.PI * 2 * HOLD_FREQUENCY);
+      }
       break;
 
-    case 2: // Exhale: 1 → 0 (particles expand outward) - controlled release
+    case 2: // Exhale: 1 → 0 (particles expand outward) - viscous release
       breathPhase = 1 - easeExhale(rawProgress);
       break;
 
-    case 3: // Hold-out: Stay near 0 with subtle micro-movement
-      // Gentle oscillation centered at 0, creates "alive" feeling
-      breathPhase = HOLD_MICRO_AMPLITUDE * Math.sin(rawProgress * Math.PI * 2);
+    case 3: // Hold-out: Stay near 0 with damped oscillation
+      {
+        // Physics: Underdamped spring oscillation centered at 0
+        // Same damping behavior for consistent organic feel
+        const dampedAmplitude3 = HOLD_AMPLITUDE * Math.exp(-HOLD_DAMPING * rawProgress);
+        breathPhase = dampedAmplitude3 * Math.sin(rawProgress * Math.PI * 2 * HOLD_FREQUENCY);
+      }
       break;
 
     default:
