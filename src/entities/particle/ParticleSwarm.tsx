@@ -25,6 +25,35 @@ const MOOD_COLORS = [
   new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
 ];
 
+const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
+  grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
+  celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
+  moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
+  here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
+  anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
+  processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
+  preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+};
+
+/**
+ * Build color distribution array from users prop
+ * Extracted to reduce cognitive complexity of shard creation
+ */
+function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefined): THREE.Color[] {
+  if (!users) return [];
+
+  const colorDistribution: THREE.Color[] = [];
+  for (const [moodId, moodCount] of Object.entries(users)) {
+    const color = MOOD_TO_COLOR[moodId as MoodId];
+    if (color) {
+      for (let i = 0; i < (moodCount ?? 0); i++) {
+        colorDistribution.push(color);
+      }
+    }
+  }
+  return colorDistribution;
+}
+
 export interface ParticleSwarmProps {
   /** Number of shards (default 48 matches reference) */
   count?: number;
@@ -115,29 +144,7 @@ export function ParticleSwarm({
   // Create shard data (positions and directions)
   const shardData = useMemo(() => {
     const result: { position: THREE.Vector3; direction: THREE.Vector3; color: THREE.Color }[] = [];
-
-    // Build color distribution from users prop or random
-    const colorDistribution: THREE.Color[] = [];
-    if (users) {
-      const moodToColor: Record<MoodId, THREE.Color> = {
-        grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-        celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-        moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-        here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-        anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-        processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-        preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
-      };
-
-      for (const [moodId, moodCount] of Object.entries(users)) {
-        const color = moodToColor[moodId as MoodId];
-        if (color) {
-          for (let i = 0; i < (moodCount ?? 0); i++) {
-            colorDistribution.push(color);
-          }
-        }
-      }
-    }
+    const colorDistribution = buildColorDistribution(users);
 
     for (let i = 0; i < count; i++) {
       // Fibonacci sphere distribution
@@ -146,7 +153,7 @@ export function ParticleSwarm({
       const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
       const position = direction.clone().multiplyScalar(baseRadius);
 
-      // Select mood color
+      // Select mood color from distribution or random fallback
       const color =
         colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
 
