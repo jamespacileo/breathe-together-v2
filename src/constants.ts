@@ -33,14 +33,15 @@ export const BREATH_TOTAL_CYCLE = 16; // seconds
 
 /**
  * Visual Constants - Breathing animation parameters
- * Only includes values actually used in breath calculations
+ * Matches reference: baseRadius=4.5, expansion=2.0, core=2.4
  */
 export const VISUALS = {
-  // Sphere scale during breathing animation
-  SPHERE_SCALE_MIN: 0.3,
-  SPHERE_SCALE_MAX: 0.7,
+  // Sphere scale during breathing animation (subtle pulse like reference: 1 + breath * 0.04)
+  SPHERE_SCALE_MIN: 1.0,
+  SPHERE_SCALE_MAX: 1.04,
 
   // Particle orbit radius during breathing animation
-  PARTICLE_ORBIT_MIN: 0.75,
-  PARTICLE_ORBIT_MAX: 6.0,
+  // Reference: baseRadius (4.5) to baseRadius + expansion (6.5)
+  PARTICLE_ORBIT_MIN: 4.5,
+  PARTICLE_ORBIT_MAX: 6.5,
 } as const;

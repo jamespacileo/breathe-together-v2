@@ -12,7 +12,7 @@ export function App() {
     <ErrorBoundary>
       <Canvas
         shadows={false}
-        camera={{ position: [0, 0, 10], fov: 45 }}
+        camera={{ position: [0, 5, 22], fov: 40 }}
         gl={{ localClippingEnabled: true }}
       >
         <Stats />

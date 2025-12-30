@@ -21,8 +21,8 @@ interface CameraRigProps {
 
   /**
    * Camera base distance from origin.
-   * @min 5
-   * @max 20
+   * @min 10
+   * @max 30
    * @step 0.5
    */
   distance?: number;
@@ -35,7 +35,7 @@ interface CameraRigProps {
 
 export function CameraRig({
   parallaxIntensity = 0.4,
-  distance = 15,
+  distance = 22,
   enableRotation = false,
 }: CameraRigProps = {}) {
   // Internal constants for smoothing and movement

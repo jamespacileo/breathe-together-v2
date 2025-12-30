@@ -1,10 +1,12 @@
 /**
- * EarthGlobe - Central core visualization (ceramic earth sphere)
+ * EarthGlobe - Central core visualization (ceramic icosahedron)
  *
- * Smooth sphere that:
- * - Uses a stylized Monument Valley earth texture
+ * Faceted icosahedron that:
+ * - Uses Monument Valley inspired refraction shader
  * - Breathes with the meditation cycle (via ECS sphereScale trait)
  * - Rotates slowly on Y-axis
+ *
+ * Matches reference: IcosahedronGeometry with detail 3 for clean ceramic look
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -23,27 +25,30 @@ interface EarthGlobeProps {
   rotationSpeed?: number;
   /** Enable continuous Y-axis rotation @default true */
   enableRotation?: boolean;
-  /** Resolution of the sphere (segments) @default 64 */
-  resolution?: number;
-  /** Tint color for the ceramic look @default '#ffffff' */
+  /** Detail level of the icosahedron (0-4) @default 3 */
+  detail?: number;
+  /** Radius of the core @default 2.4 */
+  radius?: number;
+  /** Tint color for the ceramic look @default '#fffef7' */
   tintColor?: string;
 }
 
 /**
- * EarthGlobe - Renders a smooth ceramic sphere with stylized earth texture
+ * EarthGlobe - Renders a faceted ceramic icosahedron with refraction shader
  */
 export function EarthGlobe({
   rotationSpeed = 0.08,
   enableRotation = true,
-  resolution = 64,
-  tintColor = '#ffffff',
+  detail = 3,
+  radius = 2.4,
+  tintColor = '#fffef7',
 }: Partial<EarthGlobeProps> = {}) {
   const groupRef = useRef<THREE.Group>(null);
   const world = useWorld();
   const rotationRef = useRef(0);
 
-  // Sphere geometry - high resolution for smooth ceramic look and clean UVs
-  const geometry = useMemo(() => new THREE.SphereGeometry(1, resolution, resolution), [resolution]);
+  // Icosahedron geometry - faceted for Monument Valley aesthetic
+  const geometry = useMemo(() => new THREE.IcosahedronGeometry(radius, detail), [radius, detail]);
 
   // Cleanup GPU resources on unmount
   useEffect(() => {
@@ -64,12 +69,14 @@ export function EarthGlobe({
       const breathEntity = world?.queryFirst?.(sphereScale);
       if (breathEntity) {
         const scale = breathEntity.get?.(sphereScale)?.value ?? 1;
-        groupRef.current.scale.set(scale, scale, scale);
+        // Apply subtle breathing pulse (matches reference: 1.0 + easedBreath * 0.04)
+        const pulseScale = 1.0 + (scale - 1.0) * 0.5;
+        groupRef.current.scale.set(pulseScale, pulseScale, pulseScale);
       }
 
-      // Update rotation
+      // Update rotation (slow counter-clockwise like reference)
       if (enableRotation) {
-        rotationRef.current += rotationSpeed * delta;
+        rotationRef.current -= rotationSpeed * delta;
         groupRef.current.rotation.y = rotationRef.current;
       }
     } catch (error) {
