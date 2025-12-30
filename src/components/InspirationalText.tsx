@@ -11,11 +11,12 @@ const PHASE_DURATIONS = [
 ];
 
 /**
- * Calculate text opacity based on current phase and progress
- * - Inhale (phase 0): Fade in from 0 → 1
- * - Hold-in (phase 1): Stay at 1 (fully visible)
- * - Exhale (phase 2): Fade out from 1 → 0
- * - Hold-out (phase 3): Stay at 0 (hidden)
+ * Breathing Phase Timeline:
+ *
+ * |-- Inhale (3s) --|-- Hold-in (5s) --|-- Exhale (5s) --|-- Hold-out (3s) --|
+ * |   fade in 0→1   |   visible (1)    |  fade out 1→0   |   hidden (0)      |
+ *
+ * Text appears as user inhales, stays during hold, fades as they exhale.
  */
 function calculateOpacity(phaseIndex: number, phaseProgress: number): number {
   switch (phaseIndex) {
@@ -76,7 +77,8 @@ function getPhaseInfo(cycleTime: number): { phaseIndex: number; phaseProgress: n
  * Performance: Uses RAF loop with direct DOM updates (no React state for animation)
  */
 export function InspirationalText() {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const topWrapperRef = useRef<HTMLDivElement>(null);
+  const bottomWrapperRef = useRef<HTMLDivElement>(null);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const cycleCountRef = useRef(0);
   const prevPhaseRef = useRef(-1);
@@ -90,14 +92,24 @@ export function InspirationalText() {
       const cycleTime = now % BREATH_TOTAL_CYCLE;
       const { phaseIndex, phaseProgress } = getPhaseInfo(cycleTime);
 
-      // Calculate and apply opacity
+      // Calculate opacity based on breathing phase
       const opacity = calculateOpacity(phaseIndex, phaseProgress);
 
-      if (containerRef.current) {
-        containerRef.current.style.opacity = String(opacity);
-        // Subtle scale animation for depth
-        const scale = 0.95 + opacity * 0.05;
-        containerRef.current.style.transform = `translateX(-50%) scale(${scale})`;
+      // Subtle scale animation for depth
+      const scale = 0.96 + opacity * 0.04;
+
+      // Apply opacity and scale to BOTH wrappers directly
+      // This ensures backdrop-filter fades properly with the text
+      const transform = `scale(${scale})`;
+      const opacityStr = String(opacity);
+
+      if (topWrapperRef.current) {
+        topWrapperRef.current.style.opacity = opacityStr;
+        topWrapperRef.current.style.transform = transform;
+      }
+      if (bottomWrapperRef.current) {
+        bottomWrapperRef.current.style.opacity = opacityStr;
+        bottomWrapperRef.current.style.transform = transform;
       }
 
       // Track cycle completion and rotate quotes
@@ -119,45 +131,46 @@ export function InspirationalText() {
 
   const quote = MESSAGES[quoteIndex] ?? MESSAGES[0];
 
-  // Design tokens matching GaiaUI
+  // Design tokens matching GaiaUI warm palette
   const colors = {
-    text: '#6a5b4e',
-    textGlow: 'rgba(201, 160, 108, 0.6)',
-    subtleGlow: 'rgba(255, 252, 245, 0.9)',
-    // Soft backdrop gradient - warm cream fading to transparent
-    backdropCenter: 'rgba(252, 250, 245, 0.35)',
-    backdropMid: 'rgba(252, 250, 245, 0.15)',
-    backdropEdge: 'rgba(252, 250, 245, 0)',
+    text: '#5a4d42',
+    textGlow: 'rgba(201, 160, 108, 0.7)',
+    subtleGlow: 'rgba(255, 252, 245, 0.95)',
+    // Soft backdrop - warm cream with gentle opacity
+    backdropInner: 'rgba(253, 251, 247, 0.4)',
+    backdropOuter: 'rgba(253, 251, 247, 0)',
   };
 
   // Soft radial gradient backdrop for readability
+  // Applied to each wrapper so backdrop-filter animates with opacity
   const textWrapperStyle: React.CSSProperties = {
     position: 'relative',
-    padding: 'clamp(24px, 5vw, 48px) clamp(48px, 12vw, 120px)',
-    // Soft elliptical gradient - wider than tall for text shape
+    padding: 'clamp(20px, 4vw, 40px) clamp(40px, 10vw, 100px)',
+    // Soft elliptical gradient - fades smoothly to transparent
     background: `radial-gradient(
-      ellipse 100% 80% at center,
-      ${colors.backdropCenter} 0%,
-      ${colors.backdropMid} 40%,
-      ${colors.backdropEdge} 70%
+      ellipse 120% 100% at center,
+      ${colors.backdropInner} 0%,
+      ${colors.backdropOuter} 65%
     )`,
-    // Subtle blur for dreamy effect
-    backdropFilter: 'blur(2px)',
-    WebkitBackdropFilter: 'blur(2px)',
-    borderRadius: '50%',
+    // Gentle blur for dreamy/ethereal effect
+    backdropFilter: 'blur(3px)',
+    WebkitBackdropFilter: 'blur(3px)',
+    borderRadius: '100px',
+    // Start hidden - RAF loop controls opacity
+    opacity: 0,
   };
 
   const textStyle: React.CSSProperties = {
     fontFamily: "'Cormorant Garamond', Georgia, serif",
-    fontSize: 'clamp(1.8rem, 4vw, 3rem)',
+    fontSize: 'clamp(1.6rem, 3.5vw, 2.8rem)',
     fontWeight: 300,
-    letterSpacing: '0.25em',
+    letterSpacing: '0.22em',
     textTransform: 'uppercase',
     color: colors.text,
     textShadow: `
-      0 0 30px ${colors.subtleGlow},
-      0 0 60px ${colors.textGlow},
-      0 1px 8px rgba(0, 0, 0, 0.12)
+      0 0 25px ${colors.subtleGlow},
+      0 0 50px ${colors.textGlow},
+      0 1px 6px rgba(0, 0, 0, 0.1)
     `,
     textAlign: 'center',
     lineHeight: 1.2,
@@ -166,7 +179,6 @@ export function InspirationalText() {
 
   return (
     <div
-      ref={containerRef}
       style={{
         position: 'absolute',
         left: '50%',
@@ -179,16 +191,15 @@ export function InspirationalText() {
         alignItems: 'center',
         pointerEvents: 'none',
         zIndex: 50,
-        opacity: 0,
-        transition: 'opacity 0.1s linear',
-        gap: 'min(40vh, 280px)', // Space for globe in center
+        gap: 'min(38vh, 260px)', // Space for globe in center
       }}
     >
       {/* Top text - above the globe */}
       <div
+        ref={topWrapperRef}
         style={{
           ...textWrapperStyle,
-          marginTop: '-5vh',
+          marginTop: '-3vh',
         }}
       >
         <div style={textStyle}>{quote.top}</div>
@@ -196,9 +207,10 @@ export function InspirationalText() {
 
       {/* Bottom text - below the globe */}
       <div
+        ref={bottomWrapperRef}
         style={{
           ...textWrapperStyle,
-          marginBottom: '-5vh',
+          marginBottom: '-3vh',
         }}
       >
         <div style={textStyle}>{quote.bottom}</div>
