@@ -38,7 +38,7 @@ interface EarthGlobeProps {
  */
 export function EarthGlobe({
   globeScale = 2.5,
-  globeTexture = '/textures/earth-monument-valley.jpg',
+  globeTexture = '/textures/earth-texture.png',
   breathingScale = 0.02,
   rotationSpeed = 0.08,
   atmosphereIntensity = 0.15,
