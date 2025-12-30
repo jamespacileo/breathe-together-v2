@@ -215,13 +215,13 @@ export function CinematicIntro({
         transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Semi-transparent backdrop - light blur to show breathing sphere behind */}
+      {/* Semi-transparent backdrop - very light blur to show breathing sphere behind */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
           background: `radial-gradient(
             ellipse 100% 100% at center,
             ${colors.backdropInner} 0%,

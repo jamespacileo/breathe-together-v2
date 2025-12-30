@@ -75,14 +75,16 @@ export function BreathingLevel({
           {showEnvironment && <Environment showClouds={true} showStars={true} />}
 
           {/* Wrap rotatable entities in PresentationControls */}
+          {/* Disable global when intro is showing so CTA button is clickable */}
           <PresentationControls
-            global
-            cursor={true}
+            global={!showIntro}
+            cursor={!showIntro}
             snap={false}
             speed={1}
             damping={0.3}
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
+            enabled={!showIntro}
           >
             {showGlobe && <EarthGlobe />}
 
