@@ -1,7 +1,7 @@
 import { Stats } from '@react-three/drei';
-import { Canvas, extend, type ThreeToJSXElements } from '@react-three/fiber';
+import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
 import { type CSSProperties, useCallback, useState } from 'react';
-import * as THREE from 'three';
+import type * as THREE from 'three';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
@@ -20,12 +20,10 @@ const canvasContainerStyle: CSSProperties = {
   zIndex: 0,
 };
 
-// Extend R3F with Three.js types (cast required per R3F v9 migration guide)
+// Extend R3F with Three.js types
 declare module '@react-three/fiber' {
   interface ThreeElements extends ThreeToJSXElements<typeof THREE> {}
 }
-// biome-ignore lint/suspicious/noExplicitAny: R3F v9 migration guide requires casting THREE to any for extend()
-extend(THREE as any);
 
 /**
  * Default visual settings - matches GaiaUIOverlay defaults

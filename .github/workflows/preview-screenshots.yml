@@ -12,7 +12,7 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' }}
     name: Capture Screenshots
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       actions: read
 
@@ -249,6 +249,61 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      - name: Push screenshots to branch for inline display
+        if: steps.pr.outputs.found == 'true' && steps.capture.outputs.has_screenshots == 'true'
+        id: push_screenshots
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Save screenshots to temp location before branch switch
+          TEMP_SCREENSHOTS="/tmp/screenshots-pr-${PR_NUMBER}"
+          mkdir -p "${TEMP_SCREENSHOTS}"
+          cp ./screenshots/*.png "${TEMP_SCREENSHOTS}/"
+          echo "Saved screenshots to temp location:"
+          ls -la "${TEMP_SCREENSHOTS}/"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create or checkout the screenshots branch
+          SCREENSHOTS_BRANCH="screenshots"
+          PR_FOLDER="pr-${PR_NUMBER}"
+
+          # Fetch the branch if it exists, or create it as orphan
+          if git ls-remote --heads origin ${SCREENSHOTS_BRANCH} | grep -q ${SCREENSHOTS_BRANCH}; then
+            git fetch origin ${SCREENSHOTS_BRANCH}
+            git checkout ${SCREENSHOTS_BRANCH}
+          else
+            git checkout --orphan ${SCREENSHOTS_BRANCH}
+            git rm -rf . 2>/dev/null || true
+            echo "# Preview Screenshots" > README.md
+            echo "" >> README.md
+            echo "This branch contains automatically generated screenshots from PR previews." >> README.md
+            git add README.md
+            git commit -m "Initialize screenshots branch"
+          fi
+
+          # Clean up old screenshots for this PR and add new ones from temp location
+          rm -rf "${PR_FOLDER}"
+          mkdir -p "${PR_FOLDER}"
+          cp "${TEMP_SCREENSHOTS}"/*.png "${PR_FOLDER}/"
+          echo "Copied screenshots to PR folder:"
+          ls -la "${PR_FOLDER}/"
+
+          # Commit and push
+          git add "${PR_FOLDER}"
+          git commit -m "Update screenshots for PR #${PR_NUMBER}" || echo "No changes to commit"
+          git push origin ${SCREENSHOTS_BRANCH}
+
+          # Cleanup temp
+          rm -rf "${TEMP_SCREENSHOTS}"
+
+          # Output the raw URL base
+          echo "branch=${SCREENSHOTS_BRANCH}" >> $GITHUB_OUTPUT
+          echo "folder=${PR_FOLDER}" >> $GITHUB_OUTPUT
+
       - name: Comment PR with screenshots
         if: steps.pr.outputs.found == 'true'
         uses: actions/github-script@v7
@@ -258,6 +313,8 @@ jobs:
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           HAS_SCREENSHOTS: ${{ steps.capture.outputs.has_screenshots }}
           CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+          SCREENSHOTS_BRANCH: ${{ steps.push_screenshots.outputs.branch }}
+          SCREENSHOTS_FOLDER: ${{ steps.push_screenshots.outputs.folder }}
         with:
           script: |
             const fs = require('fs');
@@ -266,17 +323,29 @@ jobs:
             const workflowRunId = process.env.WORKFLOW_RUN_ID;
             const hasScreenshots = process.env.HAS_SCREENSHOTS === 'true';
             const captureOutcome = process.env.CAPTURE_OUTCOME;
+            const screenshotsBranch = process.env.SCREENSHOTS_BRANCH || 'screenshots';
+            const screenshotsFolder = process.env.SCREENSHOTS_FOLDER || `pr-${prNumber}`;
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
             const artifactUrl = `${repoUrl}/actions/runs/${workflowRunId}`;
             const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
-            // List captured screenshots
-            const screenshotsDir = './screenshots';
+            // Base URL for raw image access
+            const rawBaseUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${screenshotsBranch}/${screenshotsFolder}`;
+
+            // List captured screenshots from the PR folder on screenshots branch
+            const screenshotsDir = `./${screenshotsFolder}`;
             let screenshotFiles = [];
             try {
               screenshotFiles = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.png'));
+              console.log(`Found ${screenshotFiles.length} screenshots in ${screenshotsDir}`);
             } catch (e) {
-              console.log('No screenshots directory found');
+              console.log('No screenshots directory found, trying fallback...');
+              // Fallback: try the original screenshots directory
+              try {
+                screenshotFiles = fs.readdirSync('./screenshots').filter(f => f.endsWith('.png'));
+              } catch (e2) {
+                console.log('No screenshots found in either location');
+              }
             }
 
             // Build status indicator
@@ -291,10 +360,6 @@ jobs:
               statusEmoji = '❌';
               statusText = 'Screenshot capture failed - check workflow logs';
             }
-
-            const screenshotList = screenshotFiles.length > 0
-              ? screenshotFiles.map(f => `- \`${f}\``).join('\n')
-              : '- No screenshots captured';
 
             // Find existing comment
             const comments = await github.rest.issues.listComments({
@@ -318,23 +383,57 @@ jobs:
             ];
 
             if (hasScreenshots) {
+              // Group screenshots by device
+              const devices = [
+                { name: 'Desktop', prefix: 'desktop', emoji: '🖥️', resolution: '1920×1080' },
+                { name: 'Tablet', prefix: 'tablet', emoji: '📱', resolution: '768×1024' },
+                { name: 'Mobile', prefix: 'mobile', emoji: '📱', resolution: '375×667' },
+              ];
+
+              for (const device of devices) {
+                const deviceFiles = screenshotFiles.filter(f => f.startsWith(device.prefix));
+                if (deviceFiles.length > 0) {
+                  bodyParts.push(
+                    `### ${device.emoji} ${device.name} (${device.resolution})`,
+                    '',
+                  );
+
+                  // Add images in a table for side-by-side comparison
+                  const initialFile = deviceFiles.find(f => f.includes('initial'));
+                  const animationFile = deviceFiles.find(f => f.includes('animation'));
+                  const errorFile = deviceFiles.find(f => f.includes('error'));
+
+                  if (initialFile && animationFile) {
+                    bodyParts.push(
+                      '| Initial State | Animation State |',
+                      '|:-------------:|:---------------:|',
+                      `| ![Initial](${rawBaseUrl}/${initialFile}) | ![Animation](${rawBaseUrl}/${animationFile}) |`,
+                      '',
+                    );
+                  } else if (initialFile) {
+                    bodyParts.push(
+                      `![${device.name} Initial](${rawBaseUrl}/${initialFile})`,
+                      '',
+                    );
+                  } else if (errorFile) {
+                    bodyParts.push(
+                      `![${device.name} Error State](${rawBaseUrl}/${errorFile})`,
+                      '',
+                      '> ⚠️ Error occurred during capture - showing fallback screenshot',
+                      '',
+                    );
+                  }
+                }
+              }
+
               bodyParts.push(
-                '### Captured Views',
-                '',
-                '| Device | Resolution | Screenshots |',
-                '|--------|------------|-------------|',
-                '| 🖥️ Desktop | 1920×1080 | Initial + Animation |',
-                '| 📱 Tablet | 768×1024 | Initial + Animation |',
-                '| 📱 Mobile | 375×667 | Initial + Animation |',
-                '',
                 '<details>',
-                '<summary>Screenshot files</summary>',
+                '<summary>📥 Download Options</summary>',
                 '',
-                screenshotList,
+                `- [Download as Artifact](${artifactUrl}) (zip with all screenshots)`,
+                `- [Browse on GitHub](${repoUrl}/tree/${screenshotsBranch}/${screenshotsFolder})`,
                 '',
                 '</details>',
-                '',
-                `**[📥 Download Screenshots](${artifactUrl})**`,
               );
             }
 
