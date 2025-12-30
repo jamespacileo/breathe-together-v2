@@ -86,29 +86,19 @@ void main() {
 }
 `;
 
-// Background gradient shader (same as BackgroundGradient.tsx)
-const bgVertexShader = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = vec4(position, 1.0);
-}
-`;
-
+// Background gradient fragment shader - used for FBO capture
 const bgFragmentShader = `
 varying vec2 vUv;
 
 // Multi-stop gradient for Monument Valley sunset aesthetic
 vec3 sampleGradient(float t) {
   // 5-stop gradient with more saturated, visible colors
-  // Inspired by Monument Valley's warm sunsets transitioning to cool skies
   vec3 c0 = vec3(0.95, 0.65, 0.50);  // #f2a680 Warm terracotta/orange (bottom)
   vec3 c1 = vec3(0.92, 0.60, 0.55);  // #eb998c Soft coral/salmon
   vec3 c2 = vec3(0.85, 0.65, 0.72);  // #d9a6b8 Dusty rose/mauve
   vec3 c3 = vec3(0.75, 0.72, 0.85);  // #c0b8d9 Soft lavender
   vec3 c4 = vec3(0.70, 0.78, 0.90);  // #b3c7e6 Soft sky blue (top)
 
-  // Smooth interpolation between stops
   if (t < 0.25) {
     return mix(c0, c1, smoothstep(0.0, 0.25, t));
   } else if (t < 0.45) {
@@ -121,26 +111,25 @@ vec3 sampleGradient(float t) {
 }
 
 void main() {
-  // Base vertical gradient
   float t = vUv.y;
   vec3 color = sampleGradient(t);
 
-  // Subtle horizontal atmospheric bands (distant haze layers)
+  // Subtle atmospheric bands
   float band1 = smoothstep(0.28, 0.32, t) * smoothstep(0.36, 0.32, t);
   float band2 = smoothstep(0.58, 0.62, t) * smoothstep(0.66, 0.62, t);
   color = mix(color, color * 1.05, band1 * 0.4);
   color = mix(color, color * 1.03, band2 * 0.3);
 
-  // Soft radial vignette (subtle darkening at edges)
+  // Soft radial vignette
   vec2 center = vUv - vec2(0.5);
   float vignette = 1.0 - dot(center, center) * 0.25;
   color *= vignette;
 
-  // Warm sun glow at horizon (lower in frame)
+  // Warm sun glow at horizon
   float horizonGlow = exp(-pow((t - 0.12) * 3.5, 2.0)) * 0.15;
   color += vec3(1.0, 0.85, 0.6) * horizonGlow;
 
-  // Paper texture noise (very subtle)
+  // Paper texture noise
   float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.02;
 
   gl_FragColor = vec4(color + noise, 1.0);
@@ -156,6 +145,42 @@ interface RefractionPipelineProps {
   children?: React.ReactNode;
 }
 
+/**
+ * SceneBackground - Fullscreen gradient rendered as part of the main scene
+ * This ensures R3F's default render loop handles it properly
+ */
+function SceneBackground() {
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: bgFragmentShader,
+      depthTest: false,
+      depthWrite: false,
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      material.dispose();
+    };
+  }, [material]);
+
+  return (
+    <mesh renderOrder={-1000} position={[0, 0, -100]}>
+      <planeGeometry args={[300, 200]} />
+      <primitive object={material} ref={materialRef} attach="material" />
+    </mesh>
+  );
+}
+
 export function RefractionPipeline({
   ior = 1.3,
   backfaceIntensity = 0.3,
@@ -163,20 +188,26 @@ export function RefractionPipeline({
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
 
-  // Create render targets
+  // Create render targets for refraction
   const { envFBO, backfaceFBO } = useMemo(() => {
     const envFBO = new THREE.WebGLRenderTarget(size.width, size.height);
     const backfaceFBO = new THREE.WebGLRenderTarget(size.width, size.height);
     return { envFBO, backfaceFBO };
   }, [size.width, size.height]);
 
-  // Create background scene with ortho camera
+  // Create background scene for FBO capture (used by refraction sampling)
   const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
     const bgScene = new THREE.Scene();
     const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     const bgMaterial = new THREE.ShaderMaterial({
-      vertexShader: bgVertexShader,
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position, 1.0);
+        }
+      `,
       fragmentShader: bgFragmentShader,
     });
     const bgGeometry = new THREE.PlaneGeometry(2, 2);
@@ -186,7 +217,7 @@ export function RefractionPipeline({
     return { bgScene, orthoCamera, bgMesh };
   }, []);
 
-  // Create materials
+  // Create materials for refraction passes
   const { backfaceMaterial, refractionMaterial } = useMemo(() => {
     const backfaceMaterial = new THREE.ShaderMaterial({
       vertexShader: backfaceVertexShader,
@@ -237,9 +268,10 @@ export function RefractionPipeline({
     };
   }, [envFBO, backfaceFBO, backfaceMaterial, refractionMaterial, bgMesh]);
 
-  // 3-pass rendering loop
+  // Pre-render pass: capture background and backfaces to FBOs
+  // This runs BEFORE the main render (-1 priority)
   useFrame(() => {
-    // Collect all meshes in scene that should use refraction
+    // Collect all meshes that should use refraction
     const meshes: THREE.Mesh[] = [];
     scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
@@ -253,12 +285,12 @@ export function RefractionPipeline({
       meshDataRef.current.set(mesh, mesh.material);
     }
 
-    // Pass 1: Render background to envFBO
+    // Pass 1: Render background gradient to envFBO (for refraction sampling)
     gl.setRenderTarget(envFBO);
     gl.clear();
     gl.render(bgScene, orthoCamera);
 
-    // Pass 2: Swap to backface material, render to backfaceFBO
+    // Pass 2: Render backfaces to backfaceFBO
     for (const mesh of meshes) {
       mesh.material = backfaceMaterial;
     }
@@ -266,33 +298,33 @@ export function RefractionPipeline({
     gl.clear();
     gl.render(scene, camera);
 
-    // Pass 3: Render final composite
-    // First render background to screen
-    gl.setRenderTarget(null);
-    gl.clear();
-    gl.render(bgScene, orthoCamera);
-
-    // Update refraction material uniforms with FBO textures
+    // Restore original materials and set up refraction uniforms
     refractionMaterial.uniforms.envMap.value = envFBO.texture;
     refractionMaterial.uniforms.backfaceMap.value = backfaceFBO.texture;
 
-    // Swap to refraction material and render scene
+    // Apply refraction material to refracting meshes
     for (const mesh of meshes) {
       mesh.material = refractionMaterial;
     }
-    gl.clearDepth();
-    gl.render(scene, camera);
 
-    // Restore original materials (for next frame's scene graph consistency)
-    for (const mesh of meshes) {
-      const original = meshDataRef.current.get(mesh);
-      if (original) {
-        mesh.material = original;
-      }
-    }
-  }, 1); // Priority 1 to run before default render
+    // Reset render target so R3F renders to screen
+    gl.setRenderTarget(null);
+  }, -1); // Priority -1: run BEFORE default render
 
-  return <>{children}</>;
+  // Post-render: restore original materials
+  useFrame(() => {
+    // Restore original materials after R3F's render
+    meshDataRef.current.forEach((material, mesh) => {
+      mesh.material = material;
+    });
+  }, 1); // Priority 1: run AFTER default render
+
+  return (
+    <>
+      <SceneBackground />
+      {children}
+    </>
+  );
 }
 
 export {
