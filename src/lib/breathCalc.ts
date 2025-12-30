@@ -2,23 +2,18 @@ import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
 
 /**
- * Easing functions for different breath phases
+ * Easing function for natural breathing motion
  *
- * Each phase has its own easing curve for natural breathing feel:
- * - Inhale: easeOutQuart (fast start, gentle finish)
- * - Hold phases: easeInOutQuad (smooth sustain)
- * - Exhale: easeInSine (gentle release)
+ * easeInOutSine creates the classic "breathing" curve:
+ * - Gentle start (like beginning to inhale/exhale)
+ * - Smooth acceleration through the middle
+ * - Gentle finish (like completing the breath)
+ * - Uses the FULL duration of each phase
+ *
+ * This is the natural choice for rhythmic, organic motion.
  */
-function easeOutQuart(t: number): number {
-  return 1 - (1 - t) ** 4;
-}
-
-function easeInSine(t: number): number {
-  return 1 - Math.cos((t * Math.PI) / 2);
-}
-
-function easeInOutQuad(t: number): number {
-  return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+function easeInOutSine(t: number): number {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
 }
 
 /**
@@ -28,29 +23,31 @@ function easeInOutQuad(t: number): number {
  */
 
 /**
- * Phase configuration for data-driven calculation
- * Simplified (Dec 2024): Removed crystallization (never used by any entity)
+ * Phase configuration for breathing animation
+ *
+ * All phases use easeInOutSine for organic, breathing-like motion.
+ * The sine wave naturally models rhythmic expansion/contraction.
  */
 const PHASES = [
   {
     duration: BREATH_PHASES.INHALE,
-    ease: easeOutQuart,
-    target: (p: number) => p,
+    ease: easeInOutSine,
+    target: (p: number) => p, // 0 → 1 (particles contract inward)
   },
   {
     duration: BREATH_PHASES.HOLD_IN,
-    ease: easeInOutQuad,
-    target: () => 1,
+    ease: easeInOutSine,
+    target: () => 1, // Stay at 1 (particles held close)
   },
   {
     duration: BREATH_PHASES.EXHALE,
-    ease: easeInSine,
-    target: (p: number) => 1 - p,
+    ease: easeInOutSine,
+    target: (p: number) => 1 - p, // 1 → 0 (particles expand outward)
   },
   {
     duration: BREATH_PHASES.HOLD_OUT,
-    ease: easeInOutQuad,
-    target: () => 0,
+    ease: easeInOutSine,
+    target: () => 0, // Stay at 0 (particles held expanded)
   },
 ];
 
