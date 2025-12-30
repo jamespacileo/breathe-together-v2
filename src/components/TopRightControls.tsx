@@ -26,8 +26,10 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
     iconHover: '#5a4d42',
     iconActive: '#c9a06c', // Warm gold when active
     bg: 'rgba(252, 250, 246, 0.6)',
-    bgHover: 'rgba(252, 250, 246, 0.85)',
-    border: 'rgba(160, 140, 120, 0.2)',
+    bgHover: 'rgba(252, 250, 246, 0.9)',
+    border: 'rgba(160, 140, 120, 0.15)',
+    shadow: '0 2px 12px rgba(0, 0, 0, 0.06)',
+    shadowHover: '0 6px 20px rgba(0, 0, 0, 0.1)',
   };
 
   const stopPropagation = (e: React.PointerEvent) => {
@@ -74,16 +76,19 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
             justifyContent: 'center',
             cursor: 'pointer',
             color: audio.state.enabled ? colors.iconActive : colors.icon,
-            opacity: 0.9,
-            transition: 'all 0.3s ease',
+            boxShadow: colors.shadow,
+            transform: 'translateY(0)',
+            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = '1';
             e.currentTarget.style.background = colors.bgHover;
+            e.currentTarget.style.boxShadow = colors.shadowHover;
+            e.currentTarget.style.transform = 'translateY(-2px)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = '0.9';
             e.currentTarget.style.background = colors.bg;
+            e.currentTarget.style.boxShadow = colors.shadow;
+            e.currentTarget.style.transform = 'translateY(0)';
           }}
         >
           {audio.state.enabled ? (
@@ -161,16 +166,19 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
           justifyContent: 'center',
           cursor: 'pointer',
           color: colors.icon,
-          opacity: 0.9,
-          transition: 'all 0.3s ease',
+          boxShadow: colors.shadow,
+          transform: 'translateY(0)',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.opacity = '1';
           e.currentTarget.style.background = colors.bgHover;
+          e.currentTarget.style.boxShadow = colors.shadowHover;
+          e.currentTarget.style.transform = 'translateY(-2px)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.opacity = '0.9';
           e.currentTarget.style.background = colors.bg;
+          e.currentTarget.style.boxShadow = colors.shadow;
+          e.currentTarget.style.transform = 'translateY(0)';
         }}
       >
         <svg
@@ -213,16 +221,19 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
           justifyContent: 'center',
           cursor: 'pointer',
           color: colors.icon,
-          opacity: 0.9,
-          transition: 'all 0.3s ease',
+          boxShadow: colors.shadow,
+          transform: 'translateY(0)',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.opacity = '1';
           e.currentTarget.style.background = colors.bgHover;
+          e.currentTarget.style.boxShadow = colors.shadowHover;
+          e.currentTarget.style.transform = 'translateY(-2px)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.opacity = '0.9';
           e.currentTarget.style.background = colors.bg;
+          e.currentTarget.style.boxShadow = colors.shadow;
+          e.currentTarget.style.transform = 'translateY(0)';
         }}
       >
         <svg
