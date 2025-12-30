@@ -23,7 +23,8 @@
       "!**/.triplex",
       "!**/*.d.ts",
       "!**/.github",
-      "!**/vite.config.*"
+      "!**/vite.config.*",
+      "!**/.claude"
     ]
   },
   "formatter": {
@@ -52,11 +53,13 @@
         "useExhaustiveDependencies": "error",
         "noUndeclaredVariables": "error",
         "noChildrenProp": "error",
-        "noVoidElementsWithChildren": "error"
+        "noVoidElementsWithChildren": "error",
+        "noInvalidUseBeforeDeclaration": "error"
       },
       "suspicious": {
         "noExplicitAny": "error",
         "noDoubleEquals": "warn",
+        "noRedeclare": "error",
         "noConsole": {
           "level": "off",
           "options": {
@@ -70,7 +73,12 @@
         "useTemplate": "warn",
         "noNonNullAssertion": "warn",
         "useExportType": "warn",
-        "useImportType": "warn"
+        "useImportType": "warn",
+        "noUselessElse": "warn",
+        "useNodejsImportProtocol": "warn",
+        "useArrayLiterals": "warn",
+        "useForOf": "warn",
+        "useSelfClosingElements": "warn"
       },
       "complexity": {
         "noExcessiveCognitiveComplexity": {
@@ -79,13 +87,15 @@
             "maxAllowedComplexity": 20
           }
         },
-        "noForEach": "off"
+        "noForEach": "off",
+        "noUselessFragments": "warn"
       },
       "a11y": {
         "recommended": true
       },
       "performance": {
-        "recommended": true
+        "recommended": true,
+        "noAccumulatingSpread": "warn"
       },
       "security": {
         "recommended": true
