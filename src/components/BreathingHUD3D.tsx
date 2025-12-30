@@ -79,12 +79,14 @@ export function BreathingHUD3D() {
               <Text fontSize={10} color="#b8a896" letterSpacing={0.1} fontWeight={600}>
                 PRESENCE
               </Text>
-              <Text fontSize={16} color="#8c7b6c" fontWeight={400}>
-                {userCount}{' '}
+              <Container flexDirection="row" alignItems="baseline" gap={4}>
+                <Text fontSize={16} color="#8c7b6c" fontWeight={400}>
+                  {userCount}
+                </Text>
                 <Text fontSize={12} color="#b8a896">
                   together
                 </Text>
-              </Text>
+              </Container>
             </Container>
           </Container>
         </Fullscreen>

@@ -1,14 +1,14 @@
 /**
- * EarthGlobe - Central core visualization (stylized pastel sphere)
+ * EarthGlobe - Central core visualization (stylized textured earth)
  *
  * Features:
- * - Gradient shader matching Monument Valley pastel aesthetic
- * - Colors blend between teal, peach, and cream (matching swarm palette)
+ * - Stylized earth texture with pastel teal oceans and warm landmasses
  * - Subtle pulse animation (1.0 → 1.06, 6% scale change)
  * - Slow Y-axis rotation
- * - Soft fresnel rim for depth
+ * - Soft fresnel rim for atmospheric glow
  */
 
+import { useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
@@ -16,68 +16,49 @@ import * as THREE from 'three';
 
 import { breathPhase } from '../breath/traits';
 
-// Vertex shader for globe
+// Vertex shader for textured globe with fresnel
 const globeVertexShader = `
 varying vec3 vNormal;
-varying vec3 vPosition;
+varying vec3 vViewPosition;
 varying vec2 vUv;
 
 void main() {
   vNormal = normalize(normalMatrix * normal);
-  vPosition = position;
   vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vViewPosition = -mvPosition.xyz;
+  gl_Position = projectionMatrix * mvPosition;
 }
 `;
 
-// Fragment shader - pastel gradient with fresnel rim
+// Fragment shader - texture with fresnel rim glow
 const globeFragmentShader = `
-varying vec3 vNormal;
-varying vec3 vPosition;
-varying vec2 vUv;
-
-uniform float time;
+uniform sampler2D earthTexture;
 uniform float breathPhase;
 
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+varying vec2 vUv;
+
 void main() {
-  // Pastel colors matching the swarm (desaturated, soft)
-  vec3 teal = vec3(0.525, 0.835, 0.780);      // Soft teal #86d5c7
-  vec3 peach = vec3(0.945, 0.820, 0.725);     // Warm peach #f1d1b9
-  vec3 cream = vec3(0.965, 0.945, 0.910);     // Soft cream #f6f1e8
-  vec3 sage = vec3(0.690, 0.800, 0.690);      // Soft sage #b0ccb0
+  // Sample earth texture
+  vec3 texColor = texture2D(earthTexture, vUv).rgb;
 
-  // Latitude-based gradient (vertical bands)
-  float latitude = vPosition.y / 1.5; // Normalized to sphere radius
+  // Fresnel rim for atmospheric glow
+  vec3 viewDir = normalize(vViewPosition);
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
+  vec3 rimColor = vec3(0.75, 0.92, 0.88); // Soft teal atmospheric glow
 
-  // Create soft horizontal bands
-  float band1 = smoothstep(-0.6, 0.0, latitude);
-  float band2 = smoothstep(0.0, 0.6, latitude);
+  // Breathing modulation - subtle brightness shift
+  float breathMod = 1.0 + breathPhase * 0.08;
+  texColor *= breathMod;
 
-  // Mix colors based on latitude
-  vec3 baseColor = mix(sage, teal, band1);
-  baseColor = mix(baseColor, peach, band2 * 0.6);
-  baseColor = mix(baseColor, cream, smoothstep(0.4, 0.8, latitude) * 0.5);
-
-  // Add subtle longitude variation
-  float longitude = atan(vPosition.x, vPosition.z);
-  float longVar = sin(longitude * 3.0 + time * 0.1) * 0.5 + 0.5;
-  baseColor = mix(baseColor, cream, longVar * 0.15);
-
-  // Fresnel rim for soft glow
-  vec3 viewDir = normalize(cameraPosition - vPosition);
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
-  vec3 rimColor = vec3(1.0, 0.98, 0.95);
-
-  // Breathing modulation - subtle color shift
-  float breathMod = breathPhase * 0.1;
-  baseColor = mix(baseColor, cream, breathMod);
-
-  // Final color with rim
-  vec3 finalColor = mix(baseColor, rimColor, fresnel * 0.4);
+  // Blend texture with fresnel rim
+  vec3 finalColor = mix(texColor, rimColor, fresnel * 0.35);
 
   // Subtle top-down lighting
-  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.15;
-  finalColor += vec3(1.0) * topLight;
+  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.1;
+  finalColor += vec3(1.0, 0.98, 0.95) * topLight;
 
   gl_FragColor = vec4(finalColor, 1.0);
 }
@@ -89,36 +70,45 @@ void main() {
 interface EarthGlobeProps {
   /** Core radius @default 1.5 */
   radius?: number;
-  /** Resolution of the sphere (segments) @default 48 */
+  /** Resolution of the sphere (segments) @default 64 */
   resolution?: number;
   /** Enable continuous Y-axis rotation @default true */
   enableRotation?: boolean;
 }
 
 /**
- * EarthGlobe - Renders a stylized pastel sphere as the central core
+ * EarthGlobe - Renders a stylized textured earth as the central core
  */
 export function EarthGlobe({
   radius = 1.5,
-  resolution = 48,
+  resolution = 64,
   enableRotation = true,
 }: Partial<EarthGlobeProps> = {}) {
   const meshRef = useRef<THREE.Mesh>(null);
   const world = useWorld();
 
-  // Create shader material with pastel gradient
+  // Load earth texture
+  const earthTexture = useTexture('/textures/earth-texture.png');
+
+  // Configure texture
+  useEffect(() => {
+    earthTexture.colorSpace = THREE.SRGBColorSpace;
+    earthTexture.anisotropy = 16;
+  }, [earthTexture]);
+
+  // Create shader material with texture
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
-          time: { value: 0 },
+          earthTexture: { value: earthTexture },
           breathPhase: { value: 0 },
         },
         vertexShader: globeVertexShader,
         fragmentShader: globeFragmentShader,
         side: THREE.FrontSide,
       }),
-    [],
+    [earthTexture],
   );
 
   // Sphere geometry
@@ -138,11 +128,8 @@ export function EarthGlobe({
   /**
    * Update globe scale, rotation, and shader uniforms
    */
-  useFrame((state) => {
+  useFrame(() => {
     if (!meshRef.current) return;
-
-    // Update time uniform
-    material.uniforms.time.value = state.clock.elapsedTime;
 
     try {
       // Get breath phase for animation
