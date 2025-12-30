@@ -19,28 +19,34 @@ export const MOOD_IDS = [
 export type MoodId = (typeof MOOD_IDS)[number];
 
 /**
- * Breathing Cycle Constants (Asymmetric for natural feel)
- * Total cycle remains 16 seconds for global sync
+ * Breathing Cycle Configuration
+ *
+ * Box breathing pattern - equal duration for all phases.
+ * Total cycle = INHALE + HOLD_IN + EXHALE + HOLD_OUT
+ *
+ * To customize timing, simply change these values.
+ * All derived calculations (orbit radius, animations) adapt automatically.
  */
 export const BREATH_PHASES = {
-  INHALE: 3,
-  HOLD_IN: 5,
-  EXHALE: 5,
-  HOLD_OUT: 3,
+  INHALE: 4,
+  HOLD_IN: 4,
+  EXHALE: 4,
+  HOLD_OUT: 4,
 } as const;
 
-export const BREATH_TOTAL_CYCLE = 16; // seconds
+/** Total breathing cycle duration (derived from phase durations) */
+export const BREATH_TOTAL_CYCLE =
+  BREATH_PHASES.INHALE + BREATH_PHASES.HOLD_IN + BREATH_PHASES.EXHALE + BREATH_PHASES.HOLD_OUT;
 
 /**
  * Visual Constants - Breathing animation parameters
- * Only includes values actually used in breath calculations
+ *
+ * Simplified (Dec 2024): Removed SPHERE_SCALE_* (sphereScale trait was never used)
+ * Only orbit radius values remain (used by ParticleSwarm).
  */
 export const VISUALS = {
-  // Sphere scale during breathing animation
-  SPHERE_SCALE_MIN: 0.3,
-  SPHERE_SCALE_MAX: 0.7,
-
-  // Particle orbit radius during breathing animation
+  /** Min orbit radius (inhale - particles closest to globe) */
   PARTICLE_ORBIT_MIN: 0.75,
+  /** Max orbit radius (exhale - particles farthest from globe) */
   PARTICLE_ORBIT_MAX: 6.0,
 } as const;

@@ -1,58 +1,45 @@
 /**
  * Breath traits - individual components of breath state
  * Following Koota pattern where traits are simple value containers
+ *
+ * Architecture (Dec 2024):
+ * - Direct values from breathCalc (no damping/target intermediates)
+ * - 4 traits: breathPhase, phaseType, rawProgress, orbitRadius
+ * - All values updated directly each frame for perfect HUD/visual sync
  */
 import { trait } from 'koota';
 
 /**
  * Current breath phase: 0 = exhaled, 1 = inhaled
  * Drives all animations and visual properties
+ *
+ * Consumed by: EarthGlobe, AtmosphericParticles, CameraRig
  */
 export const breathPhase = trait({ value: 0 });
-export const targetBreathPhase = trait({ value: 0 });
-export const velocityBreathPhase = trait({ value: 0 });
 
 /**
  * Current phase type: 0-3
  * 0 = inhale, 1 = hold-in, 2 = exhale, 3 = hold-out
+ *
+ * Consumed by: HUD (phase name display)
  */
 export const phaseType = trait({ value: 0 });
 
 /**
  * Progress within the current phase (0-1)
  * Derived from the centralized breath clock
+ *
+ * Consumed by: HUD (timer countdown, progress bar)
  */
 export const rawProgress = trait({ value: 0 });
 
 /**
- * Eased progress for the current phase (0-1)
- * Used for UI/visual smoothing without recomputing locally
- */
-export const easedProgress = trait({ value: 0 });
-
-/**
- * Particle orbit radius: 3.5 (exhale) → 1.8 (inhale)
+ * Particle orbit radius: 6.0 (exhale) → 0.75 (inhale)
  * Particles spread when exhaling, contract when inhaling
+ *
+ * Consumed by: ParticleSwarm
  */
 export const orbitRadius = trait({ value: 3.5 });
-export const targetOrbitRadius = trait({ value: 3.5 });
-export const velocityOrbitRadius = trait({ value: 0 });
-
-/**
- * Central sphere scale: 0.6 (exhale) → 1.4 (inhale)
- * Sphere shrinks when exhaling, grows when inhaling
- */
-export const sphereScale = trait({ value: 0.6 });
-export const targetSphereScale = trait({ value: 0.6 });
-export const velocitySphereScale = trait({ value: 0 });
-
-/**
- * Crystallization effect: 0-1
- * Increases during hold phases to indicate stillness
- */
-export const crystallization = trait({ value: 0 });
-export const targetCrystallization = trait({ value: 0 });
-export const velocityCrystallization = trait({ value: 0 });
 
 /**
  * DEBUG TRAITS - Only spawned in debug/Triplex contexts

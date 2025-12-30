@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
-import { orbitRadius, sphereScale } from '../breath/traits';
+import { orbitRadius } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
@@ -212,7 +212,7 @@ export function ParticleSwarm({
     // Get breathing state from ECS
     let breathingRadius = baseRadius;
     try {
-      const breathEntity = world.queryFirst(orbitRadius, sphereScale);
+      const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
         breathingRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
       }

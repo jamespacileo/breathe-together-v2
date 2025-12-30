@@ -2,106 +2,135 @@ import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
 
 /**
- * Quartic ease-out function for smooth deceleration
+ * Controlled breathing easing functions for organic, relaxation-focused animation
  *
- * Used during the **inhale phase** to create a natural, energetic start that
- * gradually slows. Creates a powerful initial expansion that gently settles.
+ * Uses raised cosine ramps with linear plateau for natural motion:
+ * - Inhale/Exhale: Soft start, steady middle, soft end
+ * - Holds: Damped oscillation - subtle "alive" movement
  *
- * **Visual Effect:** Particles rapidly contract at start, then smoothly slow
- * to their final position. Sphere expands with initial energy, then settles.
- *
- * @param t - Progress value between 0 and 1
- * @returns Eased value between 0 and 1
+ * All functions guarantee exact positions at phase boundaries (0 and 1)
+ * while providing the organic feel of controlled breathing.
  */
-function easeOutQuart(t: number): number {
-  return 1 - (1 - t) ** 4;
+
+/**
+ * Controlled breath curve with soft start/end and steady middle
+ *
+ * Creates organic controlled breathing feel with three sections:
+ * 1. Soft start: Raised cosine ramp (velocity 0 → steady)
+ * 2. Steady middle: Linear/constant velocity (controlled, even flow)
+ * 3. Soft end: Raised cosine ramp (velocity steady → 0)
+ *
+ * The raised cosine provides C1-continuous transitions (smooth velocity)
+ * while the linear middle creates the "steady controlled" breathing feel.
+ *
+ * @param t Progress 0-1
+ * @param startRamp Fraction of time for start ramp (0.2-0.35)
+ * @param endRamp Fraction of time for end ramp (0.2-0.35)
+ */
+function controlledBreathCurve(t: number, startRamp: number, endRamp: number): number {
+  // Clamp input
+  t = Math.max(0, Math.min(1, t));
+
+  // Middle section starts after startRamp and ends before endRamp
+  const middleEnd = 1 - endRamp;
+
+  // Calculate steady velocity needed to cover remaining distance
+  // Total distance = 1, ramps each cover (ramp * velocity / 2)
+  // So: startRamp*v/2 + middleDuration*v + endRamp*v/2 = 1
+  // v * (startRamp/2 + middleDuration + endRamp/2) = 1
+  // v = 1 / (1 - startRamp/2 - endRamp/2)
+  const middleVelocity = 1 / (1 - startRamp / 2 - endRamp / 2);
+
+  // Height reached at end of start ramp
+  const startRampHeight = (middleVelocity * startRamp) / 2;
+  // Height at start of end ramp
+  const endRampStart = 1 - (middleVelocity * endRamp) / 2;
+
+  if (t <= startRamp) {
+    // Raised cosine ramp-up: smooth acceleration from 0 to middleVelocity
+    // Integral of (1 - cos(πx))/2 from 0 to x = x/2 - sin(πx)/(2π)
+    const normalized = t / startRamp;
+    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
+    return middleVelocity * startRamp * integral;
+  }
+  if (t >= middleEnd) {
+    // Raised cosine ramp-down: smooth deceleration from middleVelocity to 0
+    const normalized = (t - middleEnd) / endRamp;
+    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
+    return endRampStart + middleVelocity * endRamp * integral;
+  }
+  // Linear middle: constant velocity for steady, controlled feel
+  return startRampHeight + middleVelocity * (t - startRamp);
 }
 
 /**
- * Sinusoidal ease-in function for gentle acceleration
+ * Inhale easing: Controlled, organic breath intake
  *
- * Used during the **exhale phase** to create a calm, meditative release.
- * Starts very slowly and gradually accelerates into a natural flow.
- *
- * **Visual Effect:** Particles begin expanding almost imperceptibly, then
- * smoothly accelerate. Sphere contracts with peaceful, meditative quality.
- *
- * @param t - Progress value between 0 and 1
- * @returns Eased value between 0 and 1
+ * Uses raised cosine ramps with linear plateau:
+ * - Soft start (25%): Gentle acceleration, overcoming initial resistance
+ * - Steady middle (50%): Constant velocity, controlled even intake
+ * - Soft end (25%): Gentle deceleration, lungs filling naturally
  */
-function easeInSine(t: number): number {
-  return 1 - Math.cos((t * Math.PI) / 2);
+function easeInhale(t: number): number {
+  return controlledBreathCurve(t, 0.25, 0.25);
 }
 
 /**
- * Quadratic ease-in-out function for balanced motion
+ * Exhale easing: Controlled, relaxing breath release
  *
- * Used during **hold phases** (both hold-in and hold-out) to create subtle
- * movement that feels stable yet alive. Provides gentle breathing feel even
- * during holds.
+ * Uses asymmetric ramps for relaxation breathing:
+ * - Soft start (20%): Gentle release begins
+ * - Steady middle (50%): Constant velocity, controlled even exhale
+ * - Extended soft end (30%): Extra gentle landing for relaxation
  *
- * **Visual Effect:** Smooth, symmetrical motion during crystallization pulses.
- * Creates organic "aliveness" without disturbing the meditative stillness.
- *
- * @param t - Progress value between 0 and 1
- * @returns Eased value between 0 and 1
+ * The longer end ramp creates the "letting go" feel essential for relaxation.
  */
-function easeInOutQuad(t: number): number {
-  return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+function easeExhale(t: number): number {
+  // Asymmetric: shorter start ramp, longer end ramp for relaxed finish
+  return controlledBreathCurve(t, 0.2, 0.3);
 }
+
+/**
+ * Damped oscillation parameters for hold phases
+ *
+ * Physics: Underdamped harmonic oscillator creates subtle "breathing"
+ * even during holds - nothing in nature is perfectly still.
+ *
+ * amplitude: 1.2% keeps it subtle but perceptible
+ * damping: Reduces amplitude over the hold phase
+ * frequency: ~1.5 cycles per hold for gentle rhythm
+ */
+const HOLD_AMPLITUDE = 0.012;
+const HOLD_DAMPING = 0.5; // How much oscillation decreases over hold
+const HOLD_FREQUENCY = 1.5; // Oscillation cycles per hold phase
 
 /**
  * Breath Phase Convention:
- * - breathPhase: 0 = fully exhaled (particles expanded, orb contracted)
- *                1 = fully inhaled (particles contracted, orb expanded)
+ * - breathPhase: 0 = fully exhaled (particles expanded)
+ *                1 = fully inhaled (particles contracted)
  */
 
 /**
- * Phase configuration for data-driven calculation
- */
-const PHASES = [
-  {
-    duration: BREATH_PHASES.INHALE,
-    ease: easeOutQuart,
-    target: (p: number) => p,
-    crystal: () => 0,
-  },
-  {
-    duration: BREATH_PHASES.HOLD_IN,
-    ease: easeInOutQuad,
-    target: () => 1,
-    crystal: (p: number) => 0.5 + p * 0.4,
-  },
-  {
-    duration: BREATH_PHASES.EXHALE,
-    ease: easeInSine,
-    target: (p: number) => 1 - p,
-    crystal: () => 0,
-  },
-  {
-    duration: BREATH_PHASES.HOLD_OUT,
-    ease: easeInOutQuad,
-    target: () => 0,
-    crystal: (p: number) => 0.4 + p * 0.35,
-  },
-];
-
-/**
- * Calculate all breathing values for a given UTC time
- * Returns a snapshot of the current breath state
+ * Calculate breathing state for relaxation-focused animation
+ *
+ * Phase types:
+ * - 0: Inhale (gentle filling)
+ * - 1: Hold-in (peaceful stillness with micro-movement)
+ * - 2: Exhale (controlled, gradual release)
+ * - 3: Hold-out (calm stillness with micro-movement)
  */
 export function calculateBreathState(elapsedTime: number): BreathState {
-  // Compute phase timing
-  const cycleSeconds = BREATH_TOTAL_CYCLE;
-  const scale = cycleSeconds / BREATH_TOTAL_CYCLE;
+  const cycleTime = elapsedTime % BREATH_TOTAL_CYCLE;
+
+  // Phase durations from config (easily changeable)
   const phaseDurations = [
-    BREATH_PHASES.INHALE * scale,
-    BREATH_PHASES.HOLD_IN * scale,
-    BREATH_PHASES.EXHALE * scale,
-    BREATH_PHASES.HOLD_OUT * scale,
+    BREATH_PHASES.INHALE,
+    BREATH_PHASES.HOLD_IN,
+    BREATH_PHASES.EXHALE,
+    BREATH_PHASES.HOLD_OUT,
   ];
 
-  const cycleTime = elapsedTime % cycleSeconds;
+  // Find current phase
   let accumulatedTime = 0;
   let phaseIndex = 0;
 
@@ -114,20 +143,49 @@ export function calculateBreathState(elapsedTime: number): BreathState {
     accumulatedTime += duration;
   }
 
+  // Progress within current phase (0-1)
   const phaseDuration = phaseDurations[phaseIndex] ?? 1;
   const phaseTime = cycleTime - accumulatedTime;
-  const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+  const rawProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
 
-  // Calculate breathing state
-  const phase = PHASES[phaseIndex];
-  const easedProgress = phase.ease(phaseProgress);
+  // Calculate breath phase based on current phase type
+  let breathPhase: number;
 
-  const breathPhase = phase.target(easedProgress);
-  const crystallization = phase.crystal(easedProgress);
+  switch (phaseIndex) {
+    case 0: // Inhale: 0 → 1 (particles contract inward)
+      breathPhase = easeInhale(rawProgress);
+      break;
 
-  // Derive visual parameters from breath phase
-  const sphereScale =
-    VISUALS.SPHERE_SCALE_MIN + breathPhase * (VISUALS.SPHERE_SCALE_MAX - VISUALS.SPHERE_SCALE_MIN);
+    case 1: // Hold-in: Stay near 1 with damped oscillation
+      {
+        // Physics: Underdamped spring oscillation centered at 1
+        // Amplitude decreases over time (damping), creating settling effect
+        const dampedAmplitude1 = HOLD_AMPLITUDE * Math.exp(-HOLD_DAMPING * rawProgress);
+        breathPhase = 1 - dampedAmplitude1 * Math.sin(rawProgress * Math.PI * 2 * HOLD_FREQUENCY);
+      }
+      break;
+
+    case 2: // Exhale: 1 → 0 (particles expand outward) - viscous release
+      breathPhase = 1 - easeExhale(rawProgress);
+      break;
+
+    case 3: // Hold-out: Stay near 0 with damped oscillation
+      {
+        // Physics: Underdamped spring oscillation centered at 0
+        // Same damping behavior for consistent organic feel
+        const dampedAmplitude3 = HOLD_AMPLITUDE * Math.exp(-HOLD_DAMPING * rawProgress);
+        breathPhase = dampedAmplitude3 * Math.sin(rawProgress * Math.PI * 2 * HOLD_FREQUENCY);
+      }
+      break;
+
+    default:
+      breathPhase = 0;
+  }
+
+  // Clamp to valid range
+  breathPhase = Math.max(0, Math.min(1, breathPhase));
+
+  // Derive orbit radius (particles spread on exhale, contract on inhale)
   const orbitRadius =
     VISUALS.PARTICLE_ORBIT_MAX -
     breathPhase * (VISUALS.PARTICLE_ORBIT_MAX - VISUALS.PARTICLE_ORBIT_MIN);
@@ -135,10 +193,7 @@ export function calculateBreathState(elapsedTime: number): BreathState {
   return {
     breathPhase,
     phaseType: phaseIndex,
-    rawProgress: phaseProgress,
-    easedProgress,
-    crystallization,
-    sphereScale,
+    rawProgress,
     orbitRadius,
   };
 }
