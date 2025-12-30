@@ -2,6 +2,7 @@ import { Cloud, Clouds, Stars } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { BackgroundGradient } from './BackgroundGradient';
 
 interface EnvironmentProps {
   enabled?: boolean;
@@ -35,11 +36,11 @@ export function Environment({
   const { scene } = useThree();
   const cloudsRef = useRef<THREE.Group>(null);
 
-  // Add very subtle fog - pushed far back to not wash out gradient
+  // Clear any scene background - let BackgroundGradient handle it
   useEffect(() => {
-    // Fog starts far away to preserve gradient visibility
-    scene.fog = new THREE.Fog(0xf2ccc0, 40, 100);
     scene.background = null;
+    // Disable fog - it washes out the gradient
+    scene.fog = null;
 
     return () => {
       scene.fog = null;
@@ -57,7 +58,8 @@ export function Environment({
 
   return (
     <group>
-      {/* Note: Background gradient is rendered by RefractionPipeline shader */}
+      {/* Animated gradient background - renders behind everything */}
+      <BackgroundGradient />
 
       {/* Volumetric 3D clouds - soft wisps, low opacity to not cover gradient */}
       {showClouds && (
