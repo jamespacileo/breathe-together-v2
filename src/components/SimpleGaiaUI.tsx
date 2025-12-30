@@ -235,18 +235,26 @@ export function SimpleGaiaUI({
         progressRef.current.style.width = `${cycleProgress * 100}%`;
       }
 
-      // Simulate presence count with subtle variation
-      if (presenceCountRef.current && Math.random() < 0.01) {
-        const baseCount = 75;
-        const variation = Math.floor(Math.random() * 10) - 5;
-        presenceCountRef.current.textContent = `${baseCount + variation}`;
-      }
-
       animationId = requestAnimationFrame(updatePhase);
     };
 
     updatePhase();
     return () => cancelAnimationFrame(animationId);
+  }, []);
+
+  // Presence count simulation - updates every 2 seconds with subtle variation
+  // Moved out of RAF loop to avoid 60 random number generations per second
+  useEffect(() => {
+    const updatePresenceCount = () => {
+      if (presenceCountRef.current) {
+        const baseCount = 75;
+        const variation = Math.floor(Math.random() * 10) - 5;
+        presenceCountRef.current.textContent = `${baseCount + variation}`;
+      }
+    };
+
+    const intervalId = setInterval(updatePresenceCount, 2000);
+    return () => clearInterval(intervalId);
   }, []);
 
   // Keyboard shortcut: Press 'T' to toggle tuning controls

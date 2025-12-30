@@ -85,7 +85,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                   Error Details
                 </summary>
                 <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
-                  {this.state.error.toString()}
+                  {this.state.error.stack || this.state.error.toString()}
                 </pre>
               </details>
             )}
