@@ -151,6 +151,7 @@ export function SimpleGaiaUI({
   const phaseNameRef = useRef<HTMLSpanElement>(null);
   const timerRef = useRef<HTMLSpanElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const progressContainerRef = useRef<HTMLDivElement>(null);
   const presenceCountRef = useRef<HTMLSpanElement>(null);
 
   // Responsive viewport detection
@@ -229,10 +230,18 @@ export function SimpleGaiaUI({
         timerRef.current.textContent = `${remaining}`;
       }
 
-      // Update progress bar
+      // Update progress bar with breathing-synchronized glow
       if (progressRef.current) {
         const cycleProgress = (accumulatedTime + phaseTime) / BREATH_TOTAL_CYCLE;
         progressRef.current.style.width = `${cycleProgress * 100}%`;
+      }
+
+      // Breathing-synchronized glow on progress container
+      if (progressContainerRef.current) {
+        // Intensity peaks during inhale (phase 0) and hold-in (phase 1)
+        const glowIntensity =
+          phaseIndex === 0 || phaseIndex === 1 ? 0.4 + phaseProgress * 0.3 : 0.2;
+        progressContainerRef.current.style.boxShadow = `0 0 ${8 + glowIntensity * 12}px rgba(201, 160, 108, ${glowIntensity})`;
       }
 
       animationId = requestAnimationFrame(updatePhase);
@@ -309,10 +318,10 @@ export function SimpleGaiaUI({
   };
 
   const labelStyle: React.CSSProperties = {
-    fontSize: '0.65rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.15em',
+    fontSize: '0.72rem',
+    fontWeight: 500,
+    fontVariant: 'small-caps',
+    letterSpacing: '0.08em',
     color: colors.text,
     marginBottom: '8px',
     display: 'flex',
@@ -321,12 +330,14 @@ export function SimpleGaiaUI({
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    accentColor: colors.accent,
     cursor: 'pointer',
-    height: '4px',
-    borderRadius: '2px',
+    height: '6px',
+    borderRadius: '3px',
     appearance: 'none',
-    background: colors.border,
+    WebkitAppearance: 'none',
+    background: `linear-gradient(to right, ${colors.accent}40, ${colors.border})`,
+    outline: 'none',
+    transition: 'background 0.2s ease',
   };
 
   const sectionStyle: React.CSSProperties = {
@@ -426,12 +437,13 @@ export function SimpleGaiaUI({
           <h1
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: isMobile ? '1.1rem' : isTablet ? '1.25rem' : '1.4rem',
-              fontWeight: 300,
+              fontSize: isMobile ? '1.2rem' : isTablet ? '1.25rem' : '1.4rem',
+              fontWeight: isMobile ? 400 : 300,
               margin: 0,
-              letterSpacing: isMobile ? '0.1em' : '0.15em',
+              letterSpacing: isMobile ? '0.08em' : '0.15em',
               textTransform: 'uppercase',
               color: colors.text,
+              textShadow: isMobile ? '0 1px 8px rgba(255, 252, 245, 0.8)' : 'none',
             }}
           >
             Breathe Together
@@ -473,8 +485,10 @@ export function SimpleGaiaUI({
               maxWidth: isMobile ? '90%' : '420px',
               width: isMobile ? '90%' : '420px',
               opacity: settingsAnimated ? 1 : 0,
-              transform: `scale(${settingsAnimated ? 1 : 0.95})`,
-              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              transform: settingsAnimated
+                ? 'scale(1) translateY(0)'
+                : 'scale(0.97) translateY(12px)',
+              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
           >
             <h2
@@ -592,8 +606,10 @@ export function SimpleGaiaUI({
               maxHeight: '85vh',
               overflow: 'auto',
               opacity: moodSelectAnimated ? 1 : 0,
-              transform: `scale(${moodSelectAnimated ? 1 : 0.95})`,
-              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              transform: moodSelectAnimated
+                ? 'scale(1) translateY(0)'
+                : 'scale(0.97) translateY(12px)',
+              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
           >
             <h2
@@ -623,7 +639,10 @@ export function SimpleGaiaUI({
             </p>
 
             {/* Mood Categories */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div
+              className="modal-stagger"
+              style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
+            >
               {moodCategories.map((category) => (
                 <div
                   key={category.name}
@@ -680,6 +699,7 @@ export function SimpleGaiaUI({
                       <button
                         key={mood.id}
                         type="button"
+                        className="mood-button"
                         onClick={() => handleMoodSelect(mood.id)}
                         onPointerDown={stopPropagation}
                         style={{
@@ -691,7 +711,6 @@ export function SimpleGaiaUI({
                           borderRadius: '16px',
                           fontSize: '0.75rem',
                           cursor: 'pointer',
-                          transition: 'all 0.2s ease',
                           fontWeight: selectedMood === mood.id ? 600 : 400,
                         }}
                       >
@@ -903,13 +922,17 @@ export function SimpleGaiaUI({
             <div style={sectionStyle}>
               <div
                 style={{
-                  fontSize: '0.55rem',
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
                   color: colors.textDim,
                   marginBottom: '12px',
-                  letterSpacing: '0.2em',
+                  letterSpacing: '0.12em',
+                  fontVariant: 'small-caps',
+                  borderBottom: `1px solid ${colors.border}`,
+                  paddingBottom: '6px',
                 }}
               >
-                PARTICLES
+                Particles
               </div>
 
               <label style={{ marginBottom: '14px', display: 'block' }}>
@@ -965,13 +988,17 @@ export function SimpleGaiaUI({
             <div style={sectionStyle}>
               <div
                 style={{
-                  fontSize: '0.55rem',
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
                   color: colors.textDim,
                   marginBottom: '12px',
-                  letterSpacing: '0.2em',
+                  letterSpacing: '0.12em',
+                  fontVariant: 'small-caps',
+                  borderBottom: `1px solid ${colors.border}`,
+                  paddingBottom: '6px',
                 }}
               >
-                GLASS
+                Glass
               </div>
 
               <label style={{ marginBottom: '14px', display: 'block' }}>
@@ -1011,13 +1038,17 @@ export function SimpleGaiaUI({
             <div style={{ marginBottom: '16px' }}>
               <div
                 style={{
-                  fontSize: '0.55rem',
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
                   color: colors.textDim,
                   marginBottom: '12px',
-                  letterSpacing: '0.2em',
+                  letterSpacing: '0.12em',
+                  fontVariant: 'small-caps',
+                  borderBottom: `1px solid ${colors.border}`,
+                  paddingBottom: '6px',
                 }}
               >
-                ATMOSPHERE
+                Atmosphere
               </div>
 
               <label style={{ display: 'block' }}>
@@ -1080,16 +1111,18 @@ export function SimpleGaiaUI({
       <div
         style={{
           position: 'absolute',
-          bottom: isMobile ? `${edgePadding + 8}px` : '44px',
+          bottom: isMobile
+            ? `max(${edgePadding + 16}px, env(safe-area-inset-bottom, 24px))`
+            : '44px',
           left: '50%',
           transform: `translateX(-50%) translateY(${hasEntered ? 0 : 16}px)`,
-          opacity: hasEntered ? 0.9 : 0,
+          opacity: hasEntered ? 0.95 : 0,
           transition: 'all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
           pointerEvents: 'none',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: isMobile ? '10px' : '14px',
+          gap: isMobile ? '12px' : '14px',
         }}
       >
         {/* Phase Name + Timer */}
@@ -1097,19 +1130,19 @@ export function SimpleGaiaUI({
           style={{
             display: 'flex',
             alignItems: 'baseline',
-            gap: isMobile ? '8px' : '10px',
+            gap: isMobile ? '10px' : '10px',
           }}
         >
           <span
             ref={phaseNameRef}
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: isMobile ? '1.5rem' : isTablet ? '1.35rem' : '1.5rem',
+              fontSize: isMobile ? '1.75rem' : isTablet ? '1.5rem' : '1.5rem',
               fontWeight: 300,
-              letterSpacing: isMobile ? '0.15em' : '0.18em',
+              letterSpacing: isMobile ? '0.12em' : '0.18em',
               textTransform: 'uppercase',
               color: colors.text,
-              textShadow: `0 2px 16px ${colors.accentGlow}, 0 1px 4px rgba(0, 0, 0, 0.1)`, // Stronger shadow for contrast
+              textShadow: `0 2px 20px ${colors.accentGlow}, 0 1px 6px rgba(0, 0, 0, 0.15)`,
             }}
           >
             Inhale
@@ -1118,12 +1151,11 @@ export function SimpleGaiaUI({
             ref={timerRef}
             style={{
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              fontSize: isMobile ? '1rem' : '0.95rem',
-              fontWeight: 300,
+              fontSize: isMobile ? '1.1rem' : '0.95rem',
+              fontWeight: 400,
               color: colors.textDim,
-              minWidth: '1em',
+              minWidth: '1.2em',
               textAlign: 'center',
-              opacity: 0.9, // Increased from 0.8 for better visibility
             }}
           >
             4
@@ -1132,13 +1164,15 @@ export function SimpleGaiaUI({
 
         {/* Progress Bar */}
         <div
+          ref={progressContainerRef}
           style={{
-            width: isMobile ? '80px' : '100px',
-            height: '1.5px',
+            width: isMobile ? '100px' : '100px',
+            height: isMobile ? '3px' : '2px',
             background: colors.border,
-            borderRadius: '1px',
+            borderRadius: '2px',
             overflow: 'hidden',
             boxShadow: `0 0 8px ${colors.accentGlow}`,
+            transition: 'box-shadow 0.3s ease',
           }}
         >
           <div
@@ -1147,28 +1181,29 @@ export function SimpleGaiaUI({
               height: '100%',
               width: '0%',
               background: `linear-gradient(90deg, ${colors.accent}, ${colors.textGlow})`,
-              borderRadius: '1px',
+              borderRadius: '2px',
               transition: 'width 0.08s linear',
             }}
           />
         </div>
 
-        {/* Presence Count - Subtle */}
+        {/* Presence Count */}
         <div
           style={{
-            fontSize: isMobile ? '0.7rem' : '0.65rem',
-            color: colors.textDim,
-            opacity: 0.7, // Increased from 0.6 for better readability
-            letterSpacing: '0.1em',
+            fontSize: isMobile ? '0.75rem' : '0.65rem',
+            fontWeight: isMobile ? 500 : 400,
+            color: colors.text,
+            opacity: isMobile ? 0.7 : 0.6,
+            letterSpacing: isMobile ? '0.08em' : '0.1em',
             textTransform: 'uppercase',
-            marginTop: isMobile ? '2px' : '4px',
+            marginTop: isMobile ? '4px' : '4px',
           }}
         >
           <span ref={presenceCountRef}>75</span> breathing together
         </div>
       </div>
 
-      {/* CSS Animation for fade in/out */}
+      {/* CSS Animation for fade in/out + Custom Slider Styling */}
       <style>
         {`
           @keyframes fadeInOut {
@@ -1176,6 +1211,94 @@ export function SimpleGaiaUI({
             10% { opacity: 0.8; }
             90% { opacity: 0.8; }
             100% { opacity: 0; }
+          }
+
+          /* Custom Range Slider Thumb */
+          input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #d4a76f, #c9a06c);
+            cursor: pointer;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(201, 160, 108, 0.4), 0 1px 2px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+          }
+
+          input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            box-shadow: 0 4px 16px rgba(201, 160, 108, 0.6), 0 2px 4px rgba(0, 0, 0, 0.15);
+          }
+
+          input[type="range"]::-webkit-slider-thumb:active {
+            transform: scale(0.95);
+            box-shadow: 0 1px 4px rgba(201, 160, 108, 0.3);
+          }
+
+          input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #d4a76f, #c9a06c);
+            cursor: pointer;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(201, 160, 108, 0.4), 0 1px 2px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+          }
+
+          input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.15);
+            box-shadow: 0 4px 16px rgba(201, 160, 108, 0.6), 0 2px 4px rgba(0, 0, 0, 0.15);
+          }
+
+          /* Focus state for accessibility */
+          input[type="range"]:focus {
+            outline: none;
+          }
+
+          input[type="range"]:focus::-webkit-slider-thumb {
+            box-shadow: 0 0 0 3px rgba(201, 160, 108, 0.3), 0 2px 8px rgba(201, 160, 108, 0.4);
+          }
+
+          /* Button focus states */
+          button:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(201, 160, 108, 0.5), 0 0 0 4px rgba(201, 160, 108, 0.2) !important;
+          }
+
+          /* Modal stagger entrance animation */
+          @keyframes slideUp {
+            from {
+              opacity: 0;
+              transform: translateY(12px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          .modal-stagger > * {
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            opacity: 0;
+          }
+
+          .modal-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+          .modal-stagger > *:nth-child(2) { animation-delay: 0.1s; }
+          .modal-stagger > *:nth-child(3) { animation-delay: 0.15s; }
+          .modal-stagger > *:nth-child(4) { animation-delay: 0.2s; }
+          .modal-stagger > *:nth-child(5) { animation-delay: 0.25s; }
+          .modal-stagger > *:nth-child(6) { animation-delay: 0.3s; }
+
+          /* Mood button hover effect */
+          .mood-button {
+            transition: all 0.2s ease;
+          }
+          .mood-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
           }
         `}
       </style>
