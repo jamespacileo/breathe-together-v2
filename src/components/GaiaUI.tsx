@@ -3,6 +3,7 @@ import { useAudioAvailable } from '../audio';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { AudioControls } from './AudioControls';
+import { InspirationalText } from './InspirationalText';
 
 // Phase configuration
 const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'] as const;
@@ -217,6 +218,9 @@ export function GaiaUI({
         transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
+      {/* Inspirational Text - Above & Beyond style messages */}
+      <InspirationalText />
+
       {/* Upper-Left: Museum Label Title */}
       <div
         onPointerDown={stopPropagation}
