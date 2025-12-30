@@ -14,9 +14,9 @@ import type { BreathingLevelProps } from '../types/sceneProps';
  */
 const TUNING_DEFAULTS = {
   particleCounts: { sparse: 24, normal: 48, dense: 96 },
-  refraction: 1.3, // IOR matching reference
-  backfaceIntensity: 0.3, // Backface normal blending
-  baseRadius: 4.5, // Orbit radius matching reference
+  ior: 1.3, // Index of Refraction
+  backfaceIntensity: 0.3, // Glass depth/distortion
+  orbitRadius: 4.5, // Base orbit radius
   atmosphericParticleCount: 100,
 };
 
@@ -39,7 +39,9 @@ export function BreathingLevel({
         ? TUNING_DEFAULTS.particleCounts.dense
         : TUNING_DEFAULTS.particleCounts.normal,
   );
-  const [refraction, setRefraction] = useState(TUNING_DEFAULTS.refraction);
+  const [ior, setIor] = useState(TUNING_DEFAULTS.ior);
+  const [glassDepth, setGlassDepth] = useState(TUNING_DEFAULTS.backfaceIntensity);
+  const [orbitRadius, setOrbitRadius] = useState(TUNING_DEFAULTS.orbitRadius);
 
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
 
@@ -47,7 +49,7 @@ export function BreathingLevel({
     <ErrorBoundary>
       <Suspense fallback={null}>
         {/* 3-Pass FBO Refraction Pipeline handles background + refraction rendering */}
-        <RefractionPipeline ior={refraction} backfaceIntensity={TUNING_DEFAULTS.backfaceIntensity}>
+        <RefractionPipeline ior={ior} backfaceIntensity={glassDepth}>
           {/* Wrap rotatable entities in PresentationControls */}
           <PresentationControls
             global
@@ -61,11 +63,7 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm
-                count={harmony}
-                users={moods}
-                baseRadius={TUNING_DEFAULTS.baseRadius}
-              />
+              <ParticleSwarm count={harmony} users={moods} baseRadius={orbitRadius} />
             )}
 
             {showParticles && (
@@ -84,8 +82,12 @@ export function BreathingLevel({
           <GaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
-            refraction={refraction}
-            setRefraction={setRefraction}
+            ior={ior}
+            setIor={setIor}
+            glassDepth={glassDepth}
+            setGlassDepth={setGlassDepth}
+            orbitRadius={orbitRadius}
+            setOrbitRadius={setOrbitRadius}
           />
         </Html>
       </Suspense>
