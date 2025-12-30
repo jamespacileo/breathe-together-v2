@@ -11,7 +11,7 @@
  * Missing files will show a console warning but won't break the app.
  */
 
-import type { SoundDefinition, SoundCategory } from './types';
+import type { SoundCategory, SoundDefinition } from './types';
 
 export const SOUNDS: Record<string, SoundDefinition> = {
   // ─────────────────────────────────────────────────────

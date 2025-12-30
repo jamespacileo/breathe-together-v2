@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { useAudio, getNatureSoundIds } from '../audio';
+import { getNatureSoundIds, useAudio } from '../audio';
 
 interface AudioControlsProps {
   /** Design tokens for consistent styling */
@@ -46,9 +46,7 @@ export function AudioControls({
   const natureSounds = getNatureSoundIds();
 
   // Count loaded sounds
-  const loadedCount = Object.values(state.loadingStates).filter(
-    (s) => s.loaded
-  ).length;
+  const loadedCount = Object.values(state.loadingStates).filter((s) => s.loaded).length;
   const totalCount = Object.keys(state.loadingStates).length;
 
   return (
@@ -90,9 +88,7 @@ export function AudioControls({
           <label style={{ marginBottom: '14px', display: 'block' }}>
             <div style={labelStyle}>
               <span>Volume</span>
-              <span style={{ fontWeight: 400 }}>
-                {Math.round(state.masterVolume * 100)}%
-              </span>
+              <span style={{ fontWeight: 400 }}>{Math.round(state.masterVolume * 100)}%</span>
             </div>
             <input
               type="range"

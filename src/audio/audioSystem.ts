@@ -6,10 +6,7 @@
  */
 
 import type { World } from 'koota';
-import {
-  phaseType,
-  easedProgress,
-} from '../entities/breath/traits';
+import { easedProgress, phaseType } from '../entities/breath/traits';
 import type { AudioEngine } from './AudioEngine';
 
 /**
@@ -17,11 +14,7 @@ import type { AudioEngine } from './AudioEngine';
  *
  * Reads breath state from ECS and updates audio engine parameters.
  */
-export function audioSystem(
-  world: World,
-  _delta: number,
-  engine: AudioEngine | null
-): void {
+export function audioSystem(world: World, _delta: number, engine: AudioEngine | null): void {
   // Skip if engine not ready
   if (!engine?.isReady()) return;
 

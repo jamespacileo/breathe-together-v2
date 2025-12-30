@@ -5,20 +5,20 @@
  * Integrates with the ECS system via useFrame.
  */
 
+import { useFrame } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import {
   createContext,
+  type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useRef,
   useState,
-  useCallback,
-  type ReactNode,
 } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { useWorld } from 'koota/react';
 import { AudioEngine } from './AudioEngine';
 import { audioSystem } from './audioSystem';
-import type { AudioState, AudioContextValue } from './types';
+import type { AudioContextValue, AudioState } from './types';
 
 // Default state
 const defaultState: AudioState = {
@@ -65,52 +65,61 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Enable/disable audio
-  const setEnabled = useCallback(async (enabled: boolean) => {
-    if (enabled) {
-      // Initialize engine if not already
-      if (!engineRef.current) {
-        console.log(LOG_PREFIX, 'Initializing audio engine...');
+  const setEnabled = useCallback(
+    async (enabled: boolean) => {
+      if (enabled) {
+        // Initialize engine if not already
+        if (!engineRef.current) {
+          console.log(LOG_PREFIX, 'Initializing audio engine...');
 
-        const engine = new AudioEngine({
-          enabled: true,
-          masterVolume: state.masterVolume,
-          ambientEnabled: state.ambientEnabled,
-          breathEnabled: state.breathEnabled,
-          natureSound: state.natureSound,
-          chimesEnabled: state.chimesEnabled,
-        });
+          const engine = new AudioEngine({
+            enabled: true,
+            masterVolume: state.masterVolume,
+            ambientEnabled: state.ambientEnabled,
+            breathEnabled: state.breathEnabled,
+            natureSound: state.natureSound,
+            chimesEnabled: state.chimesEnabled,
+          });
 
-        const loadingStates = await engine.init();
-        engineRef.current = engine;
+          const loadingStates = await engine.init();
+          engineRef.current = engine;
 
-        // Start ambient sounds
-        engine.startAmbient();
+          // Start ambient sounds
+          engine.startAmbient();
 
-        // Start nature sound if set
-        if (state.natureSound) {
-          engine.setNatureSound(state.natureSound);
+          // Start nature sound if set
+          if (state.natureSound) {
+            engine.setNatureSound(state.natureSound);
+          }
+
+          setState((s) => ({
+            ...s,
+            enabled: true,
+            ready: true,
+            loadingStates: Object.fromEntries(loadingStates),
+          }));
+        } else {
+          // Resume existing engine
+          engineRef.current.resume();
+          engineRef.current.startAmbient();
+          setState((s) => ({ ...s, enabled: true }));
         }
-
-        setState((s) => ({
-          ...s,
-          enabled: true,
-          ready: true,
-          loadingStates: Object.fromEntries(loadingStates),
-        }));
       } else {
-        // Resume existing engine
-        engineRef.current.resume();
-        engineRef.current.startAmbient();
-        setState((s) => ({ ...s, enabled: true }));
+        // Disable audio
+        if (engineRef.current) {
+          engineRef.current.stopAll();
+        }
+        setState((s) => ({ ...s, enabled: false }));
       }
-    } else {
-      // Disable audio
-      if (engineRef.current) {
-        engineRef.current.stopAll();
-      }
-      setState((s) => ({ ...s, enabled: false }));
-    }
-  }, [state.masterVolume, state.ambientEnabled, state.breathEnabled, state.natureSound, state.chimesEnabled]);
+    },
+    [
+      state.masterVolume,
+      state.ambientEnabled,
+      state.breathEnabled,
+      state.natureSound,
+      state.chimesEnabled,
+    ],
+  );
 
   // Set master volume
   const setMasterVolume = useCallback((volume: number) => {
@@ -173,9 +182,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     setChimesEnabled,
   };
 
-  return (
-    <AudioContext.Provider value={value}>{children}</AudioContext.Provider>
-  );
+  return <AudioContext.Provider value={value}>{children}</AudioContext.Provider>;
 }
 
 /**

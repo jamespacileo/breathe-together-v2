@@ -6,8 +6,8 @@
  */
 
 import * as Tone from 'tone';
-import { SOUNDS, getSoundsByCategory } from './registry';
-import type { AudioState, SoundState, SoundCategory } from './types';
+import { getSoundsByCategory, SOUNDS } from './registry';
+import type { AudioState, SoundCategory, SoundState } from './types';
 
 // Prefix for console messages
 const LOG_PREFIX = '[Audio]';
@@ -85,8 +85,7 @@ export class AudioEngine {
         console.log(LOG_PREFIX, `✓ Loaded: ${id}`);
       } catch (error) {
         // Soft failure - warn but don't throw
-        const errorMessage =
-          error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         this.loadingStates.set(id, {
           loaded: false,
           playing: false,
@@ -97,7 +96,7 @@ export class AudioEngine {
           LOG_PREFIX,
           `⚠ Missing audio file: ${def.path}`,
           `\n  To fix: Add the file to public${def.path}`,
-          `\n  The app will continue without this sound.`
+          `\n  The app will continue without this sound.`,
         );
       }
     });
@@ -105,14 +104,9 @@ export class AudioEngine {
     await Promise.allSettled(loadPromises);
 
     // Summary
-    const loaded = Array.from(this.loadingStates.values()).filter(
-      (s) => s.loaded
-    ).length;
+    const loaded = Array.from(this.loadingStates.values()).filter((s) => s.loaded).length;
     const total = Object.keys(SOUNDS).length;
-    console.log(
-      LOG_PREFIX,
-      `Loaded ${loaded}/${total} sounds. Missing sounds will be skipped.`
-    );
+    console.log(LOG_PREFIX, `Loaded ${loaded}/${total} sounds. Missing sounds will be skipped.`);
   }
 
   /**
@@ -165,6 +159,16 @@ export class AudioEngine {
   }
 
   /**
+   * Update playing state for a sound
+   */
+  private setPlayingState(id: string, playing: boolean): void {
+    const current = this.loadingStates.get(id);
+    if (current) {
+      this.loadingStates.set(id, { ...current, playing });
+    }
+  }
+
+  /**
    * Handle phase transition - trigger phase-specific sounds
    */
   onPhaseChange(newPhase: number, _oldPhase: number): void {
@@ -180,10 +184,7 @@ export class AudioEngine {
         const player = this.players.get(id);
         if (player && player.state !== 'started') {
           player.start();
-          this.loadingStates.set(id, {
-            ...this.loadingStates.get(id)!,
-            playing: true,
-          });
+          this.setPlayingState(id, true);
         }
       }
     }
@@ -250,10 +251,7 @@ export class AudioEngine {
         const player = this.players.get(id);
         if (player && player.state !== 'started') {
           player.start();
-          this.loadingStates.set(id, {
-            ...this.loadingStates.get(id)!,
-            playing: true,
-          });
+          this.setPlayingState(id, true);
         }
       }
     });
@@ -267,10 +265,7 @@ export class AudioEngine {
       const player = this.players.get(id);
       if (player && player.state === 'started') {
         player.stop();
-        this.loadingStates.set(id, {
-          ...this.loadingStates.get(id)!,
-          playing: false,
-        });
+        this.setPlayingState(id, false);
       }
     });
   }
@@ -284,10 +279,7 @@ export class AudioEngine {
       const currentPlayer = this.players.get(this.state.natureSound);
       if (currentPlayer && currentPlayer.state === 'started') {
         currentPlayer.stop();
-        this.loadingStates.set(this.state.natureSound, {
-          ...this.loadingStates.get(this.state.natureSound)!,
-          playing: false,
-        });
+        this.setPlayingState(this.state.natureSound, false);
       }
     }
 
@@ -298,10 +290,7 @@ export class AudioEngine {
       const player = this.players.get(soundId);
       if (player && player.state !== 'started') {
         player.start();
-        this.loadingStates.set(soundId, {
-          ...this.loadingStates.get(soundId)!,
-          playing: true,
-        });
+        this.setPlayingState(soundId, true);
       }
     }
   }
@@ -350,7 +339,9 @@ export class AudioEngine {
    */
   dispose(): void {
     this.stopAll();
-    this.players.forEach((player) => player.dispose());
+    this.players.forEach((player) => {
+      player.dispose();
+    });
     this.players.clear();
     this.masterGain.dispose();
     this.ready = false;

@@ -18,19 +18,19 @@ export { AudioProvider, useAudio, useAudioAvailable } from './AudioProvider';
 
 // Registry helpers
 export {
-  SOUNDS,
-  getSoundsByCategory,
-  getSoundIds,
   getNatureSoundIds,
   getSound,
+  getSoundIds,
+  getSoundsByCategory,
+  SOUNDS,
 } from './registry';
 
 // Types
 export type {
-  AudioState,
   AudioContextValue,
+  AudioState,
+  BreathSyncConfig,
   SoundCategory,
   SoundDefinition,
   SoundState,
-  BreathSyncConfig,
 } from './types';
