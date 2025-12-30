@@ -1,19 +1,21 @@
 /**
- * ParticleSwarm - Monument Valley inspired icosahedral shards
+ * ParticleSwarm - Monument Valley inspired icosahedral shards with 3D glass effect
  *
  * Uses separate Mesh objects (not InstancedMesh) to match reference exactly.
- * Each mesh has per-vertex color attribute for mood coloring.
- * Rendered via RefractionPipeline 3-pass FBO system.
+ * Each icosahedron shard uses MeshTransmissionMaterial for realistic glass appearance
+ * with refraction, chromatic aberration, and transparency.
+ *
+ * Based on tutorial: https://blog.olivierlarose.com/tutorials/3d-glass-effect
  */
 
+import { MeshTransmissionMaterial } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { orbitRadius, sphereScale } from '../breath/traits';
-import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
 const MOOD_COLORS = [
@@ -38,12 +40,48 @@ export interface ParticleSwarmProps {
   buffer?: number;
   /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
   maxShardSize?: number;
-}
 
-interface ShardData {
-  mesh: THREE.Mesh;
-  direction: THREE.Vector3;
-  geometry: THREE.IcosahedronGeometry;
+  // Glass Material Properties
+  /**
+   * Glass thickness - controls the depth of the glass material.
+   * @min 0 @max 3 @step 0.05
+   * @default 0.2
+   */
+  glassThickness?: number;
+
+  /**
+   * Surface roughness - controls how matte or polished the glass appears.
+   * @min 0 @max 1 @step 0.1
+   * @default 0
+   */
+  glassRoughness?: number;
+
+  /**
+   * Transmission (transparency) - controls how much light passes through.
+   * @min 0 @max 1 @step 0.1
+   * @default 1
+   */
+  glassTransmission?: number;
+
+  /**
+   * Index of Refraction (IOR) - controls how much light bends through the glass.
+   * @min 0 @max 3 @step 0.1
+   * @default 1.2
+   */
+  glassIor?: number;
+
+  /**
+   * Chromatic Aberration - color separation effect from light refraction.
+   * @min 0 @max 1 @step 0.01
+   * @default 0.02
+   */
+  glassChromaticAberration?: number;
+
+  /**
+   * Backside rendering - enables rendering of back faces for hollow objects.
+   * @default true
+   */
+  glassBackside?: boolean;
 }
 
 export function ParticleSwarm({
@@ -54,10 +92,15 @@ export function ParticleSwarm({
   globeRadius = 1.5,
   buffer = 0.3,
   maxShardSize = 0.6,
+  glassThickness = 0.2,
+  glassRoughness = 0,
+  glassTransmission = 1,
+  glassIor = 1.2,
+  glassChromaticAberration = 0.02,
+  glassBackside = true,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
-  const shardsRef = useRef<ShardData[]>([]);
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -69,13 +112,9 @@ export function ParticleSwarm({
     [globeRadius, shardSize, buffer],
   );
 
-  // Create shared material (will be swapped by RefractionPipeline)
-  const material = useMemo(() => createFrostedGlassMaterial(), []);
-
-  // Create shards with per-vertex colors
-  const shards = useMemo(() => {
-    const result: ShardData[] = [];
-    const currentShardSize = shardSize;
+  // Create shard data (positions and directions)
+  const shardData = useMemo(() => {
+    const result: { position: THREE.Vector3; direction: THREE.Vector3; color: THREE.Color }[] = [];
 
     // Build color distribution from users prop or random
     const colorDistribution: THREE.Color[] = [];
@@ -101,73 +140,26 @@ export function ParticleSwarm({
     }
 
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.IcosahedronGeometry(currentShardSize, 0);
-
-      // Set per-vertex color attribute
-      const mood =
-        colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
-      const vertexCount = geometry.attributes.position.count;
-      const colors = new Float32Array(vertexCount * 3);
-      for (let c = 0; c < colors.length; c += 3) {
-        colors[c] = mood.r;
-        colors[c + 1] = mood.g;
-        colors[c + 2] = mood.b;
-      }
-      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
       // Fibonacci sphere distribution
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
       const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+      const position = direction.clone().multiplyScalar(baseRadius);
 
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.userData.useRefraction = true; // Mark for RefractionPipeline
-      mesh.position.copy(direction).multiplyScalar(baseRadius);
-      mesh.lookAt(0, 0, 0);
-      mesh.frustumCulled = false;
+      // Select mood color
+      const color =
+        colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
 
-      result.push({ mesh, direction, geometry });
+      result.push({ position, direction, color });
     }
 
     return result;
-  }, [count, users, baseRadius, shardSize, material]);
-
-  // Add meshes to group and store ref
-  useEffect(() => {
-    const group = groupRef.current;
-    if (!group) return;
-
-    // Clear previous children
-    while (group.children.length > 0) {
-      group.remove(group.children[0]);
-    }
-
-    // Add new shards
-    for (const shard of shards) {
-      group.add(shard.mesh);
-    }
-    shardsRef.current = shards;
-
-    // Cleanup on unmount
-    return () => {
-      for (const shard of shards) {
-        shard.geometry.dispose();
-        group.remove(shard.mesh);
-      }
-    };
-  }, [shards]);
-
-  // Cleanup material on unmount
-  useEffect(() => {
-    return () => {
-      material.dispose();
-    };
-  }, [material]);
+  }, [count, users, baseRadius]);
 
   // Animation loop - update positions and rotations
   useFrame(() => {
-    const currentShards = shardsRef.current;
-    if (currentShards.length === 0) return;
+    const group = groupRef.current;
+    if (!group) return;
 
     // Get breathing state from ECS
     let breathingRadius = baseRadius;
@@ -183,18 +175,50 @@ export function ParticleSwarm({
     // Clamp radius to prevent shards from penetrating globe
     const currentRadius = Math.max(breathingRadius, minOrbitRadius);
 
-    // Update each shard
-    for (const shard of currentShards) {
-      // Update position based on clamped breathing radius
-      shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
+    // Update each shard mesh
+    group.children.forEach((child, i) => {
+      const shard = shardData[i];
+      if (shard && child instanceof THREE.Mesh) {
+        // Update position based on clamped breathing radius
+        child.position.copy(shard.direction).multiplyScalar(currentRadius);
 
-      // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
-      shard.mesh.rotation.x += 0.002;
-      shard.mesh.rotation.y += 0.003;
-    }
+        // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
+        child.rotation.x += 0.002;
+        child.rotation.y += 0.003;
+      }
+    });
   });
 
-  return <group ref={groupRef} name="Particle Swarm" />;
+  return (
+    <group ref={groupRef} name="Particle Swarm">
+      {shardData.map((shard) => {
+        // Stable key based on position (won't change during runtime)
+        const key = `shard-${shard.position.x.toFixed(3)}-${shard.position.y.toFixed(3)}-${shard.position.z.toFixed(3)}`;
+        return (
+          <mesh
+            key={key}
+            position={shard.position}
+            onUpdate={(mesh) => mesh.lookAt(0, 0, 0)}
+            frustumCulled={false}
+          >
+            <icosahedronGeometry args={[shardSize, 0]} />
+            <MeshTransmissionMaterial
+              thickness={glassThickness}
+              roughness={glassRoughness}
+              transmission={glassTransmission}
+              ior={glassIor}
+              chromaticAberration={glassChromaticAberration}
+              backside={glassBackside}
+              color={shard.color}
+              // Performance optimizations
+              samples={6}
+              resolution={512}
+            />
+          </mesh>
+        );
+      })}
+    </group>
+  );
 }
 
 export default ParticleSwarm;
