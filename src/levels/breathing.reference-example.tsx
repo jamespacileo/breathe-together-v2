@@ -14,7 +14,6 @@
 
 import { BreathingSphere } from '../entities/breathingSphere';
 import { Environment } from '../entities/environment';
-import { Lighting } from '../entities/lighting';
 import type { BreathingDebugSceneProps, BreathingLevelProps } from '../types/sceneProps';
 
 // ============================================================================
@@ -33,19 +32,11 @@ import type { BreathingDebugSceneProps, BreathingLevelProps } from '../types/sce
  */
 export function RecommendedScene({
   // Scene-owned (has defaults here)
-  /** @type color */
-  backgroundColor = '#0a0f1a',
-  lightingPreset,
-  lightingIntensity,
-  environmentPreset,
+  environmentPreset = 'studio',
   environmentAtmosphere,
 }: Partial<BreathingLevelProps> = {}) {
   return (
     <>
-      <color attach="background" args={[backgroundColor]} />
-
-      <Lighting preset={lightingPreset} intensity={lightingIntensity} />
-
       <Environment preset={environmentPreset} atmosphere={environmentAtmosphere} />
 
       <BreathingSphere />
@@ -65,12 +56,12 @@ export function RecommendedScene({
  * - Scene intentionally uses different defaults
  */
 export function DebugScene({
-  // Override for debug: dramatic lighting
-  lightingPreset = 'dramatic',
+  // Override for debug: cosmic environment
+  environmentPreset = 'cosmic',
 
   ...restProps
 }: Partial<BreathingDebugSceneProps> = {}) {
-  return <RecommendedScene lightingPreset={lightingPreset} {...restProps} />;
+  return <RecommendedScene environmentPreset={environmentPreset} {...restProps} />;
 }
 
 // ============================================================================

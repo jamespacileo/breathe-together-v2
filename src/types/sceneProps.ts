@@ -11,13 +11,6 @@ export type CurveType = 'phase-based' | 'rounded-wave';
 // ============================================================================
 
 export interface SharedVisualProps {
-  /**
-   * Background color of the scene.
-   * @group "Scene Appearance"
-   * @type color
-   */
-  backgroundColor?: string;
-
   // Particles
   /**
    * Density of the particle swarm.
@@ -27,34 +20,28 @@ export interface SharedVisualProps {
   particleDensity?: 'sparse' | 'normal' | 'dense';
 }
 
-export interface SharedLightingProps {
-  /**
-   * Lighting mood preset.
-   * @group "Lighting"
-   * @enum ["warm", "cool", "neutral", "dramatic"]
-   */
-  lightingPreset?: 'warm' | 'cool' | 'neutral' | 'dramatic';
-
-  /**
-   * Global intensity multiplier for all lights.
-   * @group "Lighting"
-   * @min 0
-   * @max 2
-   * @step 0.1
-   */
-  lightingIntensity?: number;
-}
-
 export interface SharedEnvironmentProps {
   /**
-   * Environment mood preset (stars, nebula, floor).
+   * Environment mood preset - controls lighting, shadows, HDR environment, and backdrop colors.
+   *
+   * - **meditation**: Soft, gentle lighting with calm blues/teals and starfield
+   * - **cosmic**: Dramatic, contrasted lighting with deep purples and dense stars
+   * - **minimal**: Balanced, neutral lighting with subtle atmosphere
+   * - **studio**: Bright, even lighting with warm tones and stars
+   *
    * @group "Environment"
    * @enum ["meditation", "cosmic", "minimal", "studio"]
    */
   environmentPreset?: 'meditation' | 'cosmic' | 'minimal' | 'studio';
 
   /**
-   * Atmospheric density (stars, sparkles, nebula opacity).
+   * Atmospheric density multiplier (affects star count, sparkle opacity, point light intensity).
+   *
+   * Controls the intensity of all atmospheric elements:
+   * - 0.0: Minimal atmosphere, faint effects
+   * - 0.5: Balanced atmosphere (default)
+   * - 1.0: Rich, dense atmosphere with maximum sparkles and stars
+   *
    * @group "Environment"
    * @min 0
    * @max 1
@@ -188,15 +175,7 @@ export interface EntityVisibilityProps {
   showParticles?: boolean;
 
   /**
-   * Show Lighting entity.
-   *
-   * @group "Entity Visibility"
-   * @default true
-   */
-  showLighting?: boolean;
-
-  /**
-   * Show Environment entity (stars, floor, point light).
+   * Show Environment entity (lighting, shadows, backdrop, stars, sparkles).
    *
    * @group "Entity Visibility"
    * @default true
@@ -209,7 +188,6 @@ export interface EntityVisibilityProps {
 // ============================================================================
 
 export type BreathingLevelProps = SharedVisualProps &
-  SharedLightingProps &
   SharedEnvironmentProps &
   SharedPostProcessingProps &
   EntityVisibilityProps;

@@ -1,29 +1,24 @@
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { easing } from 'maath';
 import { useEffect, useMemo, useRef } from 'react';
 import { createNoise3D } from 'simplex-noise';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { PARTICLE_PHYSICS, VISUALS } from '../../constants';
-import { getMoodColorCounts, MOOD_METADATA } from '../../lib/colors';
+import { MOOD_METADATA } from '../../lib/colors';
 import { generateFibonacciSphere } from '../../lib/fibonacciSphere';
 import { breathPhase, crystallization, orbitRadius, sphereScale } from '../breath/traits';
 
 const noise3D = createNoise3D();
 
 // ============================================================================
-// PARTICLE STYLE PRESET SYSTEM
+// GLASS MATERIAL SYSTEM
 // ============================================================================
 
-type ParticleStyle = 'soft' | 'crystalline' | 'organic';
-type GeometryType = 'plane' | 'icosahedron' | 'sphere';
-type MaterialType = 'basic' | 'standard';
-type BlendingMode = 'additive' | 'normal';
+type MaterialType = 'physical';
+type BlendingMode = 'normal';
 
-interface ParticleStyleConfig {
-  geometry: GeometryType;
-  geometryDetail: number;
+interface GlassMaterialConfig {
   material: MaterialType;
   blending: BlendingMode;
   opacity: number;
@@ -31,42 +26,26 @@ interface ParticleStyleConfig {
   roughness: number;
   emissiveIntensity: number;
   depthWrite: boolean;
+  transmission: number;
+  thickness: number;
+  ior: number;
+  clearcoat: number;
+  clearcoatRoughness: number;
 }
 
-const PARTICLE_STYLE_PRESETS: Record<ParticleStyle, ParticleStyleConfig> = {
-  soft: {
-    geometry: 'icosahedron',
-    geometryDetail: 2,
-    material: 'basic',
-    blending: 'additive',
-    opacity: 0.6,
-    metalness: 0,
-    roughness: 1.0,
-    emissiveIntensity: 0,
-    depthWrite: false,
-  },
-  crystalline: {
-    geometry: 'icosahedron',
-    geometryDetail: 0,
-    material: 'standard',
-    blending: 'normal',
-    opacity: 0.8,
-    metalness: 0.7,
-    roughness: 0.3,
-    emissiveIntensity: 0.3,
-    depthWrite: true,
-  },
-  organic: {
-    geometry: 'sphere',
-    geometryDetail: 10,
-    material: 'standard',
-    blending: 'normal',
-    opacity: 0.7,
-    metalness: 0.1,
-    roughness: 0.7,
-    emissiveIntensity: 0.2,
-    depthWrite: true,
-  },
+const GLASS_MATERIAL: GlassMaterialConfig = {
+  material: 'physical',
+  blending: 'normal',
+  opacity: 0.95, // Nearly opaque to see edge highlights
+  metalness: 0.0, // Dielectric (glass)
+  roughness: 0.15, // ✅ Glossy surface for sharp reflections on facets
+  emissiveIntensity: 0.8, // ✅ Strong internal glow for mood-colored particles
+  depthWrite: true,
+  transmission: 0.5, // ✅ Less see-through, more edge-focused
+  thickness: 0.6, // ✅ Thinner glass for sharper refraction
+  ior: 1.5, // Standard glass IOR
+  clearcoat: 1.0, // ✅ Maximum edge reflection coating
+  clearcoatRoughness: 0.05, // ✅ Mirror-sharp edge highlights (neon effect)
 };
 
 interface ParticleSwarmProps {
@@ -112,14 +91,14 @@ interface ParticleSwarmProps {
    * and maxScale with breathing rhythm. Final size also affected by user/filler
    * distinction (user 1.2x, filler 0.8x) and phase pulse.
    *
-   * **When to adjust:** Subtle particles (0.02-0.04), standard (0.05), prominent (0.08-0.12)
-   * **Typical range:** Subtle (0.02) → Standard (0.05, balanced) → Prominent (0.1) → Large (0.15+)
+   * **When to adjust:** Small (0.1-0.13), medium (0.15), large (0.2-0.25)
+   * **Typical range:** Small (0.1) → Medium (0.15, balanced) → Large (0.2) → XLarge (0.25+)
    * **Interacts with:** maxScale (defines pulse range), breathPhase (current scale)
    * **Performance note:** No performance impact; just a multiplier
    *
    * @group "Visual Size"
-   * @min 0.01 @max 0.2 @step 0.01
-   * @default 0.05 (production baseline: balanced visibility without distraction)
+   * @min 0.05 @max 0.3 @step 0.01
+   * @default 0.15 (production baseline: visible facets and edges on glass icosahedrons)
    */
   minScale?: number;
 
@@ -130,144 +109,52 @@ interface ParticleSwarmProps {
    * and maxScale with breathing. Larger range creates more dramatic pulsing.
    * Should be >= minScale.
    *
-   * **When to adjust:** Subtle pulse (0.06-0.08), standard (0.1), dramatic (0.15-0.2)
-   * **Typical range:** Subtle (0.06) → Standard (0.1, balanced) → Dramatic (0.15) → Extreme (0.2+)
+   * **When to adjust:** Small pulse (0.2-0.25), medium (0.3), large (0.35-0.4)
+   * **Typical range:** Small (0.2) → Medium (0.3, balanced) → Large (0.35) → XLarge (0.4+)
    * **Interacts with:** minScale (defines pulse range), breathPhase (current scale)
    * **Performance note:** No performance impact; just a multiplier
    *
    * @group "Visual Size"
-   * @min 0.05 @max 0.5 @step 0.01
-   * @default 0.1 (production baseline: noticeable but not distracting pulse)
+   * @min 0.1 @max 0.6 @step 0.01
+   * @default 0.3 (production baseline: prominent ice crystal appearance at inhale)
    */
   maxScale?: number;
 
   /**
-   * Minimum orbit radius (how close particles get during exhale).
+   * Motion intensity multiplier (wind + jitter combined).
    *
-   * Particles spring toward this radius during exhale phase. Lower values bring
-   * particles closer to the central sphere. Should be > sphere radius to avoid
-   * z-fighting with sphere surface.
+   * Unified control for particle motion intensity. Controls both wind (organic drift)
+   * and jitter (held-breath vibration) simultaneously. Values < 1.0 create calm,
+   * meditative motion; values > 1.0 create energetic, dynamic motion.
    *
-   * **When to adjust:** Tight/intimate (0.5-0.8), standard (0.8-1.2), spacious (1.5-2.0)
-   * **Typical range:** Tight (0.5) → Standard (0.8, production) → Spacious (1.5) → Distant (2.0)
-   * **Interacts with:** sphereScale (sphere size), repulsionOffset (collision buffer), maxRadius (expansion range)
-   * **Performance note:** No performance impact; affects spring target calculation only
+   * **When to adjust:** Calm/meditative (0.5-0.8), standard (1.0), energetic (1.2-1.8)
+   * **Typical range:** Calm (0.5) → Standard (1.0, balanced) → Dynamic (1.5) → Chaotic (2.0+)
+   * **Interacts with:** crystallization (wind auto-dampens during holds)
+   * **Performance note:** No impact; just multipliers on force calculations
    *
-   * @group "Physics - Orbit"
-   * @min 0.1 @max 2.0 @step 0.1
-   * @default 0.8 (production baseline: close to sphere without collision)
+   * @group "Physics - Forces"
+   * @min 0.0 @max 2.0 @step 0.1
+   * @default 1.0 (production baseline: standard motion)
    */
-  minRadius?: number;
+  motionIntensity?: number;
 
   /**
-   * Maximum orbit radius (how far particles go during inhale).
+   * Spring responsiveness multiplier (spread tightness).
    *
-   * Particles spring toward this radius during inhale phase. Larger values create
-   * expansive, breath-like motion. Difference between min/max defines the
-   * breathing expansion range.
+   * Controls how snappily particles respond to breathing phase changes. Higher values
+   * create tight, responsive motion following breath; lower values create loose,
+   * organic drift. Preset-specific base values are multiplied by this.
    *
-   * **When to adjust:** Contained (3-4), standard (6), expansive (8-10)
-   * **Typical range:** Contained (3) → Standard (6.0, production) → Expansive (8) → Extreme (10)
-   * **Interacts with:** minRadius (defines expansion range), sphereScale (relative scale)
-   * **Performance note:** No performance impact; affects spring target calculation only
-   *
-   * @group "Physics - Orbit"
-   * @min 2.0 @max 10.0 @step 0.5
-   * @default 6.0 (production baseline: balanced expansion feel)
-   */
-  maxRadius?: number;
-
-  /**
-   * Spring spread multiplier for orbit behavior.
-   *
-   * Affects how tightly particles spring to their target orbit. Higher values
-   * create snappier, more responsive motion. Lower values create looser,
-   * more organic drift. Multiplies the phase-reactive spring stiffness.
-   *
-   * **When to adjust:** Organic/loose (0.5-0.8), standard (1.0), tight/snappy (1.2-1.5)
-   * **Typical range:** Loose (0.5) → Standard (1.0, balanced) → Tight (1.3) → Rigid (1.5+)
-   * **Interacts with:** windStrength (combined with spring), breathPhase (stiffness varies by phase)
+   * **When to adjust:** Loose/organic (0.5-0.8), standard (1.0), tight/snappy (1.2-1.5)
+   * **Typical range:** Loose (0.5) → Standard (1.0, balanced) → Tight (1.2) → Rigid (1.5+)
+   * **Interacts with:** breathPhase (spring target)
    * **Performance note:** No impact; just a multiplier on spring force
    *
    * @group "Physics - Orbit"
-   * @min 0.1 @max 2.0 @step 0.1
+   * @min 0.5 @max 1.5 @step 0.1
    * @default 1.0 (production baseline: natural spring feel)
    */
-  spread?: number;
-
-  /**
-   * Wind/turbulence strength multiplier for particle movement.
-   *
-   * Controls the intensity of simplex noise-based wind forces that create organic
-   * drift and swirl. Wind is automatically dampened during hold phases (crystallization).
-   * Higher values create more chaotic motion.
-   *
-   * **When to adjust:** Calm/meditative (0.3-0.7), standard (1.0), dynamic (1.3-1.8)
-   * **Typical range:** Calm (0.5) → Standard (1.0, balanced) → Dynamic (1.5) → Chaotic (2.0)
-   * **Interacts with:** jitterStrength (combined turbulence), crystallization (auto-dampening)
-   * **Performance note:** ~0.5ms for 300 particles (3 noise evaluations per particle per frame)
-   *
-   * @group "Physics - Forces"
-   * @min 0.0 @max 2.0 @step 0.1
-   * @default 1.0 (production baseline: balanced organic motion)
-   */
-  windStrength?: number;
-
-  /**
-   * Jitter/shiver strength multiplier for high-frequency vibration.
-   *
-   * Adds subtle trembling motion to particles during hold phases. Intensity
-   * increases with crystallization (0 during movement, max during holds).
-   * Creates "held breath" visual effect. Uses prime frequencies (60/61/59 Hz)
-   * on X/Y/Z axes to avoid alignment.
-   *
-   * **When to adjust:** Subtle (0.3-0.7), standard (1.0), pronounced (1.3-1.8)
-   * **Typical range:** Subtle (0.5) → Standard (1.0, balanced) → Intense (1.5) → Extreme (2.0)
-   * **Interacts with:** crystallization (amplifies during holds), windStrength (combined motion)
-   * **Performance note:** Negligible; 3 sin() calls per particle per frame
-   *
-   * @group "Physics - Forces"
-   * @min 0.0 @max 2.0 @step 0.1
-   * @default 1.0 (production baseline: noticeable held-breath effect)
-   */
-  jitterStrength?: number;
-
-  /**
-   * Sphere repulsion strength multiplier.
-   *
-   * Prevents particles from entering the central sphere by applying outward
-   * force when particles get too close. Higher values create "harder" sphere
-   * boundary. Uses distance-squared optimization and power curve (exponent 2.0)
-   * for realistic collision feel.
-   *
-   * **When to adjust:** Soft boundary (0.5-0.8), standard (1.0), hard boundary (1.2-1.5)
-   * **Typical range:** Soft (0.5) → Standard (1.0, production) → Hard (1.3) → Rigid (1.5+)
-   * **Interacts with:** repulsionOffset (boundary size), sphereScale (sphere size)
-   * **Performance note:** Only evaluates when particles near sphere; typically 10-20% of particles per frame
-   *
-   * @group "Physics - Forces"
-   * @min 0.0 @max 2.0 @step 0.1
-   * @default 1.0 (production baseline: natural collision feel)
-   */
-  repulsionStrength?: number;
-
-  /**
-   * Additional radius beyond sphere for repulsion boundary.
-   *
-   * Defines how far from the sphere surface the repulsion force begins.
-   * Larger values create a "bubble" of space around the sphere. Should be
-   * slightly larger than maxScale to prevent particle-sphere overlap.
-   *
-   * **When to adjust:** Tight (0.2-0.3), standard (0.4-0.5), spacious (0.6-0.8)
-   * **Typical range:** Tight (0.2) → Standard (0.4, production) → Spacious (0.6) → Wide (0.8)
-   * **Interacts with:** repulsionStrength (force intensity), sphereScale (sphere size), maxScale (particle size)
-   * **Performance note:** No impact; only affects distance threshold check
-   *
-   * @group "Physics - Forces"
-   * @min 0.0 @max 2.0 @step 0.1
-   * @default 0.4 (production baseline: prevents overlap with breathing expansion)
-   */
-  repulsionOffset?: number;
+  spreadTightness?: number;
 
   /**
    * Hex color for filler particles (non-user particles).
@@ -286,218 +173,6 @@ interface ParticleSwarmProps {
    * @default '#6B8A9C' (production baseline: muted teal for ambient presence)
    */
   fillerColor?: string;
-
-  /**
-   * Brightness shift during crystallization/hold phases.
-   *
-   * Adds a brightness boost to particles during hold phases (crystallization = 1.0).
-   * Creates visual emphasis on breath holds. Currently reserved for future enhancement.
-   *
-   * **When to adjust:** Subtle (0.1), standard (0.2), pronounced (0.3-0.4)
-   * **Typical range:** Subtle (0.1) → Standard (0.2, baseline) → Bright (0.3) → Intense (0.5)
-   * **Interacts with:** crystallization trait (current phase)
-   * **Performance note:** Reserved for future use; currently no performance impact
-   *
-   * @group "Appearance"
-   * @min 0.0 @max 0.5 @step 0.05
-   * @default 0.2 (production baseline: reserved for future enhancement)
-   */
-  crystallizedShift?: number;
-
-  /**
-   * Per-mood color overrides for user particles.
-   *
-   * Allows customizing the color of particles for specific moods, overriding
-   * the default colors from MOOD_METADATA. Only affects particles with that mood.
-   * Colors interpolate smoothly when users change moods. Useful for testing,
-   * theming, or visual debugging.
-   *
-   * **When to adjust:** Testing mood combinations, special event theming, debugging mood assignment
-   * **Typical range:** Use hex colors (#RRGGBB) or CSS color names
-   * **Interacts with:** users (determines particle-mood assignment), fillerColor (non-user particles)
-   * **Performance note:** No impact; color assignment happens once per mood change (~1-2 times/minute)
-   *
-   * @group "Appearance"
-   * @type color
-   * @default undefined (uses MOOD_METADATA default colors)
-   *
-   * @example
-   * ```tsx
-   * <ParticleSwarm
-   *   moodColors={{
-   *     moment: '#ff0000',    // Override moment to red
-   *     anxious: '#00ff00',   // Override anxious to green
-   *   }}
-   * />
-   * ```
-   */
-  moodColors?: Partial<Record<MoodId, string>>;
-
-  // ========== PARTICLE STYLE PRESETS ==========
-
-  /**
-   * Particle visual style preset.
-   *
-   * Controls geometry, material, and blending mode for distinct visual appearances:
-   * - **soft**: Smooth icosahedron with additive blending (atmospheric glow, unlit)
-   * - **crystalline**: Faceted icosahedron with PBR material (geometric, requires lighting)
-   * - **organic**: Smooth sphere with PBR material (bioluminescent, requires lighting)
-   *
-   * **When to adjust:** Meditative scenes use 'soft', geometric/technical use 'crystalline', natural/organic use 'organic'
-   * **Typical range:** soft (subtle) → crystalline (bold) → organic (natural)
-   * **Interacts with:** particleGeometry/Material/Blending (granular overrides), scene lighting (standard materials require lights)
-   * **Performance note:** 'standard' materials cost ~20% more GPU than 'basic' (PBR lighting calculations)
-   *
-   * ⚠️ **crystalline** and **organic** require scene lighting (Lighting component must be mounted)
-   *
-   * @group "Appearance"
-   * @enum ["soft", "crystalline", "organic"]
-   * @default 'soft' (production baseline: atmospheric meditation feel)
-   */
-  particleStyle?: ParticleStyle;
-
-  /**
-   * Particle geometry shape (overrides preset).
-   *
-   * @group "Appearance - Advanced"
-   * @enum ["plane", "icosahedron", "sphere"]
-   * @default undefined (uses preset value)
-   */
-  particleGeometry?: GeometryType;
-
-  /**
-   * Geometry detail level (overrides preset).
-   *
-   * - Planes: ignored
-   * - Icosahedron: 0 = faceted (20 faces), 1 = smooth (80 faces), 2 = very smooth (320 faces)
-   * - Sphere: number of segments (8 = low-poly, 16 = balanced, 32 = high-poly)
-   *
-   * @group "Appearance - Advanced"
-   * @min 0 @max 32 @step 1
-   * @default undefined (uses preset value)
-   */
-  particleDetailLevel?: number;
-
-  /**
-   * Material type (overrides preset).
-   *
-   * - **basic**: Unlit, simple shading (no lighting required)
-   * - **standard**: PBR lighting (requires scene lighting, supports metalness/roughness)
-   *
-   * @group "Appearance - Advanced"
-   * @enum ["basic", "standard"]
-   * @default undefined (uses preset value)
-   */
-  particleMaterial?: MaterialType;
-
-  /**
-   * Blending mode (overrides preset).
-   *
-   * - **additive**: Colors add (glow/washout effect, good for dark backgrounds)
-   * - **normal**: Standard alpha blending (solid colors, no washout)
-   *
-   * @group "Appearance - Advanced"
-   * @enum ["additive", "normal"]
-   * @default undefined (uses preset value)
-   */
-  particleBlending?: BlendingMode;
-
-  /**
-   * Particle opacity (overrides preset).
-   *
-   * @group "Appearance - Advanced"
-   * @min 0.0 @max 1.0 @step 0.05
-   * @default undefined (uses preset value)
-   */
-  particleOpacity?: number;
-
-  /**
-   * Metalness for standard material (overrides preset).
-   *
-   * Only applies when particleMaterial = 'standard'.
-   * 0 = dielectric (wood/plastic), 1 = metal.
-   *
-   * @group "Appearance - Advanced"
-   * @min 0.0 @max 1.0 @step 0.05
-   * @default undefined (uses preset value)
-   */
-  particleMetalness?: number;
-
-  /**
-   * Roughness for standard material (overrides preset).
-   *
-   * Only applies when particleMaterial = 'standard'.
-   * 0 = smooth/shiny, 1 = rough/diffuse.
-   *
-   * @group "Appearance - Advanced"
-   * @min 0.0 @max 1.0 @step 0.05
-   * @default undefined (uses preset value)
-   */
-  particleRoughness?: number;
-
-  /**
-   * Emissive intensity for standard material (overrides preset).
-   *
-   * Only applies when particleMaterial = 'standard'.
-   * Adds self-glow using the particle's mood color. Boosts color visibility.
-   *
-   * @group "Appearance - Advanced"
-   * @min 0.0 @max 1.0 @step 0.05
-   * @default undefined (uses preset value)
-   */
-  particleEmissiveIntensity?: number;
-
-  // ========== PHYSICS TOGGLES ==========
-
-  /**
-   * Enable wind/turbulence force.
-   *
-   * Simplex noise-based organic drift. Auto-dampens during hold phases.
-   *
-   * @group "Physics - Forces"
-   * @default true
-   */
-  enableWind?: boolean;
-
-  /**
-   * Enable jitter/shiver force.
-   *
-   * High-frequency vibration during hold phases (crystallization).
-   *
-   * @group "Physics - Forces"
-   * @default true
-   */
-  enableJitter?: boolean;
-
-  /**
-   * Enable sphere repulsion force.
-   *
-   * Prevents particles from entering the central breathing sphere.
-   *
-   * @group "Physics - Forces"
-   * @default true
-   */
-  enableRepulsion?: boolean;
-
-  /**
-   * Enable buoyancy force.
-   *
-   * Subtle upward drift during inhale phase.
-   *
-   * @group "Physics - Forces"
-   * @default true
-   */
-  enableBuoyancy?: boolean;
-
-  /**
-   * Enable particle scale pulse.
-   *
-   * Breathing-synchronized size changes (independent of physics forces).
-   *
-   * @group "Visual Size"
-   * @default true
-   */
-  enablePulse?: boolean;
 }
 
 /**
@@ -507,48 +182,16 @@ interface ParticleSwarmProps {
 export function ParticleSwarm({
   capacity = 300,
   users,
-  minScale = 0.25,
-  maxScale = 0.5,
-  minRadius = 0.8,
-  maxRadius = 6.0,
-  spread = 1.0,
-  windStrength = 1.0,
-  jitterStrength = 1.0,
-  repulsionStrength = 1.0,
-  repulsionOffset = 0.4,
+  minScale = 0.15,
+  maxScale = 0.3,
   fillerColor = '#6B8A9C',
-  crystallizedShift = 0.2,
-  moodColors,
-  particleStyle = 'soft',
-  particleGeometry,
-  particleDetailLevel,
-  particleMaterial,
-  particleBlending,
-  particleOpacity,
-  particleMetalness,
-  particleRoughness,
-  particleEmissiveIntensity,
-  enableWind = true,
-  enableJitter = true,
-  enableRepulsion = true,
-  enableBuoyancy = true,
-  enablePulse = true,
-}: ParticleSwarmProps = {}) {
+  motionIntensity = 1.0,
+  spreadTightness = 1.0,
+}: Partial<ParticleSwarmProps> = {}) {
   const world = useWorld();
 
-  // Resolve style configuration (preset + overrides)
-  const styleConfig = PARTICLE_STYLE_PRESETS[particleStyle];
-  const resolvedStyle: ParticleStyleConfig = {
-    geometry: particleGeometry ?? styleConfig.geometry,
-    geometryDetail: particleDetailLevel ?? styleConfig.geometryDetail,
-    material: particleMaterial ?? styleConfig.material,
-    blending: particleBlending ?? styleConfig.blending,
-    opacity: particleOpacity ?? styleConfig.opacity,
-    metalness: particleMetalness ?? styleConfig.metalness,
-    roughness: particleRoughness ?? styleConfig.roughness,
-    emissiveIntensity: particleEmissiveIntensity ?? styleConfig.emissiveIntensity,
-    depthWrite: styleConfig.depthWrite,
-  };
+  // Glass material configuration (icosahedron geometry detail: 1 = 80 faces)
+  const GEOMETRY_DETAIL = 1;
 
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const fillerMeshRef = useRef<THREE.InstancedMesh>(null);
@@ -582,8 +225,7 @@ export function ParticleSwarm({
 
       seeds[i] = Math.random() * 1000;
       sizes[i] = 1.0;
-      const defaultBrightness = particleStyle === 'soft' ? 0.4 : 0.7;
-      brightness[i] = defaultBrightness; // Default to filler
+      brightness[i] = 0.7; // Default to filler (glass particles)
     }
 
     // Initialize colors to filler
@@ -607,19 +249,19 @@ export function ParticleSwarm({
       brightness,
       sizes,
     };
-  }, [capacity, fillerColor, particleStyle]);
+  }, [capacity, fillerColor]);
 
   // Update colors when users data changes
   useEffect(() => {
     if (!users) {
       // No user data, all particles are filler
       const fillerCol = new THREE.Color(fillerColor);
-      const defaultBrightness = particleStyle === 'soft' ? 0.4 : 0.7;
+      const fillerBrightness = 0.7; // Glass particles
       for (let i = 0; i < capacity; i++) {
         data.targetColors[i * 3 + 0] = fillerCol.r;
         data.targetColors[i * 3 + 1] = fillerCol.g;
         data.targetColors[i * 3 + 2] = fillerCol.b;
-        data.brightness[i] = defaultBrightness;
+        data.brightness[i] = fillerBrightness;
       }
       return;
     }
@@ -628,9 +270,8 @@ export function ParticleSwarm({
 
     // Assign mood colors to user particles (in order)
     for (const [moodId, count] of Object.entries(users)) {
-      // Check for mood color override, otherwise use MOOD_METADATA default
-      const moodColor =
-        moodColors?.[moodId as MoodId] ?? MOOD_METADATA[moodId as MoodId]?.color ?? '#7EC8D4';
+      // Use MOOD_METADATA color for mood
+      const moodColor = MOOD_METADATA[moodId as MoodId]?.color ?? '#7EC8D4';
       const col = new THREE.Color(moodColor);
 
       for (let i = 0; i < count && idx < capacity; i++, idx++) {
@@ -643,7 +284,7 @@ export function ParticleSwarm({
 
     // Assign filler color to remaining particles
     const fillerCol = new THREE.Color(fillerColor);
-    const fillerBrightness = particleStyle === 'soft' ? 0.4 : 0.7;
+    const fillerBrightness = 0.7; // Glass material brightness
     while (idx < capacity) {
       data.targetColors[idx * 3 + 0] = fillerCol.r;
       data.targetColors[idx * 3 + 1] = fillerCol.g;
@@ -651,7 +292,7 @@ export function ParticleSwarm({
       data.brightness[idx] = fillerBrightness;
       idx++;
     }
-  }, [users, capacity, fillerColor, data, moodColors, particleStyle]);
+  }, [users, capacity, fillerColor, data]);
 
   // Physics + rendering loop
   useFrame((state, delta) => {
@@ -698,98 +339,90 @@ export function ParticleSwarm({
       tempForce.set(0, 0, 0);
 
       // 1. Spring force to orbit radius
+      const MIN_RADIUS = 0.8;
+      const MAX_RADIUS = 6.0;
       const targetRadius =
-        minRadius + (maxRadius - minRadius) * (currentOrbitRadius / VISUALS.PARTICLE_ORBIT_MAX);
+        MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * (currentOrbitRadius / VISUALS.PARTICLE_ORBIT_MAX);
       const targetX = rest[i * 3 + 0] * targetRadius;
       const targetY = rest[i * 3 + 1] * targetRadius;
       const targetZ = rest[i * 3 + 2] * targetRadius;
 
-      tempForce.x += (targetX - pos[i * 3 + 0]) * springStiffness * spread;
-      tempForce.y += (targetY - pos[i * 3 + 1]) * springStiffness * spread;
-      tempForce.z += (targetZ - pos[i * 3 + 2]) * springStiffness * spread;
+      tempForce.x += (targetX - pos[i * 3 + 0]) * springStiffness * spreadTightness;
+      tempForce.y += (targetY - pos[i * 3 + 1]) * springStiffness * spreadTightness;
+      tempForce.z += (targetZ - pos[i * 3 + 2]) * springStiffness * spreadTightness;
 
       // 2. Wind force (Simplex noise, dampened by crystallization)
-      if (enableWind) {
-        const windBaseStrength =
-          PARTICLE_PHYSICS.WIND_BASE_STRENGTH * (1 - currentCryst) * windStrength;
-        if (windBaseStrength > PARTICLE_PHYSICS.FORCE_THRESHOLD) {
-          const nx =
-            noise3D(
-              pos[i * 3 + 0] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
-              pos[i * 3 + 1] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
-              time * PARTICLE_PHYSICS.WIND_TIME_SCALE + s,
-            ) * windBaseStrength;
-          const ny =
-            noise3D(
-              pos[i * 3 + 1] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
-              pos[i * 3 + 2] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
-              time * PARTICLE_PHYSICS.WIND_TIME_SCALE + s + PARTICLE_PHYSICS.WIND_NOISE_OFFSET_X,
-            ) * windBaseStrength;
-          const nz =
-            noise3D(
-              pos[i * 3 + 2] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
-              pos[i * 3 + 0] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
-              time * PARTICLE_PHYSICS.WIND_TIME_SCALE + s + PARTICLE_PHYSICS.WIND_NOISE_OFFSET_Y,
-            ) * windBaseStrength;
+      const windBaseStrength =
+        PARTICLE_PHYSICS.WIND_BASE_STRENGTH * (1 - currentCryst) * motionIntensity;
+      if (windBaseStrength > PARTICLE_PHYSICS.FORCE_THRESHOLD) {
+        const nx =
+          noise3D(
+            pos[i * 3 + 0] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
+            pos[i * 3 + 1] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
+            time * PARTICLE_PHYSICS.WIND_TIME_SCALE + s,
+          ) * windBaseStrength;
+        const ny =
+          noise3D(
+            pos[i * 3 + 1] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
+            pos[i * 3 + 2] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
+            time * PARTICLE_PHYSICS.WIND_TIME_SCALE + s + PARTICLE_PHYSICS.WIND_NOISE_OFFSET_X,
+          ) * windBaseStrength;
+        const nz =
+          noise3D(
+            pos[i * 3 + 2] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
+            pos[i * 3 + 0] * PARTICLE_PHYSICS.WIND_FREQUENCY_SCALE,
+            time * PARTICLE_PHYSICS.WIND_TIME_SCALE + s + PARTICLE_PHYSICS.WIND_NOISE_OFFSET_Y,
+          ) * windBaseStrength;
 
-          tempForce.x += nx;
-          tempForce.y += ny;
-          tempForce.z += nz;
-        }
+        tempForce.x += nx;
+        tempForce.y += ny;
+        tempForce.z += nz;
       }
 
       // 3. Jitter force (High-freq sin, amplified by crystallization)
-      if (enableJitter) {
-        const jitterBaseStrength = currentCryst * VISUALS.JITTER_STRENGTH * jitterStrength;
-        if (jitterBaseStrength > PARTICLE_PHYSICS.FORCE_THRESHOLD) {
-          const jx = Math.sin(time * PARTICLE_PHYSICS.JITTER_FREQUENCY_X + s) * jitterBaseStrength;
-          const jy =
-            Math.sin(
-              time * PARTICLE_PHYSICS.JITTER_FREQUENCY_Y +
-                s +
-                PARTICLE_PHYSICS.JITTER_PHASE_OFFSET_Y,
-            ) * jitterBaseStrength;
-          const jz =
-            Math.sin(
-              time * PARTICLE_PHYSICS.JITTER_FREQUENCY_Z +
-                s +
-                PARTICLE_PHYSICS.JITTER_PHASE_OFFSET_Z,
-            ) * jitterBaseStrength;
+      const jitterBaseStrength = currentCryst * VISUALS.JITTER_STRENGTH * motionIntensity;
+      if (jitterBaseStrength > PARTICLE_PHYSICS.FORCE_THRESHOLD) {
+        const jx = Math.sin(time * PARTICLE_PHYSICS.JITTER_FREQUENCY_X + s) * jitterBaseStrength;
+        const jy =
+          Math.sin(
+            time * PARTICLE_PHYSICS.JITTER_FREQUENCY_Y + s + PARTICLE_PHYSICS.JITTER_PHASE_OFFSET_Y,
+          ) * jitterBaseStrength;
+        const jz =
+          Math.sin(
+            time * PARTICLE_PHYSICS.JITTER_FREQUENCY_Z + s + PARTICLE_PHYSICS.JITTER_PHASE_OFFSET_Z,
+          ) * jitterBaseStrength;
 
-          tempForce.x += jx;
-          tempForce.y += jy;
-          tempForce.z += jz;
-        }
+        tempForce.x += jx;
+        tempForce.y += jy;
+        tempForce.z += jz;
       }
 
       // 4. Sphere repulsion (Distance-squared optimization)
-      if (enableRepulsion) {
-        const repulsionRadius = currentSphereScale + repulsionOffset;
-        const repulsionRadiusSq = repulsionRadius * repulsionRadius;
-        const distSq =
-          pos[i * 3 + 0] * pos[i * 3 + 0] +
-          pos[i * 3 + 1] * pos[i * 3 + 1] +
-          pos[i * 3 + 2] * pos[i * 3 + 2];
+      const REPULSION_OFFSET = 0.4;
+      const REPULSION_STRENGTH = 1.0;
+      const repulsionRadius = currentSphereScale + REPULSION_OFFSET;
+      const repulsionRadiusSq = repulsionRadius * repulsionRadius;
+      const distSq =
+        pos[i * 3 + 0] * pos[i * 3 + 0] +
+        pos[i * 3 + 1] * pos[i * 3 + 1] +
+        pos[i * 3 + 2] * pos[i * 3 + 2];
 
-        if (distSq < repulsionRadiusSq && distSq > 0.001) {
-          const dist = Math.sqrt(distSq);
-          const repulsionFactor = (repulsionRadius - dist) / repulsionRadius;
-          const push =
-            repulsionFactor ** VISUALS.REPULSION_POWER *
-            VISUALS.REPULSION_STRENGTH *
-            PARTICLE_PHYSICS.REPULSION_STRENGTH_MULTIPLIER *
-            repulsionStrength;
+      if (distSq < repulsionRadiusSq && distSq > 0.001) {
+        const dist = Math.sqrt(distSq);
+        const repulsionFactor = (repulsionRadius - dist) / repulsionRadius;
+        const push =
+          repulsionFactor ** VISUALS.REPULSION_POWER *
+          VISUALS.REPULSION_STRENGTH *
+          PARTICLE_PHYSICS.REPULSION_STRENGTH_MULTIPLIER *
+          REPULSION_STRENGTH;
 
-          tempForce.x += (pos[i * 3 + 0] / dist) * push;
-          tempForce.y += (pos[i * 3 + 1] / dist) * push;
-          tempForce.z += (pos[i * 3 + 2] / dist) * push;
-        }
+        tempForce.x += (pos[i * 3 + 0] / dist) * push;
+        tempForce.y += (pos[i * 3 + 1] / dist) * push;
+        tempForce.z += (pos[i * 3 + 2] / dist) * push;
       }
 
       // 5. Buoyancy (subtle upward drift)
-      if (enableBuoyancy) {
-        tempForce.y += buoyancyStrength;
-      }
+      tempForce.y += buoyancyStrength;
 
       // Integration (mass = 1.0)
       vel[i * 3 + 0] = (vel[i * 3 + 0] + tempForce.x * delta) * drag;
@@ -851,16 +484,16 @@ export function ParticleSwarm({
       );
       mesh.setColorAt(idx, color);
 
-      // Set emissive for standard materials (crystalline/organic presets)
-      if (resolvedStyle.material === 'standard' && resolvedStyle.emissiveIntensity > 0) {
-        const mat = mesh.material as THREE.MeshStandardMaterial;
+      // Set emissive color for glass material
+      if (GLASS_MATERIAL.emissiveIntensity > 0) {
+        const mat = mesh.material as THREE.MeshPhysicalMaterial;
         if (mat.emissive) {
           mat.emissive.setRGB(
-            data.colors[i * 3 + 0] * resolvedStyle.emissiveIntensity,
-            data.colors[i * 3 + 1] * resolvedStyle.emissiveIntensity,
-            data.colors[i * 3 + 2] * resolvedStyle.emissiveIntensity,
+            data.colors[i * 3 + 0] * GLASS_MATERIAL.emissiveIntensity,
+            data.colors[i * 3 + 1] * GLASS_MATERIAL.emissiveIntensity,
+            data.colors[i * 3 + 2] * GLASS_MATERIAL.emissiveIntensity,
           );
-          mat.emissiveIntensity = resolvedStyle.emissiveIntensity;
+          mat.emissiveIntensity = GLASS_MATERIAL.emissiveIntensity;
         }
       }
     }
@@ -875,54 +508,27 @@ export function ParticleSwarm({
     if (fillerMesh.instanceColor) fillerMesh.instanceColor.needsUpdate = true;
   });
 
-  // Create geometry based on resolved style
+  // Create icosahedron geometry (detail: 1 = 80 faceted faces for visible edges)
   const geometry = useMemo(() => {
-    switch (resolvedStyle.geometry) {
-      case 'plane':
-        return new THREE.PlaneGeometry(1, 1);
-      case 'sphere':
-        return new THREE.SphereGeometry(
-          1,
-          resolvedStyle.geometryDetail,
-          resolvedStyle.geometryDetail,
-        );
-      case 'icosahedron':
-      default:
-        return new THREE.IcosahedronGeometry(1, resolvedStyle.geometryDetail);
-    }
-  }, [resolvedStyle.geometry, resolvedStyle.geometryDetail]);
+    return new THREE.IcosahedronGeometry(1, GEOMETRY_DETAIL);
+  }, []);
 
-  // Create material based on resolved style
+  // Create glass material with vibrant neon edges
   const material = useMemo(() => {
-    const blendingMode =
-      resolvedStyle.blending === 'additive' ? THREE.AdditiveBlending : THREE.NormalBlending;
-
-    if (resolvedStyle.material === 'basic') {
-      return new THREE.MeshBasicMaterial({
-        transparent: true,
-        depthWrite: resolvedStyle.depthWrite,
-        blending: blendingMode,
-        opacity: resolvedStyle.opacity,
-      });
-    } else {
-      // 'standard'
-      return new THREE.MeshStandardMaterial({
-        transparent: true,
-        depthWrite: resolvedStyle.depthWrite,
-        blending: blendingMode,
-        opacity: resolvedStyle.opacity,
-        metalness: resolvedStyle.metalness,
-        roughness: resolvedStyle.roughness,
-      });
-    }
-  }, [
-    resolvedStyle.material,
-    resolvedStyle.blending,
-    resolvedStyle.opacity,
-    resolvedStyle.metalness,
-    resolvedStyle.roughness,
-    resolvedStyle.depthWrite,
-  ]);
+    return new THREE.MeshPhysicalMaterial({
+      transparent: true,
+      depthWrite: GLASS_MATERIAL.depthWrite,
+      blending: THREE.NormalBlending,
+      opacity: GLASS_MATERIAL.opacity,
+      metalness: GLASS_MATERIAL.metalness,
+      roughness: GLASS_MATERIAL.roughness,
+      transmission: GLASS_MATERIAL.transmission,
+      thickness: GLASS_MATERIAL.thickness,
+      ior: GLASS_MATERIAL.ior,
+      clearcoat: GLASS_MATERIAL.clearcoat,
+      clearcoatRoughness: GLASS_MATERIAL.clearcoatRoughness,
+    });
+  }, []);
 
   return (
     <group name="Particle System">

@@ -4,11 +4,12 @@
  * ## Quick Start
  *
  * For most use cases, use the presets:
- * - CalmSoft, CalmCrystalline - Meditative mood
- * - BalancedSoft, BalancedCrystalline - Default, balanced
- * - DynamicSoft, DynamicCrystalline - Energetic mood
+ * - Calm - Meditative mood with gentle motion (0.5× wind, 0.8× spring)
+ * - Balanced - Default, standard motion (1.0× wind, 1.0× spring)
+ * - Dynamic - Energetic mood with active motion (1.5× wind, 1.2× spring)
  *
- * Each preset exposes 8 focused props (vs 35 for ParticleSwarm).
+ * All presets use glass icosahedrons with vibrant neon edges.
+ * Each preset exposes 7 focused props (vs 35+ for ParticleSwarm).
  *
  * For advanced control, use ParticleSwarm directly.
  */
@@ -17,19 +18,13 @@
 export type { ParticleSwarmProps } from './ParticleSwarm';
 export { ParticleSwarm } from './ParticleSwarm';
 export type {
-  BalancedCrystallineProps,
-  BalancedSoftProps,
-  CalmCrystallineProps,
-  CalmSoftProps,
-  DynamicCrystallineProps,
-  DynamicSoftProps,
+  BalancedProps,
+  CalmProps,
+  DynamicProps,
 } from './presets';
 // Preset components (recommended for most users)
 export {
-  BalancedCrystalline,
-  BalancedSoft,
-  CalmCrystalline,
-  CalmSoft,
-  DynamicCrystalline,
-  DynamicSoft,
+  Balanced,
+  Calm,
+  Dynamic,
 } from './presets';

@@ -84,6 +84,7 @@ export function CameraRig({
   return (
     <OrbitControlsImpl
       ref={controlsRef}
+      makeDefault
       enabled={enableRotation}
       enableZoom={false}
       enablePan={false}

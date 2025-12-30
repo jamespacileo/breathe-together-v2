@@ -1,3 +1,8 @@
+/**
+ * @deprecated Use useBreathPhaseDisplay3D.ts instead (uikit-based implementation)
+ * Legacy hook for HTML overlay HUD, kept for reference only
+ */
+
 import { useWorld } from 'koota/react';
 import { useEffect, useRef } from 'react';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';

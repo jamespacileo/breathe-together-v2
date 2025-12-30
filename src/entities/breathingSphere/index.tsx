@@ -31,16 +31,14 @@ function computeAuraScaleCurve(breathPhase: number, elasticity: number): number 
 }
 
 /**
- * Entrance animation curve - Back.out easing with overshoot
+ * Entrance animation curve - easeOutCubic (smooth deceleration, no overshoot)
+ * Provides gentle, reverent arrival suitable for meditation
  */
 function computeEntranceScale(progress: number): number {
   if (progress <= 0) return 0;
   if (progress >= 1) return 1;
-
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  const scale = 1 + c3 * (progress - 1) ** 3 + c1 * (progress - 1) ** 2;
-  return Math.max(0, scale);
+  // easeOutCubic: smooth deceleration without playful overshoot
+  return 1 - (1 - progress) ** 3;
 }
 
 interface BreathingSphereProps {
@@ -240,6 +238,26 @@ interface BreathingSphereProps {
    */
   mainFresnelRange?: number;
 
+  /**
+   * Main layer noise displacement intensity.
+   *
+   * Controls organic surface wobble and distortion of the main sphere surface.
+   * Creates living, breathing quality. Higher values produce more dramatic psychedelic distortion.
+   *
+   * **When to adjust:** Smooth meditation (0.02-0.03), standard organic (0.05), wobbling (0.1-0.15)
+   * **Typical range:** Smooth (0.02) → Standard (0.05, balanced) → Wobble (0.1) → Psychedelic (0.15)
+   * **Interacts with:** auraNoiseIntensity, mainOpacity, mainFresnelBase
+   * **Performance note:** No impact; computed in vertex shader
+   *
+   * @group "Main Layer"
+   * @type slider
+   * @min 0.0
+   * @max 0.2
+   * @step 0.01
+   * @default 0.05 (production baseline: subtle organic wobble)
+   */
+  mainNoiseIntensity?: number;
+
   // ====================================================================
   // AURA LAYER (Outer atmospheric glow)
   // ====================================================================
@@ -337,6 +355,26 @@ interface BreathingSphereProps {
    */
   auraElasticity?: number;
 
+  /**
+   * Aura layer noise displacement intensity.
+   *
+   * Controls organic wobble and distortion of the outer atmospheric layer.
+   * Typically 2-3x main layer intensity for emphasis and visible effect.
+   *
+   * **When to adjust:** Subtle (0.05-0.08), standard (0.125), dramatic (0.2-0.3)
+   * **Typical range:** Subtle (0.05) → Standard (0.125, 2.5x main) → Dramatic (0.25) → Extreme (0.4)
+   * **Interacts with:** mainNoiseIntensity, auraScale, auraOpacity
+   * **Performance note:** No impact; computed in vertex shader
+   *
+   * @group "Aura Layer"
+   * @type slider
+   * @min 0.0
+   * @max 0.4
+   * @step 0.01
+   * @default 0.125 (production baseline: 2.5x main layer for atmospheric emphasis)
+   */
+  auraNoiseIntensity?: number;
+
   // ====================================================================
   // GLOBAL BREATHING (Affects all layers)
   // ====================================================================
@@ -368,7 +406,7 @@ export function BreathingSphere({
   coreColorExhale = '#b8e2e8',
   coreColorInhale = '#ffe0b0',
   coreScale = 0.4,
-  coreStiffness = 3.0,
+  coreStiffness = 1.5,
   // Main Layer
   mainEnabled = true,
   mainColorExhale = '#4A8A9A',
@@ -376,12 +414,14 @@ export function BreathingSphere({
   mainOpacity = 0.12,
   mainFresnelBase = 0.5,
   mainFresnelRange = 0.6,
+  mainNoiseIntensity = 0.05,
   // Aura Layer
   auraEnabled = true,
   auraScale = 1.5,
-  auraOpacity = 0.02,
-  auraOpacityRange = 0.05,
+  auraOpacity = 0.06,
+  auraOpacityRange = 0.08,
   auraElasticity = 0.5,
+  auraNoiseIntensity = 0.125,
   // Global
   scaleRange = 0.4,
 }: BreathingSphereProps = {}) {
@@ -404,10 +444,8 @@ export function BreathingSphere({
   const entranceStartTimeRef = useRef<number | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  const materialRef = useRef(createFresnelMaterial(0.05));
   // biome-ignore lint/suspicious/noExplicitAny: MeshTransmissionMaterial doesn't export its instance type easily
   const coreMaterialRef = useRef<any>(null);
-  const auraMaterialRef = useRef(createFresnelMaterial(0.05 * 2.5));
 
   // Track entrance animation
   useEffect(() => {
@@ -425,6 +463,14 @@ export function BreathingSphere({
       coreInhaleColor: new THREE.Color(coreColorInhale),
     };
   }, [mainColorExhale, mainColorInhale, coreColorExhale, coreColorInhale]);
+
+  // Create materials with proper noise intensity configuration
+  const { materialRef, auraMaterialRef } = useMemo(() => {
+    return {
+      materialRef: { current: createFresnelMaterial(mainNoiseIntensity) },
+      auraMaterialRef: { current: createFresnelMaterial(auraNoiseIntensity) },
+    };
+  }, [mainNoiseIntensity, auraNoiseIntensity]);
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex animation loop with multiple material properties and transitions
   useFrame((state) => {
@@ -517,7 +563,8 @@ export function BreathingSphere({
         // Aura opacity with breathing modulation
         auraMaterial.uniforms.uOpacity.value =
           (auraOpacity + breathPhaseValue * auraOpacityRange) * entranceScale;
-        auraMaterial.uniforms.uFresnelIntensity.value = fresnelValue * 0.5;
+        // Boost fresnel glow for more visible atmospheric presence
+        auraMaterial.uniforms.uFresnelIntensity.value = fresnelValue * 0.7;
       }
     } catch (_e) {
       // Silently catch ECS errors during unmount/remount

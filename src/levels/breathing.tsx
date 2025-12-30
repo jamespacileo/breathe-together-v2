@@ -15,11 +15,11 @@
  *   by selecting the specific entity in the scene graph.
  */
 
+import { Suspense } from 'react';
 import { PostProcessing } from '../components/PostProcessing';
 import { BreathingSphere } from '../entities/breathingSphere';
 import { Environment } from '../entities/environment';
-import { Lighting } from '../entities/lighting';
-import { ParticleSwarm } from '../entities/particle';
+import { Balanced } from '../entities/particle/presets';
 import { usePresence } from '../hooks/usePresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -30,17 +30,13 @@ import type { BreathingLevelProps } from '../types/sceneProps';
  * and default to true. They are primarily used in debug scenes to isolate specific entities.
  */
 export function BreathingLevel({
-  backgroundColor = '#0a0f1a',
-  bloom = 'subtle',
-  lightingPreset,
-  lightingIntensity,
-  environmentPreset,
+  bloom = 'medium',
+  environmentPreset = 'studio',
   environmentAtmosphere,
   particleDensity,
   // DEBUG-ONLY: Entity visibility toggles (all default true)
   showSphere = true,
   showParticles = true,
-  showLighting = true,
   showEnvironment = true,
 }: Partial<BreathingLevelProps> = {}) {
   const particleCount =
@@ -49,22 +45,16 @@ export function BreathingLevel({
   const { moods } = usePresence();
 
   return (
-    <>
-      {/* Background now handled by gradient shader in Environment */}
-      {/* <color attach="background" args={[backgroundColor]} /> */}
-
-      {showLighting && <Lighting preset={lightingPreset} intensity={lightingIntensity} />}
-
+    <Suspense fallback={null}>
       {showEnvironment && (
         <Environment preset={environmentPreset} atmosphere={environmentAtmosphere} />
       )}
 
       {showSphere && <BreathingSphere />}
-
-      {showParticles && <ParticleSwarm capacity={particleCount} users={moods} />}
+      {showParticles && <Balanced capacity={particleCount} users={moods} />}
 
       <PostProcessing bloom={bloom} />
-    </>
+    </Suspense>
   );
 }
 

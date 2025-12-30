@@ -2,62 +2,63 @@
  * Particle System Presets
  *
  * Simplified wrapper components for common particle configurations.
- * Each preset combines visual style, motion personality, and physics tuning
- * into an easy-to-use component with minimal props.
+ * Each preset combines visual style and motion personality with minimal props (6-7 props).
  *
  * ## Preset Selection Guide
  *
  * **Visual Styles:**
  * - **Soft** - Smooth glow, additive blending, unlit (no lighting required)
- * - **Crystalline** - Faceted geometry, PBR material, requires lighting
+ * - **Crystalline** - Frosted ice crystal, PBR material, requires lighting for glow
  *
  * **Motion Personalities:**
- * - **Calm** - Low wind, loose spring, subtle vibration → meditative
- * - **Balanced** - Medium wind, balanced spring, standard vibration → default
- * - **Dynamic** - High wind, tight spring, intense vibration → energetic
+ * - **Calm** - Low motion (0.5×), loose spring (0.8×) → meditative breathing
+ * - **Balanced** - Standard motion (1.0×), balanced spring (1.0×) → default
+ * - **Dynamic** - High motion (1.5×), tight spring (1.2×) → energetic celebration
  *
  * ## Examples
  *
  * ```typescript
- * // Default meditation
- * <BalancedSoft capacity={300} users={moods} />
+ * // Default balanced preset (production)
+ * <BalancedCrystalline capacity={300} users={moods} />
  *
- * // Calm focus meditation with geometric shapes
- * <CalmCrystalline capacity={200} users={moods} motionIntensity={0.8} />
+ * // Calm meditation with custom intensity
+ * <CalmSoft capacity={200} motionIntensity={0.8} />
  *
- * // High-energy celebration
- * <DynamicCrystalline capacity={600} users={moods} />
+ * // Energetic celebration
+ * <DynamicCrystalline capacity={600} spreadTightness={1.2} />
  *
- * // Advanced override
- * <CalmSoft
+ * // Customize particle sizes
+ * <BalancedSoft
  *   capacity={300}
  *   users={moods}
- *   motionIntensity={1.5}
- *   spreadTightness={0.6}
- *   enableBuoyancy={false}
+ *   minScale={0.04}
+ *   maxScale={0.12}
+ *   fillerColor="#8B6BA8"
  * />
  * ```
  *
- * ## Migration from ParticleSwarm
+ * ## Direct ParticleSwarm Usage (Advanced)
  *
- * If you need full control over all 35 props, use ParticleSwarm directly:
+ * For edge cases, use ParticleSwarm directly with 8 essential props:
  *
  * ```typescript
  * import { ParticleSwarm } from '../ParticleSwarm';
  *
- * <ParticleSwarm capacity={300} users={moods} particleStyle="organic" />
+ * <ParticleSwarm
+ *   capacity={300}
+ *   particleStyle="crystalline"
+ *   motionIntensity={1.5}
+ *   spreadTightness={0.8}
+ * />
  * ```
+ *
+ * Material properties (opacity, emissive, transmission, etc.) are now controlled
+ * by the `particleStyle` preset only and cannot be individually overridden.
  */
 
-export type { BalancedCrystallineProps } from './BalancedCrystalline';
-export { BalancedCrystalline } from './BalancedCrystalline';
-export type { BalancedSoftProps } from './BalancedSoft';
-export { BalancedSoft } from './BalancedSoft';
-export type { CalmCrystallineProps } from './CalmCrystalline';
-export { CalmCrystalline } from './CalmCrystalline';
-export type { CalmSoftProps } from './CalmSoft';
-export { CalmSoft } from './CalmSoft';
-export type { DynamicCrystallineProps } from './DynamicCrystalline';
-export { DynamicCrystalline } from './DynamicCrystalline';
-export type { DynamicSoftProps } from './DynamicSoft';
-export { DynamicSoft } from './DynamicSoft';
+export type { BalancedProps } from './Balanced';
+export { Balanced } from './Balanced';
+export type { CalmProps } from './Calm';
+export { Calm } from './Calm';
+export type { DynamicProps } from './Dynamic';
+export { Dynamic } from './Dynamic';

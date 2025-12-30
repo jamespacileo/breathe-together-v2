@@ -360,8 +360,39 @@ ParticleRenderer uses two instanced meshes (user + filler) for 2 draw calls.
 ### Fresnel Shader
 BreathingSphere uses Three.js `Fresnel` shader for edge glow that intensifies during inhale.
 
-### Responsive HUD
-BreathingHUD scales UI based on viewport width. Designed for desktop and mobile.
+### HUD Architecture (Updated Dec 2024)
+
+The HUD uses **@react-three/uikit** for native 3D UI components inside the Canvas.
+
+**Components:**
+- `src/components/BreathingHUD3D.tsx` - Main uikit HUD component (bottom bar layout)
+- `src/hooks/useBreathPhaseDisplay3D.ts` - RAF loop for 60fps updates
+
+**Layout:** Bottom bar showing phase name, timer, progress bar, and user count
+- Phase name (e.g., "Inhale") updates on transitions
+- Timer counts down each second
+- Progress bar reflects position in 16s breathing cycle (0-100%)
+- User count from `usePresence()` hook
+
+**Performance Pattern:**
+- Same RAF loop as legacy HTML overlay
+- Updates uikit components via refs (no React re-renders)
+- GPU-accelerated 3D UI meshes
+- Target: 60fps with <1ms overhead per frame
+- Requires `gl={{ localClippingEnabled: true }}` on Canvas for uikit clipping planes
+
+**Visual Style:**
+- Subtle/transparent (minimalist): 45% opacity background
+- Colors: warm white (#fffef7), teal (#7ec8d4), warm gray (#b8a896)
+- Fonts: DM Sans (primary), Crimson Pro (phase name)
+- Spacing: Fibonacci values (8, 13, 21, 34px)
+- Responsive: Adjusts font sizes and padding on mobile
+
+**Legacy Files (Deprecated):**
+- `src/components/RadialBreathingHUD.legacy.tsx` - Old HTML overlay (circular ring)
+- `src/components/BreathingHUD.legacy.tsx` - Old HTML overlay (corner panels)
+- `src/hooks/useBreathPhaseDisplay.legacy.ts` - Old DOM ref pattern
+Kept for reference only. Use BreathingHUD3D.tsx instead.
 
 ## Git Status
 
