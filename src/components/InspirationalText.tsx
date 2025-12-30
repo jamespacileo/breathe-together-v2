@@ -12,28 +12,101 @@ import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
  * |   fade in 0→1   |   visible (1)    |  fade out 1→0   |   hidden (0)      |
  *
  * Text appears as user inhales, stays during hold, fades as they exhale.
+ * Uses the same controlled breathing curve as the visual elements so the
+ * text feels like it's being breathed in and out with the user.
  */
+
+/**
+ * Controlled breath curve with soft start/end and steady middle
+ *
+ * Creates organic controlled breathing feel with three sections:
+ * 1. Soft start: Raised cosine ramp (velocity 0 → steady)
+ * 2. Steady middle: Linear/constant velocity (controlled, even flow)
+ * 3. Soft end: Raised cosine ramp (velocity steady → 0)
+ *
+ * The raised cosine provides C1-continuous transitions (smooth velocity)
+ * while the linear middle creates the "steady controlled" breathing feel.
+ *
+ * @param t Progress 0-1
+ * @param startRamp Fraction of time for start ramp (0.2-0.35)
+ * @param endRamp Fraction of time for end ramp (0.2-0.35)
+ */
+function controlledBreathCurve(t: number, startRamp: number, endRamp: number): number {
+  // Clamp input
+  t = Math.max(0, Math.min(1, t));
+
+  // Middle section starts after startRamp and ends before endRamp
+  const middleEnd = 1 - endRamp;
+
+  // Calculate steady velocity needed to cover remaining distance
+  // Total distance = 1, ramps each cover (ramp * velocity / 2)
+  // So: startRamp*v/2 + middleDuration*v + endRamp*v/2 = 1
+  // v * (startRamp/2 + middleDuration + endRamp/2) = 1
+  // v = 1 / (1 - startRamp/2 - endRamp/2)
+  const middleVelocity = 1 / (1 - startRamp / 2 - endRamp / 2);
+
+  // Height reached at end of start ramp
+  const startRampHeight = (middleVelocity * startRamp) / 2;
+  // Height at start of end ramp
+  const endRampStart = 1 - (middleVelocity * endRamp) / 2;
+
+  if (t <= startRamp) {
+    // Raised cosine ramp-up: smooth acceleration from 0 to middleVelocity
+    // Integral of (1 - cos(πx))/2 from 0 to x = x/2 - sin(πx)/(2π)
+    const normalized = t / startRamp;
+    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
+    return middleVelocity * startRamp * integral;
+  }
+  if (t >= middleEnd) {
+    // Raised cosine ramp-down: smooth deceleration from middleVelocity to 0
+    const normalized = (t - middleEnd) / endRamp;
+    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
+    return endRampStart + middleVelocity * endRamp * integral;
+  }
+  // Linear middle: constant velocity for steady, controlled feel
+  return startRampHeight + middleVelocity * (t - startRamp);
+}
+
+/**
+ * Inhale easing: Controlled, organic breath intake for text fade-in
+ *
+ * Uses raised cosine ramps with linear plateau:
+ * - Soft start (25%): Text begins appearing gently
+ * - Steady middle (50%): Constant velocity, controlled reveal
+ * - Soft end (25%): Gentle arrival at full visibility
+ */
+function easeInhale(t: number): number {
+  return controlledBreathCurve(t, 0.25, 0.25);
+}
+
+/**
+ * Exhale easing: Controlled, relaxing fade-out
+ *
+ * Uses asymmetric ramps for relaxation breathing:
+ * - Soft start (20%): Text begins fading gently
+ * - Steady middle (50%): Constant velocity, controlled fade
+ * - Extended soft end (30%): Extra gentle fade-out for "letting go" feel
+ *
+ * The longer end ramp creates the sense of words being released with the breath.
+ */
+function easeExhale(t: number): number {
+  // Asymmetric: shorter start ramp, longer end ramp for relaxed finish
+  return controlledBreathCurve(t, 0.2, 0.3);
+}
+
 function calculateOpacity(phaseIndex: number, phaseProgress: number): number {
   switch (phaseIndex) {
-    case 0: // Inhale - fade in
-      return easeOutQuad(phaseProgress);
+    case 0: // Inhale - fade in with breathing curve
+      return easeInhale(phaseProgress);
     case 1: // Hold-in - fully visible
       return 1;
-    case 2: // Exhale - fade out
-      return 1 - easeInQuad(phaseProgress);
+    case 2: // Exhale - fade out with breathing curve
+      return 1 - easeExhale(phaseProgress);
     case 3: // Hold-out - hidden
       return 0;
     default:
       return 0;
   }
-}
-
-function easeOutQuad(t: number): number {
-  return 1 - (1 - t) * (1 - t);
-}
-
-function easeInQuad(t: number): number {
-  return t * t;
 }
 
 /**
