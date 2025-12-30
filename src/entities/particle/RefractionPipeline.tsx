@@ -171,13 +171,15 @@ export function RefractionPipeline({
   }, []);
 
   // Create materials (resolution updated in useFrame for simplicity with useFBO)
-  const { backfaceMaterial, refractionMaterial } = useMemo(() => {
+  // Need separate materials for regular meshes vs InstancedMesh due to shader defines
+  const { backfaceMaterial, refractionMaterial, instancedRefractionMaterial } = useMemo(() => {
     const backfaceMaterial = new THREE.ShaderMaterial({
       vertexShader: backfaceVertexShader,
       fragmentShader: backfaceFragmentShader,
       side: THREE.BackSide,
     });
 
+    // Standard refraction material (for regular meshes with per-vertex colors)
     const refractionMaterial = new THREE.ShaderMaterial({
       uniforms: {
         envMap: { value: null },
@@ -190,7 +192,23 @@ export function RefractionPipeline({
       fragmentShader: refractionFragmentShader,
     });
 
-    return { backfaceMaterial, refractionMaterial };
+    // Instanced refraction material (for InstancedMesh with per-instance colors)
+    const instancedRefractionMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        envMap: { value: null },
+        backfaceMap: { value: null },
+        resolution: { value: new THREE.Vector2(1, 1) },
+        ior: { value: ior },
+        backfaceIntensity: { value: backfaceIntensity },
+      },
+      vertexShader: refractionVertexShader,
+      fragmentShader: refractionFragmentShader,
+      defines: {
+        USE_INSTANCING_COLOR: '', // Enable instanceColor in shader
+      },
+    });
+
+    return { backfaceMaterial, refractionMaterial, instancedRefractionMaterial };
   }, [ior, backfaceIntensity]);
 
   // Store original materials for mesh swapping
@@ -201,10 +219,11 @@ export function RefractionPipeline({
     return () => {
       backfaceMaterial.dispose();
       refractionMaterial.dispose();
+      instancedRefractionMaterial.dispose();
       bgMesh.geometry.dispose();
       (bgMesh.material as THREE.Material).dispose();
     };
-  }, [backfaceMaterial, refractionMaterial, bgMesh]);
+  }, [backfaceMaterial, refractionMaterial, instancedRefractionMaterial, bgMesh]);
 
   // 3-pass rendering loop
   useFrame(() => {
@@ -246,9 +265,16 @@ export function RefractionPipeline({
     refractionMaterial.uniforms.backfaceMap.value = backfaceFBO.texture;
     refractionMaterial.uniforms.resolution.value.set(size.width, size.height);
 
-    // Swap to refraction material and render scene
+    // Also update instanced material uniforms
+    instancedRefractionMaterial.uniforms.envMap.value = envFBO.texture;
+    instancedRefractionMaterial.uniforms.backfaceMap.value = backfaceFBO.texture;
+    instancedRefractionMaterial.uniforms.resolution.value.set(size.width, size.height);
+
+    // Swap to appropriate refraction material based on mesh type
     for (const mesh of meshes) {
-      mesh.material = refractionMaterial;
+      // Use instanced material for InstancedMesh, regular for others
+      mesh.material =
+        mesh instanceof THREE.InstancedMesh ? instancedRefractionMaterial : refractionMaterial;
     }
     gl.clearDepth();
     gl.render(scene, camera);
