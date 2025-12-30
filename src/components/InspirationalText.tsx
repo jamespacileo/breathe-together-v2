@@ -120,7 +120,7 @@ export function InspirationalText() {
   const textWrapperStyle: React.CSSProperties = {
     position: 'relative',
     padding: isMobile
-      ? '12px 24px' // Mobile: Compact padding for more scene visibility
+      ? '10px 16px' // Mobile: Minimal padding to maximize text width
       : isTablet
         ? '16px 40px' // Tablet: Medium padding
         : 'clamp(20px, 4vw, 40px) clamp(40px, 10vw, 100px)', // Desktop: Original spacious padding
@@ -136,18 +136,21 @@ export function InspirationalText() {
     borderRadius: isMobile ? '40px' : '100px',
     // Start hidden - RAF loop controls opacity
     opacity: 0,
+    // On mobile, use more of the available width
+    maxWidth: isMobile ? '90vw' : 'none',
+    width: isMobile ? '90vw' : 'auto',
   };
 
   const textStyle: React.CSSProperties = {
     fontFamily: "'Cormorant Garamond', Georgia, serif",
-    // Mobile: Smaller font to reduce vertical space usage
+    // Mobile: Dynamic viewport-based sizing to fill available width
     fontSize: isMobile
-      ? 'clamp(1.1rem, 5vw, 1.4rem)' // Mobile: Smaller, max 1.4rem
+      ? 'clamp(1.3rem, 7vw, 2.2rem)' // Mobile: Larger, viewport-scaled (7vw fills width better)
       : isTablet
-        ? 'clamp(1.4rem, 4vw, 2rem)' // Tablet: Medium size
+        ? 'clamp(1.4rem, 4.5vw, 2.2rem)' // Tablet: Medium size
         : 'clamp(1.6rem, 3.5vw, 2.8rem)', // Desktop: Original large size
     fontWeight: 300,
-    letterSpacing: isMobile ? '0.15em' : '0.22em', // Less spacing on mobile
+    letterSpacing: isMobile ? '0.12em' : '0.22em', // Tighter spacing for better fit
     textTransform: 'uppercase',
     color: colors.text,
     textShadow: `
@@ -156,8 +159,12 @@ export function InspirationalText() {
       0 1px 6px rgba(0, 0, 0, 0.1)
     `,
     textAlign: 'center',
-    lineHeight: isMobile ? 1.15 : 1.2, // Tighter line height on mobile
+    lineHeight: isMobile ? 1.1 : 1.2, // Tighter line height on mobile
     userSelect: 'none',
+    // Prevent text wrapping - let it scale instead
+    whiteSpace: isMobile ? 'nowrap' : 'normal',
+    // Scale to fit container width on mobile
+    width: isMobile ? '100%' : 'auto',
   };
 
   return (
@@ -176,6 +183,10 @@ export function InspirationalText() {
         zIndex: 50,
         // Mobile: Smaller gap to reduce vertical space usage and show more of 3D scene
         gap: isMobile ? 'min(30vh, 180px)' : isTablet ? 'min(34vh, 220px)' : 'min(38vh, 260px)',
+        // Mobile: Use more horizontal space
+        width: isMobile ? '100%' : 'auto',
+        paddingLeft: isMobile ? '5vw' : 0,
+        paddingRight: isMobile ? '5vw' : 0,
       }}
     >
       {/* Top text - above the globe */}
