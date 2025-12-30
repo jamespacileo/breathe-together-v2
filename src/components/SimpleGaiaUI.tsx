@@ -242,20 +242,53 @@ export function SimpleGaiaUI({
     return () => cancelAnimationFrame(animationId);
   }, []);
 
-  // Presence count simulation - updates every 2 seconds with subtle variation
-  // Moved out of RAF loop to avoid 60 random number generations per second
+  // Presence count simulation - updates with realistic user activity patterns
+  // This simulates users joining/leaving, triggering ParticleSwarm animations
   useEffect(() => {
     const updatePresenceCount = () => {
-      if (presenceCountRef.current) {
-        const baseCount = 75;
-        const variation = Math.floor(Math.random() * 10) - 5;
-        presenceCountRef.current.textContent = `${baseCount + variation}`;
+      // Simulate realistic user activity:
+      // - 80% chance: small change (±1-3 users) - normal activity
+      // - 15% chance: medium burst (±5-10 users) - group joins/leaves
+      // - 5% chance: large burst (±15-25 users) - event-driven activity
+      const roll = Math.random();
+      let change: number;
+
+      if (roll < 0.8) {
+        // Small change: ±1-3 users
+        change = Math.floor(Math.random() * 5) - 2;
+      } else if (roll < 0.95) {
+        // Medium burst: ±5-10 users
+        const magnitude = 5 + Math.floor(Math.random() * 6);
+        change = Math.random() < 0.5 ? magnitude : -magnitude;
+      } else {
+        // Large burst: ±15-25 users
+        const magnitude = 15 + Math.floor(Math.random() * 11);
+        change = Math.random() < 0.5 ? magnitude : -magnitude;
       }
+
+      const newCount = Math.max(12, Math.min(200, harmony + change)); // Clamp 12-200
+
+      // Update the display
+      if (presenceCountRef.current) {
+        presenceCountRef.current.textContent = `${newCount}`;
+      }
+
+      // Update the actual particle count to trigger join/leave animations
+      setHarmony(newCount);
     };
 
-    const intervalId = setInterval(updatePresenceCount, 2000);
-    return () => clearInterval(intervalId);
-  }, []);
+    // Variable interval: 2-4 seconds for realistic activity patterns
+    const scheduleNext = () => {
+      const delay = 2000 + Math.random() * 2000; // 2-4 seconds
+      return setTimeout(() => {
+        updatePresenceCount();
+        timeoutRef.current = scheduleNext();
+      }, delay);
+    };
+
+    const timeoutRef = { current: scheduleNext() };
+    return () => clearTimeout(timeoutRef.current);
+  }, [harmony, setHarmony]);
 
   // Keyboard shortcut: Press 'T' to toggle tuning controls
   useEffect(() => {
