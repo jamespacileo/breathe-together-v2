@@ -4,16 +4,73 @@
  * Uses separate Mesh objects (not InstancedMesh) to match reference exactly.
  * Each mesh has per-vertex color attribute for mood coloring.
  * Rendered via RefractionPipeline 3-pass FBO system.
+ *
+ * Animation: Spring physics with phase-aware dynamics and noise modulation
+ * - Inhale: Purposeful, steady inward pull (moderate spring, low damping)
+ * - Hold-in: Suspended stillness with micro-drift (stiff spring, high damping)
+ * - Exhale: Gentle release, letting go (soft spring, overdamped)
+ * - Hold-out: Grounded calm (moderate spring, high damping)
  */
 
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
+import { createNoise3D } from 'simplex-noise';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
-import { orbitRadius } from '../breath/traits';
+import { orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
+
+// Create noise generator for organic variation
+const noise3D = createNoise3D();
+
+/**
+ * Phase-aware spring parameters for controlled relaxation breathing
+ *
+ * Each breath phase has distinct physics characteristics:
+ * - spring: How quickly the shard moves toward target (stiffness)
+ * - damping: How much velocity is preserved (1 = no damping, 0 = full stop)
+ * - noiseScale: Amplitude of organic position variation
+ */
+interface SpringParams {
+  spring: number;
+  damping: number;
+  noiseScale: number;
+}
+
+/**
+ * Get spring physics parameters based on current breath phase
+ *
+ * Tuned for controlled relaxation breathing feel:
+ * - Inhale feels purposeful and steady
+ * - Hold-in feels suspended but alive
+ * - Exhale feels like gentle release
+ * - Hold-out feels grounded and calm
+ */
+function getPhaseSpringParams(phase: number): SpringParams {
+  switch (phase) {
+    case 0: // Inhale - purposeful, steady pull inward
+      return { spring: 0.08, damping: 0.82, noiseScale: 0.06 };
+    case 1: // Hold-in - suspended stillness, minimal drift
+      return { spring: 0.15, damping: 0.92, noiseScale: 0.02 };
+    case 2: // Exhale - gentle release, letting go
+      return { spring: 0.05, damping: 0.88, noiseScale: 0.08 };
+    case 3: // Hold-out - grounded calm
+      return { spring: 0.12, damping: 0.9, noiseScale: 0.03 };
+    default:
+      return { spring: 0.08, damping: 0.85, noiseScale: 0.05 };
+  }
+}
+
+/**
+ * Per-shard physics state for spring simulation
+ */
+interface ShardPhysics {
+  currentRadius: number;
+  velocity: number;
+  noiseOffset: number; // Unique noise phase offset per shard
+}
 
 // Convert palette to THREE.Color array for random selection
 const MOOD_COLORS = [
@@ -128,6 +185,8 @@ export function ParticleSwarm({
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
+  const physicsRef = useRef<ShardPhysics[]>([]);
+  const elapsedRef = useRef(0); // Track time for noise animation
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -172,7 +231,7 @@ export function ParticleSwarm({
     return result;
   }, [count, users, baseRadius, shardSize, material]);
 
-  // Add meshes to group and store ref
+  // Add meshes to group, store ref, and initialize physics state
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
@@ -188,6 +247,14 @@ export function ParticleSwarm({
     }
     shardsRef.current = shards;
 
+    // Initialize physics state for each shard
+    physicsRef.current = shards.map((_, index) => ({
+      currentRadius: baseRadius,
+      velocity: 0,
+      // Unique noise offset per shard for organic variation
+      noiseOffset: (index / shards.length) * Math.PI * 2,
+    }));
+
     // Cleanup on unmount
     return () => {
       for (const shard of shards) {
@@ -195,7 +262,7 @@ export function ParticleSwarm({
         group.remove(shard.mesh);
       }
     };
-  }, [shards]);
+  }, [shards, baseRadius]);
 
   // Cleanup material on unmount
   useEffect(() => {
@@ -204,33 +271,76 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - update positions and rotations
-  useFrame(() => {
+  // Animation loop - spring physics with phase-aware dynamics and noise
+  useFrame((_, delta) => {
     const currentShards = shardsRef.current;
-    if (currentShards.length === 0) return;
+    const physics = physicsRef.current;
+    if (currentShards.length === 0 || physics.length === 0) return;
+
+    // Update elapsed time for noise animation
+    elapsedRef.current += delta;
+    const elapsed = elapsedRef.current;
 
     // Get breathing state from ECS
-    let breathingRadius = baseRadius;
+    let targetRadius = baseRadius;
+    let currentPhase = 0;
     try {
       const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
-        breathingRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
+        targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
+        currentPhase = breathEntity.get(phaseType)?.value ?? 0;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
-    // Clamp radius to prevent shards from penetrating globe
-    const currentRadius = Math.max(breathingRadius, minOrbitRadius);
+    // Get phase-aware spring parameters
+    const { spring, damping, noiseScale } = getPhaseSpringParams(currentPhase);
 
-    // Update each shard
-    for (const shard of currentShards) {
-      // Update position based on clamped breathing radius
-      shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
+    // Clamp target radius to prevent shards from penetrating globe
+    targetRadius = Math.max(targetRadius, minOrbitRadius);
 
-      // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
-      shard.mesh.rotation.x += 0.002;
-      shard.mesh.rotation.y += 0.003;
+    // Update each shard with spring physics
+    for (let i = 0; i < currentShards.length; i++) {
+      const shard = currentShards[i];
+      const state = physics[i];
+
+      // Calculate noise offset for this shard (organic variation)
+      // Uses 3D noise sampled at shard's direction for spatial coherence
+      const noiseValue = noise3D(
+        shard.direction.x * 2 + elapsed * 0.15,
+        shard.direction.y * 2 + state.noiseOffset,
+        shard.direction.z * 2 + elapsed * 0.1,
+      );
+      const noiseOffset = noiseValue * noiseScale;
+
+      // Target with noise modulation
+      const noisyTarget = targetRadius + noiseOffset;
+
+      // Spring physics: F = -k * (x - target)
+      // Velocity integration with damping
+      const displacement = noisyTarget - state.currentRadius;
+      state.velocity += displacement * spring;
+      state.velocity *= damping;
+
+      // Position integration (delta-normalized for frame-rate independence)
+      // Scale by 60 to normalize around 60fps baseline
+      state.currentRadius += state.velocity * delta * 60;
+
+      // Clamp to valid range (prevent shards going inside globe or too far out)
+      state.currentRadius = Math.max(
+        minOrbitRadius,
+        Math.min(state.currentRadius, baseRadius * 1.5),
+      );
+
+      // Update mesh position
+      shard.mesh.position.copy(shard.direction).multiplyScalar(state.currentRadius);
+
+      // Continuous rotation with slight per-shard variation
+      // Slower rotation during holds for stillness feel
+      const rotationMultiplier = currentPhase === 1 || currentPhase === 3 ? 0.6 : 1.0;
+      shard.mesh.rotation.x += 0.002 * rotationMultiplier;
+      shard.mesh.rotation.y += 0.003 * rotationMultiplier;
     }
   });
 
