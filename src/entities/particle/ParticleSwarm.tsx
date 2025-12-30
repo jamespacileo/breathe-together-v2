@@ -34,8 +34,23 @@ const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
 };
 
 /**
- * Build color distribution array from users prop
- * Extracted to reduce cognitive complexity of shard creation
+ * Build color distribution array from presence data
+ *
+ * Converts mood counts into an array of Three.js Color instances, where each
+ * user is represented by their mood color. This array is used for distributing
+ * colors across particle shards.
+ *
+ * **Example:**
+ * ```ts
+ * const users = { calm: 3, energized: 2 };
+ * // Returns: [calmColor, calmColor, calmColor, energizedColor, energizedColor]
+ * ```
+ *
+ * **Performance:** Linear time O(n) where n is total user count. Called once
+ * per presence update (typically ~1-5 times per minute).
+ *
+ * @param users - Mood distribution from presence data (e.g., { calm: 5, energized: 3 })
+ * @returns Array of colors, one per user. Empty array if no users.
  */
 function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefined): THREE.Color[] {
   if (!users) return [];
@@ -53,7 +68,19 @@ function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefin
 }
 
 /**
- * Apply per-vertex color to geometry
+ * Apply per-vertex color to icosahedron geometry
+ *
+ * Sets vertex colors for all vertices in the geometry to the specified color.
+ * Required for THREE.InstancedMesh with vertexColors enabled.
+ *
+ * **Implementation:** Creates Float32Array with RGB triplets for each vertex.
+ * Icosahedron geometry has 12 vertices by default (detail level 0).
+ *
+ * **Performance:** Called once per unique shard geometry during initialization.
+ * O(v) where v is vertex count.
+ *
+ * @param geometry - Icosahedron geometry to modify
+ * @param color - Three.js color to apply to all vertices
  */
 function applyVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Color): void {
   const vertexCount = geometry.attributes.position.count;

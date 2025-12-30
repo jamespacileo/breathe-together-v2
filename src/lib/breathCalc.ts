@@ -2,15 +2,14 @@ import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
 
 /**
- * Physics-based easing functions for organic breathing animation
+ * Controlled breathing easing functions for organic, relaxation-focused animation
  *
- * Uses spring dynamics and damping principles to create natural motion:
- * - Inhale: Smootherstep (Perlin) - physically smooth acceleration/deceleration
- * - Exhale: Viscous release - exponential decay blended for controlled feel
+ * Uses raised cosine ramps with linear plateau for natural motion:
+ * - Inhale/Exhale: Soft start, steady middle, soft end
  * - Holds: Damped oscillation - subtle "alive" movement
  *
  * All functions guarantee exact positions at phase boundaries (0 and 1)
- * while providing the organic feel of physical systems.
+ * while providing the organic feel of controlled breathing.
  */
 
 /**
