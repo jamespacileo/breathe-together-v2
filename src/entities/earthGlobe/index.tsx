@@ -54,19 +54,19 @@ void main() {
 
   // Fresnel rim for atmospheric glow
   vec3 viewDir = normalize(vViewPosition);
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
-  vec3 rimColor = vec3(0.96, 0.91, 0.85); // Soft warm cream atmospheric glow
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 4.0); // Tighter falloff
+  vec3 rimColor = vec3(0.94, 0.90, 0.86); // Muted warm cream, closer to background
 
   // Breathing modulation - subtle brightness shift
-  float breathMod = 1.0 + breathPhase * 0.08;
+  float breathMod = 1.0 + breathPhase * 0.06;
   texColor *= breathMod;
 
-  // Blend texture with fresnel rim
-  vec3 finalColor = mix(texColor, rimColor, fresnel * 0.35);
+  // Blend texture with fresnel rim - very subtle
+  vec3 finalColor = mix(texColor, rimColor, fresnel * 0.18);
 
-  // Subtle top-down lighting
-  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.1;
-  finalColor += vec3(1.0, 0.98, 0.95) * topLight;
+  // Subtle top-down lighting - very gentle
+  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.05;
+  finalColor += vec3(0.98, 0.95, 0.92) * topLight;
 
   gl_FragColor = vec4(finalColor, 1.0);
 }
@@ -95,10 +95,10 @@ varying vec3 vViewPosition;
 
 void main() {
   vec3 viewDir = normalize(vViewPosition);
-  // Fresnel - stronger at edges
-  float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 2.5);
-  // Breathing pulse
-  float pulse = 1.0 + breathPhase * 0.3;
+  // Fresnel - softer edges with tighter falloff
+  float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 3.5);
+  // Breathing pulse - gentler
+  float pulse = 1.0 + breathPhase * 0.2;
   float alpha = fresnel * glowIntensity * pulse;
   gl_FragColor = vec4(glowColor, alpha);
 }
@@ -244,8 +244,8 @@ export function EarthGlobe({
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
-          glowColor: { value: new THREE.Color('#f5e6d3') }, // Soft muted cream glow
-          glowIntensity: { value: 0.4 },
+          glowColor: { value: new THREE.Color('#efe5da') }, // Very soft muted cream
+          glowIntensity: { value: 0.25 },
           breathPhase: { value: 0 },
         },
         vertexShader: glowVertexShader,
