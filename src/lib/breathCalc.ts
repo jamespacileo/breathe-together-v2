@@ -2,77 +2,94 @@ import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
 
 /**
- * Anatomically-inspired easing functions for natural breathing feel
+ * Soft breathing easing with overshoot-and-settle pattern
  *
- * Natural breathing mechanics:
- * - Inhale: Diaphragm contracts, pulling lungs down. Initial resistance,
- *   then lungs expand freely, slowing as capacity approaches.
- * - Exhale: Passive release of tension, then controlled descent as
- *   intercostal muscles engage for smooth finish.
- * - Holds: Not static - subtle "settling" and micro-movements feel alive.
+ * Animation principle: Natural movement overshoots slightly then settles back.
+ * This creates organic, living motion rather than mechanical stops.
+ *
+ * Pattern: target → overshoot (2-3%) → settle back to target
+ *
+ * All easing uses sine curves for the softest possible transitions -
+ * sine waves have zero acceleration at their peaks, creating gentle motion.
  */
 
+// Core sine easing functions - softest possible curves
+function easeInSine(t: number): number {
+  return 1 - Math.cos((t * Math.PI) / 2);
+}
+
+function easeOutSine(t: number): number {
+  return Math.sin((t * Math.PI) / 2);
+}
+
+function easeInOutSine(t: number): number {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
+
 /**
- * Inhale easing: Slow start (effort), accelerate (lungs open), slow finish (capacity)
- * Custom curve with slight initial resistance, then smooth S-curve
+ * Soft inhale: Gentle sine curve with overshoot at peak
+ *
+ * Feel: Breath fills lungs smoothly, slightly "overflows", then settles
+ * Visual: 0 → 0.97 (smooth) → 1.025 (peak) → 1.0 (settle)
  */
 function easeInhale(t: number): number {
-  // Blend of easeInOut with slight initial hesitation
-  // First 15%: slow start (diaphragm engagement)
-  // Middle: smooth acceleration (lungs expanding)
-  // Last 15%: gradual approach to full (capacity limit)
-  if (t < 0.15) {
-    // Cubic ease-in for initial effort
-    return 0.15 * (t / 0.15) ** 2.5;
+  if (t < 0.85) {
+    // Main breath: smooth sine ease-in-out
+    return easeInOutSine(t / 0.85) * 0.97;
   }
-  if (t > 0.85) {
-    // Smooth ease-out approaching full
-    const localT = (t - 0.85) / 0.15;
-    return 0.85 + 0.15 * (1 - (1 - localT) ** 2.5);
-  }
-  // Middle section: smooth sine-based progression
-  const localT = (t - 0.15) / 0.7;
-  return 0.15 + 0.7 * (0.5 - 0.5 * Math.cos(localT * Math.PI));
+  // Final 15%: overshoot to ~1.025 then settle to 1.0
+  const localT = (t - 0.85) / 0.15;
+  const overshootAmount = 0.025; // 2.5% overshoot
+  const overshootCurve = Math.sin(localT * Math.PI) * overshootAmount;
+  return 0.97 + 0.03 * easeOutSine(localT) + overshootCurve;
 }
 
 /**
- * Exhale easing: Quick release (passive), then controlled slowdown
- * Natural exhale starts with tension release, ends with control
+ * Soft exhale: Gentle sine release with undershoot at bottom
+ *
+ * Feel: Breath releases naturally, "empties" slightly past zero, settles
+ * Visual: 1 → 0.03 (smooth) → -0.02 (dip) → 0.0 (settle)
  */
 function easeExhale(t: number): number {
-  // Ease-out cubic with extended tail
-  // First 40%: quick release (passive relaxation)
-  // Last 60%: controlled descent (engaging core for smooth finish)
-  if (t < 0.4) {
-    // Quick initial release
-    const localT = t / 0.4;
-    return 0.6 * (1 - (1 - localT) ** 2);
+  if (t < 0.85) {
+    // Main release: smooth sine-based descent
+    return 1 - easeInOutSine(t / 0.85) * 0.97;
   }
-  // Slower controlled finish
-  const localT = (t - 0.4) / 0.6;
-  return 0.6 + 0.4 * (1 - (1 - localT) ** 3);
+  // Final 15%: undershoot to ~-0.02 then settle to 0.0
+  const localT = (t - 0.85) / 0.15;
+  const undershootAmount = 0.02; // 2% undershoot
+  const undershootCurve = -Math.sin(localT * Math.PI) * undershootAmount;
+  return 0.03 * (1 - easeOutSine(localT)) + undershootCurve;
 }
 
 /**
- * Hold easing with micro-movement: Not static, subtle "settling" feel
- * Creates sense of life without visible movement
+ * Hold-in: Settling after inhale overshoot + gentle micro-movement
+ *
+ * Feel: Breath is full, body settles, subtle aliveness
  */
 function easeHoldIn(t: number): number {
-  // Subtle settling curve - slight expansion then micro-release
-  // Mimics the natural "peak" of a held breath
-  const settle = Math.sin(t * Math.PI) * 0.02; // 2% micro-movement
-  return 1 + settle; // Peaks slightly above 1, returns to 1
-}
-
-function easeHoldOut(t: number): number {
-  // Subtle anticipation curve - slight dip then rise toward next inhale
-  // Mimics the natural "readiness" before breathing in
-  const anticipation = -Math.sin(t * Math.PI * 0.8) * 0.015; // 1.5% micro-movement
-  return anticipation; // Dips slightly below 0, rises toward 0
+  // Start slightly above 1 (continuing from inhale overshoot), settle toward 1
+  const settleFromOvershoot = 1 + 0.015 * (1 - easeOutSine(t * 0.5));
+  // Gentle micro-movement during hold
+  const microMovement = Math.sin(t * Math.PI * 0.8) * 0.008;
+  return settleFromOvershoot + microMovement;
 }
 
 /**
- * Legacy easing functions (kept for reference/fallback)
+ * Hold-out: Settling after exhale undershoot + anticipation for next inhale
+ *
+ * Feel: Breath is empty, body settles, builds toward next inhale
+ */
+function easeHoldOut(t: number): number {
+  // Start slightly below 0 (continuing from exhale undershoot), settle toward 0
+  const settleFromUndershoot = -0.01 * (1 - easeOutSine(t * 0.5));
+  // Slight anticipation rise toward end (body preparing for inhale)
+  const anticipation = easeInSine(t) * 0.015;
+  return settleFromUndershoot + anticipation;
+}
+
+/**
+ * Utility easing (for crystallization effects)
  */
 function easeInOutQuad(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
