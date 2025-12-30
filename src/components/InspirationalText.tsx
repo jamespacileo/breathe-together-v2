@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { CYCLES_PER_MESSAGE, MESSAGES } from '../config/inspirationalMessages';
+import { useEffect, useRef } from 'react';
+import { AMBIENT_MESSAGES, WELCOME_INTRO } from '../config/inspirationalSequences';
 import { BREATH_TOTAL_CYCLE } from '../constants';
 import { useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
+import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
 
 /**
  * Breathing Phase Timeline:
@@ -52,14 +53,38 @@ function easeInQuad(t: number): number {
 export function InspirationalText() {
   const topWrapperRef = useRef<HTMLDivElement>(null);
   const bottomWrapperRef = useRef<HTMLDivElement>(null);
-  const [quoteIndex, setQuoteIndex] = useState(0);
-  const cycleCountRef = useRef(0);
   const prevPhaseRef = useRef(-1);
   const { isMobile, isTablet } = useViewport();
+
+  // Get store state and actions
+  const getCurrentMessage = useInspirationalTextStore((state) => state.getCurrentMessage);
+  const advanceCycle = useInspirationalTextStore((state) => state.advanceCycle);
+  const setAmbientPool = useInspirationalTextStore((state) => state.setAmbientPool);
+  const enqueue = useInspirationalTextStore((state) => state.enqueue);
+  const ambientPool = useInspirationalTextStore((state) => state.ambientPool);
+  const currentSequence = useInspirationalTextStore((state) => state.currentSequence);
+  const getPlaybackInfo = useInspirationalTextStore((state) => state.getPlaybackInfo);
+
+  // Initialize store on mount - set ambient pool and queue intro if first visit
+  useEffect(() => {
+    // Only initialize if ambient pool is empty (first mount)
+    if (ambientPool.length === 0) {
+      setAmbientPool(AMBIENT_MESSAGES);
+      // Queue welcome intro - store handles playOnce logic
+      enqueue(WELCOME_INTRO);
+    }
+  }, [ambientPool.length, setAmbientPool, enqueue]);
+
+  // Track cycles remaining for current message
+  const cyclesRemainingRef = useRef(0);
 
   // RAF loop for smooth opacity animation synchronized to breathing
   useEffect(() => {
     let animationId: number;
+
+    // Initialize cycles remaining from store
+    const info = getPlaybackInfo();
+    cyclesRemainingRef.current = info.cyclesRemaining;
 
     const updateText = () => {
       const now = Date.now() / 1000;
@@ -86,13 +111,9 @@ export function InspirationalText() {
         bottomWrapperRef.current.style.transform = transform;
       }
 
-      // Track cycle completion and rotate quotes
+      // Track cycle completion and advance queue
       if (phaseIndex === 0 && prevPhaseRef.current === 3) {
-        cycleCountRef.current += 1;
-        if (cycleCountRef.current >= CYCLES_PER_MESSAGE) {
-          cycleCountRef.current = 0;
-          setQuoteIndex((prev) => (prev + 1) % MESSAGES.length);
-        }
+        advanceCycle();
       }
       prevPhaseRef.current = phaseIndex;
 
@@ -101,9 +122,13 @@ export function InspirationalText() {
 
     updateText();
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [advanceCycle, getPlaybackInfo]);
 
-  const quote = MESSAGES[quoteIndex] ?? MESSAGES[0];
+  // Get current message from store
+  const quote = getCurrentMessage() ?? { top: '', bottom: '' };
+
+  // Get playback info for potential UI indicators
+  const _playbackInfo = currentSequence ? getPlaybackInfo() : null;
 
   // Design tokens matching GaiaUI warm palette
   const colors = {

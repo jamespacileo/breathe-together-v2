@@ -35,19 +35,48 @@ import type { InspirationalMessage, MessageSequence } from '../stores/inspiratio
 /**
  * Welcome sequence for first-time visitors.
  * Plays once, then never again (persisted in localStorage).
+ *
+ * Emotional arc: arrival → grounding → expansion → connection → unity → belonging
+ *
+ * This is the user's first impression - it should feel warm, inclusive,
+ * and gently guide them into the shared breathing experience.
  */
 export const WELCOME_INTRO: MessageSequence = {
   id: 'welcome-intro',
   type: 'intro',
   playOnce: true,
-  cyclesPerMessage: 2, // Slightly faster pace for intro
-  description: 'First-time welcome experience',
+  cyclesPerMessage: 2, // ~32s per message, ~5 min total for full intro
+  description: 'First-time welcome experience - guides user into shared breathing',
   messages: [
-    { top: 'Welcome', bottom: 'To This Space' },
+    // 1. Warm arrival - acknowledge they've found something special
+    { top: 'Welcome', bottom: 'Beautiful Soul' },
+
+    // 2. Grounding - invite them to settle in
     { top: 'Take A Moment', bottom: 'To Arrive' },
+
+    // 3. Release - help them let go of the outside world
     { top: 'Let Go', bottom: 'Of Everything Else' },
-    { top: 'Right Now', bottom: 'You Are Here' },
-    { top: 'Breathing With', bottom: 'The World' },
+
+    // 4. Present moment - anchor them here and now
+    { top: 'Right Now', bottom: 'Only This Matters' },
+
+    // 5. Introduce the breath - the central practice
+    { top: 'Follow', bottom: 'Your Breath' },
+
+    // 6. Expansion - begin to look outward
+    { top: 'Now Imagine', bottom: 'Something Beautiful' },
+
+    // 7. Global awareness - introduce the collective
+    { top: 'Across The World', bottom: 'Others Are Breathing' },
+
+    // 8. Synchronization - reveal the magic
+    { top: 'At This Exact', bottom: 'Moment' },
+
+    // 9. Unity - they're part of something bigger
+    { top: 'We Breathe', bottom: 'Together' },
+
+    // 10. Belonging - they're home now
+    { top: 'You Are', bottom: 'One Of Us' },
   ],
 };
 
