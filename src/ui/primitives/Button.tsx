@@ -1,7 +1,20 @@
-import { type ButtonHTMLAttributes, type CSSProperties, type ReactNode, useState } from 'react';
+import {
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type PointerEvent,
+  type ReactNode,
+  useState,
+} from 'react';
 import { colors } from '../tokens/colors';
 import { radius, spacing } from '../tokens/spacing';
 import { typography } from '../tokens/typography';
+
+/**
+ * Stop pointer events from propagating to prevent 3D scene interaction
+ */
+const stopPropagation = (e: PointerEvent<HTMLButtonElement>) => {
+  e.stopPropagation();
+};
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style'> {
   children: ReactNode;
@@ -139,6 +152,9 @@ export function Button({
       {...props}
       disabled={disabled || loading}
       style={buttonStyle}
+      onPointerDown={stopPropagation}
+      onPointerMove={stopPropagation}
+      onPointerUp={stopPropagation}
       onMouseEnter={(e) => {
         setIsHovered(true);
         props.onMouseEnter?.(e);

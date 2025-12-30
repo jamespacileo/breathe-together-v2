@@ -1,9 +1,16 @@
-import { type ChangeEvent, type CSSProperties, useId } from 'react';
+import { type ChangeEvent, type CSSProperties, type PointerEvent, useId } from 'react';
 import { HStack, VStack } from '../primitives/Stack';
 import { Label, Text } from '../primitives/Text';
 import { colors } from '../tokens/colors';
 import { radius, spacing } from '../tokens/spacing';
 import { typography } from '../tokens/typography';
+
+/**
+ * Stop pointer events from propagating to prevent 3D scene interaction
+ */
+const stopPropagation = (e: PointerEvent) => {
+  e.stopPropagation();
+};
 
 export interface SliderProps {
   /** Current value */
@@ -134,7 +141,13 @@ export function Slider({
   `;
 
   return (
-    <VStack gap="xs" style={wrapperStyle}>
+    <VStack
+      gap="xs"
+      style={wrapperStyle}
+      onPointerDown={stopPropagation}
+      onPointerMove={stopPropagation}
+      onPointerUp={stopPropagation}
+    >
       {(label || showValue) && (
         <HStack justify="between" align="center">
           {label && <Label htmlFor={id}>{label}</Label>}
@@ -158,6 +171,9 @@ export function Slider({
           onChange={handleChange}
           disabled={disabled}
           style={inputStyle}
+          onPointerDown={stopPropagation}
+          onPointerMove={stopPropagation}
+          onPointerUp={stopPropagation}
         />
       </div>
     </VStack>
@@ -226,7 +242,13 @@ export function Toggle({ checked, onChange, label, disabled = false, size = 'md'
   };
 
   return (
-    <label htmlFor={id} style={wrapperStyle}>
+    <label
+      htmlFor={id}
+      style={wrapperStyle}
+      onPointerDown={stopPropagation}
+      onPointerMove={stopPropagation}
+      onPointerUp={stopPropagation}
+    >
       <div style={trackStyle}>
         <input
           id={id}
@@ -301,7 +323,12 @@ export function SegmentedControl<T extends string>({
   });
 
   return (
-    <div style={containerStyle}>
+    <div
+      style={containerStyle}
+      onPointerDown={stopPropagation}
+      onPointerMove={stopPropagation}
+      onPointerUp={stopPropagation}
+    >
       {label && <Label>{label}</Label>}
       <div style={trackStyle}>
         {options.map((option) => (
@@ -311,6 +338,9 @@ export function SegmentedControl<T extends string>({
             onClick={() => !disabled && onChange(option.value)}
             disabled={disabled}
             style={getSegmentStyle(value === option.value)}
+            onPointerDown={stopPropagation}
+            onPointerMove={stopPropagation}
+            onPointerUp={stopPropagation}
           >
             {option.label}
           </button>

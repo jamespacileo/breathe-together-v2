@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, PointerEvent, ReactNode } from 'react';
 import { type SpacingToken, spacing } from '../tokens/spacing';
 
 export interface StackProps {
@@ -25,6 +25,10 @@ export interface StackProps {
   className?: string;
   /** HTML element to render */
   as?: 'div' | 'section' | 'nav' | 'header' | 'footer' | 'main' | 'aside';
+  /** Pointer event handlers for isolating UI from 3D scene */
+  onPointerDown?: (e: PointerEvent) => void;
+  onPointerMove?: (e: PointerEvent) => void;
+  onPointerUp?: (e: PointerEvent) => void;
 }
 
 const alignMap = {
@@ -62,6 +66,9 @@ export function Stack({
   style,
   className,
   as: Component = 'div',
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
 }: StackProps) {
   const stackStyle: CSSProperties = {
     display: 'flex',
@@ -77,7 +84,13 @@ export function Stack({
   };
 
   return (
-    <Component className={className} style={stackStyle}>
+    <Component
+      className={className}
+      style={stackStyle}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
       {children}
     </Component>
   );

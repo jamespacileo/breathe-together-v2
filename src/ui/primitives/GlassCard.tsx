@@ -1,6 +1,14 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, PointerEvent, ReactNode } from 'react';
 import { colors } from '../tokens/colors';
 import { blur, radius, spacing } from '../tokens/spacing';
+
+/**
+ * Stop pointer events from propagating to prevent 3D scene interaction
+ * while interacting with UI elements
+ */
+const stopPropagation = (e: PointerEvent) => {
+  e.stopPropagation();
+};
 
 export interface GlassCardProps {
   children: ReactNode;
@@ -85,6 +93,9 @@ export function GlassCard({
       className={className}
       style={cardStyle}
       onClick={onClick}
+      onPointerDown={stopPropagation}
+      onPointerMove={stopPropagation}
+      onPointerUp={stopPropagation}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={

@@ -1,4 +1,10 @@
-import { type CSSProperties, type ReactNode, useCallback, useEffect } from 'react';
+import {
+  type CSSProperties,
+  type PointerEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { IconButton } from '../primitives/Button';
 import { HStack, Spacer } from '../primitives/Stack';
@@ -6,6 +12,13 @@ import { Heading } from '../primitives/Text';
 import { animation, zIndex } from '../tokens';
 import { colors } from '../tokens/colors';
 import { blur, radius, spacing } from '../tokens/spacing';
+
+/**
+ * Stop pointer events from propagating to prevent 3D scene interaction
+ */
+const stopPropagation = (e: PointerEvent) => {
+  e.stopPropagation();
+};
 
 export interface ModalProps {
   /** Whether modal is visible */
@@ -128,12 +141,18 @@ export function Modal({
       style={backdropStyle}
       onClick={handleBackdropClick}
       onKeyDown={handleBackdropKeyDown}
+      onPointerDown={stopPropagation}
+      onPointerMove={stopPropagation}
+      onPointerUp={stopPropagation}
       role="presentation"
     >
       <div
         style={modalStyle}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
+        onPointerDown={stopPropagation}
+        onPointerMove={stopPropagation}
+        onPointerUp={stopPropagation}
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
