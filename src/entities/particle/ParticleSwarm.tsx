@@ -70,44 +70,44 @@ export interface ParticleSwarmProps {
   /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
   maxShardSize?: number;
 
-  // Glass Material Properties
+  // Glass Material Properties (Gem-like effect)
   /**
-   * Glass thickness - controls the depth of the glass material.
+   * Glass thickness - controls the depth of the gem material.
    * @min 0 @max 3 @step 0.05
-   * @default 0.2
+   * @default 0.6 (gem-like depth with pronounced refraction)
    */
   glassThickness?: number;
 
   /**
-   * Surface roughness - controls how matte or polished the glass appears.
+   * Surface roughness - controls how matte or polished the gem appears.
    * @min 0 @max 1 @step 0.1
-   * @default 0
+   * @default 0 (polished crystal surface)
    */
   glassRoughness?: number;
 
   /**
    * Transmission (transparency) - controls how much light passes through.
    * @min 0 @max 1 @step 0.1
-   * @default 1
+   * @default 1 (fully transparent gem)
    */
   glassTransmission?: number;
 
   /**
-   * Index of Refraction (IOR) - controls how much light bends through the glass.
+   * Index of Refraction (IOR) - controls how much light bends through the gem.
    * @min 0 @max 3 @step 0.1
-   * @default 1.2
+   * @default 1.8 (crystal-like refraction, between glass and diamond)
    */
   glassIor?: number;
 
   /**
-   * Chromatic Aberration - color separation effect from light refraction.
+   * Chromatic Aberration - prismatic rainbow effect at gem edges.
    * @min 0 @max 1 @step 0.01
-   * @default 0.02
+   * @default 0.06 (noticeable prismatic separation for gem sparkle)
    */
   glassChromaticAberration?: number;
 
   /**
-   * Backside rendering - enables rendering of back faces for hollow objects.
+   * Backside rendering - enables rendering of back faces for hollow gems.
    * @default true
    */
   glassBackside?: boolean;
@@ -121,11 +121,11 @@ export function ParticleSwarm({
   globeRadius = 1.5,
   buffer = 0.3,
   maxShardSize = 0.6,
-  glassThickness = 0.2,
+  glassThickness = 0.6,
   glassRoughness = 0,
   glassTransmission = 1,
-  glassIor = 1.2,
-  glassChromaticAberration = 0.02,
+  glassIor = 1.8,
+  glassChromaticAberration = 0.06,
   glassBackside = true,
 }: ParticleSwarmProps) {
   const world = useWorld();
