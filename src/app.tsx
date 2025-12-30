@@ -8,7 +8,11 @@ import { KootaSystems } from './providers';
 
 export function App() {
   return (
-    <Canvas shadows camera={{ position: [0, 0, 10], fov: 45 }} gl={{ localClippingEnabled: true }}>
+    <Canvas
+      shadows={false}
+      camera={{ position: [0, 0, 10], fov: 45 }}
+      gl={{ localClippingEnabled: true }}
+    >
       <Stats />
       <CameraRig />
       <KootaSystems breathSystemEnabled={true}>

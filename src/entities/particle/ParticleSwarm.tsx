@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { getMonumentValleyMoodColor } from '../../lib/colors';
-import { breathPhase } from '../breath/traits';
+import { orbitRadius } from '../breath/traits';
 
 export interface ParticleSwarmProps {
   /**
@@ -89,7 +89,7 @@ export interface ParticleSwarmProps {
  * Smoothstep easing function (same as HTML artifact)
  * Used for breathing animation curve
  */
-function smoothstep(t: number): number {
+function _smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
@@ -109,10 +109,7 @@ export function ParticleSwarm({
   enableRefraction,
   // biome-ignore lint/correctness/noUnusedFunctionParameters: Kept for prop interface compatibility with scene composition
   refractionQuality,
-  baseRadius = 6.0,
-  expansionRange = 2.0,
-  baseShardSize = 4.0,
-  breathSpeed = 0.3,
+  baseShardSize = 1.2, // Tuned for dynamic scaling
   rotationSpeedX = 0.002,
   rotationSpeedY = 0.003,
 }: ParticleSwarmProps) {
@@ -133,12 +130,6 @@ export function ParticleSwarm({
 
   // Monument Valley neutral filler color (warm neutral)
   const FILLER_COLOR = '#e6dcd3';
-
-  /**
-   * Pre-compute shard size based on count (inversely proportional)
-   * Matches HTML artifact: baseSize / Math.sqrt(PARAMS.count)
-   */
-  const shardSize = baseShardSize / Math.sqrt(capacity);
 
   /**
    * Initialize particle data:
@@ -221,23 +212,23 @@ export function ParticleSwarm({
   /**
    * Main animation loop: breathing, rotation, and color updates
    */
-  useFrame((state, _delta) => {
+  useFrame((_state, _delta) => {
     const mesh = meshRef.current;
     if (!mesh) return;
 
-    // Read breathing phase from ECS
-    const breathEntity = world.queryFirst(breathPhase);
+    // Read orbit radius from ECS
+    const breathEntity = world.queryFirst(orbitRadius);
     if (!breathEntity) return;
 
-    const phaseAttr = breathEntity.get(breathPhase);
-    if (!phaseAttr) return;
+    const currentRadius = breathEntity.get(orbitRadius)?.value ?? 6.0;
 
-    const t = state.clock.elapsedTime;
-
-    // HTML artifact breathing: simple sine wave with smoothstep easing
-    const breathSine = Math.sin(t * breathSpeed) * 0.5 + 0.5;
-    const easedBreath = smoothstep(breathSine);
-    const currentRadius = baseRadius + easedBreath * expansionRange;
+    /**
+     * DYNAMIC SCALING TRICK:
+     * Scale shards proportional to radius so they maintain consistent
+     * angular coverage and never overlap as they cluster.
+     * S = (R * k) / sqrt(N)
+     */
+    const dynamicScale = (currentRadius * baseShardSize) / Math.sqrt(capacity);
 
     const tempPos = tempPosRef.current;
     const tempQuat = tempQuatRef.current;
@@ -246,7 +237,7 @@ export function ParticleSwarm({
     // Update each shard
     for (let i = 0; i < capacity; i++) {
       // ========================================
-      // POSITION: Radial expansion
+      // POSITION: Radial expansion (using ECS radius)
       // ========================================
       const dirX = data.directions[i * 3];
       const dirY = data.directions[i * 3 + 1];
@@ -266,12 +257,9 @@ export function ParticleSwarm({
       );
 
       // Apply incremental rotation (reuse refs to avoid per-frame allocations)
-      const deltaX = rotationSpeedX;
-      const deltaY = rotationSpeedY;
-
       // Reuse quaternions and axis vectors instead of creating new ones
-      deltaQuatXRef.current.setFromAxisAngle(axisXRef.current, deltaX);
-      deltaQuatYRef.current.setFromAxisAngle(axisYRef.current, deltaY);
+      deltaQuatXRef.current.setFromAxisAngle(axisXRef.current, rotationSpeedX);
+      deltaQuatYRef.current.setFromAxisAngle(axisYRef.current, rotationSpeedY);
 
       tempQuat.multiply(deltaQuatXRef.current).multiply(deltaQuatYRef.current);
 
@@ -282,9 +270,9 @@ export function ParticleSwarm({
       data.rotations[i * 4 + 3] = tempQuat.w;
 
       // ========================================
-      // SCALE: Fixed scale for all shards
+      // SCALE: Dynamic based on radius
       // ========================================
-      tempScale.set(shardSize, shardSize, shardSize);
+      tempScale.set(dynamicScale, dynamicScale, dynamicScale);
 
       // ========================================
       // COMPOSE: Position + Rotation + Scale
