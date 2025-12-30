@@ -102,6 +102,11 @@ export function GaiaUI({
     borderBottom: `1px solid ${colors.border}`,
   };
 
+  // Stop pointer events from propagating to PresentationControls
+  const stopPropagation = (e: React.PointerEvent | React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   return (
     <div
       style={{
@@ -167,6 +172,8 @@ export function GaiaUI({
         <button
           type="button"
           onClick={() => setIsControlsOpen(!isControlsOpen)}
+          onPointerDown={stopPropagation}
+          onPointerMove={stopPropagation}
           style={{
             background: colors.glass,
             border: `1px solid ${colors.border}`,
@@ -185,8 +192,11 @@ export function GaiaUI({
           {isControlsOpen ? 'Close Settings' : 'Tune Aesthetic'}
         </button>
 
-        {/* Controls Panel */}
+        {/* Controls Panel - stop propagation to prevent scene rotation while dragging sliders */}
         <div
+          onPointerDown={stopPropagation}
+          onPointerMove={stopPropagation}
+          onPointerUp={stopPropagation}
           style={{
             background: colors.glass,
             backdropFilter: 'blur(40px)',
