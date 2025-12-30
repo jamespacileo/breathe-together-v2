@@ -125,6 +125,12 @@ export function ParticleSwarm({
   const tempQuatRef = useRef(new THREE.Quaternion());
   const tempScaleRef = useRef(new THREE.Vector3(1, 1, 1));
 
+  // Reusable rotation delta objects (avoid per-frame allocations)
+  const deltaQuatXRef = useRef(new THREE.Quaternion());
+  const deltaQuatYRef = useRef(new THREE.Quaternion());
+  const axisXRef = useRef(new THREE.Vector3(1, 0, 0));
+  const axisYRef = useRef(new THREE.Vector3(0, 1, 0));
+
   // Monument Valley neutral filler color (warm neutral)
   const FILLER_COLOR = '#e6dcd3';
 
@@ -259,18 +265,15 @@ export function ParticleSwarm({
         data.rotations[i * 4 + 3],
       );
 
-      // Apply incremental rotation
+      // Apply incremental rotation (reuse refs to avoid per-frame allocations)
       const deltaX = rotationSpeedX;
       const deltaY = rotationSpeedY;
 
-      // Create rotation deltas (per frame)
-      const deltaQuatX = new THREE.Quaternion();
-      const deltaQuatY = new THREE.Quaternion();
+      // Reuse quaternions and axis vectors instead of creating new ones
+      deltaQuatXRef.current.setFromAxisAngle(axisXRef.current, deltaX);
+      deltaQuatYRef.current.setFromAxisAngle(axisYRef.current, deltaY);
 
-      deltaQuatX.setFromAxisAngle(new THREE.Vector3(1, 0, 0), deltaX);
-      deltaQuatY.setFromAxisAngle(new THREE.Vector3(0, 1, 0), deltaY);
-
-      tempQuat.multiply(deltaQuatX).multiply(deltaQuatY);
+      tempQuat.multiply(deltaQuatXRef.current).multiply(deltaQuatYRef.current);
 
       // Store back for next frame
       data.rotations[i * 4] = tempQuat.x;

@@ -28,59 +28,65 @@ export function BreathingHUD3D() {
   return (
     <Root>
       <Suspense fallback={null}>
-        <Fullscreen flexDirection="column" justifyContent="flex-end" padding={40}>
+        <Fullscreen flexDirection="column" justifyContent="flex-end" padding={60}>
           {/* Main HUD Container: Bottom bar with phase, timer, progress, count */}
           <Container
             flexDirection="row"
-            gap={20}
+            gap={30}
             alignItems="center"
-            backgroundColor="rgba(18,16,22,0.45)"
-            padding={20}
-            borderRadius={16}
-            paddingBottom={20}
-            paddingTop={20}
-            paddingLeft={20}
-            paddingRight={20}
+            backgroundColor="rgba(250, 248, 243, 0.5)"
+            padding={24}
+            borderRadius={24}
+            borderWidth={1}
+            borderColor="rgba(140, 123, 108, 0.1)"
           >
             {/* Phase Name: e.g., "INHALE" */}
-            <Text
-              ref={phaseNameRef}
-              fontSize={18}
-              color="#fffef7"
-              letterSpacing={0.1}
-              fontWeight="bold"
-              width="auto"
-            >
-              Inhale
-            </Text>
-
-            {/* Timer: e.g., "4s" */}
-            <Text ref={timerRef} fontSize={24} color="#fffef7" width="auto">
-              4s
-            </Text>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Text
+                ref={phaseNameRef}
+                fontSize={12}
+                color="#d4a574"
+                letterSpacing={0.2}
+                fontWeight={600}
+              >
+                INHALE
+              </Text>
+              {/* Timer: e.g., "4s" */}
+              <Text ref={timerRef} fontSize={20} color="#8c7b6c" fontWeight={300}>
+                4s
+              </Text>
+            </div>
 
             {/* Progress Bar Container */}
             <Container
               flexGrow={1}
-              height={6}
-              backgroundColor="rgba(126,200,212,0.1)"
-              borderRadius={3}
-              minWidth={100}
+              height={2}
+              backgroundColor="rgba(140, 123, 108, 0.1)"
+              borderRadius={1}
+              minWidth={120}
             >
               {/* Animated progress fill - width updated by hook */}
               <Container
                 ref={progressBarRef}
-                height={6}
+                height={2}
                 width="0%"
-                backgroundColor="rgba(126,200,212,1)"
-                borderRadius={3}
+                backgroundColor="#d4a574"
+                borderRadius={1}
               />
             </Container>
 
             {/* User Count: e.g., "75 together" */}
-            <Text fontSize={14} color="#b8a896" opacity={0.7} width="auto" minWidth={100}>
-              {userCount} together
-            </Text>
+            <div style={{ textAlign: 'right' }}>
+              <Text fontSize={10} color="#b8a896" letterSpacing={0.1} fontWeight={600}>
+                PRESENCE
+              </Text>
+              <Text fontSize={16} color="#8c7b6c" fontWeight={400}>
+                {userCount}{' '}
+                <Text fontSize={12} color="#b8a896">
+                  together
+                </Text>
+              </Text>
+            </div>
           </Container>
         </Fullscreen>
       </Suspense>
