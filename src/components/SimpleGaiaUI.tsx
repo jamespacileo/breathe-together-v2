@@ -71,6 +71,14 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  /** Optional external control for mood selection modal visibility */
+  showMoodSelect?: boolean;
+  /** Optional callback when mood selection modal visibility changes */
+  onShowMoodSelectChange?: (show: boolean) => void;
+  /** Whether to show the welcome modal (default: false when intro is shown) */
+  showWelcomeOnMount?: boolean;
+  /** Hide app branding in top-left corner (used during intro) */
+  hideAppBranding?: boolean;
 }
 
 /**
@@ -109,14 +117,18 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  showMoodSelect: externalShowMoodSelect,
+  onShowMoodSelectChange,
+  showWelcomeOnMount = true,
+  hideAppBranding = false,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(showWelcomeOnMount);
   const [showKeyHint, setShowKeyHint] = useState(false);
   const [internalShowSettings, setInternalShowSettings] = useState(false);
-  const [showMoodSelect, setShowMoodSelect] = useState(false);
+  const [internalShowMoodSelect, setInternalShowMoodSelect] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
 
   // Use external control for tune controls if provided, otherwise use internal state
@@ -140,6 +152,16 @@ export function SimpleGaiaUI({
       onShowSettingsChange(value);
     } else {
       setInternalShowSettings(value);
+    }
+  };
+
+  // Use external control for mood selection if provided, otherwise use internal state
+  const showMoodSelect = externalShowMoodSelect ?? internalShowMoodSelect;
+  const setShowMoodSelect = (value: boolean) => {
+    if (onShowMoodSelectChange) {
+      onShowMoodSelectChange(value);
+    } else {
+      setInternalShowMoodSelect(value);
     }
   };
 
@@ -403,41 +425,43 @@ export function SimpleGaiaUI({
         transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Inspirational Text - Above & Beyond style messages */}
-      <InspirationalText />
+      {/* Inspirational Text - Above & Beyond style messages (hidden during intro) */}
+      {!hideAppBranding && <InspirationalText />}
 
-      {/* Top-Left: App Branding + Settings */}
-      <div
-        style={{
-          position: 'absolute',
-          top: `${edgePadding}px`,
-          left: `${edgePadding}px`,
-          display: 'flex',
-          alignItems: 'center',
-          gap: isMobile ? '8px' : '16px',
-          pointerEvents: 'auto',
-          opacity: hasEntered ? 0.85 : 0,
-          transform: `translateY(${hasEntered ? 0 : -8}px)`,
-          transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-        }}
-      >
-        {/* App Name */}
-        <div>
-          <h1
-            style={{
-              fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: isMobile ? '1.1rem' : isTablet ? '1.25rem' : '1.4rem',
-              fontWeight: 300,
-              margin: 0,
-              letterSpacing: isMobile ? '0.1em' : '0.15em',
-              textTransform: 'uppercase',
-              color: colors.text,
-            }}
-          >
-            Breathe Together
-          </h1>
+      {/* Top-Left: App Branding - hidden during intro to avoid duplication */}
+      {!hideAppBranding && (
+        <div
+          style={{
+            position: 'absolute',
+            top: `${edgePadding}px`,
+            left: `${edgePadding}px`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: isMobile ? '8px' : '16px',
+            pointerEvents: 'auto',
+            opacity: hasEntered ? 0.85 : 0,
+            transform: `translateY(${hasEntered ? 0 : -8}px)`,
+            transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          }}
+        >
+          {/* App Name */}
+          <div>
+            <h1
+              style={{
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontSize: isMobile ? '1.1rem' : isTablet ? '1.25rem' : '1.4rem',
+                fontWeight: 300,
+                margin: 0,
+                letterSpacing: isMobile ? '0.1em' : '0.15em',
+                textTransform: 'uppercase',
+                color: colors.text,
+              }}
+            >
+              Breathe Together
+            </h1>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Settings Modal */}
       {showSettings && (
