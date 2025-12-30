@@ -1,19 +1,19 @@
 /**
- * ParticleSwarm - Monument Valley inspired icosahedral shards
+ * ParticleSwarm - Monument Valley inspired gem-like icosahedral shards
  *
- * Uses separate Mesh objects (not InstancedMesh) to match reference exactly.
- * Each mesh has per-vertex color attribute for mood coloring.
- * Rendered via RefractionPipeline 3-pass FBO system.
+ * Uses Drei's MeshRefractionMaterial for beautiful pastel gem refraction.
+ * Each shard refracts the environment through a colored glass effect.
  */
 
-import { useFrame } from '@react-three/fiber';
+import { CubeCamera, MeshRefractionMaterial } from '@react-three/drei';
+import { useFrame, useLoader } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { RGBELoader } from 'three-stdlib';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { orbitRadius, sphereScale } from '../breath/traits';
-import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
 const MOOD_COLORS = [
@@ -38,12 +38,22 @@ export interface ParticleSwarmProps {
   buffer?: number;
   /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
   maxShardSize?: number;
+  /** Index of refraction for gem effect @default 2.4 */
+  ior?: number;
+  /** Color aberration strength @default 0.02 */
+  aberrationStrength?: number;
+  /** Number of refraction bounces @default 3 */
+  bounces?: number;
+  /** Fresnel intensity (edge glow) @default 0.5 */
+  fresnel?: number;
 }
 
 interface ShardData {
+  id: string;
   mesh: THREE.Mesh;
   direction: THREE.Vector3;
   geometry: THREE.IcosahedronGeometry;
+  color: THREE.Color;
 }
 
 export function ParticleSwarm({
@@ -54,10 +64,20 @@ export function ParticleSwarm({
   globeRadius = 1.5,
   buffer = 0.3,
   maxShardSize = 0.6,
+  ior = 2.4,
+  aberrationStrength = 0.02,
+  bounces = 3,
+  fresnel = 0.5,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
+
+  // Load HDRI environment for refraction
+  const texture = useLoader(
+    RGBELoader,
+    'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/aerodynamics_workshop_1k.hdr',
+  );
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -69,10 +89,7 @@ export function ParticleSwarm({
     [globeRadius, shardSize, buffer],
   );
 
-  // Create shared material (will be swapped by RefractionPipeline)
-  const material = useMemo(() => createFrostedGlassMaterial(), []);
-
-  // Create shards with per-vertex colors
+  // Create shards with individual colors
   const shards = useMemo(() => {
     const result: ShardData[] = [];
     const currentShardSize = shardSize;
@@ -103,34 +120,28 @@ export function ParticleSwarm({
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.IcosahedronGeometry(currentShardSize, 0);
 
-      // Set per-vertex color attribute
+      // Get mood color for this shard
       const mood =
         colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
-      const vertexCount = geometry.attributes.position.count;
-      const colors = new Float32Array(vertexCount * 3);
-      for (let c = 0; c < colors.length; c += 3) {
-        colors[c] = mood.r;
-        colors[c + 1] = mood.g;
-        colors[c + 2] = mood.b;
-      }
-      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
       // Fibonacci sphere distribution
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
       const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
 
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.userData.useRefraction = true; // Mark for RefractionPipeline
+      const mesh = new THREE.Mesh(geometry);
       mesh.position.copy(direction).multiplyScalar(baseRadius);
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
 
-      result.push({ mesh, direction, geometry });
+      // Create stable unique ID from Fibonacci sphere position
+      const id = `shard-${phi.toFixed(6)}-${theta.toFixed(6)}`;
+
+      result.push({ id, mesh, direction, geometry, color: mood });
     }
 
     return result;
-  }, [count, users, baseRadius, shardSize, material]);
+  }, [count, users, baseRadius, shardSize]);
 
   // Add meshes to group and store ref
   useEffect(() => {
@@ -157,13 +168,6 @@ export function ParticleSwarm({
     };
   }, [shards]);
 
-  // Cleanup material on unmount
-  useEffect(() => {
-    return () => {
-      material.dispose();
-    };
-  }, [material]);
-
   // Animation loop - update positions and rotations
   useFrame(() => {
     const currentShards = shardsRef.current;
@@ -177,7 +181,7 @@ export function ParticleSwarm({
         breathingRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
       }
     } catch {
-      // Ignore ECS errors during unmount/remount in Triplex
+      // Silently catch ECS errors during unmount/remount in Triplex
     }
 
     // Clamp radius to prevent shards from penetrating globe
@@ -194,7 +198,27 @@ export function ParticleSwarm({
     }
   });
 
-  return <group ref={groupRef} name="Particle Swarm" />;
+  return (
+    <CubeCamera resolution={256} frames={1} envMap={texture}>
+      {(envTexture) => (
+        <group ref={groupRef} name="Particle Swarm">
+          {shards.map((shard) => (
+            <primitive key={shard.id} object={shard.mesh}>
+              <MeshRefractionMaterial
+                envMap={envTexture}
+                color={shard.color}
+                ior={ior}
+                aberrationStrength={aberrationStrength}
+                bounces={bounces}
+                fresnel={fresnel}
+                toneMapped={false}
+              />
+            </primitive>
+          ))}
+        </group>
+      )}
+    </CubeCamera>
+  );
 }
 
 export default ParticleSwarm;
