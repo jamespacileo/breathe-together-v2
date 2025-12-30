@@ -199,16 +199,19 @@ export function ParticleSwarm({
           }}
         >
           <MeshTransmissionMaterial
-            transmissionSampler
-            transmission={1.0}
-            thickness={0.3}
-            roughness={0.15}
-            chromaticAberration={0.06}
-            anisotropicBlur={0.05}
-            samples={4}
-            resolution={256}
-            color={shard.color}
-            vertexColors
+            transmission={0.95}
+            thickness={1.2}
+            roughness={0.0}
+            ior={2.0}
+            chromaticAberration={0.12}
+            anisotropicBlur={0.1}
+            samples={6}
+            resolution={512}
+            clearcoat={1.0}
+            clearcoatRoughness={0.0}
+            attenuationDistance={0.5}
+            attenuationColor={shard.color}
+            color="#ffffff"
           />
         </mesh>
       ))}
