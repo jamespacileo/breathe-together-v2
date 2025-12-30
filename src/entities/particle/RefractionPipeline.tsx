@@ -86,51 +86,29 @@ void main() {
 }
 `;
 
-// Background gradient fragment shader - used for FBO capture
+// Background gradient fragment shader - creamy neutral tones
 const bgFragmentShader = `
 varying vec2 vUv;
 
-// Multi-stop gradient for Monument Valley sunset aesthetic
-vec3 sampleGradient(float t) {
-  // 5-stop gradient with more saturated, visible colors
-  vec3 c0 = vec3(0.95, 0.65, 0.50);  // #f2a680 Warm terracotta/orange (bottom)
-  vec3 c1 = vec3(0.92, 0.60, 0.55);  // #eb998c Soft coral/salmon
-  vec3 c2 = vec3(0.85, 0.65, 0.72);  // #d9a6b8 Dusty rose/mauve
-  vec3 c3 = vec3(0.75, 0.72, 0.85);  // #c0b8d9 Soft lavender
-  vec3 c4 = vec3(0.70, 0.78, 0.90);  // #b3c7e6 Soft sky blue (top)
-
-  if (t < 0.25) {
-    return mix(c0, c1, smoothstep(0.0, 0.25, t));
-  } else if (t < 0.45) {
-    return mix(c1, c2, smoothstep(0.25, 0.45, t));
-  } else if (t < 0.65) {
-    return mix(c2, c3, smoothstep(0.45, 0.65, t));
-  } else {
-    return mix(c3, c4, smoothstep(0.65, 1.0, t));
-  }
-}
-
 void main() {
+  // Creamy neutral gradient - warm cream at bottom to soft ivory at top
+  vec3 bottomColor = vec3(0.96, 0.93, 0.88);  // #f5ede0 Warm cream
+  vec3 topColor = vec3(0.98, 0.97, 0.95);     // #faf8f2 Soft ivory/off-white
+
   float t = vUv.y;
-  vec3 color = sampleGradient(t);
+  vec3 color = mix(bottomColor, topColor, smoothstep(0.0, 1.0, t));
 
-  // Subtle atmospheric bands
-  float band1 = smoothstep(0.28, 0.32, t) * smoothstep(0.36, 0.32, t);
-  float band2 = smoothstep(0.58, 0.62, t) * smoothstep(0.66, 0.62, t);
-  color = mix(color, color * 1.05, band1 * 0.4);
-  color = mix(color, color * 1.03, band2 * 0.3);
+  // Very subtle warm tint at horizon
+  float horizonWarmth = exp(-pow((t - 0.15) * 3.0, 2.0)) * 0.03;
+  color += vec3(0.05, 0.02, 0.0) * horizonWarmth;
 
-  // Soft radial vignette
+  // Soft radial vignette for depth
   vec2 center = vUv - vec2(0.5);
-  float vignette = 1.0 - dot(center, center) * 0.25;
+  float vignette = 1.0 - dot(center, center) * 0.08;
   color *= vignette;
 
-  // Warm sun glow at horizon
-  float horizonGlow = exp(-pow((t - 0.12) * 3.5, 2.0)) * 0.15;
-  color += vec3(1.0, 0.85, 0.6) * horizonGlow;
-
-  // Paper texture noise
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.02;
+  // Subtle paper texture noise
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.012;
 
   gl_FragColor = vec4(color + noise, 1.0);
 }

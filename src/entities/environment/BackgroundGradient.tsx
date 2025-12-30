@@ -1,8 +1,8 @@
 /**
- * BackgroundGradient - Monument Valley inspired gradient background
+ * BackgroundGradient - Creamy neutral gradient background
  *
  * Uses drei GradientTexture for a clean, smooth vertical gradient.
- * Multi-stop sunset gradient: warm peach → coral → dusty rose → lavender → soft sky blue
+ * Warm cream at bottom transitioning to soft ivory at top.
  */
 
 import { GradientTexture } from '@react-three/drei';
@@ -13,13 +13,10 @@ export function BackgroundGradient() {
       <planeGeometry args={[2, 2]} />
       <meshBasicMaterial depthTest={false} depthWrite={false} side={2}>
         <GradientTexture
-          stops={[0, 0.25, 0.45, 0.65, 1]}
+          stops={[0, 1]}
           colors={[
-            '#f2a680', // Warm terracotta/orange (bottom)
-            '#eb998c', // Soft coral/salmon
-            '#d9a6b8', // Dusty rose/mauve
-            '#c0b8d9', // Soft lavender
-            '#b3c7e6', // Soft sky blue (top)
+            '#f5ede0', // Warm cream (bottom)
+            '#faf8f2', // Soft ivory (top)
           ]}
           size={1024}
         />

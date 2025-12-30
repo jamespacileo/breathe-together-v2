@@ -93,33 +93,33 @@ export function AtmosphericClouds({
   // Create cloud texture once
   const cloudTexture = useMemo(() => createCloudTexture(), []);
 
-  // Cloud configurations - arranged in layers
-  // Colors are slightly darker/more saturated to be visible against the gradient
+  // Cloud configurations - arranged in layers with pastel colors
+  // Soft pastels that pop against the creamy neutral background
   const clouds = useMemo<CloudConfig[]>(
     () => [
-      // Lower horizon clouds - warm tinted, larger (near terracotta/orange part of gradient)
-      { position: [-15, -3, -25], scale: 3.5, color: '#e8c0a8', opacity: opacity * 1.2 },
-      { position: [18, -2, -22], scale: 3.0, color: '#e0b0a0', opacity: opacity * 1.0 },
-      { position: [0, -4, -30], scale: 4.0, color: '#d8a8b0', opacity: opacity * 0.9 },
-      { position: [-25, -1, -28], scale: 2.8, color: '#e8c8b0', opacity: opacity * 1.0 },
-      { position: [25, -3, -26], scale: 3.2, color: '#e0b8a8', opacity: opacity * 0.95 },
+      // Lower horizon clouds - soft peach and blush pastels
+      { position: [-15, -3, -25], scale: 3.5, color: '#f8d4c8', opacity: opacity * 1.0 }, // Soft peach
+      { position: [18, -2, -22], scale: 3.0, color: '#f5c6d0', opacity: opacity * 0.9 }, // Blush pink
+      { position: [0, -4, -30], scale: 4.0, color: '#e8d8f0', opacity: opacity * 0.85 }, // Soft lavender
+      { position: [-25, -1, -28], scale: 2.8, color: '#d4e8f0', opacity: opacity * 0.9 }, // Pale sky blue
+      { position: [25, -3, -26], scale: 3.2, color: '#f0e0d0', opacity: opacity * 0.85 }, // Warm cream
 
-      // Mid-level clouds - transitional pink/lavender
-      { position: [-12, 5, -28], scale: 2.5, color: '#d0a8c0', opacity: opacity * 0.85 },
-      { position: [14, 6, -26], scale: 2.2, color: '#c8a0b8', opacity: opacity * 0.8 },
-      { position: [-8, 8, -30], scale: 2.8, color: '#c0a8c8', opacity: opacity * 0.75 },
-      { position: [20, 7, -24], scale: 2.0, color: '#d0b0c0', opacity: opacity * 0.8 },
+      // Mid-level clouds - mix of pastel pink, mint, lavender
+      { position: [-12, 5, -28], scale: 2.5, color: '#e0f0e8', opacity: opacity * 0.8 }, // Soft mint
+      { position: [14, 6, -26], scale: 2.2, color: '#f0d8e8', opacity: opacity * 0.75 }, // Rose quartz
+      { position: [-8, 8, -30], scale: 2.8, color: '#d8e0f8', opacity: opacity * 0.7 }, // Periwinkle
+      { position: [20, 7, -24], scale: 2.0, color: '#f8e8d0', opacity: opacity * 0.75 }, // Pale buttercup
 
-      // Upper clouds - cooler blue/lavender tints (near blue part of gradient)
-      { position: [8, 12, -32], scale: 2.0, color: '#a8b8d0', opacity: opacity * 0.7 },
-      { position: [-10, 14, -34], scale: 1.8, color: '#b0c0d8', opacity: opacity * 0.6 },
-      { position: [15, 15, -30], scale: 1.5, color: '#b8c8e0', opacity: opacity * 0.6 },
-      { position: [-20, 12, -28], scale: 2.2, color: '#a8b0d0', opacity: opacity * 0.7 },
+      // Upper clouds - lighter pastels (sky blue, lilac)
+      { position: [8, 12, -32], scale: 2.0, color: '#d0e8f8', opacity: opacity * 0.65 }, // Baby blue
+      { position: [-10, 14, -34], scale: 1.8, color: '#e8d0f0', opacity: opacity * 0.6 }, // Soft lilac
+      { position: [15, 15, -30], scale: 1.5, color: '#d8f0e0', opacity: opacity * 0.55 }, // Seafoam
+      { position: [-20, 12, -28], scale: 2.2, color: '#f0e8f0', opacity: opacity * 0.6 }, // Pale mauve
 
-      // Accent wisps - small, scattered
-      { position: [22, 10, -20], scale: 1.2, color: '#d0c0c8', opacity: opacity * 0.55 },
-      { position: [-22, 4, -18], scale: 1.5, color: '#d8c0b8', opacity: opacity * 0.65 },
-      { position: [5, 18, -35], scale: 1.0, color: '#c0c8d8', opacity: opacity * 0.5 },
+      // Accent wisps - delicate pastel touches
+      { position: [22, 10, -20], scale: 1.2, color: '#f8d8d8', opacity: opacity * 0.5 }, // Shell pink
+      { position: [-22, 4, -18], scale: 1.5, color: '#d8f8f0', opacity: opacity * 0.55 }, // Aqua mist
+      { position: [5, 18, -35], scale: 1.0, color: '#e0d8f8', opacity: opacity * 0.45 }, // Wisteria
     ],
     [opacity],
   );
@@ -151,14 +151,14 @@ export function AtmosphericClouds({
         />
       ))}
 
-      {/* Subtle atmospheric sparkles for depth */}
+      {/* Subtle atmospheric sparkles for depth - soft pastel shimmer */}
       <Sparkles
         count={40}
         scale={[50, 30, 50]}
         size={1.5}
         speed={0.2 * speed}
-        opacity={opacity * 0.3}
-        color="#f0e8e0"
+        opacity={opacity * 0.4}
+        color="#e8d8f0"
       />
     </group>
   );
