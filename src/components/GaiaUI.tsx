@@ -1,5 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
+
+// Phase configuration
+const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'] as const;
+const PHASE_DURATIONS = [
+  BREATH_PHASES.INHALE,
+  BREATH_PHASES.HOLD_IN,
+  BREATH_PHASES.EXHALE,
+  BREATH_PHASES.HOLD_OUT,
+];
 
 interface GaiaUIProps {
   /** Particle count (harmony) */
@@ -38,6 +48,70 @@ export function GaiaUI({
 }: GaiaUIProps) {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const [hasEntered, setHasEntered] = useState(false);
+
+  // Phase indicator refs for RAF updates (no React re-renders)
+  const phaseNameRef = useRef<HTMLSpanElement>(null);
+  const timerRef = useRef<HTMLSpanElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+
+  // Entrance animation
+  useEffect(() => {
+    const timer = setTimeout(() => setHasEntered(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Phase indicator RAF loop (60fps updates without React state)
+  useEffect(() => {
+    let animationId: number;
+    let prevPhase = -1;
+
+    const updatePhase = () => {
+      const now = Date.now() / 1000;
+      const cycleTime = now % BREATH_TOTAL_CYCLE;
+
+      // Determine current phase
+      let accumulatedTime = 0;
+      let phaseIndex = 0;
+      for (let i = 0; i < PHASE_DURATIONS.length; i++) {
+        const duration = PHASE_DURATIONS[i] ?? 0;
+        if (cycleTime < accumulatedTime + duration) {
+          phaseIndex = i;
+          break;
+        }
+        accumulatedTime += duration;
+      }
+
+      const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
+      const phaseTime = cycleTime - accumulatedTime;
+      const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+
+      // Update phase name on transition
+      if (phaseIndex !== prevPhase) {
+        prevPhase = phaseIndex;
+        if (phaseNameRef.current) {
+          phaseNameRef.current.textContent = PHASE_NAMES[phaseIndex] ?? 'Breathe';
+        }
+      }
+
+      // Update timer (countdown)
+      if (timerRef.current) {
+        const remaining = Math.ceil((1 - phaseProgress) * phaseDuration);
+        timerRef.current.textContent = `${remaining}`;
+      }
+
+      // Update progress bar
+      if (progressRef.current) {
+        const cycleProgress = (accumulatedTime + phaseTime) / BREATH_TOTAL_CYCLE;
+        progressRef.current.style.width = `${cycleProgress * 100}%`;
+      }
+
+      animationId = requestAnimationFrame(updatePhase);
+    };
+
+    updatePhase();
+    return () => cancelAnimationFrame(animationId);
+  }, []);
 
   // Focus Mode: Fade out UI after inactivity
   useEffect(() => {
@@ -102,8 +176,8 @@ export function GaiaUI({
     borderBottom: `1px solid ${colors.border}`,
   };
 
-  // Stop pointer events from propagating to PresentationControls
-  const stopPropagation = (e: React.PointerEvent | React.MouseEvent) => {
+  // Stop pointer/touch events from propagating to PresentationControls
+  const stopPropagation = (e: React.PointerEvent | React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
 
@@ -122,14 +196,19 @@ export function GaiaUI({
     >
       {/* Upper-Left: Museum Label Title */}
       <div
+        onPointerDown={stopPropagation}
+        onTouchStart={stopPropagation}
         style={{
           position: 'absolute',
           top: '40px',
           left: '40px',
           pointerEvents: 'auto',
+          opacity: hasEntered ? 0.8 : 0,
+          transform: `translateY(${hasEntered ? 0 : -10}px)`,
+          transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
-        <div style={{ opacity: 0.8 }}>
+        <div>
           <div
             style={{
               fontSize: '0.6rem',
@@ -166,6 +245,9 @@ export function GaiaUI({
           flexDirection: 'column',
           alignItems: 'flex-end',
           gap: '12px',
+          opacity: hasEntered ? 1 : 0,
+          transform: `translateY(${hasEntered ? 0 : 10}px)`,
+          transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.2s',
         }}
       >
         {/* Toggle Button */}
@@ -174,6 +256,8 @@ export function GaiaUI({
           onClick={() => setIsControlsOpen(!isControlsOpen)}
           onPointerDown={stopPropagation}
           onPointerMove={stopPropagation}
+          onTouchStart={stopPropagation}
+          onTouchMove={stopPropagation}
           style={{
             background: colors.glass,
             border: `1px solid ${colors.border}`,
@@ -197,6 +281,9 @@ export function GaiaUI({
           onPointerDown={stopPropagation}
           onPointerMove={stopPropagation}
           onPointerUp={stopPropagation}
+          onTouchStart={stopPropagation}
+          onTouchMove={stopPropagation}
+          onTouchEnd={stopPropagation}
           style={{
             background: colors.glass,
             backdropFilter: 'blur(40px)',
@@ -396,6 +483,81 @@ export function GaiaUI({
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Centered Phase Indicator */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '48px',
+          left: '50%',
+          transform: `translateX(-50%) translateY(${hasEntered ? 0 : 20}px)`,
+          opacity: hasEntered ? 1 : 0,
+          transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+          pointerEvents: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '12px',
+        }}
+      >
+        {/* Phase Name + Timer */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: '12px',
+          }}
+        >
+          <span
+            ref={phaseNameRef}
+            style={{
+              fontFamily: "'Cormorant Garamond', 'Georgia', serif",
+              fontSize: '1.4rem',
+              fontWeight: 300,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: colors.text,
+            }}
+          >
+            Inhale
+          </span>
+          <span
+            ref={timerRef}
+            style={{
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              fontSize: '1rem',
+              fontWeight: 400,
+              color: colors.textDim,
+              minWidth: '1.2em',
+              textAlign: 'center',
+            }}
+          >
+            4
+          </span>
+        </div>
+
+        {/* Progress Bar */}
+        <div
+          style={{
+            width: '120px',
+            height: '2px',
+            background: colors.border,
+            borderRadius: '1px',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            ref={progressRef}
+            style={{
+              height: '100%',
+              width: '0%',
+              background: colors.accent,
+              borderRadius: '1px',
+              transition: 'width 0.05s linear',
+            }}
+          />
         </div>
       </div>
     </div>
