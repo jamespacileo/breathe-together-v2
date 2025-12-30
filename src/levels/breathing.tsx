@@ -1,5 +1,6 @@
 import { Html } from '@react-three/drei';
 import { Suspense, useState } from 'react';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GaiaUI } from '../components/GaiaUI';
 import { PostProcessing } from '../components/PostProcessing';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -32,37 +33,44 @@ export function BreathingLevel({
   const { moods } = usePresence();
 
   return (
-    <Suspense fallback={null}>
-      {/* Environment stays OUTSIDE rotatable group (fixed background) */}
-      <Environment enabled={showEnvironment} />
+    <ErrorBoundary>
+      <Suspense fallback={null}>
+        {/* Environment stays OUTSIDE rotatable group (fixed background) */}
+        <Environment enabled={showEnvironment} />
 
-      {/* Wrap rotatable entities in RotatableScene */}
-      <RotatableScene enableRotation={true}>
-        {showGlobe && <EarthGlobe rotationSpeed={0.1} />}
+        {/* Wrap rotatable entities in RotatableScene */}
+        <RotatableScene enableRotation={true}>
+          {showGlobe && <EarthGlobe rotationSpeed={0.1} />}
 
-        {showParticles && <ParticleSwarm capacity={harmony} users={moods} />}
+          {showParticles && <ParticleSwarm capacity={harmony} users={moods} />}
 
-        {showParticles && (
-          <AtmosphericParticles count={100} size={0.08} baseOpacity={0.1} breathingOpacity={0.15} />
-        )}
-      </RotatableScene>
+          {showParticles && (
+            <AtmosphericParticles
+              count={100}
+              size={0.08}
+              baseOpacity={0.1}
+              breathingOpacity={0.15}
+            />
+          )}
+        </RotatableScene>
 
-      {/* UI stays OUTSIDE rotatable group (fixed HUD) */}
-      <Html fullscreen>
-        <GaiaUI
-          harmony={harmony}
-          setHarmony={setHarmony}
-          refraction={refraction}
-          setRefraction={setRefraction}
-          breath={breath}
-          setBreath={setBreath}
-          expansion={expansion}
-          setExpansion={setExpansion}
-        />
-      </Html>
+        {/* UI stays OUTSIDE rotatable group (fixed HUD) */}
+        <Html fullscreen>
+          <GaiaUI
+            harmony={harmony}
+            setHarmony={setHarmony}
+            refraction={refraction}
+            setRefraction={setRefraction}
+            breath={breath}
+            setBreath={setBreath}
+            expansion={expansion}
+            setExpansion={setExpansion}
+          />
+        </Html>
 
-      <PostProcessing bloom={bloom} />
-    </Suspense>
+        <PostProcessing bloom={bloom} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 

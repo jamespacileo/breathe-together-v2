@@ -96,22 +96,24 @@ export function RotatableScene({
   /**
    * End drag: stop rotation updates
    */
-  const onPointerUp = () => {
+  const onPointerUp = (event?: ThreeEvent<PointerEvent>) => {
+    event?.stopPropagation();
     isDragging.current = false;
   };
 
   /**
    * Smooth damped rotation: interpolate current rotation toward target
+   * Uses exponential decay for frame-rate independent damping
    */
   useFrame((_state, delta) => {
     if (!groupRef.current) return;
 
-    // Smooth each axis independently using exponential decay
-    const speed = dampingFactor * 60 * delta; // Frame-rate independent
-    currentRotation.current.x +=
-      (targetRotation.current.x - currentRotation.current.x) * Math.min(speed, 1);
-    currentRotation.current.y +=
-      (targetRotation.current.y - currentRotation.current.y) * Math.min(speed, 1);
+    // Frame-rate independent exponential decay
+    // Formula: 1 - (1 - dampingFactor)^(delta * 60)
+    const speed = 1 - (1 - dampingFactor) ** (delta * 60);
+
+    currentRotation.current.x += (targetRotation.current.x - currentRotation.current.x) * speed;
+    currentRotation.current.y += (targetRotation.current.y - currentRotation.current.y) * speed;
 
     // Apply rotation to group
     groupRef.current.rotation.set(currentRotation.current.x, currentRotation.current.y, 0);
@@ -130,6 +132,8 @@ export function RotatableScene({
         onPointerUp={onPointerUp as any}
         // biome-ignore lint/suspicious/noExplicitAny: React Three Fiber event types don't match perfectly with ThreeEvent
         onPointerLeave={onPointerUp as any}
+        // biome-ignore lint/suspicious/noExplicitAny: Handle interrupted interactions (drag outside window, touch cancel)
+        onPointerCancel={onPointerUp as any}
       >
         <sphereGeometry args={[20, 8, 8]} />
         <meshBasicMaterial transparent opacity={0} />

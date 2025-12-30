@@ -162,7 +162,8 @@ export function AtmosphericParticles({
       const initialZ = initialPositions[i * 3 + 2];
 
       const phase = particleData[i * 3] + currentTime * particleData[i * 3 + 1];
-      const offset = particleData[i * 3 + 2];
+      // offset value is reserved in particleData for future use
+      // const _offset = particleData[i * 3 + 2];
 
       // Drifting motion: combine sin/cos waves for smooth, organic movement
       const driftX = Math.cos(phase) * 0.2;

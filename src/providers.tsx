@@ -22,7 +22,7 @@ export function KootaSystems({
   const isNested = use(NestedCheck);
   const world = useWorld();
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     if (isNested) {
       // This turns off the systems if they are already running in a parent component.
       // This can happen when running inside Triplex as the systems are running in the CanvasProvider.

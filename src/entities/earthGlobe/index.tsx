@@ -37,13 +37,7 @@ export function EarthGlobe({
   // Load earth texture with automatic suspension
   // Use dynamic base URL to work correctly in both dev (/) and production (/breathe-together-v2/)
   const texture = useTexture(`${import.meta.env.BASE_URL}textures/earth-texture.png`);
-
-  // Configure texture color space in useEffect to avoid render-time side effects
-  useEffect(() => {
-    if (texture) {
-      texture.colorSpace = THREE.SRGBColorSpace;
-    }
-  }, [texture]);
+  texture.colorSpace = THREE.SRGBColorSpace; // Safe: useTexture object is stable
 
   // Create geometries - using unit sphere (radius 1) because scaling is handled via trait
   const globeGeometry = useMemo(() => new THREE.SphereGeometry(1, 64, 64), []);
@@ -89,30 +83,27 @@ export function EarthGlobe({
   }, [globeGeometry, overlayGeometry, globeMaterial, overlayMaterial]);
 
   /**
-   * Update globe scale based on breathing animation (synced via ECS)
-   */
-  useFrame(() => {
-    if (!groupRef.current) return;
-
-    try {
-      const breathEntity = world?.queryFirst?.(sphereScale);
-      if (!breathEntity) return;
-
-      const scale = breathEntity.get?.(sphereScale)?.value ?? 1;
-      groupRef.current.scale.set(scale, scale, scale);
-    } catch (_e) {
-      // Ignore ECS errors
-    }
-  });
-
-  /**
-   * Handle rotation
+   * Update globe scale and rotation in single atomic frame update
+   * Combines ECS sphere scale (breathing) with continuous rotation
    */
   useFrame((_state, delta) => {
     if (!groupRef.current) return;
-    if (enableRotation) {
-      rotationRef.current += rotationSpeed * delta;
-      groupRef.current.rotation.y = rotationRef.current;
+
+    try {
+      // Update scale from ECS breathing system
+      const breathEntity = world?.queryFirst?.(sphereScale);
+      if (breathEntity) {
+        const scale = breathEntity.get?.(sphereScale)?.value ?? 1;
+        groupRef.current.scale.set(scale, scale, scale);
+      }
+
+      // Update rotation
+      if (enableRotation) {
+        rotationRef.current += rotationSpeed * delta;
+        groupRef.current.rotation.y = rotationRef.current;
+      }
+    } catch (_e) {
+      // Ignore ECS errors during unmount/remount
     }
   });
 

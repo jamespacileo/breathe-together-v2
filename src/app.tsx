@@ -9,18 +9,20 @@ import { KootaSystems } from './providers';
 
 export function App() {
   return (
-    <Canvas
-      shadows={false}
-      camera={{ position: [0, 0, 10], fov: 45 }}
-      gl={{ localClippingEnabled: true }}
-    >
-      <Stats />
-      <CameraRig />
-      <KootaSystems breathSystemEnabled={true}>
-        <BreathEntity />
-        <BreathingLevel />
-        <BreathingHUD3D />
-      </KootaSystems>
-    </Canvas>
+    <ErrorBoundary>
+      <Canvas
+        shadows={false}
+        camera={{ position: [0, 0, 10], fov: 45 }}
+        gl={{ localClippingEnabled: true }}
+      >
+        <Stats />
+        <CameraRig />
+        <KootaSystems breathSystemEnabled={true}>
+          <BreathEntity />
+          <BreathingLevel />
+          <BreathingHUD3D />
+        </KootaSystems>
+      </Canvas>
+    </ErrorBoundary>
   );
 }
