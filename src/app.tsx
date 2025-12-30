@@ -2,7 +2,6 @@ import { Stats } from '@react-three/drei';
 import { Canvas, extend, type ThreeToJSXElements } from '@react-three/fiber';
 import { type CSSProperties, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { BreathingHUD3D } from './components/BreathingHUD3D';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
@@ -51,12 +50,11 @@ export function App() {
           camera={{ position: [0, 0, 10], fov: 45 }}
           gl={{ antialias: true, alpha: true, localClippingEnabled: true }}
         >
-          <Stats />
+          {import.meta.env.DEV && <Stats />}
           <CameraRig />
           <KootaSystems breathSystemEnabled={true}>
             <BreathEntity />
             <BreathingLevel />
-            <BreathingHUD3D />
           </KootaSystems>
         </Canvas>
       </div>
