@@ -5,11 +5,19 @@
  * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
  * - Animated procedural clouds using FBM noise
  * - Subtle vignette effect
+ * - Breathing-synchronized color warmth shift
  */
 
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { breathPhase } from '../breath/traits';
+
+interface BackgroundGradientProps {
+  /** Enable breathing synchronization for color shift @default true */
+  breathingSyncEnabled?: boolean;
+}
 
 const vertexShader = `
 varying vec2 vUv;
@@ -21,6 +29,7 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
+uniform float breathPhaseValue;
 varying vec2 vUv;
 
 // Simplex noise functions for cloud-like patterns
@@ -60,11 +69,14 @@ float fbm(vec2 p) {
 }
 
 void main() {
-  // Creamy neutral background - soft warm tones
-  vec3 skyTop = vec3(0.96, 0.94, 0.91);       // #f5f0e8 Warm cream
-  vec3 skyMid = vec3(0.98, 0.95, 0.90);       // #faf2e6 Soft ivory
-  vec3 horizon = vec3(0.99, 0.94, 0.88);      // #fcf0e0 Warm white
-  vec3 warmGlow = vec3(0.98, 0.92, 0.85);     // #faebb9 Subtle warm glow
+  // Breathing-responsive warmth: cooler on exhale (0), warmer on inhale (1)
+  float warmth = breathPhaseValue * 0.03; // Very subtle shift (0 to 0.03)
+
+  // Creamy neutral background - soft warm tones with breathing warmth
+  vec3 skyTop = vec3(0.96 + warmth, 0.94, 0.91 - warmth * 0.5);       // Warm cream
+  vec3 skyMid = vec3(0.98 + warmth * 0.5, 0.95, 0.90 - warmth * 0.3); // Soft ivory
+  vec3 horizon = vec3(0.99, 0.94 + warmth * 0.3, 0.88);               // Warm white
+  vec3 warmGlow = vec3(0.98, 0.92 + warmth * 0.5, 0.85 + warmth);     // Subtle warm glow
 
   // Vertical position for gradient
   float y = vUv.y;
@@ -89,14 +101,16 @@ void main() {
   float clouds2 = fbm(cloudUv2 * 2.0);
 
   // Combine cloud layers - fade at top and bottom
+  // Cloud visibility slightly increases on inhale (more ethereal feeling)
+  float cloudIntensity = 0.15 + breathPhaseValue * 0.05;
   float cloudMask = smoothstep(0.2, 0.55, clouds * 0.5 + clouds2 * 0.5);
   cloudMask *= smoothstep(0.1, 0.4, y) * smoothstep(0.95, 0.6, y);
 
-  // Cloud color - pure warm white
-  vec3 cloudColor = vec3(1.0, 0.99, 0.97);
+  // Cloud color - pure warm white, slightly warmer on inhale
+  vec3 cloudColor = vec3(1.0, 0.99 + warmth * 0.3, 0.97 + warmth * 0.5);
 
-  // Blend clouds very subtly into sky
-  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
+  // Blend clouds into sky with breathing-responsive intensity
+  vec3 color = mix(skyColor, cloudColor, cloudMask * cloudIntensity);
 
   // Very subtle vignette - just darkens corners slightly
   vec2 vignetteUv = vUv * 2.0 - 1.0;
@@ -111,13 +125,15 @@ void main() {
 }
 `;
 
-export function BackgroundGradient() {
+export function BackgroundGradient({ breathingSyncEnabled = true }: BackgroundGradientProps = {}) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const world = useWorld();
 
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        breathPhaseValue: { value: 0.5 },
       },
       vertexShader,
       fragmentShader,
@@ -127,10 +143,22 @@ export function BackgroundGradient() {
     });
   }, []);
 
-  // Animate time uniform
+  // Get current breath phase for synchronization
+  const getBreathPhase = (): number => {
+    if (!breathingSyncEnabled) return 0.5;
+    try {
+      const breathEntity = world?.queryFirst?.(breathPhase);
+      return breathEntity?.get?.(breathPhase)?.value ?? 0.5;
+    } catch {
+      return 0.5;
+    }
+  };
+
+  // Animate time and breath phase uniforms
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+      materialRef.current.uniforms.breathPhaseValue.value = getBreathPhase();
     }
   });
 

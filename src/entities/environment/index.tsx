@@ -1,7 +1,9 @@
 import { Cloud, Clouds, Stars } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { breathPhase } from '../breath/traits';
 import { BackgroundGradient } from './BackgroundGradient';
 
 interface EnvironmentProps {
@@ -14,6 +16,8 @@ interface EnvironmentProps {
   cloudOpacity?: number;
   /** Cloud speed multiplier @default 0.3 */
   cloudSpeed?: number;
+  /** Enable breathing synchronization for atmosphere @default true */
+  breathingSyncEnabled?: boolean;
 }
 
 /**
@@ -32,9 +36,20 @@ export function Environment({
   showStars = true,
   cloudOpacity = 0.4,
   cloudSpeed = 0.3,
+  breathingSyncEnabled = true,
 }: EnvironmentProps = {}) {
   const { scene } = useThree();
+  const world = useWorld();
   const cloudsRef = useRef<THREE.Group>(null);
+  const ambientRef = useRef<THREE.AmbientLight>(null);
+  const nearCloudsRef = useRef<THREE.Group>(null);
+
+  // Store base positions for near clouds to animate from
+  const nearCloudBasePositions = useRef([
+    { x: -4, y: 2, z: -8 },
+    { x: 5, y: 3, z: -10 },
+    { x: 0, y: -1, z: -7 },
+  ]);
 
   // Clear any scene background - let BackgroundGradient handle it
   useEffect(() => {
@@ -47,10 +62,48 @@ export function Environment({
     };
   }, [scene]);
 
-  // Animate cloud drift
+  // Get current breath phase for synchronization
+  const getBreathPhase = (): number => {
+    if (!breathingSyncEnabled) return 0.5;
+    try {
+      const breathEntity = world?.queryFirst?.(breathPhase);
+      return breathEntity?.get?.(breathPhase)?.value ?? 0.5;
+    } catch {
+      return 0.5;
+    }
+  };
+
+  // Animate clouds, lights, and atmosphere with breathing sync
   useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    const phase = getBreathPhase();
+
+    // Distant clouds - slow rotation with slight breathing influence
     if (cloudsRef.current) {
-      cloudsRef.current.rotation.y = state.clock.elapsedTime * 0.01 * cloudSpeed;
+      cloudsRef.current.rotation.y = t * 0.01 * cloudSpeed;
+      // Subtle vertical drift with breathing
+      cloudsRef.current.position.y = Math.sin(t * 0.05) * 0.5 + phase * 0.3;
+    }
+
+    // Near clouds - individual drift patterns + breathing opacity
+    if (nearCloudsRef.current) {
+      const children = nearCloudsRef.current.children;
+      for (let i = 0; i < children.length; i++) {
+        const cloud = children[i];
+        const base = nearCloudBasePositions.current[i];
+        if (base) {
+          // Each cloud drifts in a unique pattern
+          cloud.position.x = base.x + Math.sin(t * 0.03 + i * 2) * 1.5;
+          cloud.position.y = base.y + Math.cos(t * 0.02 + i) * 0.8 + phase * 0.5;
+          cloud.position.z = base.z + Math.sin(t * 0.015 + i * 3) * 0.5;
+        }
+      }
+    }
+
+    // Ambient light breathing - subtle intensity pulse
+    if (ambientRef.current && breathingSyncEnabled) {
+      // Range: 0.45 (exhale) to 0.55 (inhale) - very subtle
+      ambientRef.current.intensity = 0.45 + phase * 0.1;
     }
   });
 
@@ -59,9 +112,50 @@ export function Environment({
   return (
     <group>
       {/* Animated gradient background - renders behind everything */}
-      <BackgroundGradient />
+      <BackgroundGradient breathingSyncEnabled={breathingSyncEnabled} />
 
-      {/* Volumetric 3D clouds - pastel colored wisps */}
+      {/* Near cloud wisps - close to the globe for intimacy */}
+      {showClouds && (
+        <group ref={nearCloudsRef}>
+          <Clouds material={THREE.MeshBasicMaterial}>
+            {/* Wispy cloud - left of globe */}
+            <Cloud
+              position={[-4, 2, -8]}
+              opacity={cloudOpacity * 0.25}
+              speed={cloudSpeed * 0.8}
+              segments={12}
+              bounds={[3, 1, 2]}
+              volume={2}
+              color="#f5ebe0"
+              fade={15}
+            />
+            {/* Wispy cloud - right of globe */}
+            <Cloud
+              position={[5, 3, -10]}
+              opacity={cloudOpacity * 0.2}
+              speed={cloudSpeed * 0.6}
+              segments={10}
+              bounds={[2.5, 0.8, 1.5]}
+              volume={1.5}
+              color="#e8e0d8"
+              fade={12}
+            />
+            {/* Wispy cloud - below globe */}
+            <Cloud
+              position={[0, -1, -7]}
+              opacity={cloudOpacity * 0.18}
+              speed={cloudSpeed * 0.5}
+              segments={8}
+              bounds={[2, 0.6, 1]}
+              volume={1}
+              color="#f0e8e0"
+              fade={10}
+            />
+          </Clouds>
+        </group>
+      )}
+
+      {/* Distant volumetric 3D clouds - pastel colored wisps */}
       {showClouds && (
         <Clouds ref={cloudsRef} material={THREE.MeshBasicMaterial}>
           {/* Soft pink cloud - upper left */}
@@ -127,8 +221,8 @@ export function Environment({
         <Stars radius={100} depth={50} count={500} factor={2} saturation={0} fade speed={0.5} />
       )}
 
-      {/* Warm ambient light - fills shadows softly */}
-      <ambientLight intensity={0.5} color="#fff5eb" />
+      {/* Warm ambient light - fills shadows softly, breathing-synchronized */}
+      <ambientLight ref={ambientRef} intensity={0.5} color="#fff5eb" />
 
       {/* Key light - warm golden from upper right (sunrise/sunset feel) */}
       <directionalLight position={[10, 15, 5]} intensity={0.8} color="#ffe4c4" castShadow={false} />
