@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CYCLES_PER_MESSAGE, MESSAGES } from '../config/inspirationalMessages';
 import { BREATH_TOTAL_CYCLE } from '../constants';
+import { useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 
 /**
@@ -45,13 +46,16 @@ function easeInQuad(t: number): number {
  * See that file for documentation on adding new messages.
  *
  * Performance: Uses RAF loop with direct DOM updates (no React state for animation)
+ * Mobile Responsive: Reduces spacing and font size on mobile to maximize 3D scene visibility
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: RAF loop with phase calculations and multiple style conditions requires higher complexity
 export function InspirationalText() {
   const topWrapperRef = useRef<HTMLDivElement>(null);
   const bottomWrapperRef = useRef<HTMLDivElement>(null);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const cycleCountRef = useRef(0);
   const prevPhaseRef = useRef(-1);
+  const { isMobile, isTablet } = useViewport();
 
   // RAF loop for smooth opacity animation synchronized to breathing
   useEffect(() => {
@@ -103,19 +107,24 @@ export function InspirationalText() {
 
   // Design tokens matching GaiaUI warm palette
   const colors = {
-    text: '#5a4d42',
-    textGlow: 'rgba(201, 160, 108, 0.7)',
-    subtleGlow: 'rgba(255, 252, 245, 0.95)',
-    // Soft backdrop - warm cream with gentle opacity
-    backdropInner: 'rgba(253, 251, 247, 0.4)',
+    text: '#3d3229', // Darker for better contrast (was #5a4d42)
+    textGlow: 'rgba(201, 160, 108, 0.8)', // Stronger glow (was 0.7)
+    subtleGlow: 'rgba(255, 252, 245, 1)', // Full opacity for stronger glow (was 0.95)
+    // Soft backdrop - warm cream with slightly higher opacity for better contrast
+    backdropInner: 'rgba(253, 251, 247, 0.5)', // Increased from 0.4
     backdropOuter: 'rgba(253, 251, 247, 0)',
   };
 
   // Soft radial gradient backdrop for readability
   // Applied to each wrapper so backdrop-filter animates with opacity
+  // Mobile: Reduced padding to maximize 3D scene visibility
   const textWrapperStyle: React.CSSProperties = {
     position: 'relative',
-    padding: 'clamp(20px, 4vw, 40px) clamp(40px, 10vw, 100px)',
+    padding: isMobile
+      ? '10px 16px' // Mobile: Minimal padding to maximize text width
+      : isTablet
+        ? '16px 40px' // Tablet: Medium padding
+        : 'clamp(20px, 4vw, 40px) clamp(40px, 10vw, 100px)', // Desktop: Original spacious padding
     // Soft elliptical gradient - fades smoothly to transparent
     background: `radial-gradient(
       ellipse 120% 100% at center,
@@ -125,26 +134,38 @@ export function InspirationalText() {
     // Gentle blur for dreamy/ethereal effect
     backdropFilter: 'blur(3px)',
     WebkitBackdropFilter: 'blur(3px)',
-    borderRadius: '100px',
+    borderRadius: isMobile ? '40px' : '100px',
     // Start hidden - RAF loop controls opacity
     opacity: 0,
+    // On mobile, use more of the available width
+    maxWidth: isMobile ? '90vw' : 'none',
+    width: isMobile ? '90vw' : 'auto',
   };
 
   const textStyle: React.CSSProperties = {
     fontFamily: "'Cormorant Garamond', Georgia, serif",
-    fontSize: 'clamp(1.6rem, 3.5vw, 2.8rem)',
+    // Mobile: Dynamic viewport-based sizing to fill available width - increased max size
+    fontSize: isMobile
+      ? 'clamp(1.4rem, 7.5vw, 2.5rem)' // Mobile: Larger max 2.5rem (was 2.2rem), 7.5vw (was 7vw)
+      : isTablet
+        ? 'clamp(1.5rem, 5vw, 2.4rem)' // Tablet: Slightly larger (was 2.2rem max)
+        : 'clamp(1.6rem, 3.5vw, 2.8rem)', // Desktop: Original large size
     fontWeight: 300,
-    letterSpacing: '0.22em',
+    letterSpacing: isMobile ? '0.12em' : '0.22em', // Tighter spacing for better fit
     textTransform: 'uppercase',
     color: colors.text,
     textShadow: `
-      0 0 25px ${colors.subtleGlow},
-      0 0 50px ${colors.textGlow},
-      0 1px 6px rgba(0, 0, 0, 0.1)
-    `,
+      0 0 30px ${colors.subtleGlow},
+      0 0 60px ${colors.textGlow},
+      0 2px 8px rgba(0, 0, 0, 0.15)
+    `, // Stronger shadows for better contrast
     textAlign: 'center',
-    lineHeight: 1.2,
+    lineHeight: isMobile ? 1.1 : 1.2, // Tighter line height on mobile
     userSelect: 'none',
+    // Prevent text wrapping - let it scale instead
+    whiteSpace: isMobile ? 'nowrap' : 'normal',
+    // Scale to fit container width on mobile
+    width: isMobile ? '100%' : 'auto',
   };
 
   return (
@@ -161,7 +182,12 @@ export function InspirationalText() {
         alignItems: 'center',
         pointerEvents: 'none',
         zIndex: 50,
-        gap: 'min(38vh, 260px)', // Space for globe in center
+        // Mobile: Smaller gap to reduce vertical space usage and show more of 3D scene
+        gap: isMobile ? 'min(30vh, 180px)' : isTablet ? 'min(34vh, 220px)' : 'min(38vh, 260px)',
+        // Mobile: Use more horizontal space
+        width: isMobile ? '100%' : 'auto',
+        paddingLeft: isMobile ? '5vw' : 0,
+        paddingRight: isMobile ? '5vw' : 0,
       }}
     >
       {/* Top text - above the globe */}
@@ -169,7 +195,7 @@ export function InspirationalText() {
         ref={topWrapperRef}
         style={{
           ...textWrapperStyle,
-          marginTop: '-3vh',
+          marginTop: isMobile ? '-2vh' : '-3vh', // Less offset on mobile
         }}
       >
         <div style={textStyle}>{quote.top}</div>
@@ -180,7 +206,7 @@ export function InspirationalText() {
         ref={bottomWrapperRef}
         style={{
           ...textWrapperStyle,
-          marginBottom: '-3vh',
+          marginBottom: isMobile ? '-2vh' : '-3vh', // Less offset on mobile
         }}
       >
         <div style={textStyle}>{quote.bottom}</div>

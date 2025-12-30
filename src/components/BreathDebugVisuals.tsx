@@ -58,6 +58,9 @@ export function BreathDebugVisuals({
     phaseType: 0,
   });
 
+  // Frame counter for throttling HTML updates (no garbage generation vs Math.random())
+  const frameCountRef = useRef(0);
+
   // Use state for Html overlay only (needed for DOM updates), ref for Three.js visuals
   const [, setForceUpdate] = useState(0);
 
@@ -74,7 +77,10 @@ export function BreathDebugVisuals({
       };
 
       // Throttle HTML updates to every 4 frames (~15fps) instead of 60fps
-      if (Math.random() < 0.25) setForceUpdate((v) => v + 1);
+      frameCountRef.current += 1;
+      if (frameCountRef.current % 4 === 0) {
+        setForceUpdate((v) => v + 1);
+      }
     } catch (_e) {
       // Ignore stale world errors
     }

@@ -1,5 +1,6 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
+import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { InspirationalText } from './InspirationalText';
 
@@ -91,6 +92,12 @@ interface SimpleGaiaUIProps {
  * Advanced controls:
  * - Hidden by default
  * - Press 'T' key to toggle tuning panel
+ *
+ * Mobile Responsive:
+ * - Adapts padding, font sizes, and layout for 320px-480px (mobile)
+ * - Touch-friendly controls with minimum 44px touch targets
+ * - Stacks elements vertically on narrow screens
+ * - Adjusts modal sizing for small viewports
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: UI component manages multiple modal states (tune controls, settings, mood selection, welcome, hints) and phase animation loops - refactoring would reduce readability by splitting cohesive UI state management
 export function SimpleGaiaUI({
@@ -168,6 +175,14 @@ export function SimpleGaiaUI({
   const progressRef = useRef<HTMLDivElement>(null);
   const presenceCountRef = useRef<HTMLSpanElement>(null);
 
+  // Responsive viewport detection
+  const { deviceType, isMobile, isTablet } = useViewport();
+
+  // Responsive spacing values
+  const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32); // Mobile: 16px, Tablet: 24px, Desktop: 32px
+  const modalPadding = getResponsiveSpacing(deviceType, 24, 32, 40); // Mobile: 24px, Tablet: 32px, Desktop: 40px
+  const controlsPanelWidth = isMobile ? '100%' : '260px'; // Full width on mobile
+
   // Entrance animation
   useEffect(() => {
     const timer = setTimeout(() => setHasEntered(true), 100);
@@ -242,18 +257,26 @@ export function SimpleGaiaUI({
         progressRef.current.style.width = `${cycleProgress * 100}%`;
       }
 
-      // Simulate presence count with subtle variation
-      if (presenceCountRef.current && Math.random() < 0.01) {
-        const baseCount = 75;
-        const variation = Math.floor(Math.random() * 10) - 5;
-        presenceCountRef.current.textContent = `${baseCount + variation}`;
-      }
-
       animationId = requestAnimationFrame(updatePhase);
     };
 
     updatePhase();
     return () => cancelAnimationFrame(animationId);
+  }, []);
+
+  // Presence count simulation - updates every 2 seconds with subtle variation
+  // Moved out of RAF loop to avoid 60 random number generations per second
+  useEffect(() => {
+    const updatePresenceCount = () => {
+      if (presenceCountRef.current) {
+        const baseCount = 75;
+        const variation = Math.floor(Math.random() * 10) - 5;
+        presenceCountRef.current.textContent = `${baseCount + variation}`;
+      }
+    };
+
+    const intervalId = setInterval(updatePresenceCount, 2000);
+    return () => clearInterval(intervalId);
   }, []);
 
   // Keyboard shortcut: Press 'T' to toggle tuning controls
@@ -296,15 +319,15 @@ export function SimpleGaiaUI({
     };
   }, [isControlsOpen]);
 
-  // Design Tokens - refined warm palette
+  // Design Tokens - refined warm palette with improved contrast
   const colors = {
-    text: '#7a6b5e',
-    textDim: '#a89888',
+    text: '#5a4d42', // Darker for better contrast (was #7a6b5e)
+    textDim: '#8b7a6a', // Darker secondary text (was #a89888)
     textGlow: '#c4a882',
     border: 'rgba(160, 140, 120, 0.12)',
     glass: 'rgba(252, 250, 246, 0.72)',
     accent: '#c9a06c',
-    accentGlow: 'rgba(201, 160, 108, 0.4)',
+    accentGlow: 'rgba(201, 160, 108, 0.5)', // Stronger glow (was 0.4)
   };
 
   const labelStyle: React.CSSProperties = {
@@ -410,11 +433,11 @@ export function SimpleGaiaUI({
         <div
           style={{
             position: 'absolute',
-            top: '32px',
-            left: '32px',
+            top: `${edgePadding}px`,
+            left: `${edgePadding}px`,
             display: 'flex',
             alignItems: 'center',
-            gap: '16px',
+            gap: isMobile ? '8px' : '16px',
             pointerEvents: 'auto',
             opacity: hasEntered ? 0.85 : 0,
             transform: `translateY(${hasEntered ? 0 : -8}px)`,
@@ -426,10 +449,10 @@ export function SimpleGaiaUI({
             <h1
               style={{
                 fontFamily: "'Cormorant Garamond', Georgia, serif",
-                fontSize: '1.4rem',
+                fontSize: isMobile ? '1.1rem' : isTablet ? '1.25rem' : '1.4rem',
                 fontWeight: 300,
                 margin: 0,
-                letterSpacing: '0.15em',
+                letterSpacing: isMobile ? '0.1em' : '0.15em',
                 textTransform: 'uppercase',
                 color: colors.text,
               }}
@@ -468,11 +491,11 @@ export function SimpleGaiaUI({
             style={{
               background: colors.glass,
               backdropFilter: 'blur(40px)',
-              borderRadius: '32px',
+              borderRadius: isMobile ? '20px' : '32px',
               border: `1px solid ${colors.border}`,
-              padding: '40px',
-              maxWidth: '420px',
-              width: '90%',
+              padding: `${modalPadding}px`,
+              maxWidth: isMobile ? '90%' : '420px',
+              width: isMobile ? '90%' : '420px',
               opacity: settingsAnimated ? 1 : 0,
               transform: `scale(${settingsAnimated ? 1 : 0.95})`,
               transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -481,10 +504,10 @@ export function SimpleGaiaUI({
             <h2
               style={{
                 fontFamily: "'Cormorant Garamond', Georgia, serif",
-                fontSize: '1.8rem',
+                fontSize: isMobile ? '1.4rem' : '1.8rem',
                 fontWeight: 300,
                 margin: '0 0 24px 0',
-                letterSpacing: '0.15em',
+                letterSpacing: isMobile ? '0.1em' : '0.15em',
                 textTransform: 'uppercase',
                 color: colors.text,
               }}
@@ -585,10 +608,10 @@ export function SimpleGaiaUI({
             style={{
               background: colors.glass,
               backdropFilter: 'blur(40px)',
-              borderRadius: '32px',
+              borderRadius: isMobile ? '20px' : '32px',
               border: `1px solid ${colors.border}`,
-              padding: '40px',
-              maxWidth: '520px',
+              padding: `${modalPadding}px`,
+              maxWidth: isMobile ? '90%' : '520px',
               width: '90%',
               maxHeight: '85vh',
               overflow: 'auto',
@@ -600,10 +623,10 @@ export function SimpleGaiaUI({
             <h2
               style={{
                 fontFamily: "'Cormorant Garamond', Georgia, serif",
-                fontSize: '1.8rem',
+                fontSize: isMobile ? '1.4rem' : '1.8rem',
                 fontWeight: 300,
                 margin: '0 0 12px 0',
-                letterSpacing: '0.15em',
+                letterSpacing: isMobile ? '0.1em' : '0.15em',
                 textTransform: 'uppercase',
                 color: colors.text,
                 textAlign: 'center',
@@ -740,13 +763,14 @@ export function SimpleGaiaUI({
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            padding: '32px 48px',
+            padding: isMobile ? '24px 32px' : '32px 48px',
             background: colors.glass,
             backdropFilter: 'blur(40px)',
-            borderRadius: '32px',
+            borderRadius: isMobile ? '20px' : '32px',
             border: `1px solid ${colors.border}`,
             textAlign: 'center',
-            maxWidth: '440px',
+            maxWidth: isMobile ? '90%' : '440px',
+            width: isMobile ? '90%' : 'auto',
             pointerEvents: 'auto',
             opacity: hasEntered ? 0.95 : 0,
             transition: 'opacity 1s ease-out',
@@ -764,10 +788,10 @@ export function SimpleGaiaUI({
           <h2
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: '1.8rem',
+              fontSize: isMobile ? '1.4rem' : '1.8rem',
               fontWeight: 300,
               margin: '0 0 16px 0',
-              letterSpacing: '0.15em',
+              letterSpacing: isMobile ? '0.1em' : '0.15em',
               textTransform: 'uppercase',
               color: colors.text,
             }}
@@ -815,8 +839,9 @@ export function SimpleGaiaUI({
         <div
           style={{
             position: 'absolute',
-            bottom: '100px',
-            right: '40px',
+            bottom: isMobile ? '80px' : '100px',
+            right: isMobile ? '50%' : `${edgePadding}px`,
+            transform: isMobile ? 'translateX(50%)' : 'none',
             padding: '12px 20px',
             background: colors.glass,
             backdropFilter: 'blur(24px)',
@@ -835,20 +860,24 @@ export function SimpleGaiaUI({
         </div>
       )}
 
-      {/* Bottom-Right: Collapsible Advanced Controls */}
+      {/* Bottom-Right (Desktop) / Bottom-Center (Mobile): Collapsible Advanced Controls */}
       {isControlsOpen && (
         <div
           style={{
             position: 'absolute',
-            bottom: '40px',
-            right: '40px',
+            bottom: `${edgePadding}px`,
+            right: isMobile ? '50%' : `${edgePadding}px`,
+            left: isMobile ? '50%' : 'auto',
+            transform: isMobile ? 'translateX(-50%)' : 'none',
             pointerEvents: 'auto',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'flex-end',
+            alignItems: isMobile ? 'center' : 'flex-end',
             gap: '12px',
             opacity: hasEntered ? 1 : 0,
             transition: 'opacity 0.6s ease',
+            width: isMobile ? '90%' : 'auto',
+            maxWidth: isMobile ? '400px' : 'none',
           }}
         >
           {/* Close Button */}
@@ -885,11 +914,11 @@ export function SimpleGaiaUI({
             style={{
               background: colors.glass,
               backdropFilter: 'blur(40px)',
-              padding: '24px',
-              borderRadius: '24px',
+              padding: isMobile ? '20px' : '24px',
+              borderRadius: isMobile ? '20px' : '24px',
               border: `1px solid ${colors.border}`,
-              width: '260px',
-              maxHeight: '600px',
+              width: controlsPanelWidth,
+              maxHeight: isMobile ? '70vh' : '600px',
               overflow: 'auto',
               boxShadow: '0 20px 50px rgba(138, 131, 124, 0.08)',
             }}
@@ -1075,7 +1104,7 @@ export function SimpleGaiaUI({
       <div
         style={{
           position: 'absolute',
-          bottom: '44px',
+          bottom: isMobile ? `${edgePadding + 8}px` : '44px',
           left: '50%',
           transform: `translateX(-50%) translateY(${hasEntered ? 0 : 16}px)`,
           opacity: hasEntered ? 0.9 : 0,
@@ -1084,7 +1113,7 @@ export function SimpleGaiaUI({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '14px',
+          gap: isMobile ? '10px' : '14px',
         }}
       >
         {/* Phase Name + Timer */}
@@ -1092,19 +1121,19 @@ export function SimpleGaiaUI({
           style={{
             display: 'flex',
             alignItems: 'baseline',
-            gap: '10px',
+            gap: isMobile ? '8px' : '10px',
           }}
         >
           <span
             ref={phaseNameRef}
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: '1.5rem',
+              fontSize: isMobile ? '1.5rem' : isTablet ? '1.35rem' : '1.5rem',
               fontWeight: 300,
-              letterSpacing: '0.18em',
+              letterSpacing: isMobile ? '0.15em' : '0.18em',
               textTransform: 'uppercase',
               color: colors.text,
-              textShadow: `0 1px 12px ${colors.accentGlow}`,
+              textShadow: `0 2px 16px ${colors.accentGlow}, 0 1px 4px rgba(0, 0, 0, 0.1)`, // Stronger shadow for contrast
             }}
           >
             Inhale
@@ -1113,12 +1142,12 @@ export function SimpleGaiaUI({
             ref={timerRef}
             style={{
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              fontSize: '0.95rem',
+              fontSize: isMobile ? '1rem' : '0.95rem',
               fontWeight: 300,
               color: colors.textDim,
               minWidth: '1em',
               textAlign: 'center',
-              opacity: 0.8,
+              opacity: 0.9, // Increased from 0.8 for better visibility
             }}
           >
             4
@@ -1128,7 +1157,7 @@ export function SimpleGaiaUI({
         {/* Progress Bar */}
         <div
           style={{
-            width: '100px',
+            width: isMobile ? '80px' : '100px',
             height: '1.5px',
             background: colors.border,
             borderRadius: '1px',
@@ -1151,12 +1180,12 @@ export function SimpleGaiaUI({
         {/* Presence Count - Subtle */}
         <div
           style={{
-            fontSize: '0.65rem',
+            fontSize: isMobile ? '0.7rem' : '0.65rem',
             color: colors.textDim,
-            opacity: 0.6,
+            opacity: 0.7, // Increased from 0.6 for better readability
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
-            marginTop: '4px',
+            marginTop: isMobile ? '2px' : '4px',
           }}
         >
           <span ref={presenceCountRef}>75</span> breathing together
