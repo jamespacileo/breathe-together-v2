@@ -666,3 +666,69 @@ const value = obj?.prop?.nested; // ✅ Modern, short-circuit safe
 ```typescript
 const value = obj && obj.prop && obj.prop.nested; // ❌ Verbose, same result
 ```
+
+## Recent Changes (December 2024)
+
+### WebGL Context Loss Resolution
+
+**Problem:** EarthGlobe component was running a complex 3-pass refraction rendering pipeline that conflicted with ParticleSwarm's refraction pipeline, causing WebGL context loss and blank canvas.
+
+**Solution:** Simplified EarthGlobe to use a basic sphere with MeshPhongMaterial instead of r3f-globe with complex refraction:
+- Removed `useRefractionRenderPipeline` hook
+- Removed complex multi-pass rendering logic (~120 lines)
+- Replaced with simple solid-colored sphere (warm brown earth tone: #8b6f47)
+- Maintained breathing animation and rotation via ECS breathPhase trait
+- Added frosted glass overlay for visual consistency with ParticleSwarm shards
+- Reduced scale from 2.5 to 1.2 for better visibility
+
+**Result:** Application now renders all components successfully:
+- ✅ EarthGlobe: Central brown sphere with frosted glass overlay
+- ✅ ParticleSwarm: White icosahedral shards orbiting Earth
+- ✅ AtmosphericParticles: Cyan floating dots with breathing synchronization
+- ✅ Environment: Light cream background with proper lighting
+- ✅ BreathingHUD3D: Breathing timer and user count
+- ✅ All entities synchronized via UTC-based breathing cycle
+
+### Code Cleanup
+
+**Deleted Orphaned Files:**
+- `src/entities/background/ProceduralBackground.tsx` (never imported)
+- `src/entities/environment/BackgroundParticles.tsx` (unused)
+- `src/entities/background/` (empty directory)
+
+**Fixed Issues:**
+- ParticleSwarm fallback material now has proper color (#e6dcd3) - was invisible due to missing color
+- Environment shader replaced with simple MeshBasicMaterial - shader wasn't compiling
+- Removed unused refraction state variables from 3-pass pipeline
+
+### Architecture Improvements
+
+**GPU Memory Management:**
+- Verified proper disposal of all Three.js resources (geometries, materials, textures, render targets)
+- All components use useEffect cleanup patterns for resource disposal on unmount
+- Reference: See "Three.js Memory Management Patterns" section above
+
+**Code Quality:**
+- ✅ TypeScript compiles with zero errors (`npm run typecheck`)
+- ✅ Biome linter passes all checks (no suppressions needed)
+- ✅ All imports properly used (no dead code detected)
+- ✅ Proper error handling in ECS operations with try-catch blocks
+
+### Known Limitations & Future Enhancements
+
+1. **EarthGlobe Texture:**
+   - Currently using solid brown color for reliability
+   - Asset prepared: `public/textures/earth-texture.png`
+   - TODO: Integrate texture using non-Suspense loading for r3f-globe
+
+2. **Breathing Animation:**
+   - Currently single sine wave synchronized via ECS `breathPhase` trait
+   - TODO: Implement dual sine wave for more nuanced easing (Phase 4)
+
+3. **Frosted Glass Material:**
+   - Applied to ParticleSwarm shards and EarthGlobe overlay
+   - TODO: Verify consistency and tweak shader parameters (Phase 6)
+
+4. **Background Shader:**
+   - Currently static gradient color
+   - TODO: Implement animated cloud/noise shader with time-based animation

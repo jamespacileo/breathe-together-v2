@@ -31,49 +31,68 @@ interface CameraRigProps {
 }
 
 export function CameraRig({
-  parallaxIntensity = 0.5,
-  distance = 10,
+  parallaxIntensity = 0.4,
+  distance = 15,
   enableRotation = true,
 }: CameraRigProps = {}) {
-  // Internal constants for hardcoded values
-  const breathZoomIntensity = 0.3;
-  const lerpSpeed = 2;
-  const rotateSpeed = 0.5;
-  const minPolarAngle = 0.785;
-  const maxPolarAngle = 2.356;
-  const enableDamping = true;
-  const dampingFactor = 0.05;
+  // Internal constants for smoothing and movement
+  const swayIntensity = 0.05;
+  const breathZoomIntensity = 1.5;
+  const lerpSpeed = 1.5;
+  const dampingFactor = 0.03; // Smoother damping
 
   const { mouse } = useThree();
   const world = useWorld();
   const controlsRef = useRef<OrbitControls>(null);
-  const parallaxOffset = useRef(new THREE.Vector3());
-  const targetOffset = useRef(new THREE.Vector3());
 
-  useFrame((_state, delta) => {
+  // Ref-based state to keep updates smooth and avoid React re-renders
+  const lastPhase = useRef(0);
+  const targetCameraPos = useRef(new THREE.Vector3(0, 0, distance));
+  const currentCameraPos = useRef(new THREE.Vector3(0, 0, distance));
+
+  useFrame((state, delta) => {
     try {
-      // Get breath phase for subtle camera breathing
       const breathEntity = world.queryFirst(breathPhase);
-      if (!breathEntity || !world.has(breathEntity)) return;
+      if (!breathEntity) return;
 
       const phase = breathEntity.get(breathPhase)?.value ?? 0;
+      lastPhase.current = phase;
 
-      // 1. Breathing Zoom
-      // We adjust min/max distance to force OrbitControls to the target distance
-      const activeDistance = distance - phase * breathZoomIntensity;
+      const t = state.clock.elapsedTime;
+
+      // 1. Procedural Sway (Organic "breathing" movement)
+      // Subtle float + rotation that feels linked to the lungs expanding
+      const swayX = Math.sin(t * 0.5) * swayIntensity;
+      const swayY = Math.cos(t * 0.4) * swayIntensity;
+
+      // 2. Breathing Zoom (Camera pushes in/out with the breath)
+      const dynamicDistance = distance - phase * breathZoomIntensity;
+
+      // 3. Mouse Parallax (Gentle look-around)
+      const mouseX = mouse.x * parallaxIntensity;
+      const mouseY = mouse.y * parallaxIntensity;
+
+      // Update target position
+      // Combine base distance, mouse offset, and breathing push
+      targetCameraPos.current.set(mouseX + swayX, mouseY + swayY, dynamicDistance);
+
+      // Smoothly interpolate the camera position
+      damp3(currentCameraPos.current, targetCameraPos.current, lerpSpeed, delta);
+
       if (controlsRef.current) {
-        controlsRef.current.minDistance = activeDistance;
-        controlsRef.current.maxDistance = activeDistance;
-      }
+        // We update the camera position relative to the target
+        // OrbitControls handles rotations, we influence the distance and subtle offset
+        controlsRef.current.minDistance = dynamicDistance;
+        controlsRef.current.maxDistance = dynamicDistance;
 
-      // 2. Mouse Parallax
-      // We update the controls target to create a panned parallax effect
-      targetOffset.current.set(mouse.x * parallaxIntensity, mouse.y * parallaxIntensity, 0);
-      damp3(parallaxOffset.current, targetOffset.current, lerpSpeed, delta);
+        // Apply parallax to the target (pivot point)
+        damp3(
+          controlsRef.current.target,
+          new THREE.Vector3(mouseX * 0.5, mouseY * 0.5, 0),
+          lerpSpeed,
+          delta,
+        );
 
-      if (controlsRef.current) {
-        controlsRef.current.target.copy(parallaxOffset.current);
-        // OrbitControls.update() calculates the new camera position based on target and distance
         controlsRef.current.update();
       }
     } catch (_e) {
@@ -89,10 +108,10 @@ export function CameraRig({
       enableZoom={false}
       enablePan={false}
       enableRotate={enableRotation}
-      rotateSpeed={rotateSpeed}
-      minPolarAngle={minPolarAngle}
-      maxPolarAngle={maxPolarAngle}
-      enableDamping={enableDamping}
+      rotateSpeed={0.4}
+      minPolarAngle={Math.PI * 0.3}
+      maxPolarAngle={Math.PI * 0.6}
+      enableDamping={true}
       dampingFactor={dampingFactor}
     />
   );
