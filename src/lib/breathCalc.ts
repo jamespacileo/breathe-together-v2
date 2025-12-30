@@ -14,44 +14,51 @@ import type { BreathState } from '../types';
  */
 
 /**
- * Smootherstep (Ken Perlin's improved version)
- * 6t^5 - 15t^4 + 10t^3
+ * Soft S-curve using arctangent
  *
- * Has continuous first AND second derivatives at boundaries,
- * resulting in extremely smooth motion that mimics physical inertia.
- * Used in physics simulations and procedural animation.
+ * Unlike smootherstep which reaches 97% by t=0.8 (feels "done early"),
+ * this curve distributes motion more evenly:
+ * - t=0.2 → ~14% (slow start)
+ * - t=0.5 → 50% (midpoint)
+ * - t=0.8 → ~86% (still visible motion in final 20%)
+ *
+ * Creates controlled, deliberate feel that uses the full duration.
+ *
+ * @param t Progress 0-1
+ * @param steepness Controls S-curve sharpness (2-4 typical, lower = more linear)
  */
-function smootherstep(t: number): number {
-  return t * t * t * (t * (t * 6 - 15) + 10);
+function softSCurve(t: number, steepness: number): number {
+  const halfK = steepness * 0.5;
+  return 0.5 * (1 + Math.atan(steepness * (t - 0.5)) / Math.atan(halfK));
 }
 
 /**
- * Inhale easing: Physics-smooth S-curve
+ * Inhale easing: Controlled, deliberate breath intake
  *
- * Uses smootherstep for natural "mass overcoming inertia" feel:
- * - Starts slow (overcoming resistance)
- * - Accelerates smoothly through middle
- * - Decelerates naturally at end (lungs full)
+ * Uses soft arctangent S-curve for even time distribution:
+ * - Slow, controlled start (overcoming initial resistance)
+ * - Steady progression through middle (visible motion throughout)
+ * - Gentle settling at end (lungs filling naturally)
+ *
+ * Steepness 2.5 balances smoothness with "uses full duration" feel.
  */
 function easeInhale(t: number): number {
-  return smootherstep(t);
+  return softSCurve(t, 2.5);
 }
 
 /**
- * Exhale easing: Viscous controlled release
+ * Exhale easing: Controlled, relaxing breath release
  *
- * Blends exponential decay with smootherstep:
- * - Exponential: Models air pressure release (faster start)
- * - Smootherstep: Adds controlled steadiness
- * - Result: Natural "letting go" without abrupt changes
+ * Uses soft S-curve with slightly lower steepness than inhale:
+ * - Creates "letting go" feel with steady, even progression
+ * - Lower steepness (2.0) = more linear = more controlled release
+ * - No rushing - motion visible throughout full 4 seconds
+ *
+ * For relaxation breathing, the exhale should feel unhurried and steady.
  */
 function easeExhale(t: number): number {
-  // Exponential release: 1 - (1-t)^2.5 gives faster start, gradual taper
-  const exponentialRelease = 1 - (1 - t) ** 2.5;
-  // Blend with smootherstep for controlled, steady feel
-  const smooth = smootherstep(t);
-  // 40% exponential (natural release) + 60% smooth (controlled)
-  return exponentialRelease * 0.4 + smooth * 0.6;
+  // Slightly more linear than inhale for steady, controlled release
+  return softSCurve(t, 2.0);
 }
 
 /**
