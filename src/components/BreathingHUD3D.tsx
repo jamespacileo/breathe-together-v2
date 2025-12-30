@@ -38,12 +38,12 @@ export function BreathingHUD3D() {
   const containerPadding = getResponsiveSpacing(deviceType, 12, 16, 24); // Mobile: 12px, Tablet: 16px, Desktop: 24px
   const borderRadius = getResponsiveSpacing(deviceType, 16, 20, 24); // Mobile: 16px, Tablet: 20px, Desktop: 24px
 
-  // Responsive font sizes
-  const phaseFontSize = isMobile ? 10 : 12; // Smaller phase label on mobile
-  const timerFontSize = isMobile ? 16 : 20; // Smaller timer on mobile
-  const countFontSize = isMobile ? 8 : 10; // Smaller "PRESENCE" label
-  const countNumberSize = isMobile ? 14 : 16; // Smaller presence count
-  const countTextSize = isMobile ? 10 : 12; // Smaller "together" text
+  // Responsive font sizes - larger for mobile readability (minimum 12px for legibility)
+  const phaseFontSize = isMobile ? 14 : 12; // Larger phase label on mobile for readability
+  const timerFontSize = isMobile ? 22 : 20; // Larger timer on mobile
+  const countFontSize = isMobile ? 11 : 10; // Readable "PRESENCE" label
+  const countNumberSize = isMobile ? 18 : 16; // Larger presence count
+  const countTextSize = isMobile ? 13 : 12; // Larger "together" text
 
   // Progress bar sizing
   const progressMinWidth = isMobile ? 80 : 120; // Narrower on mobile

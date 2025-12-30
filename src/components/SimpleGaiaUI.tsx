@@ -1096,9 +1096,9 @@ export function SimpleGaiaUI({
             ref={phaseNameRef}
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: isMobile ? '1.2rem' : isTablet ? '1.35rem' : '1.5rem',
+              fontSize: isMobile ? '1.5rem' : isTablet ? '1.35rem' : '1.5rem',
               fontWeight: 300,
-              letterSpacing: isMobile ? '0.12em' : '0.18em',
+              letterSpacing: isMobile ? '0.15em' : '0.18em',
               textTransform: 'uppercase',
               color: colors.text,
               textShadow: `0 1px 12px ${colors.accentGlow}`,
@@ -1110,7 +1110,7 @@ export function SimpleGaiaUI({
             ref={timerRef}
             style={{
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              fontSize: isMobile ? '0.85rem' : '0.95rem',
+              fontSize: isMobile ? '1rem' : '0.95rem',
               fontWeight: 300,
               color: colors.textDim,
               minWidth: '1em',
@@ -1148,7 +1148,7 @@ export function SimpleGaiaUI({
         {/* Presence Count - Subtle */}
         <div
           style={{
-            fontSize: isMobile ? '0.6rem' : '0.65rem',
+            fontSize: isMobile ? '0.7rem' : '0.65rem',
             color: colors.textDim,
             opacity: 0.6,
             letterSpacing: '0.1em',
