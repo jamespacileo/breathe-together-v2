@@ -58,8 +58,9 @@ export function BreathingLevel({
           {showEnvironment && <Environment showClouds={true} showStars={true} />}
 
           {/* Wrap rotatable entities in PresentationControls */}
+          {/* NOTE: global={false} so events don't block DOM UI outside canvas */}
           <PresentationControls
-            global
+            global={false}
             cursor={true}
             snap={false}
             speed={1}
