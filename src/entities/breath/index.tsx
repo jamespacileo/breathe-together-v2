@@ -2,6 +2,7 @@
  * Breath entity - central state container for all breathing animations
  * Following Koota pattern where entities are composed of traits
  *
+ * Simplified (Dec 2024): Only 6 traits remain after removing unused ones
  * Also supports optional debug traits for manual breathing control in Triplex
  */
 
@@ -10,23 +11,14 @@ import { useEffect } from 'react';
 import { useBreathDebug } from '../../contexts/breathDebug';
 import {
   breathPhase,
-  crystallization,
   debugPhaseJump,
   debugPhaseOverride,
   debugTimeControl,
-  easedProgress,
   orbitRadius,
   phaseType,
   rawProgress,
-  sphereScale,
   targetBreathPhase,
-  targetCrystallization,
   targetOrbitRadius,
-  targetSphereScale,
-  velocityBreathPhase,
-  velocityCrystallization,
-  velocityOrbitRadius,
-  velocitySphereScale,
 } from './traits';
 
 /**
@@ -37,42 +29,27 @@ export function BreathEntity() {
   const world = useWorld();
   const debugConfig = useBreathDebug();
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ECS entity initialization with multiple trait setup steps - refactoring would reduce readability
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ECS entity init + debug trait management requires multiple conditional branches
   useEffect(() => {
     try {
       // Check if it already exists
       let entity = world.queryFirst(breathPhase);
 
       if (!entity) {
+        // Spawn breath entity with all required traits
         entity = world.spawn(
           breathPhase,
           targetBreathPhase,
           phaseType,
           rawProgress,
-          easedProgress,
           orbitRadius,
           targetOrbitRadius,
-          sphereScale,
-          targetSphereScale,
-          crystallization,
-          targetCrystallization,
-          velocityBreathPhase,
-          velocityOrbitRadius,
-          velocitySphereScale,
-          velocityCrystallization,
         );
       } else {
-        // Ensure all new traits are added to existing entity (for hot-reloading/updates)
+        // Ensure all traits are added to existing entity (for hot-reloading)
         if (!entity.has(targetBreathPhase)) entity.add(targetBreathPhase);
-        if (!entity.has(velocityBreathPhase)) entity.add(velocityBreathPhase);
         if (!entity.has(rawProgress)) entity.add(rawProgress);
-        if (!entity.has(easedProgress)) entity.add(easedProgress);
         if (!entity.has(targetOrbitRadius)) entity.add(targetOrbitRadius);
-        if (!entity.has(velocityOrbitRadius)) entity.add(velocityOrbitRadius);
-        if (!entity.has(targetSphereScale)) entity.add(targetSphereScale);
-        if (!entity.has(velocitySphereScale)) entity.add(velocitySphereScale);
-        if (!entity.has(targetCrystallization)) entity.add(targetCrystallization);
-        if (!entity.has(velocityCrystallization)) entity.add(velocityCrystallization);
       }
 
       // ============================================================

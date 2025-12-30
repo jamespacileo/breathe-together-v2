@@ -33,14 +33,13 @@ export const BREATH_TOTAL_CYCLE = 16; // seconds
 
 /**
  * Visual Constants - Breathing animation parameters
- * Only includes values actually used in breath calculations
+ *
+ * Simplified (Dec 2024): Removed SPHERE_SCALE_* (sphereScale trait was never used)
+ * Only orbit radius values remain (used by ParticleSwarm).
  */
 export const VISUALS = {
-  // Sphere scale during breathing animation
-  SPHERE_SCALE_MIN: 0.3,
-  SPHERE_SCALE_MAX: 0.7,
-
-  // Particle orbit radius during breathing animation
+  /** Min orbit radius (inhale - particles closest to globe) */
   PARTICLE_ORBIT_MIN: 0.75,
+  /** Max orbit radius (exhale - particles farthest from globe) */
   PARTICLE_ORBIT_MAX: 6.0,
 } as const;

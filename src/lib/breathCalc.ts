@@ -2,7 +2,12 @@ import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
 
 /**
- * Easing functions for different breath energies
+ * Easing functions for different breath phases
+ *
+ * Each phase has its own easing curve for natural breathing feel:
+ * - Inhale: easeOutQuart (fast start, gentle finish)
+ * - Hold phases: easeInOutQuad (smooth sustain)
+ * - Exhale: easeInSine (gentle release)
  */
 function easeOutQuart(t: number): number {
   return 1 - (1 - t) ** 4;
@@ -24,52 +29,55 @@ function easeInOutQuad(t: number): number {
 
 /**
  * Phase configuration for data-driven calculation
+ * Simplified (Dec 2024): Removed crystallization (never used by any entity)
  */
 const PHASES = [
   {
     duration: BREATH_PHASES.INHALE,
     ease: easeOutQuart,
     target: (p: number) => p,
-    crystal: () => 0,
   },
   {
     duration: BREATH_PHASES.HOLD_IN,
     ease: easeInOutQuad,
     target: () => 1,
-    crystal: (p: number) => 0.5 + p * 0.4,
   },
   {
     duration: BREATH_PHASES.EXHALE,
     ease: easeInSine,
     target: (p: number) => 1 - p,
-    crystal: () => 0,
   },
   {
     duration: BREATH_PHASES.HOLD_OUT,
     ease: easeInOutQuad,
     target: () => 0,
-    crystal: (p: number) => 0.4 + p * 0.35,
   },
 ];
 
 /**
- * Calculate all breathing values for a given UTC time
- * Returns a snapshot of the current breath state
+ * Calculate breathing state for a given elapsed time (typically Date.now() / 1000)
+ *
+ * Returns only the values actively consumed by entities:
+ * - breathPhase: Main animation driver (0-1)
+ * - phaseType: Which phase (0-3) for HUD display
+ * - rawProgress: Progress within phase (0-1) for HUD timer
+ * - orbitRadius: Derived value for ParticleSwarm
+ *
+ * Removed (Dec 2024): easedProgress, crystallization, sphereScale (never used)
  */
 export function calculateBreathState(elapsedTime: number): BreathState {
-  // Compute phase timing
-  const cycleSeconds = BREATH_TOTAL_CYCLE;
-  const scale = cycleSeconds / BREATH_TOTAL_CYCLE;
-  const phaseDurations = [
-    BREATH_PHASES.INHALE * scale,
-    BREATH_PHASES.HOLD_IN * scale,
-    BREATH_PHASES.EXHALE * scale,
-    BREATH_PHASES.HOLD_OUT * scale,
-  ];
+  const cycleTime = elapsedTime % BREATH_TOTAL_CYCLE;
 
-  const cycleTime = elapsedTime % cycleSeconds;
+  // Find current phase
   let accumulatedTime = 0;
   let phaseIndex = 0;
+
+  const phaseDurations = [
+    BREATH_PHASES.INHALE,
+    BREATH_PHASES.HOLD_IN,
+    BREATH_PHASES.EXHALE,
+    BREATH_PHASES.HOLD_OUT,
+  ];
 
   for (let i = 0; i < phaseDurations.length; i++) {
     const duration = phaseDurations[i] ?? 0;
@@ -80,20 +88,17 @@ export function calculateBreathState(elapsedTime: number): BreathState {
     accumulatedTime += duration;
   }
 
+  // Calculate progress within current phase
   const phaseDuration = phaseDurations[phaseIndex] ?? 1;
   const phaseTime = cycleTime - accumulatedTime;
-  const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+  const rawProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
 
-  // Calculate breathing state
+  // Apply phase-specific easing and target function
   const phase = PHASES[phaseIndex];
-  const easedProgress = phase.ease(phaseProgress);
-
+  const easedProgress = phase.ease(rawProgress);
   const breathPhase = phase.target(easedProgress);
-  const crystallization = phase.crystal(easedProgress);
 
-  // Derive visual parameters from breath phase
-  const sphereScale =
-    VISUALS.SPHERE_SCALE_MIN + breathPhase * (VISUALS.SPHERE_SCALE_MAX - VISUALS.SPHERE_SCALE_MIN);
+  // Derive orbit radius from breath phase (particles spread on exhale, contract on inhale)
   const orbitRadius =
     VISUALS.PARTICLE_ORBIT_MAX -
     breathPhase * (VISUALS.PARTICLE_ORBIT_MAX - VISUALS.PARTICLE_ORBIT_MIN);
@@ -101,10 +106,7 @@ export function calculateBreathState(elapsedTime: number): BreathState {
   return {
     breathPhase,
     phaseType: phaseIndex,
-    rawProgress: phaseProgress,
-    easedProgress,
-    crystallization,
-    sphereScale,
+    rawProgress,
     orbitRadius,
   };
 }

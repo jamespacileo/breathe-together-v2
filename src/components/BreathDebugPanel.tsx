@@ -88,7 +88,7 @@ interface BreathDebugPanelProps {
   /**
    * Show real-time trait values overlay.
    *
-   * Displays breathPhase, sphereScale, crystallization, and other trait values.
+   * Displays breathPhase, phaseType, orbitRadius trait values.
    *
    * @default false
    */
