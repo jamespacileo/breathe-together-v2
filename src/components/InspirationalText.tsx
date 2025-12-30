@@ -121,9 +121,30 @@ export function InspirationalText() {
 
   // Design tokens matching GaiaUI
   const colors = {
-    text: '#7a6b5e',
-    textGlow: 'rgba(201, 160, 108, 0.5)',
-    subtleGlow: 'rgba(255, 252, 245, 0.8)',
+    text: '#6a5b4e',
+    textGlow: 'rgba(201, 160, 108, 0.6)',
+    subtleGlow: 'rgba(255, 252, 245, 0.9)',
+    // Soft backdrop gradient - warm cream fading to transparent
+    backdropCenter: 'rgba(252, 250, 245, 0.35)',
+    backdropMid: 'rgba(252, 250, 245, 0.15)',
+    backdropEdge: 'rgba(252, 250, 245, 0)',
+  };
+
+  // Soft radial gradient backdrop for readability
+  const textWrapperStyle: React.CSSProperties = {
+    position: 'relative',
+    padding: 'clamp(24px, 5vw, 48px) clamp(48px, 12vw, 120px)',
+    // Soft elliptical gradient - wider than tall for text shape
+    background: `radial-gradient(
+      ellipse 100% 80% at center,
+      ${colors.backdropCenter} 0%,
+      ${colors.backdropMid} 40%,
+      ${colors.backdropEdge} 70%
+    )`,
+    // Subtle blur for dreamy effect
+    backdropFilter: 'blur(2px)',
+    WebkitBackdropFilter: 'blur(2px)',
+    borderRadius: '50%',
   };
 
   const textStyle: React.CSSProperties = {
@@ -134,9 +155,9 @@ export function InspirationalText() {
     textTransform: 'uppercase',
     color: colors.text,
     textShadow: `
-      0 0 40px ${colors.subtleGlow},
-      0 0 80px ${colors.textGlow},
-      0 2px 10px rgba(0, 0, 0, 0.1)
+      0 0 30px ${colors.subtleGlow},
+      0 0 60px ${colors.textGlow},
+      0 1px 8px rgba(0, 0, 0, 0.12)
     `,
     textAlign: 'center',
     lineHeight: 1.2,
@@ -166,21 +187,21 @@ export function InspirationalText() {
       {/* Top text - above the globe */}
       <div
         style={{
-          ...textStyle,
-          marginTop: '-5vh', // Nudge up slightly
+          ...textWrapperStyle,
+          marginTop: '-5vh',
         }}
       >
-        {quote.top}
+        <div style={textStyle}>{quote.top}</div>
       </div>
 
       {/* Bottom text - below the globe */}
       <div
         style={{
-          ...textStyle,
-          marginBottom: '-5vh', // Nudge down slightly
+          ...textWrapperStyle,
+          marginBottom: '-5vh',
         }}
       >
-        {quote.bottom}
+        <div style={textStyle}>{quote.bottom}</div>
       </div>
     </div>
   );
