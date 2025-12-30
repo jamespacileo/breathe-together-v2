@@ -45,7 +45,7 @@ export const WELCOME_INTRO: MessageSequence = {
   id: 'welcome-intro',
   type: 'intro',
   playOnce: true,
-  cyclesPerMessage: 2, // ~32s per message, ~5 min total for full intro
+  cyclesPerMessage: 1, // 16s per message, ~2.5 min total - each message shows once
   description: 'First-time welcome experience - guides user into shared breathing',
   messages: [
     // 1. Warm arrival - acknowledge they've found something special
@@ -87,7 +87,7 @@ export const WELCOME_BACK: MessageSequence = {
   id: 'welcome-back',
   type: 'intro',
   playOnce: true,
-  cyclesPerMessage: 2,
+  cyclesPerMessage: 1,
   description: 'Welcome back sequence',
   messages: [
     { top: 'Welcome Back', bottom: 'Beautiful Soul' },
