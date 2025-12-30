@@ -338,6 +338,86 @@ shardsRef.current = currentShards.filter(s => s.state !== 'removed');
 - **Memory:** No growth over 5 minutes of arrivals/departures
 - **Animation smoothness:** No visible jitter or pops
 
+### Phase 7: Fibonacci Repositioning (Smooth Redistribution)
+
+**Goal:** When shard count changes, smoothly reposition all existing shards to maintain even Fibonacci sphere distribution
+
+**Implementation:**
+
+1. **Add repositionStartDirection field to ShardData:**
+```typescript
+interface ShardData {
+  // ... existing fields
+  repositionStartDirection: THREE.Vector3; // Store starting direction for proper lerp
+}
+```
+
+2. **Create updateFibonacciPositions() helper:**
+```typescript
+function updateFibonacciPositions(currentShards: ShardData[], totalCount: number): void {
+  const activeShards = currentShards.filter(
+    s => s.lifecycleState === 'active' || s.lifecycleState === 'spawning'
+  );
+
+  for (let i = 0; i < activeShards.length; i++) {
+    const phi = Math.acos(-1 + (2 * i) / totalCount);
+    const theta = Math.sqrt(totalCount * Math.PI) * phi;
+    const newDirection = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+
+    // Only animate if direction changed significantly (> 0.01 units)
+    if (shard.direction.distanceTo(newDirection) > 0.01) {
+      shard.repositionStartDirection.copy(shard.direction);
+      shard.targetDirection.copy(newDirection);
+      shard.isRepositioning = true;
+      shard.repositionStartTime = Date.now();
+    }
+  }
+}
+```
+
+3. **Call after add/remove operations:**
+```typescript
+if (delta > 0) {
+  addNewShards(...);
+  updateFibonacciPositions(currentShards, count);
+} else if (delta < 0) {
+  markShardsForRemoval(...);
+  updateFibonacciPositions(currentShards, count);
+}
+```
+
+4. **Update animation loop to handle repositioning:**
+```typescript
+if (shard.isRepositioning && shard.lifecycleState !== 'removing') {
+  const repositionElapsed = now - shard.repositionStartTime;
+  const repositionProgress = Math.min(repositionElapsed / REPOSITION_ANIMATION_DURATION, 1);
+  const easedProgress = easeInhale(repositionProgress);
+
+  // Lerp from start direction to target direction
+  shard.direction.lerpVectors(
+    shard.repositionStartDirection,
+    shard.targetDirection,
+    easedProgress
+  );
+
+  if (repositionProgress >= 1) {
+    shard.direction.copy(shard.targetDirection);
+    shard.isRepositioning = false;
+  }
+}
+```
+
+**Expected result:**
+- When users join: new shards spawn in, existing shards smoothly reposition to maintain even coverage
+- When users leave: shards animate out, remaining shards redistribute evenly
+- 1-second animation duration (faster than spawn/removal for responsiveness)
+- Uses easeInhale curve for consistency with breathing feel
+- No repositioning during removal (shards marked for removal maintain current position)
+
+**Complexity:** Medium (requires proper lerp implementation with stored start direction)
+
+---
+
 ---
 
 ## Technical Decisions & Rationale
@@ -372,14 +452,15 @@ shardsRef.current = currentShards.filter(s => s.state !== 'removed');
 ## Implementation Order
 
 1. ✅ **Phase 1:** Color randomization (quick win, visible improvement)
-2. **Phase 2:** Lifecycle state machine (foundation)
-3. **Phase 3:** Incremental diffing (enables animations)
-4. **Phase 4:** Scale animation (core feature)
-5. **Phase 5:** Staggered arrivals (polish)
-6. **Phase 6:** GPU cleanup (critical for production)
+2. ✅ **Phase 2:** Lifecycle state machine (foundation)
+3. ✅ **Phase 3:** Incremental diffing (enables animations)
+4. ✅ **Phase 4:** Scale animation (core feature)
+5. ✅ **Phase 5:** Staggered arrivals (polish)
+6. ✅ **Phase 6:** GPU cleanup (critical for production)
+7. ✅ **Phase 7:** Fibonacci repositioning (smooth redistribution when count changes)
 
-**Estimated implementation time:** 2-3 hours
-**Estimated testing time:** 1 hour
+**Implementation completed:** All phases implemented
+**Status:** Ready for testing
 
 ---
 
@@ -398,6 +479,9 @@ shardsRef.current = currentShards.filter(s => s.state !== 'removed');
 - ✅ Colors randomized on each presence update
 - ✅ Smooth 2s scale animation for arrivals/departures
 - ✅ Staggered effect for multiple simultaneous joins
+- ✅ Smooth 1s Fibonacci repositioning when count changes
+- ✅ New shards animate from globe surface into their Fibonacci positions
+- ✅ Existing shards smoothly reposition to maintain even coverage
 - ✅ No visual flicker or state corruption
 - ✅ No GPU memory leaks over extended use
 - ✅ Maintains 60fps with 96 shards

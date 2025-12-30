@@ -143,6 +143,14 @@ interface ShardData {
   spawnOrigin: THREE.Vector3;
   /** Target orbit radius (for arrival animation) */
   targetRadius: number;
+  /** Target direction for Fibonacci repositioning */
+  targetDirection: THREE.Vector3;
+  /** Whether shard is repositioning to new Fibonacci position */
+  isRepositioning: boolean;
+  /** When repositioning started (for animation timing) */
+  repositionStartTime: number;
+  /** Starting direction when repositioning began (for proper lerp animation) */
+  repositionStartDirection: THREE.Vector3;
 }
 
 /**
@@ -211,9 +219,11 @@ const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
  *
  * - Duration: 2 seconds (half breath cycle) for natural integration
  * - Stagger: 80ms between sequential spawns for wave effect
+ * - Reposition: 1 second for Fibonacci redistribution
  */
 const SPAWN_ANIMATION_DURATION = 2000; // milliseconds
 const SPAWN_STAGGER_DELAY = 80; // milliseconds between sequential spawns
+const REPOSITION_ANIMATION_DURATION = 1000; // milliseconds for Fibonacci repositioning
 
 /**
  * Create a single shard with geometry, mesh, and lifecycle metadata
@@ -266,6 +276,10 @@ function createShard(
     id: `shard-${Date.now()}-${index}`,
     spawnOrigin,
     targetRadius: baseRadius,
+    targetDirection: direction.clone(), // Initially same as direction
+    isRepositioning: false,
+    repositionStartTime: 0,
+    repositionStartDirection: direction.clone(), // Store starting direction for lerp
   };
 }
 
@@ -355,6 +369,46 @@ function updateShardColors(
 }
 
 /**
+ * Recalculate Fibonacci positions for all shards and trigger repositioning animations
+ *
+ * When the total shard count changes (users join/leave), the Fibonacci sphere
+ * distribution needs to be recalculated to maintain even coverage. This function:
+ * 1. Calculates new Fibonacci positions for all active/spawning shards
+ * 2. Triggers smooth repositioning animation if direction changed significantly
+ *
+ * Only animates shards that moved far enough to be noticeable (> 0.01 units).
+ * Shards in 'removing' state are excluded from repositioning.
+ *
+ * @param currentShards - All current shards (active, spawning, and removing)
+ * @param totalCount - New total count after add/remove operation
+ */
+function updateFibonacciPositions(currentShards: ShardData[], totalCount: number): void {
+  // Get only active and spawning shards (exclude shards being removed)
+  const activeShards = currentShards.filter(
+    (s) => s.lifecycleState === 'active' || s.lifecycleState === 'spawning',
+  );
+
+  // Recalculate Fibonacci positions for all active shards
+  for (let i = 0; i < activeShards.length; i++) {
+    const shard = activeShards[i];
+
+    // Calculate new Fibonacci position
+    const phi = Math.acos(-1 + (2 * i) / totalCount);
+    const theta = Math.sqrt(totalCount * Math.PI) * phi;
+    const newDirection = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+
+    // Only trigger repositioning if direction changed significantly (> 0.01 units)
+    // This prevents unnecessary animations for tiny movements
+    if (shard.direction.distanceTo(newDirection) > 0.01) {
+      shard.repositionStartDirection.copy(shard.direction); // Store current direction as start
+      shard.targetDirection.copy(newDirection);
+      shard.isRepositioning = true;
+      shard.repositionStartTime = Date.now();
+    }
+  }
+}
+
+/**
  * Update shard scale and position based on lifecycle state
  * Returns true if shard should be removed
  * Extracted to reduce complexity of animation loop
@@ -362,6 +416,26 @@ function updateShardColors(
 function updateShardLifecycleAnimation(shard: ShardData, now: number): boolean {
   const elapsed = now - shard.stateChangeTime;
   const progress = Math.min(elapsed / SPAWN_ANIMATION_DURATION, 1);
+
+  // Handle Fibonacci repositioning (can happen in any lifecycle state except removing)
+  if (shard.isRepositioning && shard.lifecycleState !== 'removing') {
+    const repositionElapsed = now - shard.repositionStartTime;
+    const repositionProgress = Math.min(repositionElapsed / REPOSITION_ANIMATION_DURATION, 1);
+    const easedRepositionProgress = easeInhale(repositionProgress);
+
+    // Smoothly interpolate direction from start to target using eased progress
+    shard.direction.lerpVectors(
+      shard.repositionStartDirection,
+      shard.targetDirection,
+      easedRepositionProgress,
+    );
+
+    if (repositionProgress >= 1) {
+      // Repositioning complete - snap to exact target
+      shard.direction.copy(shard.targetDirection);
+      shard.isRepositioning = false;
+    }
+  }
 
   if (shard.lifecycleState === 'spawning') {
     // Animate from spawn origin → target orbit position with easeInhale curve
@@ -520,9 +594,16 @@ export function ParticleSwarm({
         currentShards,
         currentPhysics,
       );
+
+      // Recalculate Fibonacci positions for all shards (new count includes new shards)
+      updateFibonacciPositions(currentShards, count);
     } else if (delta < 0) {
       // REMOVE excess shards (mark as 'removing' for animation)
       markShardsForRemoval(Math.abs(delta), currentShards);
+
+      // Recalculate Fibonacci positions for remaining shards
+      // Use current count (which reflects the target after removal)
+      updateFibonacciPositions(currentShards, count);
     }
 
     // UPDATE colors if user distribution changed (without recreating shards)
