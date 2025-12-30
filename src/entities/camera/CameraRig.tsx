@@ -33,7 +33,7 @@ interface CameraRigProps {
 export function CameraRig({
   parallaxIntensity = 0.4,
   distance = 15,
-  enableRotation = true,
+  enableRotation = false,
 }: CameraRigProps = {}) {
   // Internal constants for smoothing and movement
   const swayIntensity = 0.05;
@@ -85,13 +85,9 @@ export function CameraRig({
         controlsRef.current.minDistance = dynamicDistance;
         controlsRef.current.maxDistance = dynamicDistance;
 
-        // Apply parallax to the target (pivot point)
-        damp3(
-          controlsRef.current.target,
-          new THREE.Vector3(mouseX * 0.5, mouseY * 0.5, 0),
-          lerpSpeed,
-          delta,
-        );
+        // Lock target to origin (0,0,0) - scene rotation is handled by RotatableScene
+        // This keeps the OrbitControls centered while RotatableScene handles all rotation
+        damp3(controlsRef.current.target, new THREE.Vector3(0, 0, 0), lerpSpeed, delta);
 
         controlsRef.current.update();
       }

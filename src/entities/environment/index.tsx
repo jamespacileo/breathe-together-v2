@@ -1,6 +1,7 @@
+import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import * as THREE from 'three';
-import BackgroundGradient from './BackgroundGradient';
+import { BackgroundGradient } from './BackgroundGradient';
 
 interface EnvironmentProps {
   enabled?: boolean;
@@ -9,30 +10,28 @@ interface EnvironmentProps {
 /**
  * Environment - Minimal Monument Valley lighting and background
  *
- * Simplified from complex studio lighting to flat, meditative aesthetic:
- * - Gradient background via BackgroundGradient component (no scene.background)
- * - Single ambient light for soft, even illumination
- * - No shadows (Monument Valley uses flat shading)
- * - No environment map (kept in artifact - would add photorealistic reflections)
+ * Refactored to use TSL BackgroundGradient.
  */
 export function Environment({ enabled = true }: EnvironmentProps = {}) {
-  // Clear default background and fog (gradient component handles it)
+  const { scene } = useThree();
+
+  // Add subtle fog to blend the horizon and clear background
   useEffect(() => {
-    // Ensure scene.background is cleared so gradient is visible
-    // This is handled by BackgroundGradient renderOrder, but clear just in case
+    scene.fog = new THREE.Fog(0xf2f0ed, 10, 50);
+    scene.background = null;
+
     return () => {
-      // Cleanup if needed
+      scene.fog = null;
     };
-  }, []);
+  }, [scene]);
 
   if (!enabled) return null;
 
   return (
     <>
-      {/* Monument Valley gradient background: cream (#faf8f3) → terracotta (#f2d8cc) */}
       <BackgroundGradient />
 
-      {/* Soft, even ambient lighting for meditative flat shading */}
+      {/* Soft, even ambient lighting */}
       <ambientLight intensity={0.6} color="#ffffff" />
     </>
   );

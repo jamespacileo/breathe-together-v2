@@ -2,109 +2,104 @@
  * EarthGlobe - Central Earth visualization
  *
  * Simple sphere that:
- * - Breathes with the meditation cycle (via ECS breathPhase trait)
+ * - Breathes with the meditation cycle (via ECS sphereScale trait)
  * - Rotates slowly on Y-axis
  * - Has a frosted glass overlay
  */
 
+import { useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
-import { breathPhase } from '../breath/traits';
+import { sphereScale } from '../breath/traits';
 
 /**
  * EarthGlobe component props
  */
 interface EarthGlobeProps {
-  globeScale?: number;
-  breathingScale?: number;
   rotationSpeed?: number;
   enableRotation?: boolean;
 }
 
 /**
- * EarthGlobe - Renders a colored sphere with frosted glass overlay
+ * EarthGlobe - Renders a textured sphere with frosted glass overlay
  */
 export function EarthGlobe({
-  globeScale = 1.2,
-  breathingScale = 0.02,
   rotationSpeed = 0.08,
   enableRotation = true,
 }: Partial<EarthGlobeProps> = {}) {
   const groupRef = useRef<THREE.Group>(null);
   const world = useWorld();
   const rotationRef = useRef(0);
-  const [texture, setTexture] = useState<THREE.Texture | null>(null);
 
-  // Load earth texture on mount
+  // Load earth texture with automatic suspension
+  // Use dynamic base URL to work correctly in both dev (/) and production (/breathe-together-v2/)
+  const texture = useTexture(`${import.meta.env.BASE_URL}textures/earth-texture.png`);
+
+  // Configure texture color space in useEffect to avoid render-time side effects
   useEffect(() => {
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.load('/textures/earth-texture.png', (loadedTexture) => {
-      loadedTexture.colorSpace = THREE.SRGBColorSpace;
-      setTexture(loadedTexture);
-    });
-  }, []);
+    if (texture) {
+      texture.colorSpace = THREE.SRGBColorSpace;
+    }
+  }, [texture]);
 
-  // Create geometries
-  const globeGeometry = useMemo(() => new THREE.SphereGeometry(globeScale, 32, 32), [globeScale]);
-  const overlayGeometry = useMemo(
-    () => new THREE.SphereGeometry(globeScale + 0.02, 32, 32),
-    [globeScale],
-  );
+  // Create geometries - using unit sphere (radius 1) because scaling is handled via trait
+  const globeGeometry = useMemo(() => new THREE.SphereGeometry(1, 64, 64), []);
+  const overlayGeometry = useMemo(() => new THREE.SphereGeometry(1.01, 64, 64), []);
 
-  // Globe material - use texture if loaded, fallback to color
+  // Globe material - use texture
   const globeMaterial = useMemo(
     () =>
-      new THREE.MeshPhongMaterial({
-        map: texture || undefined,
-        color: texture ? 0xffffff : 0x8b6f47, // White if texture, brown if fallback
-        emissive: texture ? 0x000000 : 0x2a2415,
-        shininess: texture ? 10 : 20,
+      new THREE.MeshStandardMaterial({
+        map: texture,
+        roughness: 0.7,
+        metalness: 0.2,
       }),
     [texture],
   );
 
-  // Frosted glass overlay material
+  // Frosted glass overlay material - subtle reflection/sheen
   const overlayMaterial = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshPhysicalMaterial({
         transparent: true,
-        opacity: 0.12,
-        metalness: 0.3,
-        roughness: 0.6,
+        opacity: 0.15,
+        transmission: 0.6,
+        thickness: 0.5,
+        roughness: 0.2,
+        metalness: 0.1,
+        clearcoat: 1,
+        clearcoatRoughness: 0.1,
         side: THREE.DoubleSide,
       }),
     [],
   );
 
-  // Cleanup resources on unmount
+  // Cleanup GPU resources on unmount (geometry and materials)
+  // Texture disposal is handled automatically by useTexture hook
   useEffect(() => {
     return () => {
       globeGeometry.dispose();
       overlayGeometry.dispose();
       globeMaterial.dispose();
       overlayMaterial.dispose();
-      texture?.dispose();
     };
-  }, [globeGeometry, overlayGeometry, globeMaterial, overlayMaterial, texture]);
+  }, [globeGeometry, overlayGeometry, globeMaterial, overlayMaterial]);
 
   /**
-   * Update globe scale based on breathing animation
+   * Update globe scale based on breathing animation (synced via ECS)
    */
   useFrame(() => {
     if (!groupRef.current) return;
 
     try {
-      const breathEntity = world?.queryFirst?.(breathPhase);
+      const breathEntity = world?.queryFirst?.(sphereScale);
       if (!breathEntity) return;
 
-      const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
-      const scaleFactor = 1 + (phase - 0.5) * breathingScale * 2;
-      const currentScale = globeScale * scaleFactor;
-
-      groupRef.current.scale.set(currentScale, currentScale, currentScale);
+      const scale = breathEntity.get?.(sphereScale)?.value ?? 1;
+      groupRef.current.scale.set(scale, scale, scale);
     } catch (_e) {
       // Ignore ECS errors
     }

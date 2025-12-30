@@ -1,10 +1,33 @@
 ---
 name: breath-sync-validator
-description: Validate and debug breathing synchronization for any entity in breathe-together-v2. Performs systematic checks across the 4 breathing phases (inhale/hold-in/exhale/hold-out) to identify why an entity might not be responding visibly to the global UTC-based breathing cycle. Checks ECS trait queries, system registration, visual parameter ranges, damping constants, and provides phase-by-phase behavior analysis. Works with any entity meant to be dynamically responsive to breathing (particles, meshes, shaders, animations, etc.).
+deprecated: true
+deprecated-message: "This skill has been consolidated into breathing-sync. Use breathing-sync Mode 2 for validating/debugging breathing features."
+description: "[DEPRECATED] This skill has been consolidated into breathing-sync. Use breathing-sync Mode 2 to validate and debug breathing synchronization."
 allowed-tools: [Read, Grep, Glob, Bash(npm run dev:*)]
 ---
 
-# Breath Sync Validator Skill
+# ⚠️ DEPRECATED SKILL
+
+This skill has been consolidated into **breathing-sync**.
+
+## Migration Guide
+
+**To validate/debug breathing synchronization:** Use the `breathing-sync` skill and select **Mode 2 (Validate)**
+
+### What's Preserved
+- ✅ All 8-point validation checks preserved in breathing-sync Mode 2
+- ✅ Same phase-by-phase behavior analysis
+- ✅ Same troubleshooting checklist
+- ✅ No capability loss
+
+### No Action Required
+If you're currently using this skill, no changes are needed. It will continue to work. However, for future breathing validation work, use `breathing-sync` Mode 2 instead.
+
+---
+
+## Original Documentation
+
+See: `.claude/skills/breathing-sync/SKILL.md` (Mode 2: Validate)
 
 ## Overview
 

@@ -42,7 +42,7 @@ export const VISUALS = {
   SPHERE_COLOR_INHALE: '#D4A574', // Warm amber-sand (meditation gold)
 
   // Particles
-  PARTICLE_ORBIT_MIN: 0.8, // Tighter to small sphere surface (was 1.1)
+  PARTICLE_ORBIT_MIN: 0.75, // Tighter to small sphere surface (was 0.8)
   PARTICLE_ORBIT_MAX: 6.0, // Much wider expansion (was 4.5)
   PARTICLE_SIZE: 0.05,
   PARTICLE_FILLER_COLOR: '#6B8A9C',

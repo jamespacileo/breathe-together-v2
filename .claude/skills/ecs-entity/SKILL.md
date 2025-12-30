@@ -1,6 +1,6 @@
 ---
 name: ecs-entity
-description: Create a new ECS entity for the breathe-together-v2 project with complete Koota traits, systems, React component, and Triplex annotations. Scaffolds the full entity pattern including index.tsx (R3F component), traits.tsx (Koota data containers), systems.tsx (update logic), and auto-registers systems in providers.tsx. Handles both visual entities (Three.js meshes) and state-only entities (breath, controller). Supports marker entities, stateful entities with props, and complex trait configurations. Automatically generates JSDoc annotations for Triplex compatibility with proper @min/@max/@step/@default directives.
+description: Create ECS entities for breathe-together-v2 with complete Koota traits, systems, React components, and Triplex annotations. Scaffolds index.tsx, traits.tsx, systems.tsx, and registers in providers.tsx. Handles visual entities (Three.js meshes) and state-only entities (breath, controller). Supports marker, stateful, and complex trait configurations. Generates JSDoc annotations with @min/@max/@step/@default directives for Triplex compatibility.
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(ls:*)]
 ---
 
@@ -87,178 +87,53 @@ See [reference.md](reference.md) for the complete system execution order.
 
 ## Three Entity Patterns
 
-See [reference.md](reference.md) for complete pattern specifications with full code.
+### Pattern A: Marker Entity (Minimal)
+Simple entity with just existence flag. Example: `Land`, `Camera`
 
-### Pattern A: Simple Marker Entity
-```typescript
-// traits.tsx
-export const MyMarker = trait();
-
-// index.tsx
-export function MyEntity() {
-  const world = useWorld();
-  useEffect(() => {
-    world.spawn(MyMarker, Mesh(ref.current));
-    // ...
-  }, [world]);
-
-  return <group ref={ref}>{children}</group>;
-}
-```
+See: `templates/marker-entity-template.tsx`
 
 ### Pattern B: Stateful Entity with Props
-```typescript
-interface Props {
-  position?: [x: number, y: number, z: number];  // Tuple type - renders as 3 inputs
-  scale?: number | [x: number, y: number, z: number];  // Mixed type - scalar or tuple
-  color?: string;  // Color prop
-}
+Visual or logical entity with configuration. Example: `BreathingSphere`, `ParticleSystem`
 
-export function MyEntity({
-  position = [0, 0, 0],
-  scale = 1,
-  color = "#fff"
-}: Props = {}) {
-  const world = useWorld();
-
-  useEffect(() => {
-    world.spawn(
-      MyTrait,
-      Mesh(ref.current),
-      Position({ x: position[0], y: position[1], z: position[2] }),
-      Scale({ value: typeof scale === 'number' ? scale : scale[0] })
-    );
-  }, [scale, world, position]);
-
-  return <group ref={ref} position={position}>{children}</group>;
-}
-```
-
-**Tuple Types for Props:**
-- Use `[number, number, number]` for position, scale, rotation
-- Use `[r: number, g: number, b: number]` for RGB colors
-- Use `number | [x: number, y: number, z: number]` for flexible scale (uniform or per-axis)
-- Triplex automatically renders tuples as individual inputs
+See: `templates/stateful-entity-template.tsx`
 
 ### Pattern C: State-Only Entity
-```typescript
-export function MyEntity() {
-  const world = useWorld();
+Pure logic, no 3D rendering. Example: `Breath`, `GameController`
 
-  useEffect(() => {
-    let entity = world.queryFirst(MyTrait);
-    if (!entity) {
-      entity = world.spawn(MyTrait, MyConfigTrait);
-    }
-  }, [world]);
-
-  return null; // No visual rendering
-}
-```
+See: `templates/state-only-entity-template.tsx`
 
 ---
 
-## Trait Definition Patterns
+## Trait Definitions
 
-See [reference.md](reference.md) for complete trait patterns.
+See: `templates/traits-template.tsx`
 
-Common patterns:
-
-```typescript
-import { trait } from 'koota';
-
-// Marker trait (existence only)
-export const MyMarker = trait();
-
-// Simple value
-export const Speed = trait({ value: 1 });
-
-// Vector3-like
-export const Position = trait({ x: 0, y: 0, z: 0 });
-
-// RGB Color
-export const Color = trait({ r: 1, g: 1, b: 1 });
-
-// Complex config
-export const Config = trait({
-  enabled: true,
-  curve: 'linear' as 'linear' | 'ease-in' | 'ease-out',
-  duration: 1000,
-});
-```
+Common patterns: marker traits, value traits, Vector3 traits, RGB colors, complex configs
 
 ---
 
-## System Function Patterns
+## System Functions
 
-See [reference.md](reference.md) for complete system patterns.
+See: `templates/system-template.tsx`
 
-Basic structure:
+Two patterns:
+- **Direct:** `export function mySystem(world: World, delta: number)`
+- **Closure:** `export function mySystem(world: World) { return (delta, time) => { ... } }`
 
-```typescript
-import type { World } from 'koota';
-
-export function mySystem(world: World, delta: number) {
-  // Query entities with these traits
-  const entities = world.query([MyTrait, Position]);
-
-  // Update each entity
-  entities.forEach((entity) => {
-    const myData = entity.get(MyTrait);
-    const pos = entity.get(Position);
-
-    if (!myData || !pos) return;
-
-    // Update trait (immutable)
-    entity.set(MyTrait, { ...myData, value: newValue });
-  });
-}
-```
-
-Closure pattern (for expensive setup):
-
-```typescript
-export function mySystem(world: World) {
-  // One-time setup (expensive calculations)
-  const noise = createNoise3D();
-
-  // Return per-frame function
-  return (delta: number, time: number) => {
-    const entities = world.query([MyTrait]);
-    // ...
-  };
-}
-```
-
----
-
-## System Registration in providers.tsx
-
-When you create a system, it must be registered in the 7-phase pipeline.
+### System Registration in providers.tsx
 
 Import and add to `KootaSystems`:
 
 ```typescript
-// 1. Import the system
 import { mySystem } from "./entities/myEntity/systems";
 
-// 2. Add to component props (optional toggle)
-export function KootaSystems({
-  mySystemEnabled = true, // <-- Add this
-  // ... other props
-}) {
+export function KootaSystems({ mySystemEnabled = true }) {
   const world = useWorld();
-
-  // 3. Create if closure pattern
   const mySys = useMemo(() => mySystem(world), [world]);
 
   useFrame((state, delta) => {
-    // Add system call at correct position in execution order
-    // See providers.tsx lines 49-120 for placement
     if (mySystemEnabled) {
-      mySystem(world, delta); // Direct call
-      // OR
-      mySys(delta, state.clock.elapsedTime); // Closure pattern
+      mySystem(world, delta); // or mySys(delta, state.clock.elapsedTime);
     }
   });
 }
@@ -266,104 +141,25 @@ export function KootaSystems({
 
 ---
 
-## Standardized JSDoc Template
+## JSDoc Template for Props
 
-All entity props must follow the comprehensive JSDoc format for Triplex integration and user guidance.
+All entity props follow this format for Triplex integration:
 
-### Complete Template
+See: `templates/jsdoc-template.md` for comprehensive guidelines with real examples
 
+**Quick template:**
 ```typescript
 /**
- * [One-line technical description of what the prop does]
+ * [One-line technical description]
  *
- * [Optional: 1-2 sentence detailed explanation of behavior, units, or context]
+ * **When to adjust:** [Contextual scenarios]
+ * **Typical range:** [Visual landmarks, e.g., "Dim (0.2) → Standard (0.4) → Bright (0.6)"]
+ * **Interacts with:** [Related props]
  *
- * **When to adjust:** [Contextual guidance - when should user change this?]
- * **Typical range:** [Visual landmarks with labels, e.g., "Dim (0.2) → Standard (0.4) → Bright (0.6)"]
- * **Interacts with:** [Comma-separated list of related props]
- * **Performance note:** [Optional: only if significant impact]
- *
- * @min [minimum value for numeric props]
- * @max [maximum value for numeric props]
- * @step [increment step for numeric props]
- * @type [color|number|boolean|string]
- * @enum [array of valid values for string union types]
- * @default [default value with optional context]
+ * @min X @max Y @step Z @default value
  */
 propertyName?: type;
 ```
-
-### Real Examples
-
-**Visual Prop (Color):**
-```typescript
-/**
- * Sphere color at exhale (cool/calming phase).
- *
- * Main and aura layers lerp between exhale→inhale colors during breathing cycle.
- * Controls the cool tone at the end of exhalation.
- *
- * **When to adjust:** Cooler blues/teals for meditation, warmer tones for energy
- * **Typical range:** Cool Teal (#4A8A9A, default) → Neutral → Warm Orange
- * **Interacts with:** colorInhale (defines the breathing color journey)
- * **Performance note:** No impact; computed per-frame
- *
- * @type color
- * @default "#4A8A9A"
- */
-colorExhale?: string;
-```
-
-**Performance Prop (Count):**
-```typescript
-/**
- * Number of stars in starfield.
- *
- * Higher = denser starfield with more depth cues.
- *
- * **When to adjust:** Lower for performance on mobile, higher for immersion on desktop
- * **Typical range:** Sparse (1000) → Balanced (5000, default) → Dense (10000)
- * **Interacts with:** enableStars (only applies if enabled)
- * **Performance note:** Linear cost; 5000→10000 doubles initialization
- *
- * @min 1000
- * @max 10000
- * @step 500
- * @default 5000
- */
-starsCount?: number;
-```
-
-**Behavior Prop (Physics):**
-```typescript
-/**
- * Core layer responsiveness curve (stiffness).
- *
- * Exponent for the core expansion curve: breathPhase^coreStiffness.
- * Higher = stiffer/slower early expansion (cubic-like), lower = elastic/instant expansion.
- *
- * **When to adjust:** Higher (3-5) for stiff/delayed response, lower (0.5-1) for elastic/quick
- * **Typical range:** Elastic (0.5) → Balanced (2.0) → Stiff (3.0, default) → Very Stiff (4.0)
- * **Interacts with:** mainResponsiveness, auraElasticity (layer coordination)
- * **Performance note:** No impact; computed per-frame
- *
- * @min 0
- * @max 5
- * @step 0.1
- * @default 3.0
- */
-coreStiffness?: number;
-```
-
-### JSDoc Section Guidelines
-
-1. **Technical Description** (Required) - One line, technical but clear
-2. **Detailed Explanation** (Optional) - 1-2 sentences for complex behavior
-3. **"When to adjust"** (Highly Recommended) - Contextual scenarios
-4. **"Typical range"** (Highly Recommended) - Visual landmarks with labels
-5. **"Interacts with"** (Recommended) - Related props (discoverability)
-6. **"Performance note"** (Optional) - Only if significant impact
-7. **Triplex Annotations** (Required) - @min/@max/@step/@type/@enum/@default
 
 ---
 

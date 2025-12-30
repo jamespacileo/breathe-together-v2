@@ -1,56 +1,40 @@
+import { useEffect, useMemo } from 'react';
+import { color, dot, fract, mix, sin, uv, vec2 } from 'three/tsl';
+import { MeshBasicNodeMaterial } from 'three/webgpu';
+
 /**
  * BackgroundGradient - Monument Valley inspired gradient background
  *
- * Renders a fullscreen quad with vertical gradient shader:
- * - Top: Off-white/cream (#faf8f3)
- * - Bottom: Soft terracotta/peach (#f2d8cc)
- * - Subtle paper texture noise
- */
-
-import { useFrame } from '@react-three/fiber';
-import { useEffect, useMemo } from 'react';
-import * as THREE from 'three';
-import {
-  PAINTED_BACKGROUND_FRAGMENT_SHADER,
-  PAINTED_BACKGROUND_VERTEX_SHADER,
-} from '../../lib/shaders';
-
-/**
- * BackgroundGradient - Fullscreen gradient background
- *
- * Uses existing shader from src/lib/shaders.ts for Monument Valley aesthetic.
- * Renders at renderOrder=-1000 to ensure it appears behind all other elements.
+ * Refactored to Three Shader Language (TSL).
  */
 export function BackgroundGradient() {
   const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 } },
-      vertexShader: PAINTED_BACKGROUND_VERTEX_SHADER,
-      fragmentShader: PAINTED_BACKGROUND_FRAGMENT_SHADER,
-      depthWrite: false,
-      depthTest: false,
-      side: THREE.DoubleSide,
-    });
+    const top = color(0xfaf5ed);
+    const bottom = color(0xf2d9cc);
+    const t = uv().y.smoothstep(0, 1);
+    const baseColor = mix(bottom, top, t);
+    const noise = fract(sin(dot(uv(), vec2(12.9898, 78.233))).mul(43758.5453))
+      .sub(0.5)
+      .mul(0.03);
+
+    const nodeMaterial = new MeshBasicNodeMaterial();
+    nodeMaterial.colorNode = baseColor.add(noise);
+    nodeMaterial.depthTest = false;
+    nodeMaterial.depthWrite = false;
+    nodeMaterial.side = 2; // DoubleSide
+    return nodeMaterial;
   }, []);
 
-  const geometry = useMemo(() => new THREE.PlaneGeometry(2, 2), []);
-
-  // Update time uniform for shader animation
-  useFrame((state) => {
-    material.uniforms.uTime.value = state.clock.elapsedTime;
-  });
-
-  // Cleanup on unmount
+  // GPU memory cleanup: dispose material on unmount
   useEffect(() => {
     return () => {
       material.dispose();
-      geometry.dispose();
     };
-  }, [material, geometry]);
+  }, [material]);
 
   return (
-    <mesh geometry={geometry} material={material} renderOrder={-1000} position={[0, 0, -100]}>
-      {/* Mesh created with geometry and material props above */}
+    <mesh material={material} frustumCulled={false} matrixAutoUpdate={false} renderOrder={-1000}>
+      <planeGeometry args={[2, 2]} />
     </mesh>
   );
 }

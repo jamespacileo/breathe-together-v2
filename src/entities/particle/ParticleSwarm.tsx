@@ -1,19 +1,10 @@
 /**
- * ParticleSwarm - Icosahedral shards orbiting Earth
+ * ParticleSwarm - Monument Valley inspired icosahedral shards
  *
- * REFACTORED: Matches HTML artifact implementation
- * - Removes complex physics (spring, wind, jitter, repulsion)
- * - Implements simple radial breathing animation
- * - Adds per-shard rotation (individual x/y spin)
- * - Keeps frosted glass refraction shader + 3-pass rendering
- * - Maintains InstancedMesh performance optimization
- *
- * ARCHITECTURE:
- * - Shard size: inversely proportional to count (baseSize / sqrt(count))
- * - Animation: Simple sine wave breathing with smoothstep easing
- * - Position: radial expansion `position = direction * currentRadius`
- * - Rotation: Per-shard quaternion updates
- * - Colors: Monument Valley 4-color palette
+ * Refactored to Three Shader Language (TSL).
+ * - Radial breathing synced with orbitRadius trait.
+ * - Dynamic scaling to prevent peer-overlap and globe-penetration.
+ * - Custom illustrative glass refraction material.
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -22,147 +13,48 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { getMonumentValleyMoodColor } from '../../lib/colors';
-import { orbitRadius } from '../breath/traits';
+import { orbitRadius, sphereScale } from '../breath/traits';
+import { FrostedGlassMaterial } from './FrostedGlassMaterial';
 
 export interface ParticleSwarmProps {
-  /**
-   * Total number of shards in the swarm.
-   * @default 300
-   */
   capacity?: number;
-
-  /**
-   * User mood distribution (mood ID → count).
-   */
   users?: Partial<Record<MoodId, number>>;
-
-  /**
-   * Enable glass refraction effect for shards.
-   * @default true
-   */
-  enableRefraction?: boolean;
-
-  /**
-   * Refraction render target quality (512 | 1024 | 2048).
-   * @default 1024
-   */
-  refractionQuality?: number;
-
-  /**
-   * Base radius at exhale phase (minimum orbit distance).
-   * @default 6.0
-   */
-  baseRadius?: number;
-
-  /**
-   * Additional radius at inhale phase (breathing expansion).
-   * @default 2.0
-   */
-  expansionRange?: number;
-
-  /**
-   * Base shard size for calculation (size = baseSize / sqrt(count)).
-   * @default 4.0
-   */
   baseShardSize?: number;
-
-  /**
-   * Breathing speed multiplier.
-   * @default 0.3
-   */
-  breathSpeed?: number;
-
-  /**
-   * Per-shard X-axis rotation speed (radians per frame).
-   * @default 0.002
-   */
-  rotationSpeedX?: number;
-
-  /**
-   * Per-shard Y-axis rotation speed (radians per frame).
-   * @default 0.003
-   */
-  rotationSpeedY?: number;
 }
 
-/**
- * Smoothstep easing function (same as HTML artifact)
- * Used for breathing animation curve
- */
-function _smoothstep(t: number): number {
-  return t * t * (3 - 2 * t);
-}
-
-/**
- * ParticleSwarm - Monument Valley icosahedral shards
- *
- * Renders 150-600 instanced icosahedrons orbiting Earth with:
- * - Radial breathing animation (sine wave + smoothstep easing)
- * - Per-shard rotation (independent x/y spin)
- * - Monument Valley 4-color mood palette
- * - Frosted glass refraction material
- */
-export function ParticleSwarm({
-  capacity = 300,
-  users,
-  // biome-ignore lint/correctness/noUnusedFunctionParameters: Kept for prop interface compatibility with scene composition
-  enableRefraction,
-  // biome-ignore lint/correctness/noUnusedFunctionParameters: Kept for prop interface compatibility with scene composition
-  refractionQuality,
-  baseShardSize = 1.2, // Tuned for dynamic scaling
-  rotationSpeedX = 0.002,
-  rotationSpeedY = 0.003,
-}: ParticleSwarmProps) {
+export function ParticleSwarm({ capacity = 300, users, baseShardSize = 1.2 }: ParticleSwarmProps) {
   const world = useWorld();
-
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const matrixRef = useRef(new THREE.Matrix4());
   const colorRef = useRef(new THREE.Color());
-  const tempPosRef = useRef(new THREE.Vector3());
-  const tempQuatRef = useRef(new THREE.Quaternion());
-  const tempScaleRef = useRef(new THREE.Vector3(1, 1, 1));
 
-  // Reusable rotation delta objects (avoid per-frame allocations)
-  const deltaQuatXRef = useRef(new THREE.Quaternion());
-  const deltaQuatYRef = useRef(new THREE.Quaternion());
-  const axisXRef = useRef(new THREE.Vector3(1, 0, 0));
-  const axisYRef = useRef(new THREE.Vector3(0, 1, 0));
+  const tempPos = useRef(new THREE.Vector3()).current;
+  const tempQuat = useRef(new THREE.Quaternion()).current;
+  const tempScale = useRef(new THREE.Vector3(1, 1, 1)).current;
 
-  // Monument Valley neutral filler color (warm neutral)
-  const FILLER_COLOR = '#e6dcd3';
+  const axisX = useRef(new THREE.Vector3(1, 0, 0)).current;
+  const axisY = useRef(new THREE.Vector3(0, 1, 0)).current;
+  const deltaQuatX = useRef(new THREE.Quaternion()).current;
+  const deltaQuatY = useRef(new THREE.Quaternion()).current;
 
-  /**
-   * Initialize particle data:
-   * - Direction vectors (Fibonacci sphere distribution)
-   * - Rotation state (quaternions)
-   * - Colors (mood assignments)
-   */
   const data = useMemo(() => {
-    // Fibonacci sphere distribution (same as original)
     const directions = new Float32Array(capacity * 3);
-    const rotations = new Float32Array(capacity * 4); // quaternions: x, y, z, w
+    const rotations = new Float32Array(capacity * 4);
     const colors = new Float32Array(capacity * 3);
     const targetColors = new Float32Array(capacity * 3);
-
-    const fillerCol = new THREE.Color(FILLER_COLOR);
+    const fillerCol = new THREE.Color('#e6dcd3');
 
     for (let i = 0; i < capacity; i++) {
-      // Fibonacci sphere
       const phi = Math.acos(-1 + (2 * i) / capacity);
       const theta = Math.sqrt(capacity * Math.PI) * phi;
-
       const dir = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+
       directions[i * 3] = dir.x;
       directions[i * 3 + 1] = dir.y;
       directions[i * 3 + 2] = dir.z;
 
-      // Initialize rotation as identity quaternion
-      rotations[i * 4] = 0; // x
-      rotations[i * 4 + 1] = 0; // y
-      rotations[i * 4 + 2] = 0; // z
-      rotations[i * 4 + 3] = 1; // w
+      rotations[i * 4 + 3] = 1; // Identity w
 
-      // Initialize colors to filler
       colors[i * 3] = fillerCol.r;
       colors[i * 3 + 1] = fillerCol.g;
       colors[i * 3 + 2] = fillerCol.b;
@@ -170,37 +62,22 @@ export function ParticleSwarm({
       targetColors[i * 3 + 1] = fillerCol.g;
       targetColors[i * 3 + 2] = fillerCol.b;
     }
-
     return { directions, rotations, colors, targetColors };
   }, [capacity]);
 
-  /**
-   * Update color assignments when users change
-   */
   useEffect(() => {
-    const fillerCol = new THREE.Color(FILLER_COLOR);
-    if (!users) {
-      for (let i = 0; i < capacity; i++) {
-        data.targetColors[i * 3] = fillerCol.r;
-        data.targetColors[i * 3 + 1] = fillerCol.g;
-        data.targetColors[i * 3 + 2] = fillerCol.b;
-      }
-      return;
-    }
-
+    const fillerCol = new THREE.Color('#e6dcd3');
     let idx = 0;
-    // Assign mood colors to first N shards
-    for (const [moodId, count] of Object.entries(users)) {
-      const moodColor = getMonumentValleyMoodColor(moodId as MoodId);
-      const col = new THREE.Color(moodColor);
-      for (let i = 0; i < (count ?? 0) && idx < capacity; i++, idx++) {
-        data.targetColors[idx * 3] = col.r;
-        data.targetColors[idx * 3 + 1] = col.g;
-        data.targetColors[idx * 3 + 2] = col.b;
+    if (users) {
+      for (const [moodId, count] of Object.entries(users)) {
+        const col = new THREE.Color(getMonumentValleyMoodColor(moodId as MoodId));
+        for (let i = 0; i < (count ?? 0) && idx < capacity; i++, idx++) {
+          data.targetColors[idx * 3] = col.r;
+          data.targetColors[idx * 3 + 1] = col.g;
+          data.targetColors[idx * 3 + 2] = col.b;
+        }
       }
     }
-
-    // Fill remaining shards with filler color
     while (idx < capacity) {
       data.targetColors[idx * 3] = fillerCol.r;
       data.targetColors[idx * 3 + 1] = fillerCol.g;
@@ -209,84 +86,54 @@ export function ParticleSwarm({
     }
   }, [users, data, capacity]);
 
-  /**
-   * Main animation loop: breathing, rotation, and color updates
-   */
-  useFrame((_state, _delta) => {
+  useFrame((_state) => {
     const mesh = meshRef.current;
     if (!mesh) return;
 
-    // Read orbit radius from ECS
-    const breathEntity = world.queryFirst(orbitRadius);
+    const breathEntity = world.queryFirst(orbitRadius, sphereScale);
     if (!breathEntity) return;
 
     const currentRadius = breathEntity.get(orbitRadius)?.value ?? 6.0;
+    const currentSphereScale = breathEntity.get(sphereScale)?.value ?? 1.0;
 
-    /**
-     * DYNAMIC SCALING TRICK:
-     * Scale shards proportional to radius so they maintain consistent
-     * angular coverage and never overlap as they cluster.
-     * S = (R * k) / sqrt(N)
-     */
-    const dynamicScale = (currentRadius * baseShardSize) / Math.sqrt(capacity);
+    // Smart scaling: balance angular coverage and globe proximity
+    const angularScale = (currentRadius * baseShardSize) / Math.sqrt(capacity);
+    const proximityScale = Math.max(0, (currentRadius - currentSphereScale * 1.02) * 0.8);
+    const dynamicScale = Math.min(angularScale, proximityScale);
 
-    const tempPos = tempPosRef.current;
-    const tempQuat = tempQuatRef.current;
-    const tempScale = tempScaleRef.current;
-
-    // Update each shard
     for (let i = 0; i < capacity; i++) {
-      // ========================================
-      // POSITION: Radial expansion (using ECS radius)
-      // ========================================
-      const dirX = data.directions[i * 3];
-      const dirY = data.directions[i * 3 + 1];
-      const dirZ = data.directions[i * 3 + 2];
+      // Position
+      tempPos.set(
+        data.directions[i * 3] * currentRadius,
+        data.directions[i * 3 + 1] * currentRadius,
+        data.directions[i * 3 + 2] * currentRadius,
+      );
 
-      tempPos.set(dirX * currentRadius, dirY * currentRadius, dirZ * currentRadius);
-
-      // ========================================
-      // ROTATION: Per-shard quaternion updates
-      // ========================================
-      // Get current quaternion
+      // Rotation
       tempQuat.set(
         data.rotations[i * 4],
         data.rotations[i * 4 + 1],
         data.rotations[i * 4 + 2],
         data.rotations[i * 4 + 3],
       );
+      deltaQuatX.setFromAxisAngle(axisX, 0.002);
+      deltaQuatY.setFromAxisAngle(axisY, 0.003);
+      tempQuat.multiply(deltaQuatX).multiply(deltaQuatY);
 
-      // Apply incremental rotation (reuse refs to avoid per-frame allocations)
-      // Reuse quaternions and axis vectors instead of creating new ones
-      deltaQuatXRef.current.setFromAxisAngle(axisXRef.current, rotationSpeedX);
-      deltaQuatYRef.current.setFromAxisAngle(axisYRef.current, rotationSpeedY);
-
-      tempQuat.multiply(deltaQuatXRef.current).multiply(deltaQuatYRef.current);
-
-      // Store back for next frame
       data.rotations[i * 4] = tempQuat.x;
       data.rotations[i * 4 + 1] = tempQuat.y;
       data.rotations[i * 4 + 2] = tempQuat.z;
       data.rotations[i * 4 + 3] = tempQuat.w;
 
-      // ========================================
-      // SCALE: Dynamic based on radius
-      // ========================================
+      // Compose
       tempScale.set(dynamicScale, dynamicScale, dynamicScale);
-
-      // ========================================
-      // COMPOSE: Position + Rotation + Scale
-      // ========================================
       matrixRef.current.compose(tempPos, tempQuat, tempScale);
       mesh.setMatrixAt(i, matrixRef.current);
 
-      // ========================================
-      // COLOR: Smooth interpolation to target
-      // ========================================
+      // Color
       for (let j = 0; j < 3; j++) {
         data.colors[i * 3 + j] += (data.targetColors[i * 3 + j] - data.colors[i * 3 + j]) * 0.1;
       }
-
       colorRef.current.setRGB(data.colors[i * 3], data.colors[i * 3 + 1], data.colors[i * 3 + 2]);
       mesh.setColorAt(i, colorRef.current);
     }
@@ -295,33 +142,25 @@ export function ParticleSwarm({
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   });
 
-  /**
-   * Geometry and Material setup
-   * Standardized for performant "frosted/matte" look
-   */
   const geometry = useMemo(() => new THREE.IcosahedronGeometry(1, 0), []);
 
-  const material = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      transparent: true,
-      opacity: 0.8,
-      metalness: 0.1,
-      roughness: 0.8,
-      side: THREE.DoubleSide,
-    });
-  }, []);
-
-  // Cleanup
+  // GPU memory cleanup: dispose geometry on unmount
   useEffect(() => {
     return () => {
       geometry.dispose();
-      material.dispose();
     };
-  }, [geometry, material]);
+  }, [geometry]);
 
   return (
     <group name="Particle Swarm">
-      <instancedMesh ref={meshRef} args={[geometry, material, capacity]} frustumCulled={true} />
+      <instancedMesh
+        ref={meshRef}
+        name="Particle Swarm Mesh"
+        args={[geometry, undefined, capacity]}
+        frustumCulled={false}
+      >
+        <FrostedGlassMaterial />
+      </instancedMesh>
     </group>
   );
 }

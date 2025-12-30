@@ -1,6 +1,7 @@
 import { Stats } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { BreathingHUD3D } from './components/BreathingHUD3D';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
 import { BreathingLevel } from './levels/breathing';

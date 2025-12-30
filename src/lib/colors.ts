@@ -124,18 +124,18 @@ export const WARMTH_ACCENT = {
  * Matches the HTML artifact color scheme
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  joy: '#ffbe0b',      // Yellow (bright, energetic)
-  peace: '#06d6a0',    // Teal (calm, flowing)
+  joy: '#ffbe0b', // Yellow (bright, energetic)
+  peace: '#06d6a0', // Teal (calm, flowing)
   solitude: '#118ab2', // Sky blue (introspective)
-  love: '#ef476f',     // Rose pink (warm, connective)
+  love: '#ef476f', // Rose pink (warm, connective)
 } as const;
 
 /**
  * Earth Globe colors for Monument Valley aesthetic
  */
 export const GLOBE_COLORS = {
-  base: '#f5ebe0',     // Warm neutral (land)
-  ocean: '#118ab2',    // Sky blue
+  base: '#f5ebe0', // Warm neutral (land)
+  ocean: '#118ab2', // Sky blue
   atmosphere: '#7ec8d4', // Soft cyan
 } as const;
 

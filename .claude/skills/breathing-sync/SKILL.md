@@ -1,5 +1,5 @@
 ---
-name: breath-synchronization
+name: breathing-sync
 description: Create and validate breathing-synchronized features for breathe-together-v2. Mode 1 creates visual features responding to UTC-based global breathing cycle (inhale/hold/exhale/hold). Mode 2 validates and debugs why entities aren't responding visibly to breathing synchronization. Includes integration patterns, ECS trait querying, system registration, damping/easing, and systematic 8-point validation.
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm run dev:*), mcp__context7__*]
 ---

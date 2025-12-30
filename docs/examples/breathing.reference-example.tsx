@@ -30,6 +30,7 @@ import type { BreathingDebugSceneProps, BreathingLevelProps } from '../../src/ty
  * Advantage: Single source of truth. Clean scene code.
  * Disadvantage: Entity defaults not visible in scene file (but visible in Triplex).
  */
+// biome-ignore lint/correctness/noUnusedFunctionParameters: Props param shows available BreathingLevelProps
 export function RecommendedScene({ ...props }: Partial<BreathingLevelProps> = {}) {
   return (
     <>
@@ -78,9 +79,9 @@ export function DebugScene({ ...restProps }: Partial<BreathingDebugSceneProps> =
  */
 export function AntiPatternRedundantDefaults({
   // ❌ BAD: Duplicated from EarthGlobe
-  globeScale = 2.5,
+  rotationSpeed = 0.5,
 }: {
-  globeScale?: number;
+  rotationSpeed?: number;
 } = {}) {
-  return <EarthGlobe globeScale={globeScale} />;
+  return <EarthGlobe rotationSpeed={rotationSpeed} />;
 }

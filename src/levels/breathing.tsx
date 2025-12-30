@@ -6,6 +6,7 @@ import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
+import { RotatableScene } from '../entities/rotatableScene';
 import { usePresence } from '../hooks/usePresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -32,24 +33,21 @@ export function BreathingLevel({
 
   return (
     <Suspense fallback={null}>
+      {/* Environment stays OUTSIDE rotatable group (fixed background) */}
       <Environment enabled={showEnvironment} />
 
-      {showGlobe && <EarthGlobe globeScale={1.2} rotationSpeed={0.1} />}
+      {/* Wrap rotatable entities in RotatableScene */}
+      <RotatableScene enableRotation={true}>
+        {showGlobe && <EarthGlobe rotationSpeed={0.1} />}
 
-      {showParticles && (
-        <ParticleSwarm
-          capacity={harmony}
-          users={moods}
-          enableRefraction={false}
-          breathSpeed={breath}
-          expansionRange={expansion}
-        />
-      )}
+        {showParticles && <ParticleSwarm capacity={harmony} users={moods} />}
 
-      {showParticles && (
-        <AtmosphericParticles count={100} size={0.08} baseOpacity={0.1} breathingOpacity={0.15} />
-      )}
+        {showParticles && (
+          <AtmosphericParticles count={100} size={0.08} baseOpacity={0.1} breathingOpacity={0.15} />
+        )}
+      </RotatableScene>
 
+      {/* UI stays OUTSIDE rotatable group (fixed HUD) */}
       <Html fullscreen>
         <GaiaUI
           harmony={harmony}

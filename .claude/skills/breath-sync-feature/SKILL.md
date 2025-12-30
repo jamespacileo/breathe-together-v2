@@ -1,10 +1,33 @@
 ---
 name: breath-sync-feature
-description: Create breath-synchronized visual features and animations for breathe-together-v2. Generates components that respond to the global UTC-based breathing cycle (inhale/hold/exhale/hold), integrates with breathCalc.ts pure functions, creates smooth eased transitions, and handles phase-specific behaviors. Supports particle effects, mesh scaling, shader parameters, color transitions, and spatial transformations synced to the 16-second box breathing pattern. Ensures global synchronization across all users without network communication.
+deprecated: true
+deprecated-message: "This skill has been consolidated into breathing-sync. Use breathing-sync Mode 1 for creating breathing features."
+description: "[DEPRECATED] This skill has been consolidated into breathing-sync. Use breathing-sync Mode 1 to create breath-synchronized visual features."
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(ls:*)]
 ---
 
-# Create Breath-Synchronized Features
+# ⚠️ DEPRECATED SKILL
+
+This skill has been consolidated into **breathing-sync**.
+
+## Migration Guide
+
+**To create breathing-synchronized features:** Use the `breathing-sync` skill and select **Mode 1 (Create)**
+
+### What's Preserved
+- ✅ All functionality preserved in breathing-sync Mode 1
+- ✅ Same integration patterns with breathCalc.ts
+- ✅ Same reference.md, examples.md, patterns.md
+- ✅ No capability loss
+
+### No Action Required
+If you're currently using this skill, no changes are needed. It will continue to work. However, for future breathing features, use `breathing-sync` Mode 1 instead.
+
+---
+
+## Original Documentation
+
+See: `.claude/skills/breathing-sync/SKILL.md` (Mode 1: Create)
 
 ## Overview
 
