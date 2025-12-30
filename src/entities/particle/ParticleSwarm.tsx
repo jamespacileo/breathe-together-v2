@@ -23,6 +23,35 @@ const MOOD_COLORS = [
   new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
 ];
 
+const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
+  grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
+  celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
+  moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
+  here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
+  anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
+  processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
+  preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+};
+
+/**
+ * Build color distribution array from users prop
+ * Extracted to reduce cognitive complexity of shard creation
+ */
+function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefined): THREE.Color[] {
+  if (!users) return [];
+
+  const colorDistribution: THREE.Color[] = [];
+  for (const [moodId, moodCount] of Object.entries(users)) {
+    const color = MOOD_TO_COLOR[moodId as MoodId];
+    if (color) {
+      for (let i = 0; i < (moodCount ?? 0); i++) {
+        colorDistribution.push(color);
+      }
+    }
+  }
+  return colorDistribution;
+}
+
 export interface ParticleSwarmProps {
   /** Number of shards (default 48 matches reference) */
   count?: number;
@@ -92,35 +121,12 @@ export function ParticleSwarm({
   // Create shards with individual colors
   const shards = useMemo(() => {
     const result: ShardData[] = [];
-    const currentShardSize = shardSize;
-
-    // Build color distribution from users prop or random
-    const colorDistribution: THREE.Color[] = [];
-    if (users) {
-      const moodToColor: Record<MoodId, THREE.Color> = {
-        grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-        celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-        moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-        here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-        anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-        processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-        preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
-      };
-
-      for (const [moodId, moodCount] of Object.entries(users)) {
-        const color = moodToColor[moodId as MoodId];
-        if (color) {
-          for (let i = 0; i < (moodCount ?? 0); i++) {
-            colorDistribution.push(color);
-          }
-        }
-      }
-    }
+    const colorDistribution = buildColorDistribution(users);
 
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.IcosahedronGeometry(currentShardSize, 0);
+      const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
 
-      // Get mood color for this shard
+      // Get mood color for this shard (MeshRefractionMaterial uses color prop, not vertex colors)
       const mood =
         colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
 

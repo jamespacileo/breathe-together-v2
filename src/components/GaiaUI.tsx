@@ -11,6 +11,37 @@ const PHASE_DURATIONS = [
   BREATH_PHASES.HOLD_OUT,
 ];
 
+interface PhaseInfo {
+  phaseIndex: number;
+  phaseProgress: number;
+  accumulatedTime: number;
+  phaseDuration: number;
+}
+
+/**
+ * Calculate current breathing phase from cycle time
+ * Extracted to reduce cognitive complexity of the main update loop
+ */
+function calculatePhaseInfo(cycleTime: number): PhaseInfo {
+  let accumulatedTime = 0;
+  let phaseIndex = 0;
+
+  for (let i = 0; i < PHASE_DURATIONS.length; i++) {
+    const duration = PHASE_DURATIONS[i] ?? 0;
+    if (cycleTime < accumulatedTime + duration) {
+      phaseIndex = i;
+      break;
+    }
+    accumulatedTime += duration;
+  }
+
+  const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
+  const phaseTime = cycleTime - accumulatedTime;
+  const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+
+  return { phaseIndex, phaseProgress, accumulatedTime, phaseDuration };
+}
+
 interface GaiaUIProps {
   /** Particle count (harmony) */
   harmony: number;
@@ -69,22 +100,9 @@ export function GaiaUI({
     const updatePhase = () => {
       const now = Date.now() / 1000;
       const cycleTime = now % BREATH_TOTAL_CYCLE;
-
-      // Determine current phase
-      let accumulatedTime = 0;
-      let phaseIndex = 0;
-      for (let i = 0; i < PHASE_DURATIONS.length; i++) {
-        const duration = PHASE_DURATIONS[i] ?? 0;
-        if (cycleTime < accumulatedTime + duration) {
-          phaseIndex = i;
-          break;
-        }
-        accumulatedTime += duration;
-      }
-
-      const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
-      const phaseTime = cycleTime - accumulatedTime;
-      const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+      const { phaseIndex, phaseProgress, accumulatedTime, phaseDuration } =
+        calculatePhaseInfo(cycleTime);
+      const phaseTime = phaseProgress * phaseDuration;
 
       // Update phase name on transition
       if (phaseIndex !== prevPhase) {
