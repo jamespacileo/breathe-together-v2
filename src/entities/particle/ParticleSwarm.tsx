@@ -87,6 +87,10 @@ interface ShardData {
   mesh: THREE.Mesh;
   direction: THREE.Vector3;
   geometry: THREE.IcosahedronGeometry;
+  /** Unique rotation speed multipliers for organic feel */
+  rotationSpeed: THREE.Vector3;
+  /** Unique rotation axis offset */
+  rotationOffset: THREE.Vector3;
 }
 
 export function ParticleSwarm({
@@ -115,10 +119,16 @@ export function ParticleSwarm({
   // Create shared material (will be swapped by RefractionPipeline)
   const material = useMemo(() => createFrostedGlassMaterial(), []);
 
-  // Create shards with per-vertex colors
+  // Create shards with per-vertex colors and unique rotation characteristics
   const shards = useMemo(() => {
     const result: ShardData[] = [];
     const colorDistribution = buildColorDistribution(users);
+
+    // Seeded random for consistent results across renders
+    const seededRandom = (seed: number) => {
+      const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    };
 
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
@@ -139,7 +149,22 @@ export function ParticleSwarm({
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
 
-      result.push({ mesh, direction, geometry });
+      // Unique rotation characteristics per shard (±30% variance)
+      // Creates organic, non-mechanical feel
+      const rotationSpeed = new THREE.Vector3(
+        0.002 * (0.7 + seededRandom(i * 3) * 0.6), // X: 0.0014 to 0.002
+        0.003 * (0.7 + seededRandom(i * 3 + 1) * 0.6), // Y: 0.0021 to 0.003
+        0.001 * (0.7 + seededRandom(i * 3 + 2) * 0.6), // Z: 0.0007 to 0.001 (subtle)
+      );
+
+      // Random initial rotation offset so shards don't start aligned
+      const rotationOffset = new THREE.Vector3(
+        seededRandom(i * 7) * Math.PI * 2,
+        seededRandom(i * 7 + 1) * Math.PI * 2,
+        seededRandom(i * 7 + 2) * Math.PI * 2,
+      );
+
+      result.push({ mesh, direction, geometry, rotationSpeed, rotationOffset });
     }
 
     return result;
@@ -178,16 +203,18 @@ export function ParticleSwarm({
   }, [material]);
 
   // Animation loop - update positions and rotations
-  useFrame(() => {
+  useFrame((_, delta) => {
     const currentShards = shardsRef.current;
     if (currentShards.length === 0) return;
 
     // Get breathing state from ECS
     let breathingRadius = baseRadius;
+    let breathScale = 1;
     try {
       const breathEntity = world.queryFirst(orbitRadius, sphereScale);
       if (breathEntity) {
         breathingRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
+        breathScale = breathEntity.get(sphereScale)?.value ?? 1;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
@@ -196,14 +223,25 @@ export function ParticleSwarm({
     // Clamp radius to prevent shards from penetrating globe
     const currentRadius = Math.max(breathingRadius, minOrbitRadius);
 
-    // Update each shard
+    // Normalize delta to 60fps baseline (16.67ms)
+    const normalizedDelta = delta * 60;
+
+    // Update each shard with unique rotation characteristics
     for (const shard of currentShards) {
       // Update position based on clamped breathing radius
       shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
 
-      // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
-      shard.mesh.rotation.x += 0.002;
-      shard.mesh.rotation.y += 0.003;
+      // Unique rotation per shard (creates organic, non-mechanical motion)
+      shard.mesh.rotation.x += shard.rotationSpeed.x * normalizedDelta;
+      shard.mesh.rotation.y += shard.rotationSpeed.y * normalizedDelta;
+      shard.mesh.rotation.z += shard.rotationSpeed.z * normalizedDelta;
+
+      // Subtle breath-synced wobble (±2° oscillation)
+      // Uses sine wave offset by shard's unique rotation to desync wobbles
+      const wobbleIntensity = 0.035; // ~2 degrees
+      const wobblePhase = shard.rotationOffset.x + breathScale * Math.PI * 2;
+      shard.mesh.rotation.x += Math.sin(wobblePhase) * wobbleIntensity * 0.1;
+      shard.mesh.rotation.z += Math.cos(wobblePhase * 0.7) * wobbleIntensity * 0.05;
     }
   });
 
