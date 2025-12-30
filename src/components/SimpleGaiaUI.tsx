@@ -76,6 +76,8 @@ interface SimpleGaiaUIProps {
   onShowMoodSelectChange?: (show: boolean) => void;
   /** Whether to show the welcome modal (default: false when intro is shown) */
   showWelcomeOnMount?: boolean;
+  /** Hide app branding in top-left corner (used during intro) */
+  hideAppBranding?: boolean;
 }
 
 /**
@@ -111,6 +113,7 @@ export function SimpleGaiaUI({
   showMoodSelect: externalShowMoodSelect,
   onShowMoodSelectChange,
   showWelcomeOnMount = true,
+  hideAppBranding = false,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -399,41 +402,43 @@ export function SimpleGaiaUI({
         transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Inspirational Text - Above & Beyond style messages */}
-      <InspirationalText />
+      {/* Inspirational Text - Above & Beyond style messages (hidden during intro) */}
+      {!hideAppBranding && <InspirationalText />}
 
-      {/* Top-Left: App Branding + Settings */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '32px',
-          left: '32px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
-          pointerEvents: 'auto',
-          opacity: hasEntered ? 0.85 : 0,
-          transform: `translateY(${hasEntered ? 0 : -8}px)`,
-          transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-        }}
-      >
-        {/* App Name */}
-        <div>
-          <h1
-            style={{
-              fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: '1.4rem',
-              fontWeight: 300,
-              margin: 0,
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              color: colors.text,
-            }}
-          >
-            Breathe Together
-          </h1>
+      {/* Top-Left: App Branding - hidden during intro to avoid duplication */}
+      {!hideAppBranding && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '32px',
+            left: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            pointerEvents: 'auto',
+            opacity: hasEntered ? 0.85 : 0,
+            transform: `translateY(${hasEntered ? 0 : -8}px)`,
+            transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          }}
+        >
+          {/* App Name */}
+          <div>
+            <h1
+              style={{
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                fontSize: '1.4rem',
+                fontWeight: 300,
+                margin: 0,
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                color: colors.text,
+              }}
+            >
+              Breathe Together
+            </h1>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Settings Modal */}
       {showSettings && (

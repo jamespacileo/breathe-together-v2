@@ -92,14 +92,16 @@ export function CinematicIntro({
   const ctaContainerRef = useRef<HTMLDivElement>(null);
 
   // Design tokens matching InspirationalText/SimpleGaiaUI warm palette
+  // Backdrop is semi-transparent to show breathing sphere animation behind (adds suspense)
   const colors = {
     text: '#5a4d42',
     textDim: '#7a6b5e',
-    textGlow: 'rgba(201, 160, 108, 0.7)',
-    subtleGlow: 'rgba(255, 252, 245, 0.95)',
-    backdropInner: 'rgba(253, 251, 247, 0.85)',
-    backdropOuter: 'rgba(253, 251, 247, 0.6)',
-    glass: 'rgba(252, 250, 246, 0.9)',
+    textGlow: 'rgba(201, 160, 108, 0.8)',
+    subtleGlow: 'rgba(255, 252, 245, 0.98)',
+    // Reduced opacity to show breathing animation behind
+    backdropInner: 'rgba(253, 251, 247, 0.45)',
+    backdropOuter: 'rgba(253, 251, 247, 0.25)',
+    glass: 'rgba(252, 250, 246, 0.7)',
     border: 'rgba(160, 140, 120, 0.15)',
     accent: '#c9a06c',
     accentHover: '#b8935f',
@@ -213,13 +215,13 @@ export function CinematicIntro({
         transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Blurred backdrop */}
+      {/* Semi-transparent backdrop - light blur to show breathing sphere behind */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
           background: `radial-gradient(
             ellipse 100% 100% at center,
             ${colors.backdropInner} 0%,

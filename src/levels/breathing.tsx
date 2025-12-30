@@ -140,6 +140,7 @@ export function BreathingLevel({
             showMoodSelect={showMoodSelect}
             onShowMoodSelectChange={setShowMoodSelect}
             showWelcomeOnMount={false}
+            hideAppBranding={showIntro}
           />
         </Html>
       </Suspense>
