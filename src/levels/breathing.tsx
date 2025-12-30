@@ -1,5 +1,6 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
+import { CinematicIntro } from '../components/CinematicIntro';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -52,6 +53,17 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Cinematic intro state
+  const [showIntro, setShowIntro] = useState(true);
+  const [showMoodSelect, setShowMoodSelect] = useState(false);
+
+  // Handle intro completion - show mood selection
+  const handleIntroComplete = () => {
+    setShowIntro(false);
+    // Small delay to let intro fade out before showing mood modal
+    setTimeout(() => setShowMoodSelect(true), 100);
+  };
+
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
 
   return (
@@ -96,11 +108,16 @@ export function BreathingLevel({
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
-          {/* Top-right control icons (audio + tune + settings) */}
-          <TopRightControls
-            onOpenTuneControls={() => setShowTuneControls(true)}
-            onOpenSettings={() => setShowSettings(true)}
-          />
+          {/* Cinematic intro overlay */}
+          {showIntro && <CinematicIntro onComplete={handleIntroComplete} />}
+
+          {/* Top-right control icons (audio + tune + settings) - hidden during intro */}
+          {!showIntro && (
+            <TopRightControls
+              onOpenTuneControls={() => setShowTuneControls(true)}
+              onOpenSettings={() => setShowSettings(true)}
+            />
+          )}
 
           {/* Main UI with breathing phase, inspirational text, and modals */}
           <SimpleGaiaUI
@@ -120,6 +137,9 @@ export function BreathingLevel({
             onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
+            showMoodSelect={showMoodSelect}
+            onShowMoodSelectChange={setShowMoodSelect}
+            showWelcomeOnMount={false}
           />
         </Html>
       </Suspense>

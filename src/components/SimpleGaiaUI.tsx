@@ -70,6 +70,12 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  /** Optional external control for mood selection modal visibility */
+  showMoodSelect?: boolean;
+  /** Optional callback when mood selection modal visibility changes */
+  onShowMoodSelectChange?: (show: boolean) => void;
+  /** Whether to show the welcome modal (default: false when intro is shown) */
+  showWelcomeOnMount?: boolean;
 }
 
 /**
@@ -102,14 +108,17 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  showMoodSelect: externalShowMoodSelect,
+  onShowMoodSelectChange,
+  showWelcomeOnMount = true,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(showWelcomeOnMount);
   const [showKeyHint, setShowKeyHint] = useState(false);
   const [internalShowSettings, setInternalShowSettings] = useState(false);
-  const [showMoodSelect, setShowMoodSelect] = useState(false);
+  const [internalShowMoodSelect, setInternalShowMoodSelect] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
 
   // Use external control for tune controls if provided, otherwise use internal state
@@ -133,6 +142,16 @@ export function SimpleGaiaUI({
       onShowSettingsChange(value);
     } else {
       setInternalShowSettings(value);
+    }
+  };
+
+  // Use external control for mood selection if provided, otherwise use internal state
+  const showMoodSelect = externalShowMoodSelect ?? internalShowMoodSelect;
+  const setShowMoodSelect = (value: boolean) => {
+    if (onShowMoodSelectChange) {
+      onShowMoodSelectChange(value);
+    } else {
+      setInternalShowMoodSelect(value);
     }
   };
 
