@@ -12,7 +12,7 @@ import { useWorld } from 'koota/react';
 import { useRef, useState } from 'react';
 import type * as THREE from 'three';
 import { VISUALS } from '../constants';
-import { breathPhase, orbitRadius, phaseType, sphereScale } from '../entities/breath/traits';
+import { breathPhase, orbitRadius, phaseType } from '../entities/breath/traits';
 
 interface BreathDebugVisualsProps {
   /**
@@ -37,7 +37,6 @@ interface BreathDebugVisualsProps {
 interface TraitValues {
   phase: number;
   orbit: number;
-  scale: number;
   phaseType: number;
 }
 
@@ -56,7 +55,6 @@ export function BreathDebugVisuals({
   const valuesRef = useRef<TraitValues>({
     phase: 0,
     orbit: VISUALS.PARTICLE_ORBIT_MAX,
-    scale: 1,
     phaseType: 0,
   });
 
@@ -66,13 +64,12 @@ export function BreathDebugVisuals({
   // Update values every frame
   useFrame(() => {
     try {
-      const breath = world.queryFirst(breathPhase, orbitRadius, sphereScale, phaseType);
+      const breath = world.queryFirst(breathPhase, orbitRadius, phaseType);
       if (!breath || !world.has(breath)) return;
 
       valuesRef.current = {
         phase: breath.get(breathPhase)?.value ?? 0,
         orbit: breath.get(orbitRadius)?.value ?? VISUALS.PARTICLE_ORBIT_MAX,
-        scale: breath.get(sphereScale)?.value ?? 1,
         phaseType: breath.get(phaseType)?.value ?? 0,
       };
 
@@ -183,7 +180,6 @@ export function BreathDebugVisuals({
               Type: {['Inhale', 'Hold-in', 'Exhale', 'Hold-out'][valuesRef.current.phaseType]}
             </div>
             <div>Orbit: {valuesRef.current.orbit.toFixed(2)}</div>
-            <div>Scale: {valuesRef.current.scale.toFixed(2)}</div>
           </div>
         </Html>
       )}

@@ -1,62 +1,25 @@
 /**
  * Breath system - updates breath entity every frame
  * Uses UTC time for global synchronization
+ *
+ * Architecture (Dec 2024):
+ * - Direct trait updates (no damping) - easing is already in breathCalc
+ * - Removes lag between HUD and visual animations
+ * - 4 traits: breathPhase, phaseType, rawProgress, orbitRadius
  */
 import type { World } from 'koota';
-import { easing } from 'maath';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../../constants';
 import { calculateBreathState } from '../../lib/breathCalc';
 import * as logger from '../../lib/logger';
 import {
   breathPhase,
-  crystallization,
   debugPhaseJump,
   debugPhaseOverride,
   debugTimeControl,
-  easedProgress,
   orbitRadius,
   phaseType,
   rawProgress,
-  sphereScale,
-  targetBreathPhase,
-  targetCrystallization,
-  targetOrbitRadius,
-  targetSphereScale,
-  velocityBreathPhase,
-  velocityCrystallization,
-  velocityOrbitRadius,
-  velocitySphereScale,
 } from './traits';
-
-/**
- * Damping configuration for breath traits
- */
-const DAMP_CONFIG = [
-  {
-    trait: breathPhase,
-    targetTrait: targetBreathPhase,
-    velocityTrait: velocityBreathPhase,
-    speed: 0.3,
-  },
-  {
-    trait: orbitRadius,
-    targetTrait: targetOrbitRadius,
-    velocityTrait: velocityOrbitRadius,
-    speed: 0.4,
-  },
-  {
-    trait: sphereScale,
-    targetTrait: targetSphereScale,
-    velocityTrait: velocitySphereScale,
-    speed: 0.25,
-  },
-  {
-    trait: crystallization,
-    targetTrait: targetCrystallization,
-    velocityTrait: velocityCrystallization,
-    speed: 0.5,
-  },
-] as const;
 
 /**
  * Main breath system - runs every frame to update breath state
@@ -139,26 +102,13 @@ export function breathSystem(world: World, delta: number) {
   }
 
   // Calculate breathing state using phase-based algorithm
+  // breathCalc already applies smooth easing per-phase (easeOutQuart, easeInSine, etc.)
   const state = calculateBreathState(elapsed);
 
-  // 1. Update discrete traits and targets
-  breathEntity.set(targetBreathPhase, { value: state.breathPhase });
+  // Set all traits directly - no damping layer needed
+  // This ensures HUD and visual animations are perfectly synchronized
+  breathEntity.set(breathPhase, { value: state.breathPhase });
   breathEntity.set(phaseType, { value: state.phaseType });
   breathEntity.set(rawProgress, { value: state.rawProgress });
-  breathEntity.set(easedProgress, { value: state.easedProgress });
-  breathEntity.set(targetOrbitRadius, { value: state.orbitRadius });
-  breathEntity.set(targetSphereScale, { value: state.sphereScale });
-  breathEntity.set(targetCrystallization, { value: state.crystallization });
-
-  // 2. Damp current values toward targets using maath/easing
-  // Use explicit velocity traits to maintain damping state across frames.
-  DAMP_CONFIG.forEach(({ trait, targetTrait, velocityTrait: _, speed }) => {
-    const current = breathEntity.get(trait);
-    const target = breathEntity.get(targetTrait);
-    if (current && target) {
-      easing.damp(current, 'value', target.value, speed, delta);
-      // Update trait with damped value (velocity state is kept inside 'current' object)
-      breathEntity.set(trait, current);
-    }
-  });
+  breathEntity.set(orbitRadius, { value: state.orbitRadius });
 }

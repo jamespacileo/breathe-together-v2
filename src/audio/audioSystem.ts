@@ -6,13 +6,14 @@
  */
 
 import type { World } from 'koota';
-import { easedProgress, phaseType } from '../entities/breath/traits';
+import { phaseType, rawProgress } from '../entities/breath/traits';
 import type { AudioEngine } from './AudioEngine';
 
 /**
  * Audio system - runs every frame after breathSystem
  *
  * Reads breath state from ECS and updates audio engine parameters.
+ * Uses rawProgress (0-1 within current phase) for audio synchronization.
  */
 export function audioSystem(world: World, _delta: number, engine: AudioEngine | null): void {
   // Skip if engine not ready
@@ -20,11 +21,11 @@ export function audioSystem(world: World, _delta: number, engine: AudioEngine | 
 
   // Query breath entity for current state
   try {
-    const breathEntity = world.queryFirst(phaseType, easedProgress);
+    const breathEntity = world.queryFirst(phaseType, rawProgress);
     if (!breathEntity) return;
 
     const currentPhase = breathEntity.get(phaseType)?.value ?? 0;
-    const progress = breathEntity.get(easedProgress)?.value ?? 0;
+    const progress = breathEntity.get(rawProgress)?.value ?? 0;
 
     // Update audio engine with current breath state
     engine.updateBreathProgress(currentPhase, progress);
