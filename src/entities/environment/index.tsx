@@ -125,9 +125,9 @@ export function Environment({
       }
     }
 
-    // Ambient light breathing - more noticeable pulse
+    // Ambient light breathing - subtle pulse (avoid washed out look)
     if (ambientRef.current && breathingSyncEnabled) {
-      ambientRef.current.intensity = 0.4 + phase * 0.2;
+      ambientRef.current.intensity = 0.45 + phase * 0.1;
     }
   });
 

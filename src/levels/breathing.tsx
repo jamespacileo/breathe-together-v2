@@ -1,6 +1,5 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
-import { AtmosphericEffects } from '../components/AtmosphericEffects';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GaiaUI } from '../components/GaiaUI';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -62,7 +61,7 @@ export function BreathingLevel({
               showClouds={true}
               showStars={true}
               showForegroundClouds={true}
-              cloudOpacity={0.7}
+              cloudOpacity={0.5}
             />
           )}
 
@@ -102,8 +101,13 @@ export function BreathingLevel({
           </PresentationControls>
         </RefractionPipeline>
 
-        {/* Postprocessing effects for soft atmospheric feel */}
-        <AtmosphericEffects bloomIntensity={0.25} vignetteDarkness={0.35} noiseOpacity={0.02} />
+        {/* NOTE: EffectComposer postprocessing disabled - conflicts with RefractionPipeline's
+            3-pass FBO rendering. The EffectComposer re-renders the scene with original materials,
+            overwriting the refraction effect. Atmospheric effects are achieved via:
+            - ForegroundParticles (layered depth)
+            - Environment clouds (foreground/midground/background)
+            - BackgroundGradient shader (breathing-sync color/cloud intensity)
+        */}
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) */}
         <Html fullscreen>
