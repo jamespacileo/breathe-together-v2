@@ -11,6 +11,9 @@ jobs:
     name: Code Validation
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Explicitly checkout the PR head commit (not merge commit) for consistent validation
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -39,6 +42,9 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Explicitly checkout the PR head commit (not merge commit) to ensure latest code
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,19 +63,25 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Use stable wrangler version (4.55.0/4.56.0 have opennextjs-cloudflare delegation bug)
+          wranglerVersion: "4.54.0"
           command: deploy --name breathe-together-v2-pr-${{ github.event.pull_request.number }}
 
       - name: Comment PR with preview URL
         uses: actions/github-script@v7
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
             const workerName = `breathe-together-v2-pr-${prNumber}`;
             const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+            const commitSha = process.env.COMMIT_SHA;
+            const shortSha = commitSha.substring(0, 7);
             const previewUrl = `https://${workerName}.palladio-registry.workers.dev`;
             const dashboardUrl = `https://dash.cloudflare.com/${accountId}/workers-and-pages/application/workers/${workerName}`;
+            const commitUrl = `${context.payload.repository.html_url}/commit/${commitSha}`;
             const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
             const comments = await github.rest.issues.listComments({
@@ -89,6 +101,7 @@ jobs:
               '| Info | Value |',
               '|------|-------|',
               `| **Preview URL** | ${previewUrl} |`,
+              `| **Deployed Commit** | [\`${shortSha}\`](${commitUrl}) |`,
               `| **Dashboard** | [View Worker](${dashboardUrl}) |`,
               `| **Last deployed** | ${timestamp} |`,
               '',
