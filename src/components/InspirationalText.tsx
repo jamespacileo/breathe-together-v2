@@ -1,24 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { CYCLES_PER_MESSAGE, MESSAGES } from '../config/inspirationalMessages';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
-
-/**
- * Above & Beyond inspired quotes - themes of unity, togetherness, and collective consciousness
- * Each quote has a top and bottom line for visual balance around the globe
- */
-const INSPIRATIONAL_QUOTES = [
-  { top: 'We Are All', bottom: 'We Need' },
-  { top: 'Love Is', bottom: 'The Answer' },
-  { top: 'You Are Not', bottom: 'Alone' },
-  { top: 'Together We', bottom: 'Breathe As One' },
-  { top: 'This Moment', bottom: 'Is Ours' },
-  { top: 'Let Go', bottom: 'And Trust' },
-  { top: 'Feel The', bottom: 'Connection' },
-  { top: 'We Rise', bottom: 'Together' },
-  { top: 'Peace Lives', bottom: 'Within Us' },
-  { top: 'One Breath', bottom: 'One World' },
-  { top: 'The Light', bottom: 'Is In You' },
-  { top: 'Surrender', bottom: 'To Now' },
-] as const;
 
 // Pre-computed phase timing
 const PHASE_DURATIONS = [
@@ -88,17 +70,18 @@ function getPhaseInfo(cycleTime: number): { phaseIndex: number; phaseProgress: n
  * fades in during inhale and out during exhale. Creates a sense of
  * unity and collective consciousness.
  *
- * Performance: Uses RAF loop with direct DOM updates (no React state)
+ * Messages are configured in: src/config/inspirationalMessages.ts
+ * See that file for documentation on adding new messages.
+ *
+ * Performance: Uses RAF loop with direct DOM updates (no React state for animation)
  */
 export function InspirationalText() {
-  const topTextRef = useRef<HTMLDivElement>(null);
-  const bottomTextRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const cycleCountRef = useRef(0);
   const prevPhaseRef = useRef(-1);
 
-  // Change quote every 3 breathing cycles
+  // RAF loop for smooth opacity animation synchronized to breathing
   useEffect(() => {
     let animationId: number;
 
@@ -120,9 +103,9 @@ export function InspirationalText() {
       // Track cycle completion and rotate quotes
       if (phaseIndex === 0 && prevPhaseRef.current === 3) {
         cycleCountRef.current += 1;
-        if (cycleCountRef.current >= 3) {
+        if (cycleCountRef.current >= CYCLES_PER_MESSAGE) {
           cycleCountRef.current = 0;
-          setQuoteIndex((prev) => (prev + 1) % INSPIRATIONAL_QUOTES.length);
+          setQuoteIndex((prev) => (prev + 1) % MESSAGES.length);
         }
       }
       prevPhaseRef.current = phaseIndex;
@@ -134,7 +117,7 @@ export function InspirationalText() {
     return () => cancelAnimationFrame(animationId);
   }, []);
 
-  const quote = INSPIRATIONAL_QUOTES[quoteIndex] ?? INSPIRATIONAL_QUOTES[0];
+  const quote = MESSAGES[quoteIndex] ?? MESSAGES[0];
 
   // Design tokens matching GaiaUI
   const colors = {
@@ -182,7 +165,6 @@ export function InspirationalText() {
     >
       {/* Top text - above the globe */}
       <div
-        ref={topTextRef}
         style={{
           ...textStyle,
           marginTop: '-5vh', // Nudge up slightly
@@ -193,7 +175,6 @@ export function InspirationalText() {
 
       {/* Bottom text - below the globe */}
       <div
-        ref={bottomTextRef}
         style={{
           ...textStyle,
           marginBottom: '-5vh', // Nudge down slightly
