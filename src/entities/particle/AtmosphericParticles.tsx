@@ -16,7 +16,7 @@ import { useRef } from 'react';
 import type * as THREE from 'three';
 import { breathPhase } from '../breath/traits';
 
-interface AtmosphericParticlesProps {
+export interface AtmosphericParticlesProps {
   /**
    * Number of floating particles.
    *

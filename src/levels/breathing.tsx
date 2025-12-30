@@ -14,9 +14,6 @@ import type { BreathingLevelProps } from '../types/sceneProps';
  */
 const TUNING_DEFAULTS = {
   particleCounts: { sparse: 150, normal: 300, dense: 600 },
-  refraction: 1.4,
-  breath: 0.3,
-  expansion: 2.0,
   earthRotationSpeed: 0.1,
   atmosphericParticleCount: 100,
 };
@@ -25,7 +22,6 @@ const TUNING_DEFAULTS = {
  * BreathingLevel - Core meditation environment.
  */
 export function BreathingLevel({
-  bloom = 'none',
   particleDensity,
   // DEBUG-ONLY: Entity visibility toggles (all default true)
   showGlobe = true,
@@ -40,9 +36,6 @@ export function BreathingLevel({
         ? TUNING_DEFAULTS.particleCounts.dense
         : TUNING_DEFAULTS.particleCounts.normal,
   );
-  const [refraction, setRefraction] = useState(TUNING_DEFAULTS.refraction);
-  const [breath, setBreath] = useState(TUNING_DEFAULTS.breath);
-  const [expansion, setExpansion] = useState(TUNING_DEFAULTS.expansion);
 
   const moods = useMemo(() => generateMockPresence(300).moods, []);
 
@@ -81,16 +74,7 @@ export function BreathingLevel({
 
         {/* UI stays OUTSIDE rotatable group (fixed HUD) */}
         <Html fullscreen>
-          <GaiaUI
-            harmony={harmony}
-            setHarmony={setHarmony}
-            refraction={refraction}
-            setRefraction={setRefraction}
-            breath={breath}
-            setBreath={setBreath}
-            expansion={expansion}
-            setExpansion={setExpansion}
-          />
+          <GaiaUI harmony={harmony} setHarmony={setHarmony} />
         </Html>
       </Suspense>
     </ErrorBoundary>

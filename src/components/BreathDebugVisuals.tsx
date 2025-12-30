@@ -11,11 +11,8 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useRef, useState } from 'react';
 import type * as THREE from 'three';
+import { VISUALS } from '../constants';
 import { breathPhase, orbitRadius, phaseType, sphereScale } from '../entities/breath/traits';
-
-// Visual constants for particle orbit bounds
-const PARTICLE_ORBIT_MIN = 0.75;
-const PARTICLE_ORBIT_MAX = 6.0;
 
 interface BreathDebugVisualsProps {
   /**
@@ -58,7 +55,7 @@ export function BreathDebugVisuals({
   // Store current values in ref to avoid repeated object allocations
   const valuesRef = useRef<TraitValues>({
     phase: 0,
-    orbit: PARTICLE_ORBIT_MAX,
+    orbit: VISUALS.PARTICLE_ORBIT_MAX,
     scale: 1,
     phaseType: 0,
   });
@@ -74,7 +71,7 @@ export function BreathDebugVisuals({
 
       valuesRef.current = {
         phase: breath.get(breathPhase)?.value ?? 0,
-        orbit: breath.get(orbitRadius)?.value ?? PARTICLE_ORBIT_MAX,
+        orbit: breath.get(orbitRadius)?.value ?? VISUALS.PARTICLE_ORBIT_MAX,
         scale: breath.get(sphereScale)?.value ?? 1,
         phaseType: breath.get(phaseType)?.value ?? 0,
       };
@@ -99,13 +96,13 @@ export function BreathDebugVisuals({
         <group ref={orbitsRef}>
           {/* Min orbit (Inhale - particles closest to surface) */}
           <mesh>
-            <sphereGeometry args={[PARTICLE_ORBIT_MIN, 32, 32]} />
+            <sphereGeometry args={[VISUALS.PARTICLE_ORBIT_MIN, 32, 32]} />
             <meshBasicMaterial color="#00ff00" wireframe opacity={0.3} transparent />
           </mesh>
 
           {/* Max orbit (Exhale - particles farthest from surface) */}
           <mesh>
-            <sphereGeometry args={[PARTICLE_ORBIT_MAX, 32, 32]} />
+            <sphereGeometry args={[VISUALS.PARTICLE_ORBIT_MAX, 32, 32]} />
             <meshBasicMaterial color="#ff0000" wireframe opacity={0.3} transparent />
           </mesh>
 

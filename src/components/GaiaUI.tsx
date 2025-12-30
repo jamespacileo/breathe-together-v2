@@ -4,24 +4,9 @@ import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 interface GaiaUIProps {
   harmony: number;
   setHarmony: (v: number) => void;
-  refraction: number;
-  setRefraction: (v: number) => void;
-  breath: number;
-  setBreath: (v: number) => void;
-  expansion: number;
-  setExpansion: (v: number) => void;
 }
 
-export function GaiaUI({
-  harmony,
-  setHarmony,
-  refraction,
-  setRefraction,
-  breath,
-  setBreath,
-  expansion,
-  setExpansion,
-}: GaiaUIProps) {
+export function GaiaUI({ harmony, setHarmony }: GaiaUIProps) {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
 
@@ -194,57 +179,6 @@ export function GaiaUI({
               step="10"
               value={harmony}
               onChange={(e) => setHarmony(parseInt(e.target.value, 10))}
-              style={inputStyle}
-            />
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-            <label style={labelStyle}>
-              <span>Refraction</span>
-              <span style={{ fontWeight: 400 }}>{refraction.toFixed(2)}</span>
-            </label>
-            <input
-              type="range"
-              min="1.0"
-              max="2.0"
-              step="0.01"
-              value={refraction}
-              onChange={(e) => setRefraction(parseFloat(e.target.value))}
-              style={inputStyle}
-            />
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-            <label style={labelStyle}>
-              <span>Breath</span>
-              <span style={{ fontWeight: 400 }}>{breath.toFixed(2)}</span>
-            </label>
-            <input
-              type="range"
-              min="0.05"
-              max="1.5"
-              step="0.05"
-              value={breath}
-              onChange={(e) => setBreath(parseFloat(e.target.value))}
-              style={inputStyle}
-            />
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: Input is associated via wrapper structure */}
-            <label style={labelStyle}>
-              <span>Expansion</span>
-              <span style={{ fontWeight: 400 }}>{expansion.toFixed(2)}</span>
-            </label>
-            <input
-              type="range"
-              min="0.5"
-              max="5.0"
-              step="0.1"
-              value={expansion}
-              onChange={(e) => setExpansion(parseFloat(e.target.value))}
               style={inputStyle}
             />
           </div>
