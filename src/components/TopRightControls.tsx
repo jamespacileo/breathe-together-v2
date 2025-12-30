@@ -8,6 +8,7 @@
 
 import { useContext } from 'react';
 import { AudioContext } from '../audio/AudioProvider';
+import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 
 interface TopRightControlsProps {
   /** Callback to open tune/animation controls */
@@ -20,6 +21,10 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
   // Use useContext directly to avoid throwing error when provider is missing
   // This allows the component to render gracefully without audio controls
   const audio = useContext(AudioContext);
+  const { deviceType } = useViewport();
+
+  // Match SimpleGaiaUI's edge padding for vertical alignment
+  const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32);
 
   const colors = {
     icon: '#7a6b5e',
@@ -40,12 +45,12 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
     <div
       style={{
         position: 'absolute',
-        top: '20px',
-        right: '20px',
+        top: `${edgePadding}px`,
+        right: `${edgePadding}px`,
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: '12px',
+        gap: '10px',
         zIndex: 200,
         pointerEvents: 'auto',
       }}
