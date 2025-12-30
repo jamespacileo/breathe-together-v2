@@ -6,6 +6,7 @@ import type { World } from 'koota';
 import { easing } from 'maath';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../../constants';
 import { calculateBreathState } from '../../lib/breathCalc';
+import * as logger from '../../lib/logger';
 import {
   breathPhase,
   crystallization,
@@ -73,9 +74,7 @@ export function breathSystem(world: World, delta: number) {
 
   if (!breathEntity) {
     // Entity not spawned yet, skip this frame
-    if (import.meta.env.DEV) {
-      console.warn('[breathSystem] No breath entity found - breathing animation disabled');
-    }
+    logger.warn('[breathSystem] No breath entity found - breathing animation disabled');
     return;
   }
 
