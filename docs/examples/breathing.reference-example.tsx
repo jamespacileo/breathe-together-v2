@@ -30,7 +30,7 @@ import type { BreathingDebugSceneProps, BreathingLevelProps } from '../../src/ty
  * Advantage: Single source of truth. Clean scene code.
  * Disadvantage: Entity defaults not visible in scene file (but visible in Triplex).
  */
-export function RecommendedScene() {
+export function RecommendedScene({ ...props }: Partial<BreathingLevelProps> = {}) {
   return (
     <>
       <Environment />

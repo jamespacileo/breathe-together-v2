@@ -1,16 +1,18 @@
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useRef } from 'react';
-import type { Object3D } from 'three';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
 import { phaseType, rawProgress } from '../entities/breath/traits';
 
 export const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'];
 
 interface PhaseDisplay3DRefs {
-  phaseNameRef: React.RefObject<Object3D>;
-  timerRef: React.RefObject<Object3D>;
-  progressBarRef: React.RefObject<Object3D>;
+  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
+  phaseNameRef: React.RefObject<any>;
+  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
+  timerRef: React.RefObject<any>;
+  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
+  progressBarRef: React.RefObject<any>;
 }
 
 /**

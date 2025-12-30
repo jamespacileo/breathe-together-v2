@@ -1,6 +1,5 @@
 import { Container, Fullscreen, Root, Text } from '@react-three/uikit';
 import { Suspense, useRef } from 'react';
-import type { Object3D } from 'three';
 import { useBreathPhaseDisplay3D } from '../hooks/useBreathPhaseDisplay3D';
 import { usePresence } from '../hooks/usePresence';
 
@@ -10,9 +9,12 @@ import { usePresence } from '../hooks/usePresence';
  * Style: Subtle, transparent, minimalist
  */
 export function BreathingHUD3D() {
-  const phaseNameRef = useRef<Object3D>(null);
-  const timerRef = useRef<Object3D>(null);
-  const progressBarRef = useRef<Object3D>(null);
+  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
+  const phaseNameRef = useRef<any>(null);
+  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
+  const timerRef = useRef<any>(null);
+  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit doesn't export types for Text, Container components
+  const progressBarRef = useRef<any>(null);
 
   // Hook manages RAF loop for 60fps updates
   useBreathPhaseDisplay3D({

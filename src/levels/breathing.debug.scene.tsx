@@ -12,7 +12,6 @@
  * - Inspect entity behavior in isolation
  */
 
-import { Html } from '@react-three/drei';
 import { BreathDebugPanel } from '../components/BreathDebugPanel';
 import { CanvasProvider, GlobalProvider } from '../contexts/triplex';
 import type { BreathingDebugSceneProps } from '../types/sceneProps';
