@@ -144,27 +144,23 @@ export function InspirationalText() {
 
   const textStyle: React.CSSProperties = {
     fontFamily: "'Cormorant Garamond', Georgia, serif",
-    // Mobile: Dynamic viewport-based sizing to fill available width - increased max size
+    // Mobile: Dynamic viewport-based sizing to fill available width
     fontSize: isMobile
-      ? 'clamp(1.4rem, 7.5vw, 2.5rem)' // Mobile: Larger max 2.5rem (was 2.2rem), 7.5vw (was 7vw)
+      ? 'clamp(1.5rem, 8vw, 2.6rem)' // Mobile: Slightly larger for impact
       : isTablet
-        ? 'clamp(1.5rem, 5vw, 2.4rem)' // Tablet: Slightly larger (was 2.2rem max)
-        : 'clamp(1.6rem, 3.5vw, 2.8rem)', // Desktop: Original large size
-    fontWeight: 300,
-    letterSpacing: isMobile ? '0.12em' : '0.22em', // Tighter spacing for better fit
+        ? 'clamp(1.5rem, 5vw, 2.4rem)'
+        : 'clamp(1.6rem, 3.5vw, 2.8rem)',
+    fontWeight: isMobile ? 400 : 300, // Slightly bolder on mobile for readability
+    letterSpacing: isMobile ? '0.06em' : '0.22em', // Much tighter on mobile
     textTransform: 'uppercase',
     color: colors.text,
-    textShadow: `
-      0 0 30px ${colors.subtleGlow},
-      0 0 60px ${colors.textGlow},
-      0 2px 8px rgba(0, 0, 0, 0.15)
-    `, // Stronger shadows for better contrast
+    textShadow: isMobile
+      ? `0 0 24px ${colors.subtleGlow}, 0 1px 3px rgba(0, 0, 0, 0.2)` // Tighter shadow on mobile
+      : `0 0 30px ${colors.subtleGlow}, 0 0 60px ${colors.textGlow}, 0 2px 8px rgba(0, 0, 0, 0.15)`,
     textAlign: 'center',
-    lineHeight: isMobile ? 1.1 : 1.2, // Tighter line height on mobile
+    lineHeight: isMobile ? 1.1 : 1.2,
     userSelect: 'none',
-    // Prevent text wrapping - let it scale instead
     whiteSpace: isMobile ? 'nowrap' : 'normal',
-    // Scale to fit container width on mobile
     width: isMobile ? '100%' : 'auto',
   };
 

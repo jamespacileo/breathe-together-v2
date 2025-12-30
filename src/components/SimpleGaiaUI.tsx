@@ -437,12 +437,13 @@ export function SimpleGaiaUI({
           <h1
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: isMobile ? '1.1rem' : isTablet ? '1.25rem' : '1.4rem',
-              fontWeight: 300,
+              fontSize: isMobile ? '1.2rem' : isTablet ? '1.25rem' : '1.4rem',
+              fontWeight: isMobile ? 400 : 300,
               margin: 0,
-              letterSpacing: isMobile ? '0.1em' : '0.15em',
+              letterSpacing: isMobile ? '0.08em' : '0.15em',
               textTransform: 'uppercase',
               color: colors.text,
+              textShadow: isMobile ? '0 1px 8px rgba(255, 252, 245, 0.8)' : 'none',
             }}
           >
             Breathe Together
@@ -1110,16 +1111,18 @@ export function SimpleGaiaUI({
       <div
         style={{
           position: 'absolute',
-          bottom: isMobile ? `${edgePadding + 8}px` : '44px',
+          bottom: isMobile
+            ? `max(${edgePadding + 16}px, env(safe-area-inset-bottom, 24px))`
+            : '44px',
           left: '50%',
           transform: `translateX(-50%) translateY(${hasEntered ? 0 : 16}px)`,
-          opacity: hasEntered ? 0.9 : 0,
+          opacity: hasEntered ? 0.95 : 0,
           transition: 'all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
           pointerEvents: 'none',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: isMobile ? '10px' : '14px',
+          gap: isMobile ? '12px' : '14px',
         }}
       >
         {/* Phase Name + Timer */}
@@ -1127,19 +1130,19 @@ export function SimpleGaiaUI({
           style={{
             display: 'flex',
             alignItems: 'baseline',
-            gap: isMobile ? '8px' : '10px',
+            gap: isMobile ? '10px' : '10px',
           }}
         >
           <span
             ref={phaseNameRef}
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: isMobile ? '1.5rem' : isTablet ? '1.35rem' : '1.5rem',
+              fontSize: isMobile ? '1.75rem' : isTablet ? '1.5rem' : '1.5rem',
               fontWeight: 300,
-              letterSpacing: isMobile ? '0.15em' : '0.18em',
+              letterSpacing: isMobile ? '0.12em' : '0.18em',
               textTransform: 'uppercase',
               color: colors.text,
-              textShadow: `0 2px 16px ${colors.accentGlow}, 0 1px 4px rgba(0, 0, 0, 0.1)`, // Stronger shadow for contrast
+              textShadow: `0 2px 20px ${colors.accentGlow}, 0 1px 6px rgba(0, 0, 0, 0.15)`,
             }}
           >
             Inhale
@@ -1148,12 +1151,11 @@ export function SimpleGaiaUI({
             ref={timerRef}
             style={{
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              fontSize: isMobile ? '1rem' : '0.95rem',
-              fontWeight: 300,
+              fontSize: isMobile ? '1.1rem' : '0.95rem',
+              fontWeight: 400,
               color: colors.textDim,
-              minWidth: '1em',
+              minWidth: '1.2em',
               textAlign: 'center',
-              opacity: 0.9, // Increased from 0.8 for better visibility
             }}
           >
             4
@@ -1164,10 +1166,10 @@ export function SimpleGaiaUI({
         <div
           ref={progressContainerRef}
           style={{
-            width: isMobile ? '80px' : '100px',
-            height: '2px',
+            width: isMobile ? '100px' : '100px',
+            height: isMobile ? '3px' : '2px',
             background: colors.border,
-            borderRadius: '1px',
+            borderRadius: '2px',
             overflow: 'hidden',
             boxShadow: `0 0 8px ${colors.accentGlow}`,
             transition: 'box-shadow 0.3s ease',
@@ -1179,21 +1181,22 @@ export function SimpleGaiaUI({
               height: '100%',
               width: '0%',
               background: `linear-gradient(90deg, ${colors.accent}, ${colors.textGlow})`,
-              borderRadius: '1px',
+              borderRadius: '2px',
               transition: 'width 0.08s linear',
             }}
           />
         </div>
 
-        {/* Presence Count - Subtle */}
+        {/* Presence Count */}
         <div
           style={{
-            fontSize: isMobile ? '0.7rem' : '0.65rem',
-            color: colors.textDim,
-            opacity: 0.7, // Increased from 0.6 for better readability
-            letterSpacing: '0.1em',
+            fontSize: isMobile ? '0.75rem' : '0.65rem',
+            fontWeight: isMobile ? 500 : 400,
+            color: colors.text,
+            opacity: isMobile ? 0.7 : 0.6,
+            letterSpacing: isMobile ? '0.08em' : '0.1em',
             textTransform: 'uppercase',
-            marginTop: isMobile ? '2px' : '4px',
+            marginTop: isMobile ? '4px' : '4px',
           }}
         >
           <span ref={presenceCountRef}>75</span> breathing together
