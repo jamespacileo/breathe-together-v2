@@ -242,20 +242,26 @@ export function SimpleGaiaUI({
     return () => cancelAnimationFrame(animationId);
   }, []);
 
-  // Presence count simulation - updates every 2 seconds with subtle variation
-  // Moved out of RAF loop to avoid 60 random number generations per second
+  // Presence count simulation - updates every 3 seconds with subtle variation
+  // This simulates users joining/leaving, triggering ParticleSwarm animations
   useEffect(() => {
     const updatePresenceCount = () => {
+      // Generate a gradual change (±1-3 users at a time for natural feel)
+      const change = Math.floor(Math.random() * 5) - 2; // -2 to +2
+      const newCount = Math.max(12, Math.min(200, harmony + change)); // Clamp 12-200
+
+      // Update the display
       if (presenceCountRef.current) {
-        const baseCount = 75;
-        const variation = Math.floor(Math.random() * 10) - 5;
-        presenceCountRef.current.textContent = `${baseCount + variation}`;
+        presenceCountRef.current.textContent = `${newCount}`;
       }
+
+      // Update the actual particle count to trigger join/leave animations
+      setHarmony(newCount);
     };
 
-    const intervalId = setInterval(updatePresenceCount, 2000);
+    const intervalId = setInterval(updatePresenceCount, 3000);
     return () => clearInterval(intervalId);
-  }, []);
+  }, [harmony, setHarmony]);
 
   // Keyboard shortcut: Press 'T' to toggle tuning controls
   useEffect(() => {
