@@ -23,6 +23,49 @@ const MOOD_COLORS = [
   new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
 ];
 
+const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
+  grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
+  celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
+  moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
+  here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
+  anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
+  processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
+  preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+};
+
+/**
+ * Build color distribution array from users prop
+ * Extracted to reduce cognitive complexity of shard creation
+ */
+function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefined): THREE.Color[] {
+  if (!users) return [];
+
+  const colorDistribution: THREE.Color[] = [];
+  for (const [moodId, moodCount] of Object.entries(users)) {
+    const color = MOOD_TO_COLOR[moodId as MoodId];
+    if (color) {
+      for (let i = 0; i < (moodCount ?? 0); i++) {
+        colorDistribution.push(color);
+      }
+    }
+  }
+  return colorDistribution;
+}
+
+/**
+ * Apply per-vertex color to geometry
+ */
+function applyVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Color): void {
+  const vertexCount = geometry.attributes.position.count;
+  const colors = new Float32Array(vertexCount * 3);
+  for (let c = 0; c < colors.length; c += 3) {
+    colors[c] = color.r;
+    colors[c + 1] = color.g;
+    colors[c + 2] = color.b;
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+}
+
 export interface ParticleSwarmProps {
   /** Number of shards (default 48 matches reference) */
   count?: number;
@@ -75,45 +118,15 @@ export function ParticleSwarm({
   // Create shards with per-vertex colors
   const shards = useMemo(() => {
     const result: ShardData[] = [];
-    const currentShardSize = shardSize;
-
-    // Build color distribution from users prop or random
-    const colorDistribution: THREE.Color[] = [];
-    if (users) {
-      const moodToColor: Record<MoodId, THREE.Color> = {
-        grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-        celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-        moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-        here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-        anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-        processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-        preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
-      };
-
-      for (const [moodId, moodCount] of Object.entries(users)) {
-        const color = moodToColor[moodId as MoodId];
-        if (color) {
-          for (let i = 0; i < (moodCount ?? 0); i++) {
-            colorDistribution.push(color);
-          }
-        }
-      }
-    }
+    const colorDistribution = buildColorDistribution(users);
 
     for (let i = 0; i < count; i++) {
-      const geometry = new THREE.IcosahedronGeometry(currentShardSize, 0);
+      const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
 
-      // Set per-vertex color attribute
+      // Apply per-vertex color from distribution or random fallback
       const mood =
         colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
-      const vertexCount = geometry.attributes.position.count;
-      const colors = new Float32Array(vertexCount * 3);
-      for (let c = 0; c < colors.length; c += 3) {
-        colors[c] = mood.r;
-        colors[c + 1] = mood.g;
-        colors[c + 2] = mood.b;
-      }
-      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      applyVertexColors(geometry, mood);
 
       // Fibonacci sphere distribution
       const phi = Math.acos(-1 + (2 * i) / count);

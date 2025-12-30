@@ -3,8 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { App } from './app';
 import { RootProviders } from './providers';
 
-// biome-ignore lint/style/noNonNullAssertion: Root element is guaranteed to exist in HTML (checked at build time by indexhtml)
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Root element not found. Ensure index.html contains <div id="root"></div>');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <RootProviders>
       <App />

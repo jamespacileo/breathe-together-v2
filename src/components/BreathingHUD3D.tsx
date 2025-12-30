@@ -8,11 +8,13 @@ import { useBreathPhaseDisplay3D } from '../hooks/useBreathPhaseDisplay3D';
  * Style: Subtle, transparent, minimalist
  */
 export function BreathingHUD3D() {
-  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit v1.0.60 doesn't export component types; using any for JSX props
+  // @react-three/uikit doesn't export runtime instance types.
+  // Custom types in src/types/uikit.d.ts define properties we access at runtime.
+  // biome-ignore lint/suspicious/noExplicitAny: uikit v1.0.60 component refs incompatible with runtime access patterns; see src/types/uikit.d.ts
   const phaseNameRef = useRef<any>(null);
-  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit v1.0.60 doesn't export component types; using any for JSX props
+  // biome-ignore lint/suspicious/noExplicitAny: uikit v1.0.60 component refs incompatible with runtime access patterns; see src/types/uikit.d.ts
   const timerRef = useRef<any>(null);
-  // biome-ignore lint/suspicious/noExplicitAny: @react-three/uikit v1.0.60 doesn't export component types; using any for JSX props
+  // biome-ignore lint/suspicious/noExplicitAny: uikit v1.0.60 component refs incompatible with runtime access patterns; see src/types/uikit.d.ts
   const progressBarRef = useRef<any>(null);
 
   // Hook manages RAF loop for 60fps updates
