@@ -2,12 +2,20 @@ import { useFrame } from '@react-three/fiber';
 import { createWorld } from 'koota';
 import { useWorld, WorldProvider } from 'koota/react';
 import { createContext, type ReactNode, use, useMemo } from 'react';
+import { AppStateProvider } from './contexts/appState';
+import { UserPreferencesProvider } from './contexts/userPreferences';
 import { breathSystem } from './entities/breath/systems';
 
 export function RootProviders({ children }: { children: ReactNode }) {
   const world = useMemo(() => createWorld(), []);
 
-  return <WorldProvider world={world}>{children}</WorldProvider>;
+  return (
+    <UserPreferencesProvider>
+      <AppStateProvider>
+        <WorldProvider world={world}>{children}</WorldProvider>
+      </AppStateProvider>
+    </UserPreferencesProvider>
+  );
 }
 
 const NestedCheck = createContext(false);
