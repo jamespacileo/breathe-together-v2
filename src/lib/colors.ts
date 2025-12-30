@@ -9,10 +9,10 @@ import type { MoodId } from '../constants';
  * Muted tones complement the globe's teal ocean and warm earth aesthetic
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  joy: '#e8c078', // Soft Golden Sand
-  peace: '#7ac5b8', // Soft Seafoam Teal
-  solitude: '#8dafc4', // Dusty Periwinkle Blue
-  love: '#d4a0a0', // Soft Dusty Rose
+  joy: '#e8a850', // Warm Amber
+  peace: '#4db8a8', // Soft Teal
+  solitude: '#6a9fc0', // Muted Sky Blue
+  love: '#d08080', // Dusty Coral
 } as const;
 
 /**
