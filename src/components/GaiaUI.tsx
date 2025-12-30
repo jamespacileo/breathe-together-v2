@@ -42,6 +42,21 @@ function calculatePhaseInfo(cycleTime: number): PhaseInfo {
   return { phaseIndex, phaseProgress, accumulatedTime, phaseDuration };
 }
 
+/**
+ * Glassmorphism style generator - frosted glass effect
+ */
+const glassStyle = (opacity = 0.65): React.CSSProperties => ({
+  background: `rgba(255, 253, 250, ${opacity})`,
+  backdropFilter: 'blur(24px) saturate(1.2)',
+  WebkitBackdropFilter: 'blur(24px) saturate(1.2)',
+  border: '1px solid rgba(255, 255, 255, 0.25)',
+  boxShadow: `
+    0 8px 32px rgba(160, 140, 120, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(160, 140, 120, 0.05)
+  `,
+});
+
 interface GaiaUIProps {
   /** Particle count (harmony) */
   harmony: number;
@@ -83,6 +98,7 @@ export function GaiaUI({
 
   // Phase indicator refs for RAF updates (no React re-renders)
   const phaseNameRef = useRef<HTMLSpanElement>(null);
+  const phaseContainerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<HTMLSpanElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
@@ -124,6 +140,35 @@ export function GaiaUI({
         progressRef.current.style.width = `${cycleProgress * 100}%`;
       }
 
+      // === PHASE BREATHING ANIMATION ===
+      // Scale and opacity based on breathing phase
+      if (phaseContainerRef.current) {
+        const isHoldPhase = phaseIndex === 1 || phaseIndex === 3;
+        const isInhale = phaseIndex === 0;
+
+        // Calculate breath-responsive scale
+        // Inhale: grows 1.0 → 1.15, Exhale: shrinks 1.15 → 1.0, Hold: stays at 1.05
+        let scale: number;
+        let textOpacity: number;
+
+        if (isHoldPhase) {
+          // During hold: subtle pulse, slightly dimmed
+          scale = 1.05 + Math.sin(now * 2) * 0.02;
+          textOpacity = 0.7;
+        } else if (isInhale) {
+          // During inhale: grow with breath
+          scale = 1.0 + phaseProgress * 0.15;
+          textOpacity = 0.8 + phaseProgress * 0.2;
+        } else {
+          // During exhale: shrink with breath
+          scale = 1.15 - phaseProgress * 0.15;
+          textOpacity = 1.0 - phaseProgress * 0.2;
+        }
+
+        phaseContainerRef.current.style.transform = `translateX(-50%) scale(${scale})`;
+        phaseContainerRef.current.style.opacity = `${textOpacity}`;
+      }
+
       animationId = requestAnimationFrame(updatePhase);
     };
 
@@ -158,15 +203,16 @@ export function GaiaUI({
     };
   }, [isControlsOpen]);
 
-  // Design Tokens - refined warm palette
+  // Design Tokens - refined warm palette with glassmorphism
   const colors = {
-    text: '#7a6b5e', // Slightly warmer, better contrast
-    textDim: '#a89888', // Warmer dim text
-    textGlow: '#c4a882', // Subtle glow color
-    border: 'rgba(160, 140, 120, 0.12)', // Warmer, softer border
-    glass: 'rgba(252, 250, 246, 0.72)', // Slightly warmer glass
-    accent: '#c9a06c', // Warmer gold accent
-    accentGlow: 'rgba(201, 160, 108, 0.4)', // Accent glow
+    text: '#6b5d52', // Warm brown text
+    textDim: '#9a8a7a', // Warm dim text
+    textGlow: '#d4b896', // Subtle warm glow
+    border: 'rgba(180, 160, 140, 0.15)', // Warm glass border
+    glass: 'rgba(255, 253, 250, 0.55)', // Frosted glass base
+    accent: '#c9a06c', // Warm gold accent
+    accentGlow: 'rgba(201, 160, 108, 0.35)', // Accent glow
+    rimLight: 'rgba(255, 255, 255, 0.4)', // Glass rim highlight
   };
 
   const labelStyle: React.CSSProperties = {
@@ -214,24 +260,30 @@ export function GaiaUI({
         transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Upper-Left: Museum Label Title */}
+      {/* Upper-Left: Museum Label Title - Glassmorphism */}
       <div
         onPointerDown={stopPropagation}
         onTouchStart={stopPropagation}
         style={{
           position: 'absolute',
-          top: '36px',
-          left: '36px',
+          top: '32px',
+          left: '32px',
           pointerEvents: 'auto',
-          opacity: hasEntered ? 0.75 : 0,
+          opacity: hasEntered ? 1 : 0,
           transform: `translateY(${hasEntered ? 0 : -8}px)`,
           transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         }}
       >
-        <div>
+        <div
+          style={{
+            ...glassStyle(0.45),
+            padding: '14px 20px',
+            borderRadius: '16px',
+          }}
+        >
           <div
             style={{
-              fontSize: '0.55rem',
+              fontSize: '0.5rem',
               letterSpacing: '0.35em',
               textTransform: 'uppercase',
               marginBottom: '6px',
@@ -244,11 +296,12 @@ export function GaiaUI({
           <h1
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: '1.15rem',
+              fontSize: '1.1rem',
               fontWeight: 400,
               margin: 0,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
+              color: colors.text,
             }}
           >
             Gaia Breathing
@@ -272,7 +325,7 @@ export function GaiaUI({
           transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.2s',
         }}
       >
-        {/* Toggle Button */}
+        {/* Toggle Button - Glassmorphism pill */}
         <button
           type="button"
           onClick={() => setIsControlsOpen(!isControlsOpen)}
@@ -281,9 +334,8 @@ export function GaiaUI({
           onTouchStart={stopPropagation}
           onTouchMove={stopPropagation}
           style={{
-            background: colors.glass,
-            border: `1px solid ${colors.border}`,
-            padding: '9px 18px',
+            ...glassStyle(0.6),
+            padding: '10px 20px',
             borderRadius: '24px',
             fontSize: '0.6rem',
             textTransform: 'uppercase',
@@ -291,16 +343,14 @@ export function GaiaUI({
             fontWeight: 500,
             color: colors.text,
             cursor: 'pointer',
-            backdropFilter: 'blur(24px)',
             transition: 'all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
             pointerEvents: 'auto',
-            boxShadow: '0 4px 20px rgba(160, 140, 120, 0.06)',
           }}
         >
           {isControlsOpen ? 'Close' : 'Tune'}
         </button>
 
-        {/* Controls Panel - stop propagation to prevent scene rotation while dragging sliders */}
+        {/* Controls Panel - Glassmorphism frosted glass */}
         <div
           onPointerDown={stopPropagation}
           onPointerMove={stopPropagation}
@@ -309,17 +359,17 @@ export function GaiaUI({
           onTouchMove={stopPropagation}
           onTouchEnd={stopPropagation}
           style={{
-            background: colors.glass,
-            backdropFilter: 'blur(40px)',
+            ...glassStyle(0.7),
             padding: isControlsOpen ? '24px' : '0px',
-            borderRadius: '24px',
-            border: `1px solid ${isControlsOpen ? colors.border : 'transparent'}`,
+            borderRadius: '20px',
             width: '260px',
             maxHeight: isControlsOpen ? '600px' : '0px',
             overflow: 'hidden',
             opacity: isControlsOpen ? 1 : 0,
             transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: '0 20px 50px rgba(138, 131, 124, 0.08)',
+            border: isControlsOpen
+              ? '1px solid rgba(255, 255, 255, 0.25)'
+              : '1px solid transparent',
           }}
         >
           {/* === PARTICLES SECTION === */}
@@ -504,40 +554,45 @@ export function GaiaUI({
         </div>
       </div>
 
-      {/* Centered Phase Indicator */}
+      {/* Centered Phase Indicator - Breathing Animation */}
       <div
+        ref={phaseContainerRef}
         style={{
           position: 'absolute',
           bottom: '44px',
           left: '50%',
           transform: `translateX(-50%) translateY(${hasEntered ? 0 : 16}px)`,
           opacity: hasEntered ? 0.9 : 0,
-          transition: 'all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          transition: hasEntered ? 'none' : 'all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
           pointerEvents: 'none',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           gap: '14px',
+          willChange: 'transform, opacity',
         }}
       >
-        {/* Phase Name + Timer */}
+        {/* Phase Name + Timer - with subtle glass pill */}
         <div
           style={{
+            ...glassStyle(0.4),
             display: 'flex',
             alignItems: 'baseline',
-            gap: '10px',
+            gap: '12px',
+            padding: '12px 24px',
+            borderRadius: '32px',
           }}
         >
           <span
             ref={phaseNameRef}
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: '1.5rem',
+              fontSize: '1.6rem',
               fontWeight: 300,
-              letterSpacing: '0.18em',
+              letterSpacing: '0.2em',
               textTransform: 'uppercase',
               color: colors.text,
-              textShadow: `0 1px 12px ${colors.accentGlow}`,
+              textShadow: `0 2px 16px ${colors.accentGlow}`,
             }}
           >
             Inhale
@@ -546,27 +601,27 @@ export function GaiaUI({
             ref={timerRef}
             style={{
               fontFamily: "'DM Sans', system-ui, sans-serif",
-              fontSize: '0.95rem',
+              fontSize: '1rem',
               fontWeight: 300,
               color: colors.textDim,
-              minWidth: '1em',
+              minWidth: '1.2em',
               textAlign: 'center',
-              opacity: 0.8,
+              opacity: 0.75,
             }}
           >
             4
           </span>
         </div>
 
-        {/* Progress Bar */}
+        {/* Progress Bar - edge-anchored full width */}
         <div
           style={{
-            width: '100px',
-            height: '1.5px',
-            background: colors.border,
+            width: '120px',
+            height: '2px',
+            background: 'rgba(180, 160, 140, 0.2)',
             borderRadius: '1px',
             overflow: 'hidden',
-            boxShadow: `0 0 8px ${colors.accentGlow}`,
+            boxShadow: `0 0 12px ${colors.accentGlow}`,
           }}
         >
           <div
@@ -577,6 +632,7 @@ export function GaiaUI({
               background: `linear-gradient(90deg, ${colors.accent}, ${colors.textGlow})`,
               borderRadius: '1px',
               transition: 'width 0.08s linear',
+              boxShadow: `0 0 8px ${colors.accent}`,
             }}
           />
         </div>

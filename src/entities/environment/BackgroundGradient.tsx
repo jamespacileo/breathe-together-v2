@@ -4,6 +4,7 @@
  * Renders as a fullscreen quad behind all other content with:
  * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
  * - Animated procedural clouds using FBM noise
+ * - Enhanced film grain for analog organic feel
  * - Subtle vignette effect
  */
 
@@ -21,6 +22,7 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
+uniform vec2 resolution;
 varying vec2 vUv;
 
 // Simplex noise functions for cloud-like patterns
@@ -57,6 +59,23 @@ float fbm(vec2 p) {
   f += 0.1250 * snoise(p); p *= 2.01;
   f += 0.0625 * snoise(p);
   return f / 0.9375;
+}
+
+// Film grain function - animated, high-frequency noise
+float filmGrain(vec2 uv, float t) {
+  // Multiple noise layers for realistic grain
+  float grain1 = fract(sin(dot(uv + t * 0.1, vec2(12.9898, 78.233))) * 43758.5453);
+  float grain2 = fract(sin(dot(uv * 1.5 + t * 0.15, vec2(93.9898, 67.345))) * 28461.2314);
+  float grain3 = fract(sin(dot(uv * 2.0 - t * 0.08, vec2(45.233, 91.106))) * 63758.1234);
+
+  // Combine grains with different weights for organic variation
+  float grain = grain1 * 0.5 + grain2 * 0.3 + grain3 * 0.2;
+
+  // Add some larger "clumps" for more realistic film texture
+  float clumps = snoise(uv * 80.0 + t * 0.5) * 0.5 + 0.5;
+  clumps = smoothstep(0.4, 0.6, clumps);
+
+  return mix(grain, clumps, 0.15);
 }
 
 void main() {
@@ -98,14 +117,27 @@ void main() {
   // Blend clouds very subtly into sky
   vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
 
-  // Very subtle vignette - just darkens corners slightly
+  // Enhanced vignette - darker edges for focus and cinematic feel
   vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
-  color *= mix(0.97, 1.0, vignette);
+  float vignette = 1.0 - dot(vignetteUv * 0.25, vignetteUv * 0.25);
+  vignette = smoothstep(0.0, 1.0, vignette);
+  color *= mix(0.92, 1.0, vignette);
 
-  // Paper texture noise (very subtle)
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
-  color += noise;
+  // === FILM GRAIN EFFECT ===
+  // High-frequency pixel-level noise for analog feel
+  vec2 grainUv = vUv * resolution / 3.0; // Scale to roughly pixel-level
+  float grain = filmGrain(grainUv, time * 2.0);
+
+  // Grain intensity varies across frame (stronger in darker areas)
+  float luminance = dot(color, vec3(0.299, 0.587, 0.114));
+  float grainIntensity = mix(0.04, 0.025, luminance); // More grain in shadows
+
+  // Apply grain as subtle luminance variation
+  color += (grain - 0.5) * grainIntensity;
+
+  // Additional fine paper texture overlay
+  float paperNoise = fract(sin(dot(vUv * 200.0, vec2(12.9898, 78.233))) * 43758.5453);
+  color += (paperNoise - 0.5) * 0.012;
 
   gl_FragColor = vec4(color, 1.0);
 }
@@ -118,6 +150,7 @@ export function BackgroundGradient() {
     return new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        resolution: { value: new THREE.Vector2(1920, 1080) },
       },
       vertexShader,
       fragmentShader,
@@ -127,10 +160,15 @@ export function BackgroundGradient() {
     });
   }, []);
 
-  // Animate time uniform
+  // Animate time uniform and update resolution
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+      // Update resolution for grain scaling
+      materialRef.current.uniforms.resolution.value.set(
+        state.gl.domElement.width,
+        state.gl.domElement.height,
+      );
     }
   });
 
