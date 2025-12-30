@@ -84,6 +84,7 @@ interface SimpleGaiaUIProps {
  * - Hidden by default
  * - Press 'T' key to toggle tuning panel
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: UI component manages multiple modal states (tune controls, settings, mood selection, welcome, hints) and phase animation loops - refactoring would reduce readability by splitting cohesive UI state management
 export function SimpleGaiaUI({
   harmony,
   setHarmony,
