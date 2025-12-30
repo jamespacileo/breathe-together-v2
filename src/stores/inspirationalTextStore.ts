@@ -80,6 +80,9 @@ interface InspirationalTextState {
   /** Current index in ambient pool (when no sequences queued) */
   ambientIndex: number;
 
+  /** Cycles remaining for current ambient message */
+  ambientCyclesRemaining: number;
+
   /** Track which sequences have been played (for playOnce) */
   playedSequenceIds: Set<string>;
 
@@ -139,6 +142,7 @@ const initialState: InspirationalTextState = {
   currentSequence: null,
   ambientPool: [],
   ambientIndex: 0,
+  ambientCyclesRemaining: DEFAULT_CYCLES_PER_MESSAGE,
   playedSequenceIds: new Set(),
   hasPlayedIntro: false,
   defaultCyclesPerMessage: DEFAULT_CYCLES_PER_MESSAGE,
@@ -285,10 +289,21 @@ export const useInspirationalTextStore = create<InspirationalTextStore>()(
             };
           }
 
-          // Case 3: Ambient rotation
+          // Case 3: Ambient rotation with cycle counting
           if (ambientPool.length > 0) {
+            const cyclesRemaining = state.ambientCyclesRemaining - 1;
+
+            // Same message, fewer cycles remaining
+            if (cyclesRemaining > 0) {
+              return {
+                ambientCyclesRemaining: cyclesRemaining,
+              };
+            }
+
+            // Move to next ambient message
             return {
               ambientIndex: (ambientIndex + 1) % ambientPool.length,
+              ambientCyclesRemaining: state.defaultCyclesPerMessage,
             };
           }
 
@@ -344,7 +359,7 @@ export const useInspirationalTextStore = create<InspirationalTextStore>()(
       },
 
       getPlaybackInfo: () => {
-        const { currentSequence, ambientPool, ambientIndex } = get();
+        const { currentSequence, ambientPool, ambientIndex, ambientCyclesRemaining } = get();
 
         if (currentSequence) {
           return {
@@ -361,12 +376,16 @@ export const useInspirationalTextStore = create<InspirationalTextStore>()(
           sequenceType: 'ambient' as SequenceType,
           messageIndex: ambientIndex,
           totalMessages: ambientPool.length,
-          cyclesRemaining: DEFAULT_CYCLES_PER_MESSAGE,
+          cyclesRemaining: ambientCyclesRemaining,
         };
       },
 
       setAmbientPool: (messages) => {
-        set({ ambientPool: messages, ambientIndex: 0 });
+        set({
+          ambientPool: messages,
+          ambientIndex: 0,
+          ambientCyclesRemaining: DEFAULT_CYCLES_PER_MESSAGE,
+        });
       },
 
       reset: () => {
