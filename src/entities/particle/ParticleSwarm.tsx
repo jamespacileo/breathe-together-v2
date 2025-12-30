@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
-import { orbitRadius } from '../breath/traits';
+import { breathPhase, orbitRadius } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
@@ -116,6 +116,67 @@ interface ShardData {
   geometry: THREE.IcosahedronGeometry;
 }
 
+/**
+ * Physics state for organic breathing animation
+ *
+ * Each shard has independent spring physics + ambient motion for natural feel:
+ * - Spring physics: smooth transitions with settling on holds
+ * - Phase offset: subtle wave effect (particles don't move in perfect lockstep)
+ * - Ambient seed: unique floating pattern per shard
+ */
+interface ShardPhysicsState {
+  /** Current interpolated radius (spring-smoothed) */
+  currentRadius: number;
+  /** Radial velocity for spring physics */
+  velocity: number;
+  /** Phase offset for subtle wave effect (0-0.05 range) */
+  phaseOffset: number;
+  /** Seed for ambient floating motion (unique per shard) */
+  ambientSeed: number;
+  /** Previous frame's target radius (for detecting expansion) */
+  previousTarget: number;
+}
+
+/**
+ * Spring physics constants for relaxed breathing feel
+ *
+ * Tuned for controlled relaxation breathing:
+ * - Stiffness: responsive but not instant (follows breath naturally)
+ * - Damping: settles quickly on holds without oscillation
+ * - Expansion boost: immediate response when exhale begins
+ */
+const SPRING_STIFFNESS = 6; // Lower = more lag, higher = snappier
+const SPRING_DAMPING = 4.5; // Lower = oscillates, higher = settles faster
+
+/**
+ * Expansion velocity boost for immediate exhale response
+ *
+ * When target radius increases (exhale starts), inject outward velocity
+ * proportional to target change. This overcomes spring lag and makes
+ * the exhale expansion feel immediate rather than delayed.
+ *
+ * The boost is asymmetric - only applied during expansion (exhale),
+ * not contraction (inhale), for a more natural "release" feel.
+ */
+const EXPANSION_VELOCITY_BOOST = 2.5; // Multiplier for expansion velocity injection
+
+/**
+ * Ambient floating motion constants
+ *
+ * Secondary motion layer - particles "float" even during holds
+ * Creates alive, breathing atmosphere without disrupting synchronization
+ */
+const AMBIENT_SCALE = 0.08; // Maximum ambient offset
+const AMBIENT_Y_SCALE = 0.04; // Vertical motion is more subtle
+
+/**
+ * Phase stagger for wave effect
+ *
+ * Small offset per particle creates flowing wave during breath transitions
+ * Kept small (3-5%) to maintain "breathing together" feel
+ */
+const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
+
 export function ParticleSwarm({
   count = 48,
   users,
@@ -128,6 +189,7 @@ export function ParticleSwarm({
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
+  const physicsRef = useRef<ShardPhysicsState[]>([]);
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -172,7 +234,7 @@ export function ParticleSwarm({
     return result;
   }, [count, users, baseRadius, shardSize, material]);
 
-  // Add meshes to group and store ref
+  // Add meshes to group and initialize physics state
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
@@ -182,11 +244,26 @@ export function ParticleSwarm({
       group.remove(group.children[0]);
     }
 
-    // Add new shards
-    for (const shard of shards) {
+    // Add new shards and initialize physics state
+    const physicsStates: ShardPhysicsState[] = [];
+    for (let i = 0; i < shards.length; i++) {
+      const shard = shards[i];
       group.add(shard.mesh);
+
+      // Initialize physics state with staggered phase offsets
+      // Use golden ratio distribution for even visual spread
+      const goldenRatio = (1 + Math.sqrt(5)) / 2;
+      physicsStates.push({
+        currentRadius: baseRadius,
+        velocity: 0,
+        phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
+        ambientSeed: i * 137.508, // Golden angle in degrees for unique patterns
+        previousTarget: baseRadius,
+      });
     }
+
     shardsRef.current = shards;
+    physicsRef.current = physicsStates;
 
     // Cleanup on unmount
     return () => {
@@ -195,7 +272,7 @@ export function ParticleSwarm({
         group.remove(shard.mesh);
       }
     };
-  }, [shards]);
+  }, [shards, baseRadius]);
 
   // Cleanup material on unmount
   useEffect(() => {
@@ -204,29 +281,77 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - update positions and rotations
-  useFrame(() => {
+  // Animation loop - spring physics + ambient motion
+  useFrame((state, delta) => {
     const currentShards = shardsRef.current;
-    if (currentShards.length === 0) return;
+    const physics = physicsRef.current;
+    if (currentShards.length === 0 || physics.length === 0) return;
+
+    // Cap delta to prevent physics explosion on tab switch
+    const clampedDelta = Math.min(delta, 0.1);
+    const time = state.clock.elapsedTime;
 
     // Get breathing state from ECS
-    let breathingRadius = baseRadius;
+    let targetRadius = baseRadius;
+    let currentBreathPhase = 0;
     try {
       const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
-        breathingRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
+        targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
+        currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
-    // Clamp radius to prevent shards from penetrating globe
-    const currentRadius = Math.max(breathingRadius, minOrbitRadius);
+    // Update each shard with spring physics + ambient motion
+    for (let i = 0; i < currentShards.length; i++) {
+      const shard = currentShards[i];
+      const state = physics[i];
 
-    // Update each shard
-    for (const shard of currentShards) {
-      // Update position based on clamped breathing radius
-      shard.mesh.position.copy(shard.direction).multiplyScalar(currentRadius);
+      // Apply phase offset for wave effect
+      // This creates subtle stagger in breathing motion
+      const offsetBreathPhase = currentBreathPhase + state.phaseOffset;
+
+      // Calculate target radius with phase offset applied
+      // Map breath phase (0-1) to orbit radius range
+      // breathPhase 0 = exhaled (max radius), breathPhase 1 = inhaled (min radius)
+      const phaseTargetRadius =
+        targetRadius + (1 - offsetBreathPhase) * (baseRadius - targetRadius) * 0.15;
+
+      // Clamp target to prevent penetrating globe
+      const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
+
+      // Detect expansion (exhale) and apply velocity boost for immediate response
+      // This overcomes spring lag so exhale feels like an immediate "release"
+      const targetDelta = clampedTarget - state.previousTarget;
+      if (targetDelta > 0.001) {
+        // Expanding outward (exhale starting) - inject outward velocity
+        state.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+      }
+      state.previousTarget = clampedTarget;
+
+      // Spring physics: F = -k(x - target) - c*v
+      const springForce = (clampedTarget - state.currentRadius) * SPRING_STIFFNESS;
+      const dampingForce = -state.velocity * SPRING_DAMPING;
+      const totalForce = springForce + dampingForce;
+
+      // Integrate velocity and position
+      state.velocity += totalForce * clampedDelta;
+      state.currentRadius += state.velocity * clampedDelta;
+
+      // Ambient floating motion (secondary layer)
+      // Uses different frequencies per axis for organic feel
+      const seed = state.ambientSeed;
+      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE;
+      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
+      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
+
+      // Compute final position: spring-smoothed radius + ambient offset
+      shard.mesh.position
+        .copy(shard.direction)
+        .multiplyScalar(state.currentRadius)
+        .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
 
       // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
       shard.mesh.rotation.x += 0.002;
