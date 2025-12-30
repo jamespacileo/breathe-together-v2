@@ -98,33 +98,27 @@ void main() {
 const bgFragmentShader = `
 varying vec2 vUv;
 void main() {
-  // 3-point warm gradient: cream → ivory → blush
-  vec3 cream = vec3(0.965, 0.945, 0.910);     // #f6f1e8 top
-  vec3 ivory = vec3(0.975, 0.955, 0.925);     // #f9f4ec center
-  vec3 blush = vec3(0.955, 0.890, 0.855);     // #f3e3da bottom
+  // Soft pastel gradient matching Monument Valley aesthetic
+  vec3 warmCream = vec3(0.98, 0.96, 0.92);    // Top - warm cream
+  vec3 softBlush = vec3(0.96, 0.91, 0.87);    // Bottom - soft blush/peach
 
-  // Smooth 3-point vertical gradient
-  float t = smoothstep(0.0, 1.0, vUv.y);
-  vec3 color;
-  if (t < 0.5) {
-    color = mix(blush, ivory, t * 2.0);
-  } else {
-    color = mix(ivory, cream, (t - 0.5) * 2.0);
-  }
+  // Simple vertical gradient (bottom to top)
+  float t = vUv.y;
+  vec3 color = mix(softBlush, warmCream, t);
 
-  // Radial vignette from center (soft darkening at edges)
+  // Soft radial vignette (subtle warm edges)
   vec2 center = vUv - 0.5;
   float dist = length(center);
-  float vignette = smoothstep(0.7, 0.3, dist);
-  vec3 vignetteColor = vec3(0.85, 0.78, 0.72); // Warm shadow tone
-  color = mix(color, vignetteColor, (1.0 - vignette) * 0.12);
+  float vignette = smoothstep(0.8, 0.2, dist);
+  vec3 edgeTint = vec3(0.92, 0.86, 0.82); // Warm shadow at edges
+  color = mix(edgeTint, color, vignette * 0.85 + 0.15);
 
-  // Subtle center glow to frame the globe
-  float glow = smoothstep(0.5, 0.0, dist) * 0.08;
-  color += vec3(1.0, 0.98, 0.95) * glow;
+  // Very subtle center brightening
+  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.03;
+  color += vec3(1.0, 0.99, 0.97) * centerGlow;
 
-  // Paper texture noise (subtle grain)
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.02;
+  // Minimal paper texture noise
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
 
   gl_FragColor = vec4(color + noise, 1.0);
 }
