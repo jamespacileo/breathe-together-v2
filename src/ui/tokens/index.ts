@@ -42,13 +42,13 @@ export const animation = {
   },
 } as const;
 
-// Z-index scale
+// Z-index scale - high values to ensure UI is above R3F Canvas
 export const zIndex = {
-  base: 0,
-  dropdown: 100,
-  sticky: 200,
-  overlay: 300,
-  modal: 400,
-  toast: 500,
-  tooltip: 600,
+  base: 1000,
+  dropdown: 1100,
+  sticky: 1200,
+  overlay: 1300,
+  modal: 1400,
+  toast: 1500,
+  tooltip: 1600,
 } as const;

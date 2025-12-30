@@ -101,6 +101,7 @@ export function Modal({
     justifyContent: 'center',
     padding: spacing.lg,
     animation: `fadeIn ${animation.duration.fast} ${animation.easing.easeOut}`,
+    pointerEvents: 'auto', // Ensure modal layer captures events
   };
 
   const modalStyle: CSSProperties = {
@@ -117,6 +118,7 @@ export function Modal({
     boxShadow: `0 24px 64px ${colors.shadow.strong}`,
     overflow: 'hidden',
     animation: `slideUp ${animation.duration.normal} ${animation.easing.spring}`,
+    pointerEvents: 'auto', // Ensure modal content is interactive
   };
 
   const contentStyle: CSSProperties = {

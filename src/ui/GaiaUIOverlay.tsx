@@ -8,6 +8,7 @@ import {
   TitleCard,
   WelcomeModal,
 } from './components';
+import { zIndex } from './tokens';
 
 /**
  * Overlay container style - positions UI layer above 3D canvas
@@ -17,7 +18,7 @@ import {
 const overlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
-  zIndex: 100, // Above canvas
+  zIndex: zIndex.dropdown, // Above canvas (1100)
   pointerEvents: 'none',
 };
 
