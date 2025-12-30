@@ -13,11 +13,19 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 // Backface vertex shader - renders normals from back faces
+// Supports both regular meshes and InstancedMesh
 const backfaceVertexShader = `
 varying vec3 vNormal;
 void main() {
-  vNormal = normalize(normalMatrix * normal);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  #ifdef USE_INSTANCING
+    vec4 transformedPosition = instanceMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = mat3(instanceMatrix) * normal;
+    vNormal = normalize(normalMatrix * transformedNormal);
+    gl_Position = projectionMatrix * modelViewMatrix * transformedPosition;
+  #else
+    vNormal = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  #endif
 }
 `;
 
@@ -33,6 +41,7 @@ void main() {
 // Supports both per-vertex colors (legacy) and per-instance colors (InstancedMesh)
 const refractionVertexShader = `
 #ifdef USE_INSTANCING_COLOR
+  attribute vec3 instanceColor;
   varying vec3 vColor;
 #else
   attribute vec3 color;
@@ -47,10 +56,25 @@ void main() {
   #else
     vColor = color;
   #endif
-  vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+
+  // Apply instance matrix transform for InstancedMesh
+  #ifdef USE_INSTANCING
+    vec4 transformedPosition = instanceMatrix * vec4(position, 1.0);
+    vec4 worldPosition = modelMatrix * transformedPosition;
+    vec3 transformedNormal = mat3(instanceMatrix) * normal;
+  #else
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = normal;
+  #endif
+
   eyeVector = normalize(worldPosition.xyz - cameraPosition);
-  worldNormal = normalize(modelViewMatrix * vec4(normal, 0.0)).xyz;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  worldNormal = normalize(modelViewMatrix * vec4(transformedNormal, 0.0)).xyz;
+
+  #ifdef USE_INSTANCING
+    gl_Position = projectionMatrix * modelViewMatrix * transformedPosition;
+  #else
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  #endif
 }
 `;
 
@@ -172,11 +196,27 @@ export function RefractionPipeline({
 
   // Create materials (resolution updated in useFrame for simplicity with useFBO)
   // Need separate materials for regular meshes vs InstancedMesh due to shader defines
-  const { backfaceMaterial, refractionMaterial, instancedRefractionMaterial } = useMemo(() => {
+  const {
+    backfaceMaterial,
+    instancedBackfaceMaterial,
+    refractionMaterial,
+    instancedRefractionMaterial,
+  } = useMemo(() => {
+    // Standard backface material (for regular meshes)
     const backfaceMaterial = new THREE.ShaderMaterial({
       vertexShader: backfaceVertexShader,
       fragmentShader: backfaceFragmentShader,
       side: THREE.BackSide,
+    });
+
+    // Instanced backface material (for InstancedMesh)
+    const instancedBackfaceMaterial = new THREE.ShaderMaterial({
+      vertexShader: backfaceVertexShader,
+      fragmentShader: backfaceFragmentShader,
+      side: THREE.BackSide,
+      defines: {
+        USE_INSTANCING: '', // Enable instance matrix transforms
+      },
     });
 
     // Standard refraction material (for regular meshes with per-vertex colors)
@@ -204,11 +244,17 @@ export function RefractionPipeline({
       vertexShader: refractionVertexShader,
       fragmentShader: refractionFragmentShader,
       defines: {
+        USE_INSTANCING: '', // Enable instance matrix transforms
         USE_INSTANCING_COLOR: '', // Enable instanceColor in shader
       },
     });
 
-    return { backfaceMaterial, refractionMaterial, instancedRefractionMaterial };
+    return {
+      backfaceMaterial,
+      instancedBackfaceMaterial,
+      refractionMaterial,
+      instancedRefractionMaterial,
+    };
   }, [ior, backfaceIntensity]);
 
   // Store original materials for mesh swapping
@@ -218,12 +264,19 @@ export function RefractionPipeline({
   useEffect(() => {
     return () => {
       backfaceMaterial.dispose();
+      instancedBackfaceMaterial.dispose();
       refractionMaterial.dispose();
       instancedRefractionMaterial.dispose();
       bgMesh.geometry.dispose();
       (bgMesh.material as THREE.Material).dispose();
     };
-  }, [backfaceMaterial, refractionMaterial, instancedRefractionMaterial, bgMesh]);
+  }, [
+    backfaceMaterial,
+    instancedBackfaceMaterial,
+    refractionMaterial,
+    instancedRefractionMaterial,
+    bgMesh,
+  ]);
 
   // 3-pass rendering loop
   useFrame(() => {
@@ -248,7 +301,9 @@ export function RefractionPipeline({
 
     // Pass 2: Swap to backface material, render to backfaceFBO
     for (const mesh of meshes) {
-      mesh.material = backfaceMaterial;
+      // Use instanced backface material for InstancedMesh, regular for others
+      mesh.material =
+        mesh instanceof THREE.InstancedMesh ? instancedBackfaceMaterial : backfaceMaterial;
     }
     gl.setRenderTarget(backfaceFBO);
     gl.clear();
