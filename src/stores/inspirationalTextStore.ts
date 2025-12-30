@@ -190,6 +190,11 @@ export const useInspirationalTextStore = create<InspirationalTextStore>()(
           return;
         }
 
+        // Skip if currently playing this sequence
+        if (state.currentSequence?.sequence.id === sequence.id) {
+          return;
+        }
+
         // Skip if already in queue
         if (state.queue.some((q) => q.sequence.id === sequence.id)) {
           return;
