@@ -8,8 +8,10 @@
  */
 
 import { useFrame, useThree } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { breathPhase as breathPhaseTrait } from '../breath/traits';
 
 // Backface vertex shader - renders normals from back faces
 const backfaceVertexShader = `
@@ -34,13 +36,20 @@ attribute vec3 color;
 varying vec3 vColor;
 varying vec3 eyeVector;
 varying vec3 worldNormal;
+varying float vDepth;
+varying vec3 vWorldPosition;
 
 void main() {
   vColor = color;
   vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+  vWorldPosition = worldPosition.xyz;
   eyeVector = normalize(worldPosition.xyz - cameraPosition);
   worldNormal = normalize(modelViewMatrix * vec4(normal, 0.0)).xyz;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+
+  vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+  vDepth = -viewPosition.z; // Positive depth (distance from camera)
+
+  gl_Position = projectionMatrix * viewPosition;
 }
 `;
 
@@ -51,10 +60,15 @@ uniform sampler2D backfaceMap;
 uniform vec2 resolution;
 uniform float ior;
 uniform float backfaceIntensity;
+uniform float fogNear;
+uniform float fogFar;
+uniform vec3 fogColor;
 
 varying vec3 vColor;
 varying vec3 worldNormal;
 varying vec3 eyeVector;
+varying float vDepth;
+varying vec3 vWorldPosition;
 
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution;
@@ -74,19 +88,39 @@ void main() {
   // 2. MATTE BODY: solid mood color (25% mix)
   vec3 bodyColor = mix(tintedRefraction, vColor, 0.25);
 
-  // 3. FRESNEL RIM: white edge highlight
+  // 3. FRESNEL RIM: white/cream edge highlight (Monument Valley style)
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
-  vec3 finalColor = mix(bodyColor, vec3(1.0), fresnel * 0.4);
+  vec3 rimColor = vec3(1.0, 0.99, 0.97); // Warm white rim
+  vec3 finalColor = mix(bodyColor, rimColor, fresnel * 0.45);
 
-  // 4. SOFT TOP-DOWN LIGHT
-  float topLight = smoothstep(0.0, 1.0, normal.y) * 0.1;
-  finalColor += vec3(1.0) * topLight;
+  // 4. SOFT TOP-DOWN LIGHT (enhanced)
+  float topLight = smoothstep(-0.2, 0.8, normal.y) * 0.12;
+  finalColor += vec3(1.0, 0.98, 0.95) * topLight;
+
+  // 5. SOFT DROP SHADOW (bottom darkening for depth)
+  float bottomShadow = smoothstep(0.3, -0.5, normal.y) * 0.08;
+  finalColor *= 1.0 - bottomShadow;
+
+  // 6. DISTANCE FOG - subtle depth effect (Monument Valley keeps colors vibrant)
+  float fogFactor = smoothstep(fogNear, fogFar, vDepth);
+
+  // Very subtle desaturation for distant particles (15% max)
+  vec3 desaturated = vec3(dot(finalColor, vec3(0.299, 0.587, 0.114)));
+  finalColor = mix(finalColor, desaturated, fogFactor * 0.15);
+
+  // Gentle fade toward fog color (12% max - keeps colors punchy)
+  finalColor = mix(finalColor, fogColor, fogFactor * 0.12);
+
+  // 7. SUBTLE INNER GLOW based on world position (center glow)
+  float distFromCenter = length(vWorldPosition.xz);
+  float innerGlow = smoothstep(6.0, 2.0, distFromCenter) * 0.06;
+  finalColor += rimColor * innerGlow;
 
   gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
-// Background gradient shader (same as BackgroundGradient.tsx)
+// Background gradient shader (simplified version for FBO refraction source)
 const bgVertexShader = `
 varying vec2 vUv;
 void main() {
@@ -96,6 +130,7 @@ void main() {
 `;
 
 const bgFragmentShader = `
+uniform float breathPhase;
 varying vec2 vUv;
 void main() {
   // Soft pastel gradient matching Monument Valley aesthetic
@@ -113,8 +148,10 @@ void main() {
   vec3 edgeTint = vec3(0.92, 0.86, 0.82); // Warm shadow at edges
   color = mix(edgeTint, color, vignette * 0.85 + 0.15);
 
-  // Very subtle center brightening
-  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.03;
+  // Breathing-synchronized center glow
+  float bloomRadius = 0.4 + (1.0 - breathPhase) * 0.1;
+  float centerGlow = smoothstep(bloomRadius + 0.15, bloomRadius - 0.1, dist);
+  centerGlow *= 0.04 * (0.8 + breathPhase * 0.2);
   color += vec3(1.0, 0.99, 0.97) * centerGlow;
 
   // Minimal paper texture noise
@@ -129,6 +166,12 @@ interface RefractionPipelineProps {
   ior?: number;
   /** Backface normal intensity @default 0.3 */
   backfaceIntensity?: number;
+  /** Distance where fog starts @default 8 */
+  fogNear?: number;
+  /** Distance where fog is fully applied @default 15 */
+  fogFar?: number;
+  /** Fog color (warm cream for Monument Valley style) @default '#f8f4ef' */
+  fogColor?: string;
   /** Children meshes to render with refraction */
   children?: React.ReactNode;
 }
@@ -136,9 +179,16 @@ interface RefractionPipelineProps {
 export function RefractionPipeline({
   ior = 1.3,
   backfaceIntensity = 0.3,
+  fogNear = 8,
+  fogFar = 15,
+  fogColor = '#f8f4ef',
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
+  const world = useWorld();
+
+  // Parse fog color to THREE.Color
+  const fogColorVec = useMemo(() => new THREE.Color(fogColor), [fogColor]);
 
   // Create render targets
   const { envFBO, backfaceFBO } = useMemo(() => {
@@ -148,11 +198,14 @@ export function RefractionPipeline({
   }, [size.width, size.height]);
 
   // Create background scene with ortho camera
-  const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
+  const { bgScene, orthoCamera, bgMesh, bgMaterial } = useMemo(() => {
     const bgScene = new THREE.Scene();
     const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     const bgMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        breathPhase: { value: 0 },
+      },
       vertexShader: bgVertexShader,
       fragmentShader: bgFragmentShader,
     });
@@ -160,7 +213,7 @@ export function RefractionPipeline({
     const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
     bgScene.add(bgMesh);
 
-    return { bgScene, orthoCamera, bgMesh };
+    return { bgScene, orthoCamera, bgMesh, bgMaterial };
   }, []);
 
   // Create materials
@@ -178,19 +231,25 @@ export function RefractionPipeline({
         resolution: { value: new THREE.Vector2(size.width, size.height) },
         ior: { value: ior },
         backfaceIntensity: { value: backfaceIntensity },
+        fogNear: { value: fogNear },
+        fogFar: { value: fogFar },
+        fogColor: { value: fogColorVec },
       },
       vertexShader: refractionVertexShader,
       fragmentShader: refractionFragmentShader,
     });
 
     return { backfaceMaterial, refractionMaterial };
-  }, [size.width, size.height, ior, backfaceIntensity]);
+  }, [size.width, size.height, ior, backfaceIntensity, fogNear, fogFar, fogColorVec]);
 
   // Update uniforms when props change
   useEffect(() => {
     refractionMaterial.uniforms.ior.value = ior;
     refractionMaterial.uniforms.backfaceIntensity.value = backfaceIntensity;
-  }, [ior, backfaceIntensity, refractionMaterial]);
+    refractionMaterial.uniforms.fogNear.value = fogNear;
+    refractionMaterial.uniforms.fogFar.value = fogFar;
+    refractionMaterial.uniforms.fogColor.value = fogColorVec;
+  }, [ior, backfaceIntensity, fogNear, fogFar, fogColorVec, refractionMaterial]);
 
   // Update resolution on resize
   useEffect(() => {
@@ -216,6 +275,17 @@ export function RefractionPipeline({
 
   // 3-pass rendering loop
   useFrame(() => {
+    // Update background breathPhase from ECS
+    try {
+      const breathEntity = world.queryFirst(breathPhaseTrait);
+      if (breathEntity) {
+        const phase = breathEntity.get(breathPhaseTrait)?.value ?? 0;
+        bgMaterial.uniforms.breathPhase.value = phase;
+      }
+    } catch {
+      // Ignore ECS errors during unmount/remount in Triplex
+    }
+
     // Collect all meshes in scene that should use refraction
     const meshes: THREE.Mesh[] = [];
     scene.traverse((obj) => {

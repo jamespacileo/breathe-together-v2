@@ -5,11 +5,14 @@
  * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
  * - Animated procedural clouds using FBM noise
  * - Subtle vignette effect
+ * - Breathing-synchronized watercolor bloom effect
  */
 
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { breathPhase } from '../breath/traits';
 
 const vertexShader = `
 varying vec2 vUv;
@@ -21,6 +24,7 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
+uniform float breathPhase;
 varying vec2 vUv;
 
 // Simplex noise functions for cloud-like patterns
@@ -80,6 +84,19 @@ void main() {
   skyColor = mix(skyColor, skyMid, t2);
   skyColor = mix(skyColor, skyTop, t1);
 
+  // BREATHING-SYNCHRONIZED WATERCOLOR BLOOM
+  // Subtle center glow that expands/contracts with breath
+  vec2 center = vUv - 0.5;
+  float dist = length(center);
+
+  // Bloom radius pulses with breathing (smaller on inhale, larger on exhale)
+  float bloomRadius = 0.35 + (1.0 - breathPhase) * 0.15;
+  float bloom = smoothstep(bloomRadius + 0.2, bloomRadius - 0.1, dist);
+
+  // Watercolor bloom color - warm peachy glow
+  vec3 bloomColor = vec3(1.0, 0.97, 0.93);
+  skyColor = mix(skyColor, bloomColor, bloom * 0.08 * (0.7 + breathPhase * 0.3));
+
   // Animated cloud-like wisps using FBM noise
   vec2 cloudUv = vUv * vec2(2.0, 1.0) + vec2(time * 0.015, 0.0);
   float clouds = fbm(cloudUv * 2.5);
@@ -88,20 +105,34 @@ void main() {
   vec2 cloudUv2 = vUv * vec2(1.5, 0.8) + vec2(time * 0.01 + 50.0, time * 0.003);
   float clouds2 = fbm(cloudUv2 * 2.0);
 
+  // Third layer - breathing-synchronized cloud wisps
+  vec2 breathCloudUv = vUv * vec2(1.2, 0.6) + vec2(time * 0.008, breathPhase * 0.05);
+  float breathClouds = fbm(breathCloudUv * 1.8);
+
   // Combine cloud layers - fade at top and bottom
-  float cloudMask = smoothstep(0.2, 0.55, clouds * 0.5 + clouds2 * 0.5);
+  float cloudMask = smoothstep(0.2, 0.55, clouds * 0.4 + clouds2 * 0.35 + breathClouds * 0.25);
   cloudMask *= smoothstep(0.1, 0.4, y) * smoothstep(0.95, 0.6, y);
+
+  // Cloud opacity pulses subtly with breathing
+  float cloudOpacity = 0.12 + breathPhase * 0.06;
 
   // Cloud color - pure warm white
   vec3 cloudColor = vec3(1.0, 0.99, 0.97);
 
-  // Blend clouds very subtly into sky
-  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
+  // Blend clouds into sky
+  vec3 color = mix(skyColor, cloudColor, cloudMask * cloudOpacity);
 
-  // Very subtle vignette - just darkens corners slightly
+  // BREATHING VIGNETTE - expands on inhale, contracts on exhale
   vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
-  color *= mix(0.97, 1.0, vignette);
+  float vignetteStrength = 0.12 + (1.0 - breathPhase) * 0.05;
+  float vignette = 1.0 - dot(vignetteUv * vignetteStrength, vignetteUv * vignetteStrength);
+  color *= mix(0.96, 1.0, vignette);
+
+  // Subtle color temperature shift with breathing
+  // Warmer on exhale (relaxed), cooler on inhale (energized)
+  vec3 warmShift = vec3(0.02, 0.01, -0.01);
+  vec3 coolShift = vec3(-0.01, 0.0, 0.015);
+  color += mix(warmShift, coolShift, breathPhase) * 0.5;
 
   // Paper texture noise (very subtle)
   float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
@@ -113,11 +144,13 @@ void main() {
 
 export function BackgroundGradient() {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const world = useWorld();
 
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        breathPhase: { value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -127,10 +160,21 @@ export function BackgroundGradient() {
     });
   }, []);
 
-  // Animate time uniform
+  // Animate time and breathPhase uniforms
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+
+      // Get breath phase from ECS
+      try {
+        const breathEntity = world.queryFirst(breathPhase);
+        if (breathEntity) {
+          const phase = breathEntity.get(breathPhase)?.value ?? 0;
+          materialRef.current.uniforms.breathPhase.value = phase;
+        }
+      } catch {
+        // Ignore ECS errors during unmount/remount in Triplex
+      }
     }
   });
 
