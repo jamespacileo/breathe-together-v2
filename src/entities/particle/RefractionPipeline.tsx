@@ -101,15 +101,15 @@ void main() {
   float bottomShadow = smoothstep(0.3, -0.5, normal.y) * 0.08;
   finalColor *= 1.0 - bottomShadow;
 
-  // 6. DISTANCE FOG - particles fade/desaturate with depth
+  // 6. DISTANCE FOG - subtle depth effect (Monument Valley keeps colors vibrant)
   float fogFactor = smoothstep(fogNear, fogFar, vDepth);
 
-  // Desaturate distant particles (Monument Valley atmospheric perspective)
+  // Very subtle desaturation for distant particles (15% max)
   vec3 desaturated = vec3(dot(finalColor, vec3(0.299, 0.587, 0.114)));
-  finalColor = mix(finalColor, desaturated, fogFactor * 0.4);
+  finalColor = mix(finalColor, desaturated, fogFactor * 0.15);
 
-  // Fade toward fog color (warm cream atmosphere)
-  finalColor = mix(finalColor, fogColor, fogFactor * 0.35);
+  // Gentle fade toward fog color (12% max - keeps colors punchy)
+  finalColor = mix(finalColor, fogColor, fogFactor * 0.12);
 
   // 7. SUBTLE INNER GLOW based on world position (center glow)
   float distFromCenter = length(vWorldPosition.xz);
@@ -166,9 +166,9 @@ interface RefractionPipelineProps {
   ior?: number;
   /** Backface normal intensity @default 0.3 */
   backfaceIntensity?: number;
-  /** Distance where fog starts @default 5 */
+  /** Distance where fog starts @default 8 */
   fogNear?: number;
-  /** Distance where fog is fully applied @default 12 */
+  /** Distance where fog is fully applied @default 15 */
   fogFar?: number;
   /** Fog color (warm cream for Monument Valley style) @default '#f8f4ef' */
   fogColor?: string;
@@ -179,8 +179,8 @@ interface RefractionPipelineProps {
 export function RefractionPipeline({
   ior = 1.3,
   backfaceIntensity = 0.3,
-  fogNear = 5,
-  fogFar = 12,
+  fogNear = 8,
+  fogFar = 15,
   fogColor = '#f8f4ef',
   children,
 }: RefractionPipelineProps) {
