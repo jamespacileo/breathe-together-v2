@@ -327,9 +327,10 @@ export function ParticleSwarm({
     return material;
   }, [renderTargets]);
 
-  // Fallback material (neon)
+  // Fallback material (when refraction disabled)
   const fallbackMaterial = useMemo(() => {
     return new THREE.MeshBasicMaterial({
+      color: 0xe6dcd3, // Monument Valley warm neutral (filler color)
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -359,11 +360,6 @@ export function ParticleSwarm({
     const mesh = meshRef.current;
     const { envFBO, backfaceFBO } = renderTargets;
 
-    const originalMaterial = mesh.material;
-    const originalVisible = mesh.visible;
-    const originalBackground = scene.background;
-    const originalAutoClear = gl.autoClear;
-
     gl.autoClear = false;
 
     // PASS 1: Environment
@@ -386,13 +382,10 @@ export function ParticleSwarm({
 
     // PASS 3: Final composite
     mesh.material = refractionMaterial;
-    scene.background = originalBackground;
 
     gl.setRenderTarget(null);
 
-    // We let R3F handle the final render to screen.
-    // We restore the original material in the NEXT frame or by using a timeout?
-    // Actually, we can just leave it as refractionMaterial since we swap it back in PASS 2.
+    // R3F handles the final render to screen with the refractionMaterial active
   }, 1); // Run after state updates but before render
 
   /**
