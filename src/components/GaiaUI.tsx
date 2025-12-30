@@ -1,49 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAudioAvailable } from '../audio';
-import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
+import { BREATH_TOTAL_CYCLE } from '../constants';
+import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { AudioControls } from './AudioControls';
 import { InspirationalText } from './InspirationalText';
 
 // Phase configuration
 const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'] as const;
-const PHASE_DURATIONS = [
-  BREATH_PHASES.INHALE,
-  BREATH_PHASES.HOLD_IN,
-  BREATH_PHASES.EXHALE,
-  BREATH_PHASES.HOLD_OUT,
-];
-
-interface PhaseInfo {
-  phaseIndex: number;
-  phaseProgress: number;
-  accumulatedTime: number;
-  phaseDuration: number;
-}
-
-/**
- * Calculate current breathing phase from cycle time
- * Extracted to reduce cognitive complexity of the main update loop
- */
-function calculatePhaseInfo(cycleTime: number): PhaseInfo {
-  let accumulatedTime = 0;
-  let phaseIndex = 0;
-
-  for (let i = 0; i < PHASE_DURATIONS.length; i++) {
-    const duration = PHASE_DURATIONS[i] ?? 0;
-    if (cycleTime < accumulatedTime + duration) {
-      phaseIndex = i;
-      break;
-    }
-    accumulatedTime += duration;
-  }
-
-  const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
-  const phaseTime = cycleTime - accumulatedTime;
-  const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
-
-  return { phaseIndex, phaseProgress, accumulatedTime, phaseDuration };
-}
 
 interface GaiaUIProps {
   /** Particle count (harmony) */

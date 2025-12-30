@@ -3,6 +3,7 @@ import { createWorld } from 'koota';
 import { useWorld, WorldProvider } from 'koota/react';
 import { createContext, type ReactNode, use, useMemo } from 'react';
 import { breathSystem } from './entities/breath/systems';
+import * as logger from './lib/logger';
 
 export function RootProviders({ children }: { children: ReactNode }) {
   const world = useMemo(() => createWorld(), []);
@@ -36,9 +37,7 @@ export function KootaSystems({
     } catch (error) {
       // Silently catch ECS errors during unmount/remount in Triplex
       // This prevents the "data_7_$f.store" crash when the world is stale
-      if (import.meta.env.DEV) {
-        console.warn('[breathSystem] ECS error (expected during Triplex hot-reload):', error);
-      }
+      logger.warn('[breathSystem] ECS error (expected during Triplex hot-reload):', error);
     }
   });
 

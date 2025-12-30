@@ -3,6 +3,7 @@ import { useWorld } from 'koota/react';
 import { useRef } from 'react';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
 import { phaseType, rawProgress } from '../entities/breath/traits';
+import * as logger from '../lib/logger';
 import type { UikitContainerRef, UikitTextRef } from '../types/uikit';
 
 export const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'];
@@ -45,15 +46,11 @@ export function useBreathPhaseDisplay3D(refs: PhaseDisplay3DRefs): void {
       const breathEntity = world.queryFirst(phaseType, rawProgress);
       if (!breathEntity || !world.has(breathEntity)) return;
 
-      if (import.meta.env.DEV) {
-        if (!breathEntity.has?.(phaseType)) {
-          console.warn('[useBreathPhaseDisplay3D] phaseType trait missing - entity may be corrupt');
-        }
-        if (!breathEntity.has?.(rawProgress)) {
-          console.warn(
-            '[useBreathPhaseDisplay3D] rawProgress trait missing - entity may be corrupt',
-          );
-        }
+      if (!breathEntity.has?.(phaseType)) {
+        logger.warn('[useBreathPhaseDisplay3D] phaseType trait missing - entity may be corrupt');
+      }
+      if (!breathEntity.has?.(rawProgress)) {
+        logger.warn('[useBreathPhaseDisplay3D] rawProgress trait missing - entity may be corrupt');
       }
 
       const currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
@@ -101,12 +98,10 @@ export function useBreathPhaseDisplay3D(refs: PhaseDisplay3DRefs): void {
       }
     } catch (error) {
       // Ignore stale world errors
-      if (import.meta.env.DEV) {
-        console.warn(
-          '[useBreathPhaseDisplay3D] ECS error (expected during Triplex hot-reload):',
-          error,
-        );
-      }
+      logger.warn(
+        '[useBreathPhaseDisplay3D] ECS error (expected during Triplex hot-reload):',
+        error,
+      );
     }
   });
 }
