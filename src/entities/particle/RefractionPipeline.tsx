@@ -96,20 +96,104 @@ void main() {
 `;
 
 const bgFragmentShader = `
+uniform float time;
 varying vec2 vUv;
+
+// Simplex noise functions for cloud-like patterns
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+
+float snoise(vec2 v) {
+  const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+  vec2 i = floor(v + dot(v, C.yy));
+  vec2 x0 = v - i + dot(i, C.xx);
+  vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+  i = mod289(i);
+  vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+  m = m*m; m = m*m;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
+  m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+  vec3 g;
+  g.x = a0.x * x0.x + h.x * x0.y;
+  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+
+float fbm(vec2 p) {
+  float f = 0.0;
+  f += 0.5000 * snoise(p); p *= 2.02;
+  f += 0.2500 * snoise(p); p *= 2.03;
+  f += 0.1250 * snoise(p); p *= 2.01;
+  f += 0.0625 * snoise(p);
+  return f / 0.9375;
+}
+
 void main() {
-  // Monument Valley "Valley" level tones
-  vec3 top = vec3(0.98, 0.96, 0.93);    // #faf5ed Off-white/Cream
-  vec3 bottom = vec3(0.95, 0.85, 0.80); // #f2d9cc Soft Terracotta/Peach
+  // Monument Valley inspired palette - soft pastels
+  vec3 skyTop = vec3(0.95, 0.90, 0.95);       // #f2e6f2 Soft lavender
+  vec3 skyMid = vec3(0.98, 0.92, 0.88);       // #faebe0 Warm peach cream
+  vec3 horizon = vec3(1.0, 0.85, 0.78);       // #ffd9c7 Golden peach
+  vec3 warmGlow = vec3(1.0, 0.78, 0.68);      // #ffc7ad Sunset coral
 
-  // Very smooth vertical gradient
-  float t = smoothstep(0.0, 1.0, vUv.y);
-  vec3 color = mix(bottom, top, t);
+  // Vertical position for gradient
+  float y = vUv.y;
 
-  // Subtle noise for paper texture feel
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.03;
+  // Multi-stop gradient for rich sky
+  vec3 skyColor;
+  if (y > 0.6) {
+    // Top section: lavender to peach cream
+    float t = smoothstep(0.6, 1.0, y);
+    skyColor = mix(skyMid, skyTop, t);
+  } else if (y > 0.3) {
+    // Middle section: peach cream to golden peach
+    float t = smoothstep(0.3, 0.6, y);
+    skyColor = mix(horizon, skyMid, t);
+  } else {
+    // Bottom section: golden peach to sunset coral
+    float t = smoothstep(0.0, 0.3, y);
+    skyColor = mix(warmGlow, horizon, t);
+  }
 
-  gl_FragColor = vec4(color + noise, 1.0);
+  // Animated cloud-like wisps using FBM noise
+  vec2 cloudUv = vUv * vec2(2.0, 1.0) + vec2(time * 0.02, 0.0);
+  float clouds = fbm(cloudUv * 3.0);
+
+  // Second layer of clouds moving slightly differently
+  vec2 cloudUv2 = vUv * vec2(1.5, 0.8) + vec2(time * 0.015 + 100.0, time * 0.005);
+  float clouds2 = fbm(cloudUv2 * 2.5);
+
+  // Combine cloud layers with soft blending
+  float cloudMask = smoothstep(0.1, 0.6, clouds * 0.5 + clouds2 * 0.5);
+  cloudMask *= smoothstep(0.0, 0.4, y) * smoothstep(1.0, 0.5, y); // Fade at edges
+
+  // Cloud color - soft white with warm tint
+  vec3 cloudColor = vec3(1.0, 0.98, 0.96);
+
+  // Blend clouds into sky
+  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.35);
+
+  // Add subtle horizontal light bands (atmospheric scattering effect)
+  float bands = sin(y * 20.0 + time * 0.1) * 0.015 + 0.015;
+  bands *= smoothstep(0.2, 0.5, y) * smoothstep(0.8, 0.5, y);
+  color += vec3(1.0, 0.95, 0.9) * bands;
+
+  // Subtle vignette for depth
+  vec2 vignetteUv = vUv * 2.0 - 1.0;
+  float vignette = 1.0 - dot(vignetteUv * 0.3, vignetteUv * 0.3);
+  color *= vignette;
+
+  // Paper texture noise (very subtle)
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
+  color += noise;
+
+  gl_FragColor = vec4(color, 1.0);
 }
 `;
 
@@ -137,11 +221,14 @@ export function RefractionPipeline({
   }, [size.width, size.height]);
 
   // Create background scene with ortho camera
-  const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
+  const { bgScene, orthoCamera, bgMesh, bgMaterial } = useMemo(() => {
     const bgScene = new THREE.Scene();
     const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     const bgMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+      },
       vertexShader: bgVertexShader,
       fragmentShader: bgFragmentShader,
     });
@@ -149,7 +236,7 @@ export function RefractionPipeline({
     const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
     bgScene.add(bgMesh);
 
-    return { bgScene, orthoCamera, bgMesh };
+    return { bgScene, orthoCamera, bgMesh, bgMaterial };
   }, []);
 
   // Create materials
@@ -199,12 +286,14 @@ export function RefractionPipeline({
       backfaceMaterial.dispose();
       refractionMaterial.dispose();
       bgMesh.geometry.dispose();
-      (bgMesh.material as THREE.Material).dispose();
+      bgMaterial.dispose();
     };
-  }, [envFBO, backfaceFBO, backfaceMaterial, refractionMaterial, bgMesh]);
+  }, [envFBO, backfaceFBO, backfaceMaterial, refractionMaterial, bgMesh, bgMaterial]);
 
   // 3-pass rendering loop
-  useFrame(() => {
+  useFrame((state) => {
+    // Update background time uniform for animated clouds
+    bgMaterial.uniforms.time.value = state.clock.elapsedTime;
     // Collect all meshes in scene that should use refraction
     const meshes: THREE.Mesh[] = [];
     scene.traverse((obj) => {
