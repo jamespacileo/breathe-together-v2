@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { InspirationalText } from './InspirationalText';
@@ -62,6 +62,14 @@ interface SimpleGaiaUIProps {
   /** Atmosphere density - number of ambient floating particles */
   atmosphereDensity: number;
   setAtmosphereDensity: (v: number) => void;
+  /** Optional external control for tune controls visibility */
+  showTuneControls?: boolean;
+  /** Optional callback when tune controls visibility changes */
+  onShowTuneControlsChange?: (show: boolean) => void;
+  /** Optional external control for settings modal visibility */
+  showSettings?: boolean;
+  /** Optional callback when settings modal visibility changes */
+  onShowSettingsChange?: (show: boolean) => void;
 }
 
 /**
@@ -76,6 +84,7 @@ interface SimpleGaiaUIProps {
  * - Hidden by default
  * - Press 'T' key to toggle tuning panel
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: UI component manages multiple modal states (tune controls, settings, mood selection, welcome, hints) and phase animation loops - refactoring would reduce readability by splitting cohesive UI state management
 export function SimpleGaiaUI({
   harmony,
   setHarmony,
@@ -89,15 +98,43 @@ export function SimpleGaiaUI({
   setShardSize,
   atmosphereDensity,
   setAtmosphereDensity,
+  showTuneControls: externalShowTuneControls,
+  onShowTuneControlsChange,
+  showSettings: externalShowSettings,
+  onShowSettingsChange,
 }: SimpleGaiaUIProps) {
-  const [isControlsOpen, setIsControlsOpen] = useState(false);
+  const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
   const [showKeyHint, setShowKeyHint] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [internalShowSettings, setInternalShowSettings] = useState(false);
   const [showMoodSelect, setShowMoodSelect] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
+
+  // Use external control for tune controls if provided, otherwise use internal state
+  const isControlsOpen = externalShowTuneControls ?? internalIsControlsOpen;
+  const setIsControlsOpen = useCallback(
+    (value: SetStateAction<boolean>) => {
+      const newValue = typeof value === 'function' ? value(isControlsOpen) : value;
+      if (onShowTuneControlsChange) {
+        onShowTuneControlsChange(newValue);
+      } else {
+        setInternalIsControlsOpen(newValue);
+      }
+    },
+    [onShowTuneControlsChange, isControlsOpen],
+  );
+
+  // Use external control for settings if provided, otherwise use internal state
+  const showSettings = externalShowSettings ?? internalShowSettings;
+  const setShowSettings = (value: boolean) => {
+    if (onShowSettingsChange) {
+      onShowSettingsChange(value);
+    } else {
+      setInternalShowSettings(value);
+    }
+  };
 
   // Animation states for modals
   const [settingsAnimated, setSettingsAnimated] = useState(false);
@@ -208,7 +245,7 @@ export function SimpleGaiaUI({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [setIsControlsOpen]);
 
   // Focus Mode: Fade out UI after inactivity
   useEffect(() => {
@@ -377,42 +414,6 @@ export function SimpleGaiaUI({
             Breathe Together
           </h1>
         </div>
-
-        {/* Settings Icon */}
-        <button
-          type="button"
-          onClick={() => setShowSettings(true)}
-          onPointerDown={stopPropagation}
-          aria-label="Open settings"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '8px',
-            color: colors.textDim,
-            opacity: 0.6,
-            transition: 'opacity 0.3s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = '1';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = '0.6';
-          }}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            aria-labelledby="settings-icon-title"
-          >
-            <title id="settings-icon-title">Settings icon</title>
-            <circle cx="12" cy="12" r="3" strokeWidth="1.5" />
-            <path d="M12 1v6m0 6v6M1 12h6m6 0h6" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
       </div>
 
       {/* Settings Modal */}
