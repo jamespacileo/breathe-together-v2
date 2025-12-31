@@ -138,6 +138,16 @@ export interface ParticleSwarmProps {
    * @default 1000
    */
   performanceCap?: number;
+  /**
+   * ID of the current user to highlight with an indicator
+   * When set, the user's shard position will be exposed via currentUserPositionRef
+   */
+  currentUserId?: string;
+  /**
+   * Ref that will be updated with the current user's world position each frame
+   * Used by UserShapeIndicator to follow the shard
+   */
+  currentUserPositionRef?: React.RefObject<THREE.Vector3 | null>;
 }
 
 interface ShardData {
@@ -255,6 +265,8 @@ export function ParticleSwarm({
   maxShardSize = 0.6,
   minShardSize = 0.15,
   performanceCap = 1000,
+  currentUserId,
+  currentUserPositionRef,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
@@ -599,6 +611,24 @@ export function ParticleSwarm({
       const breathScale = 1.0 + currentBreathPhase * 0.05;
       const finalScale = slotScale * shardState.baseScaleOffset * breathScale;
       shard.mesh.scale.setScalar(finalScale);
+    }
+
+    // Update current user's position ref for the indicator
+    if (currentUserId && currentUserPositionRef?.current) {
+      const userSlot = slotManager.getSlotByUserId(currentUserId);
+      if (userSlot && userSlot.state !== 'empty' && userSlot.index < currentShards.length) {
+        const userShard = currentShards[userSlot.index];
+        if (userShard) {
+          // Get world position (accounting for group transforms)
+          const group = groupRef.current;
+          const posRef = currentUserPositionRef.current;
+          if (group) {
+            userShard.mesh.getWorldPosition(posRef);
+          } else {
+            posRef.copy(userShard.mesh.position);
+          }
+        }
+      }
     }
   });
 

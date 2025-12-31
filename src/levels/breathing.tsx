@@ -1,14 +1,18 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useRef, useState } from 'react';
+import * as THREE from 'three';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
+import type { MoodId } from '../constants';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { UserShapeIndicator } from '../entities/particle/UserShapeIndicator';
 import { generateMockPresence } from '../lib/mockPresence';
+import { MOOD_COLORS } from '../styles/designTokens';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
@@ -62,6 +66,16 @@ export function BreathingLevel({
   // UI modal states (controlled by TopRightControls)
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // User's selected mood - controls which shard is highlighted as "YOU"
+  const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
+
+  // Position ref for the current user's shard (updated by ParticleSwarm each frame)
+  const currentUserPositionRef = useRef<THREE.Vector3 | null>(new THREE.Vector3());
+
+  // Generate the current user's ID from their selected mood
+  // The user is always the first shard of their mood category
+  const currentUserId = selectedMood ? `${selectedMood}-0` : undefined;
 
   // Generate mock users with randomized order for visual variety
   const mockUsers = useMemo(() => {
@@ -122,7 +136,23 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm users={mockUsers} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <ParticleSwarm
+                users={mockUsers}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
+                currentUserId={currentUserId}
+                currentUserPositionRef={currentUserPositionRef}
+              />
+            )}
+
+            {/* User shape indicator - shows which shard is "YOU" */}
+            {selectedMood && (
+              <UserShapeIndicator
+                positionRef={currentUserPositionRef}
+                color={MOOD_COLORS[selectedMood]}
+                visible={true}
+                opacity={0.85}
+              />
             )}
 
             {showParticles && (
@@ -162,6 +192,8 @@ export function BreathingLevel({
             onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
+            selectedMood={selectedMood}
+            onSelectedMoodChange={setSelectedMood}
           />
         </Html>
       </Suspense>

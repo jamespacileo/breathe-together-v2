@@ -42,6 +42,10 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  /** Optional external control for selected mood */
+  selectedMood?: MoodId | null;
+  /** Optional callback when mood selection changes */
+  onSelectedMoodChange?: (mood: MoodId | null) => void;
 }
 
 /**
@@ -80,6 +84,8 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  selectedMood: externalSelectedMood,
+  onSelectedMoodChange,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -88,7 +94,20 @@ export function SimpleGaiaUI({
   const [showKeyHint, setShowKeyHint] = useState(false);
   const [internalShowSettings, setInternalShowSettings] = useState(false);
   const [showMoodSelect, setShowMoodSelect] = useState(false);
-  const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
+  const [internalSelectedMood, setInternalSelectedMood] = useState<MoodId | null>(null);
+
+  // Use external control for selectedMood if provided, otherwise use internal state
+  const selectedMood = externalSelectedMood ?? internalSelectedMood;
+  const setSelectedMood = useCallback(
+    (mood: MoodId | null) => {
+      if (onSelectedMoodChange) {
+        onSelectedMoodChange(mood);
+      } else {
+        setInternalSelectedMood(mood);
+      }
+    },
+    [onSelectedMoodChange],
+  );
 
   // React 19 useTransition for non-urgent updates (modals, animations)
   // Keeps UI responsive during modal opens/closes and mood selections
@@ -359,18 +378,21 @@ export function SimpleGaiaUI({
     return MOOD_COLORS[moodId] ?? MOOD_COLORS.presence;
   }, []);
 
-  const handleMoodSelect = useCallback((mood: MoodId) => {
-    // Use transition for non-urgent mood selection
-    startTransition(() => {
-      setSelectedMood(mood);
-    });
-    // Small delay before closing to show selection feedback
-    setTimeout(() => {
+  const handleMoodSelect = useCallback(
+    (mood: MoodId) => {
+      // Use transition for non-urgent mood selection
       startTransition(() => {
-        setShowMoodSelect(false);
+        setSelectedMood(mood);
       });
-    }, 200);
-  }, []);
+      // Small delay before closing to show selection feedback
+      setTimeout(() => {
+        startTransition(() => {
+          setShowMoodSelect(false);
+        });
+      }, 200);
+    },
+    [setSelectedMood],
+  );
 
   const handleBeginClick = useCallback(() => {
     startTransition(() => {
