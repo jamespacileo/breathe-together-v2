@@ -94,10 +94,15 @@ interface ShardPhysicsState {
   orbitSpeed: number;
   /** Seed for perpendicular wobble phase */
   wobbleSeed: number;
+  /** Current direction (animated toward target) */
+  currentDirection: THREE.Vector3;
+  /** Target direction for dynamic Fibonacci redistribution */
+  targetDirection: THREE.Vector3;
 }
 
 // Animation constants
 const BREATH_LERP_SPEED = 6.0;
+const DIRECTION_LERP_SPEED = 3.0; // Slower for smooth position transitions
 const AMBIENT_SCALE = 0.08;
 const AMBIENT_Y_SCALE = 0.04;
 const ORBIT_BASE_SPEED = 0.015;
@@ -105,6 +110,20 @@ const ORBIT_SPEED_VARIATION = 0.01;
 const PERPENDICULAR_AMPLITUDE = 0.03;
 const PERPENDICULAR_FREQUENCY = 0.35;
 const MAX_PHASE_OFFSET = 0.04;
+
+/**
+ * Calculate Fibonacci sphere direction for uniform distribution
+ *
+ * @param index Position index (0 to count-1)
+ * @param count Total number of points to distribute
+ * @returns Normalized direction vector
+ */
+function calculateFibonacciDirection(index: number, count: number): THREE.Vector3 {
+  if (count <= 0) return new THREE.Vector3(0, 1, 0);
+  const phi = Math.acos(-1 + (2 * index + 1) / count);
+  const theta = Math.sqrt(count * Math.PI) * phi;
+  return new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+}
 
 // Pre-allocated vectors for animation loop
 const _tempOrbitedDir = new THREE.Vector3();
@@ -207,6 +226,9 @@ export function ParticleSwarm({
       const scaleSeed = (i * goldenRatio + 0.5) % 1;
       const orbitSeed = (i * Math.PI + 0.1) % 1;
 
+      // Initialize direction from shard's initial Fibonacci position
+      const initialDirection = shard.direction.clone();
+
       physicsStates.push({
         currentRadius: baseRadius,
         phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
@@ -217,6 +239,8 @@ export function ParticleSwarm({
         orbitAngle: 0,
         orbitSpeed: ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION,
         wobbleSeed: i * Math.E,
+        currentDirection: initialDirection,
+        targetDirection: initialDirection.clone(),
       });
     }
 
@@ -291,6 +315,16 @@ export function ParticleSwarm({
       material.uniforms.time.value = time;
     }
 
+    // Get visible slots for dynamic Fibonacci redistribution
+    const visibleIndices = slotManager.getVisibleSlotIndices();
+    const visibleCount = visibleIndices.length;
+
+    // Build a map of slot index → Fibonacci index for uniform distribution
+    const slotToFibonacciIndex = new Map<number, number>();
+    for (let fibIdx = 0; fibIdx < visibleIndices.length; fibIdx++) {
+      slotToFibonacciIndex.set(visibleIndices[fibIdx], fibIdx);
+    }
+
     // Update each shard based on slot state
     const slots = slotManager.getSlots();
     for (let i = 0; i < currentShards.length; i++) {
@@ -315,7 +349,19 @@ export function ParticleSwarm({
         applyVertexColors(shard.geometry, moodColor);
       }
 
-      // Physics calculations (same as before)
+      // Calculate target Fibonacci direction based on visible count
+      const fibonacciIndex = slotToFibonacciIndex.get(i);
+      if (fibonacciIndex !== undefined && visibleCount > 0) {
+        const newTarget = calculateFibonacciDirection(fibonacciIndex, visibleCount);
+        shardState.targetDirection.copy(newTarget);
+      }
+
+      // Smoothly lerp current direction toward target direction
+      const directionLerpFactor = 1 - Math.exp(-DIRECTION_LERP_SPEED * clampedDelta);
+      shardState.currentDirection.lerp(shardState.targetDirection, directionLerpFactor);
+      shardState.currentDirection.normalize();
+
+      // Physics calculations
       const phaseOffsetAmount = shardState.phaseOffset * (baseRadius - minOrbitRadius);
       const targetWithOffset = targetRadius + phaseOffsetAmount;
       const clampedTarget = Math.max(targetWithOffset, minOrbitRadius);
@@ -323,9 +369,11 @@ export function ParticleSwarm({
       const lerpFactor = 1 - Math.exp(-BREATH_LERP_SPEED * clampedDelta);
       shardState.currentRadius += (clampedTarget - shardState.currentRadius) * lerpFactor;
 
-      // Update orbital drift
+      // Update orbital drift using current direction (not fixed shard.direction)
       shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
-      _tempOrbitedDir.copy(shard.direction).applyAxisAngle(_yAxis, shardState.orbitAngle);
+      _tempOrbitedDir
+        .copy(shardState.currentDirection)
+        .applyAxisAngle(_yAxis, shardState.orbitAngle);
 
       // Perpendicular wobble
       _tempTangent1.copy(_tempOrbitedDir).cross(_yAxis).normalize();

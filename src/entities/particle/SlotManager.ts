@@ -359,6 +359,35 @@ export class SlotManager {
   }
 
   /**
+   * Get ordered list of visible slot indices
+   * Used for dynamic Fibonacci position calculation
+   *
+   * @returns Array of slot indices that are visible (not EMPTY), in slot order
+   */
+  getVisibleSlotIndices(): number[] {
+    const indices: number[] = [];
+    for (let i = 0; i < this.slots.length; i++) {
+      if (this.slots[i].state !== SlotState.EMPTY) {
+        indices.push(i);
+      }
+    }
+    return indices;
+  }
+
+  /**
+   * Get the count of visible slots (ENTERING, ACTIVE, or EXITING)
+   */
+  getVisibleCount(): number {
+    let count = 0;
+    for (const slot of this.slots) {
+      if (slot.state !== SlotState.EMPTY) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
    * Get statistics for debugging
    */
   getStats(): {
