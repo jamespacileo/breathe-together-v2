@@ -8,7 +8,7 @@
 
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
@@ -209,19 +209,25 @@ const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
  */
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 
-export function ParticleSwarm({
-  count = 48,
-  users,
-  baseRadius = 4.5,
-  baseShardSize = 4.0,
-  globeRadius = 1.5,
-  buffer = 0.3,
-  maxShardSize = 0.6,
-}: ParticleSwarmProps) {
+export const ParticleSwarm = forwardRef<THREE.Group, ParticleSwarmProps>(function ParticleSwarm(
+  {
+    count = 48,
+    users,
+    baseRadius = 4.5,
+    baseShardSize = 4.0,
+    globeRadius = 1.5,
+    buffer = 0.3,
+    maxShardSize = 0.6,
+  },
+  ref,
+) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+
+  // Expose the group ref to parent components
+  useImperativeHandle(ref, () => groupRef.current as THREE.Group, []);
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -457,6 +463,6 @@ export function ParticleSwarm({
   });
 
   return <group ref={groupRef} name="Particle Swarm" />;
-}
+});
 
 export default ParticleSwarm;

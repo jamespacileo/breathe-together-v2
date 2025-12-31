@@ -1,11 +1,13 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useRef, useState } from 'react';
+import type * as THREE from 'three';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
+import { ConnectionLines } from '../entities/particle/ConnectionLines';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { generateMockPresence } from '../lib/mockPresence';
@@ -38,7 +40,11 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
+  showConnections = true,
 }: Partial<BreathingLevelProps> = {}) {
+  // Ref for ParticleSwarm group (used by ConnectionLines)
+  const particleGroupRef = useRef<THREE.Group>(null);
+
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
     particleDensity === 'sparse'
@@ -93,10 +99,23 @@ export function BreathingLevel({
 
             {showParticles && (
               <ParticleSwarm
+                ref={particleGroupRef}
                 count={harmony}
                 users={moods}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
+              />
+            )}
+
+            {/* Ethereal connection lines between particles */}
+            {showParticles && showConnections && (
+              <ConnectionLines
+                particleGroupRef={particleGroupRef}
+                maxDistance={2.8}
+                maxConnectionsPerParticle={3}
+                baseOpacity={0.08}
+                breathOpacity={0.22}
+                color="#f8ece0"
               />
             )}
 

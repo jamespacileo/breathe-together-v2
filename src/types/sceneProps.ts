@@ -36,6 +36,15 @@ export interface BreathingLevelProps {
    * @default true
    */
   showEnvironment?: boolean;
+
+  /**
+   * Show subtle connection lines between nearby particles.
+   * Creates ethereal "constellation threads" that visualize connection.
+   * Lines pulse with breathing - more visible on inhale.
+   * @group "Entity Visibility"
+   * @default true
+   */
+  showConnections?: boolean;
 }
 
 // ============================================================================
