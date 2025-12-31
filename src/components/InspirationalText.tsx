@@ -3,6 +3,7 @@ import { CYCLES_PER_MESSAGE, MESSAGES } from '../config/inspirationalMessages';
 import { BREATH_TOTAL_CYCLE } from '../constants';
 import { useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
+import { BLUR, TYPOGRAPHY, UI_COLORS, Z_INDEX } from '../styles/designTokens';
 
 /**
  * Breathing Phase Timeline:
@@ -105,14 +106,13 @@ export function InspirationalText() {
 
   const quote = MESSAGES[quoteIndex] ?? MESSAGES[0];
 
-  // Design tokens matching GaiaUI warm palette
+  // Design tokens - using centralized values
   const colors = {
-    text: '#3d3229', // Darker for better contrast (was #5a4d42)
-    textGlow: 'rgba(201, 160, 108, 0.8)', // Stronger glow (was 0.7)
-    subtleGlow: 'rgba(255, 252, 245, 1)', // Full opacity for stronger glow (was 0.95)
-    // Soft backdrop - warm cream with slightly higher opacity for better contrast
-    backdropInner: 'rgba(253, 251, 247, 0.5)', // Increased from 0.4
-    backdropOuter: 'rgba(253, 251, 247, 0)',
+    text: UI_COLORS.text.primary,
+    textGlow: UI_COLORS.accent.goldGlow,
+    subtleGlow: UI_COLORS.utility.subtleGlow,
+    backdropInner: UI_COLORS.surface.backdrop,
+    backdropOuter: UI_COLORS.surface.backdropTransparent,
   };
 
   // Soft radial gradient backdrop for readability
@@ -143,7 +143,7 @@ export function InspirationalText() {
   };
 
   const textStyle: React.CSSProperties = {
-    fontFamily: "'Cormorant Garamond', Georgia, serif",
+    fontFamily: TYPOGRAPHY.fontFamily.serif,
     // Mobile: Dynamic viewport-based sizing to fill available width
     fontSize: isMobile
       ? 'clamp(1.5rem, 8vw, 2.6rem)' // Mobile: Slightly larger for impact
@@ -177,7 +177,7 @@ export function InspirationalText() {
         justifyContent: 'center',
         alignItems: 'center',
         pointerEvents: 'none',
-        zIndex: 50,
+        zIndex: Z_INDEX.overlay,
         // Mobile: Smaller gap to reduce vertical space usage and show more of 3D scene
         gap: isMobile ? 'min(30vh, 180px)' : isTablet ? 'min(34vh, 220px)' : 'min(38vh, 260px)',
         // Mobile: Use more horizontal space
