@@ -1,7 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { PhaseOverlay } from '../components/PhaseOverlay';
+import { PhaseOverlay3D } from '../components/PhaseOverlay3D';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -92,14 +92,14 @@ export function BreathingLevel({
                 breathingOpacity={0.15}
               />
             )}
+
+            {/* 3D Phase overlay - billboarded text around globe */}
+            <PhaseOverlay3D globeRadius={1.5} />
           </PresentationControls>
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
-          {/* Elegant centered phase overlay with circular countdown */}
-          <PhaseOverlay />
-
           {/* Top-right control icons (audio + tune + settings) */}
           <TopRightControls
             onOpenTuneControls={() => setShowTuneControls(true)}
