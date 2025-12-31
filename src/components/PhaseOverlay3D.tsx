@@ -160,68 +160,67 @@ export function PhaseOverlay3D({ globeRadius = 1.5, visible = true }: PhaseOverl
   if (!visible) return null;
 
   return (
-    <group>
-      {/* Phase Name - Centered on globe, billboarded */}
+    // Position group in world space - in front of globe (1.5), behind particles (4.5)
+    <group position={[0, 0, textRadius]}>
+      {/* Billboard only affects orientation, not position */}
       <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
-        <group position={[0, 0, textRadius]}>
-          {/* Phase name */}
-          <Text
-            ref={phaseNameRef}
-            position={[0, 0.15, 0]}
-            fontSize={0.28}
-            color={colors.text}
-            anchorX="center"
-            anchorY="middle"
-            font="https://fonts.gstatic.com/s/cormorantgaramond/v16/co3YmX5slCNuHLi8bLeY9MK7whWMhyjYrEPjuw-NxBKL_y94.woff2"
-            letterSpacing={0.15}
-            textAlign="center"
-          >
-            HOLD
-          </Text>
+        {/* Phase name */}
+        <Text
+          ref={phaseNameRef}
+          position={[0, 0.15, 0]}
+          fontSize={0.28}
+          color={colors.text}
+          anchorX="center"
+          anchorY="middle"
+          font="https://fonts.gstatic.com/s/cormorantgaramond/v16/co3YmX5slCNuHLi8bLeY9MK7whWMhyjYrEPjuw-NxBKL_y94.woff2"
+          letterSpacing={0.15}
+          textAlign="center"
+        >
+          HOLD
+        </Text>
 
-          {/* Timer countdown */}
-          <Text
-            ref={timerRef}
-            position={[0, -0.12, 0]}
-            fontSize={0.16}
-            color={colors.textDim}
-            anchorX="center"
-            anchorY="middle"
-            font="https://fonts.gstatic.com/s/dmsans/v14/rP2Hp2ywxg089UriCZOIHTWEBlw.woff2"
-            letterSpacing={0.05}
-          >
-            4
-          </Text>
+        {/* Timer countdown */}
+        <Text
+          ref={timerRef}
+          position={[0, -0.12, 0]}
+          fontSize={0.16}
+          color={colors.textDim}
+          anchorX="center"
+          anchorY="middle"
+          font="https://fonts.gstatic.com/s/dmsans/v14/rP2Hp2ywxg089UriCZOIHTWEBlw.woff2"
+          letterSpacing={0.05}
+        >
+          4
+        </Text>
 
-          {/* Presence count */}
-          <Text
-            ref={presenceRef}
-            position={[0, -0.38, 0]}
-            fontSize={0.09}
-            color={colors.textDim}
-            anchorX="center"
-            anchorY="middle"
-            font="https://fonts.gstatic.com/s/dmsans/v14/rP2Hp2ywxg089UriCZOIHTWEBlw.woff2"
-            letterSpacing={0.08}
-          >
-            75 breathing
-          </Text>
+        {/* Presence count */}
+        <Text
+          ref={presenceRef}
+          position={[0, -0.38, 0]}
+          fontSize={0.09}
+          color={colors.textDim}
+          anchorX="center"
+          anchorY="middle"
+          font="https://fonts.gstatic.com/s/dmsans/v14/rP2Hp2ywxg089UriCZOIHTWEBlw.woff2"
+          letterSpacing={0.08}
+        >
+          75 breathing
+        </Text>
 
-          {/* Progress ring background */}
-          <Ring ref={progressBgRef} args={[0.52, 0.54, 64]} position={[0, -0.05, -0.01]}>
-            <meshBasicMaterial color={colors.textDim} transparent opacity={0.1} />
-          </Ring>
+        {/* Progress ring background */}
+        <Ring ref={progressBgRef} args={[0.52, 0.54, 64]} position={[0, -0.05, -0.01]}>
+          <meshBasicMaterial color={colors.textDim} transparent opacity={0.1} />
+        </Ring>
 
-          {/* Progress ring - shows cycle progress */}
-          <Ring
-            ref={progressRingRef}
-            args={[0.52, 0.55, 64, 1, 0, Math.PI * 2]}
-            position={[0, -0.05, 0]}
-            rotation={[0, 0, Math.PI / 2]} // Start from top
-          >
-            <meshBasicMaterial color={colors.accent} transparent opacity={0.6} />
-          </Ring>
-        </group>
+        {/* Progress ring - shows cycle progress */}
+        <Ring
+          ref={progressRingRef}
+          args={[0.52, 0.55, 64, 1, 0, Math.PI * 2]}
+          position={[0, -0.05, 0]}
+          rotation={[0, 0, Math.PI / 2]} // Start from top
+        >
+          <meshBasicMaterial color={colors.accent} transparent opacity={0.6} />
+        </Ring>
       </Billboard>
     </group>
   );
