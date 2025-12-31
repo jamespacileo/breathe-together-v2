@@ -114,16 +114,20 @@ export function UserShapeIndicator({
         <primitive object={chevronObject.line} position={[0, -0.12, 0]} />
       </Billboard>
 
-      {/* "YOU" text - clean, minimal */}
+      {/* "YOU" text - larger with outline for legibility */}
       <Billboard follow>
         <Text
-          position={[0, 0.08, 0]}
-          fontSize={0.12}
+          position={[0, 0.06, 0]}
+          fontSize={0.18}
           color={TEXT_COLOR}
           anchorX="center"
           anchorY="bottom"
-          fillOpacity={opacity * 0.9}
-          letterSpacing={0.08}
+          fillOpacity={1}
+          letterSpacing={0.12}
+          outlineWidth={0.015}
+          outlineColor="#000000"
+          outlineOpacity={0.4}
+          fontWeight={700}
         >
           YOU
         </Text>
