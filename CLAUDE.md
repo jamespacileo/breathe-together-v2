@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**breathe-together-v2** is a 3D interactive breathing meditation application built with React, Three.js, and a Koota-based ECS (Entity-Component-System) architecture. It synchronizes users globally using UTC time to breathe together in a box breathing pattern (4s: inhale, hold, exhale, hold).
+**breathe-together-v2** is a 3D interactive breathing meditation application built with React, Three.js, and a Koota-based ECS (Entity-Component-System) architecture. It synchronizes users globally using UTC time to breathe together in a 4-7-8 relaxation breathing pattern (4s inhale, 7s hold, 8s exhale).
 
 ## Essential Commands
 
@@ -75,11 +75,11 @@ tsconfig.json               # Strict TypeScript
 
 Located in `src/lib/breathCalc.ts`, this is a pure function that returns the current breath state based on UTC time. It's called by `breathSystem` each frame.
 
-**Box breathing cycle (16 seconds total, asymmetric phases):**
-- 0-3s: Inhale
-- 3-8s: Hold-in
-- 8-13s: Exhale
-- 13-16s: Hold-out
+**4-7-8 relaxation breathing cycle (19 seconds total):**
+- 0-4s: Inhale
+- 4-11s: Hold-in
+- 11-19s: Exhale
+- (No hold-out - immediate transition to next inhale)
 
 **Outputs:**
 - `breathPhase` (0-1): Position in current phase

@@ -21,17 +21,22 @@ export type MoodId = (typeof MOOD_IDS)[number];
 /**
  * Breathing Cycle Configuration
  *
- * Box breathing pattern - equal duration for all phases.
- * Total cycle = INHALE + HOLD_IN + EXHALE + HOLD_OUT
+ * 4-7-8 relaxation breathing pattern (Dr. Andrew Weil's technique):
+ * - Inhale for 4 seconds
+ * - Hold for 7 seconds
+ * - Exhale for 8 seconds
+ * - No hold after exhale (immediate transition to next inhale)
+ *
+ * Total cycle = 19 seconds
  *
  * To customize timing, simply change these values.
  * All derived calculations (orbit radius, animations) adapt automatically.
  */
 export const BREATH_PHASES = {
   INHALE: 4,
-  HOLD_IN: 4,
-  EXHALE: 4,
-  HOLD_OUT: 4,
+  HOLD_IN: 7,
+  EXHALE: 8,
+  HOLD_OUT: 0,
 } as const;
 
 /** Total breathing cycle duration (derived from phase durations) */
