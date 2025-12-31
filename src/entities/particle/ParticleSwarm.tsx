@@ -159,8 +159,11 @@ interface ShardData {
  * - Ambient seed: unique floating pattern per shard
  * - Rotation speeds: per-shard variation for organic feel
  * - Scale offset: subtle size variation for depth
- * - Orbit: slow orbital drift around center
+ * - Orbit: slow orbital drift around center (derived from absolute time, not accumulated)
  * - Perpendicular: tangent wobble for organic floating feel
+ *
+ * IMPORTANT: All angle values are derived from absolute time to prevent drift.
+ * Only offsets/seeds are stored - actual angles are calculated each frame.
  */
 interface ShardPhysicsState {
   /** Current interpolated radius (lerp-smoothed, no spring physics) */
@@ -175,12 +178,16 @@ interface ShardPhysicsState {
   rotationSpeedY: number;
   /** Base scale offset for depth variation (0.85-1.15 range) */
   baseScaleOffset: number;
-  /** Current orbit angle offset (radians, accumulates over time) */
-  orbitAngle: number;
+  /** Initial orbit angle offset (radians) - combined with time × speed for final angle */
+  orbitAngleOffset: number;
   /** Per-shard orbit speed (radians/second) */
   orbitSpeed: number;
   /** Seed for perpendicular wobble phase */
   wobbleSeed: number;
+  /** Initial rotation offset X (radians) - combined with time × speed for final rotation */
+  rotationOffsetX: number;
+  /** Initial rotation offset Y (radians) - combined with time × speed for final rotation */
+  rotationOffsetY: number;
 }
 
 /**
@@ -218,6 +225,13 @@ const PERPENDICULAR_FREQUENCY = 0.35;
  * Phase stagger for wave effect (4% of breath cycle)
  */
 const MAX_PHASE_OFFSET = 0.04;
+
+/**
+ * Settle-in animation speed
+ * Controls how quickly particles fade in after user completes first breathing cycle.
+ * Higher = faster appear, lower = slower gentle fade-in.
+ */
+const SETTLE_ANIMATION_SPEED = 1.5;
 
 /**
  * Reusable Vector3 objects for animation loop
@@ -276,6 +290,12 @@ export function ParticleSwarm({
   // Track previous active count for position redistribution
   const prevActiveCountRef = useRef(0);
 
+  // Settle-in period: particles hidden until user completes first breathing cycle
+  // This gives users time to settle into the breathing rhythm before visual complexity appears
+  // Uses Three.js clock elapsed time (relative to app start) not UTC cycle index
+  const hasSettledInRef = useRef(false);
+  const settleAnimationRef = useRef(0); // 0 = hidden, 1 = fully visible
+
   // Normalize users input
   const normalizedUsers = useMemo(() => normalizeUsers(users), [users]);
 
@@ -332,6 +352,9 @@ export function ParticleSwarm({
         currentMood: null,
       };
 
+      // Random initial offsets for visual variety (derived from index for determinism)
+      const rotationOffsetSeed = (index * 2.718 + 0.2) % 1;
+
       const physics: ShardPhysicsState = {
         currentRadius: baseRadius,
         phaseOffset: ((index * goldenRatio) % 1) * MAX_PHASE_OFFSET,
@@ -339,9 +362,13 @@ export function ParticleSwarm({
         rotationSpeedX: 0.7 + rotSeedX * 0.6,
         rotationSpeedY: 0.7 + rotSeedY * 0.6,
         baseScaleOffset: 0.9 + scaleSeed * 0.2,
-        orbitAngle: 0,
+        // Initial offset so shards start at different orbital positions
+        orbitAngleOffset: orbitSeed * Math.PI * 2,
         orbitSpeed: ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION,
         wobbleSeed: index * Math.E,
+        // Initial rotation offsets for visual variety
+        rotationOffsetX: rotationOffsetSeed * Math.PI * 2,
+        rotationOffsetY: ((rotationOffsetSeed * goldenRatio) % 1) * Math.PI * 2,
       };
 
       return { shard, physics };
@@ -523,6 +550,22 @@ export function ParticleSwarm({
     }
     wasInHoldRef.current = isInHold;
 
+    // Settle-in period: Wait for user to complete first breathing cycle before showing particles
+    // This gives users time to settle into the rhythm before visual complexity appears
+    // Uses Three.js clock elapsed time (relative to app start), NOT UTC-based cycleIndex
+    // which would be a huge number and always >= 1 immediately
+    if (!hasSettledInRef.current && time >= BREATH_TOTAL_CYCLE) {
+      hasSettledInRef.current = true;
+    }
+
+    // Animate settle-in progress (0 → 1)
+    if (hasSettledInRef.current && settleAnimationRef.current < 1) {
+      settleAnimationRef.current = Math.min(
+        1,
+        settleAnimationRef.current + SETTLE_ANIMATION_SPEED * clampedDelta,
+      );
+    }
+
     // Update slot animations
     slotManager.updateAnimations(clampedDelta);
 
@@ -557,7 +600,7 @@ export function ParticleSwarm({
         shard.direction.normalize(); // Keep on unit sphere
       }
 
-      // Physics calculations (same as before)
+      // Physics calculations
       const phaseOffsetAmount = shardState.phaseOffset * (baseRadius - minOrbitRadius);
       const targetWithOffset = targetRadius + phaseOffsetAmount;
       const clampedTarget = Math.max(targetWithOffset, minOrbitRadius);
@@ -565,8 +608,10 @@ export function ParticleSwarm({
       const lerpFactor = 1 - Math.exp(-BREATH_LERP_SPEED * clampedDelta);
       shardState.currentRadius += (clampedTarget - shardState.currentRadius) * lerpFactor;
 
-      shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
-      _tempOrbitedDir.copy(shard.direction).applyAxisAngle(_yAxis, shardState.orbitAngle);
+      // DRIFT FIX: Calculate orbit angle from absolute time + offset instead of accumulating
+      // This ensures all shards stay synchronized with UTC time and don't drift over extended sessions
+      const orbitAngle = shardState.orbitSpeed * time + shardState.orbitAngleOffset;
+      _tempOrbitedDir.copy(shard.direction).applyAxisAngle(_yAxis, orbitAngle);
 
       _tempTangent1.copy(_tempOrbitedDir).cross(_yAxis).normalize();
       if (_tempTangent1.lengthSq() < 0.001) {
@@ -592,12 +637,16 @@ export function ParticleSwarm({
         .addScaledVector(_tempTangent2, wobble2)
         .add(_tempAmbient);
 
-      shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
-      shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
+      // DRIFT FIX: Calculate rotation from absolute time + offset instead of accumulating
+      // Multipliers (0.002, 0.003) become angular speeds applied to time
+      shard.mesh.rotation.x = 0.002 * shardState.rotationSpeedX * time + shardState.rotationOffsetX;
+      shard.mesh.rotation.y = 0.003 * shardState.rotationSpeedY * time + shardState.rotationOffsetY;
 
-      // Final scale: slot scale × breath scale × base offset
+      // Final scale: settle × slot scale × breath scale × base offset
+      // settleAnimationRef is 0 until first cycle completes, then animates to 1
       const breathScale = 1.0 + currentBreathPhase * 0.05;
-      const finalScale = slotScale * shardState.baseScaleOffset * breathScale;
+      const finalScale =
+        settleAnimationRef.current * slotScale * shardState.baseScaleOffset * breathScale;
       shard.mesh.scale.setScalar(finalScale);
     }
   });
