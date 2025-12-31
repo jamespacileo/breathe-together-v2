@@ -1,12 +1,14 @@
 /**
- * usePresence - Real-time presence tracking with Cloudflare Worker backend
+ * usePresence - Hybrid presence tracking with WebSocket + polling fallback
  *
- * Features:
- * - Anonymous session tracking via localStorage
- * - Automatic heartbeat every 10 seconds
- * - Mood selection persists across sessions
- * - Graceful fallback to mock data when offline/development
- * - Sends leave signal on page unload
+ * Architecture:
+ * 1. Try WebSocket connection (Durable Objects) - ~$8/month at 10k users
+ * 2. Fall back to polling with probabilistic sampling - ~$30/month at 1k users
+ *
+ * WebSocket provides:
+ * - Real-time push updates (no polling overhead)
+ * - Exact user counts (no sampling needed)
+ * - Lower cost at scale
  *
  * Usage:
  * ```tsx
@@ -18,42 +20,40 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MoodId } from '../constants';
 import { generateMockPresence } from '../lib/mockPresence';
 
-/**
- * Presence state returned by the API
- */
 export interface PresenceState {
   count: number;
   moods: Record<MoodId, number>;
   timestamp: number;
 }
 
-/**
- * Configuration for the presence system
- *
- * Cost optimization: 30s heartbeat reduces requests by 3x vs 10s.
- * Combined with server-side write coalescing, this cuts KV writes by ~80%.
- */
+interface ServerConfig {
+  sampleRate: number;
+  heartbeatIntervalMs: number;
+  supportsWebSocket: boolean;
+  version: number;
+}
+
+const DEFAULT_CONFIG: ServerConfig = {
+  sampleRate: 0.03,
+  heartbeatIntervalMs: 30_000,
+  supportsWebSocket: true,
+  version: 2,
+};
+
 const CONFIG = {
-  /** Heartbeat interval in milliseconds (30s for cost efficiency) */
-  HEARTBEAT_INTERVAL_MS: 30_000,
-  /** API base URL - uses env var or defaults to localhost for dev */
   API_URL: import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787',
-  /** LocalStorage keys */
+  PRESENCE_POLL_INTERVAL_MS: 10_000,
+  WS_RECONNECT_DELAY_MS: 3_000,
   STORAGE_KEYS: {
     SESSION_ID: 'breathe-together:sessionId',
     MOOD: 'breathe-together:mood',
   },
 } as const;
 
-/**
- * Generate a random UUID for session identification
- */
 function generateSessionId(): string {
-  // Use crypto.randomUUID if available (modern browsers)
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  // Fallback for older browsers
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -61,12 +61,8 @@ function generateSessionId(): string {
   });
 }
 
-/**
- * Get or create session ID from localStorage
- */
 function getSessionId(): string {
   if (typeof window === 'undefined') return generateSessionId();
-
   let sessionId = localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_ID);
   if (!sessionId) {
     sessionId = generateSessionId();
@@ -75,12 +71,8 @@ function getSessionId(): string {
   return sessionId;
 }
 
-/**
- * Get stored mood from localStorage
- */
 function getStoredMood(): MoodId {
   if (typeof window === 'undefined') return 'presence';
-
   const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
   if (stored && ['gratitude', 'presence', 'release', 'connection'].includes(stored)) {
     return stored as MoodId;
@@ -88,36 +80,22 @@ function getStoredMood(): MoodId {
   return 'presence';
 }
 
-/**
- * Store mood in localStorage
- */
 function storeMood(mood: MoodId): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem(CONFIG.STORAGE_KEYS.MOOD, mood);
   }
 }
 
-/**
- * Hook return type
- */
 export interface UsePresenceResult {
-  /** Total number of connected users */
   count: number;
-  /** Count of users per mood */
   moods: Record<MoodId, number>;
-  /** Current user's mood */
   mood: MoodId;
-  /** Update current user's mood */
   setMood: (mood: MoodId) => void;
-  /** Whether we're connected to the backend */
   isConnected: boolean;
-  /** Whether we're using mock data */
   isMock: boolean;
+  connectionType: 'websocket' | 'polling' | 'mock';
 }
 
-/**
- * Real-time presence tracking hook
- */
 export function usePresence(): UsePresenceResult {
   const [presence, setPresence] = useState<PresenceState>(() => ({
     ...generateMockPresence(42),
@@ -125,112 +103,244 @@ export function usePresence(): UsePresenceResult {
   }));
   const [mood, setMoodState] = useState<MoodId>(getStoredMood);
   const [isConnected, setIsConnected] = useState(false);
-  const [isMock, setIsMock] = useState(true);
+  const [connectionType, setConnectionType] = useState<'websocket' | 'polling' | 'mock'>('mock');
 
   const sessionIdRef = useRef<string>(getSessionId());
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const configRef = useRef<ServerConfig>(DEFAULT_CONFIG);
+  const wsRef = useRef<WebSocket | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
-   * Send heartbeat to the backend
+   * Get WebSocket URL from HTTP URL
    */
-  const sendHeartbeat = useCallback(async (currentMood: MoodId): Promise<boolean> => {
-    try {
-      const response = await fetch(`${CONFIG.API_URL}/api/heartbeat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: sessionIdRef.current,
-          mood: currentMood,
-        }),
-      });
+  const getWsUrl = useCallback((): string => {
+    const httpUrl = new URL(CONFIG.API_URL);
+    const wsProtocol = httpUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProtocol}//${httpUrl.host}/api/room?sessionId=${sessionIdRef.current}&mood=${mood}`;
+  }, [mood]);
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+  /**
+   * Handle incoming WebSocket presence update
+   */
+  const handlePresenceUpdate = useCallback((data: PresenceState) => {
+    setPresence(data);
+    setIsConnected(true);
+  }, []);
+
+  /**
+   * Connect via WebSocket
+   */
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    try {
+      const ws = new WebSocket(getWsUrl());
+
+      ws.onopen = () => {
+        setIsConnected(true);
+        setConnectionType('websocket');
+        console.log('Presence: WebSocket connected');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as { type?: string } & PresenceState;
+          if (data.type === 'presence' || data.count !== undefined) {
+            handlePresenceUpdate(data);
+          }
+        } catch (e) {
+          console.warn('Failed to parse WebSocket message:', e);
+        }
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        wsRef.current = null;
+        // Attempt reconnect after delay
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectWebSocket();
+        }, CONFIG.WS_RECONNECT_DELAY_MS);
+      };
+
+      ws.onerror = () => {
+        // Will trigger onclose, which handles reconnect
+        console.warn('Presence: WebSocket error, falling back to polling');
+      };
+
+      wsRef.current = ws;
+    } catch (e) {
+      // WebSocket failed, will fall back to polling in init()
+      console.warn('Failed to create WebSocket:', e);
+    }
+  }, [getWsUrl, handlePresenceUpdate]);
+
+  /**
+   * Send mood update via WebSocket
+   */
+  const sendMoodUpdate = useCallback((newMood: MoodId) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'mood',
+          sessionId: sessionIdRef.current,
+          mood: newMood,
+        }),
+      );
+    }
+  }, []);
+
+  /**
+   * Fetch presence via HTTP (polling fallback)
+   */
+  const fetchPresence = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch(`${CONFIG.API_URL}/api/presence`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = (await response.json()) as PresenceState;
       setPresence(data);
       setIsConnected(true);
-      setIsMock(false);
-      return true;
+      if (connectionType === 'mock') setConnectionType('polling');
     } catch (e) {
-      console.warn('Presence heartbeat failed, using mock data:', e);
+      console.warn('Presence fetch failed:', e);
       setIsConnected(false);
-      setIsMock(true);
-      // Use mock data as fallback
-      setPresence({
-        ...generateMockPresence(42),
-        timestamp: Date.now(),
-      });
-      return false;
+      setConnectionType('mock');
+      setPresence({ ...generateMockPresence(42), timestamp: Date.now() });
     }
-  }, []);
+  }, [connectionType]);
 
   /**
-   * Send leave signal (best-effort, no await)
+   * Send heartbeat via HTTP (polling fallback)
    */
-  const sendLeave = useCallback(() => {
-    // Use sendBeacon for reliable delivery during page unload
-    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      navigator.sendBeacon(
-        `${CONFIG.API_URL}/api/leave`,
-        JSON.stringify({ sessionId: sessionIdRef.current }),
-      );
-    } else {
-      // Fallback to fetch (may not complete during unload)
-      fetch(`${CONFIG.API_URL}/api/leave`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: sessionIdRef.current }),
-        keepalive: true,
-      }).catch(() => {
-        // Ignore errors during cleanup
-      });
-    }
-  }, []);
+  const maybeSendHeartbeat = useCallback(
+    async (currentMood: MoodId, force = false): Promise<void> => {
+      const shouldSend = force || Math.random() < configRef.current.sampleRate;
+      if (!shouldSend) {
+        await fetchPresence();
+        return;
+      }
+
+      try {
+        const response = await fetch(`${CONFIG.API_URL}/api/heartbeat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: sessionIdRef.current,
+            mood: currentMood,
+          }),
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = (await response.json()) as PresenceState;
+        setPresence(data);
+        setIsConnected(true);
+        setConnectionType('polling');
+      } catch (e) {
+        console.warn('Heartbeat failed:', e);
+        await fetchPresence();
+      }
+    },
+    [fetchPresence],
+  );
 
   /**
-   * Update mood and immediately send heartbeat
+   * Start polling (fallback when WebSocket unavailable)
+   */
+  const startPolling = useCallback(() => {
+    if (pollingIntervalRef.current) return;
+
+    maybeSendHeartbeat(mood, true);
+
+    pollingIntervalRef.current = setInterval(() => {
+      maybeSendHeartbeat(mood);
+    }, configRef.current.heartbeatIntervalMs);
+
+    setConnectionType('polling');
+  }, [mood, maybeSendHeartbeat]);
+
+  /**
+   * Update mood
    */
   const setMood = useCallback(
     (newMood: MoodId) => {
       setMoodState(newMood);
       storeMood(newMood);
-      // Send immediate heartbeat with new mood
-      sendHeartbeat(newMood);
+
+      // Send update via appropriate channel
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        sendMoodUpdate(newMood);
+      } else {
+        maybeSendHeartbeat(newMood, true);
+      }
     },
-    [sendHeartbeat],
+    [sendMoodUpdate, maybeSendHeartbeat],
   );
 
   /**
-   * Start heartbeat interval on mount
+   * Initialize connection
    */
   useEffect(() => {
-    // Initial heartbeat
-    sendHeartbeat(mood);
+    let mounted = true;
 
-    // Set up interval
-    intervalRef.current = setInterval(() => {
-      sendHeartbeat(mood);
-    }, CONFIG.HEARTBEAT_INTERVAL_MS);
-
-    // Cleanup on unmount
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+    const init = async () => {
+      // Fetch config
+      try {
+        const response = await fetch(`${CONFIG.API_URL}/api/config`);
+        if (response.ok) {
+          const data = (await response.json()) as ServerConfig;
+          configRef.current = data;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch config:', e);
       }
-      sendLeave();
+
+      if (!mounted) return;
+
+      // Try WebSocket first, with timeout fallback to polling
+      if (configRef.current.supportsWebSocket && typeof WebSocket !== 'undefined') {
+        connectWebSocket();
+        // If WebSocket doesn't connect within 5s, fall back to polling
+        setTimeout(() => {
+          if (mounted && wsRef.current?.readyState !== WebSocket.OPEN) {
+            console.log('Presence: WebSocket timeout, falling back to polling');
+            startPolling();
+          }
+        }, 5000);
+      } else {
+        startPolling();
+      }
     };
-  }, [mood, sendHeartbeat, sendLeave]);
+
+    init();
+
+    return () => {
+      mounted = false;
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+  }, [connectWebSocket, startPolling]);
 
   /**
-   * Handle page visibility changes
-   * Send heartbeat when page becomes visible again
+   * Handle visibility changes
    */
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        sendHeartbeat(mood);
+        if (wsRef.current?.readyState !== WebSocket.OPEN) {
+          connectWebSocket();
+        }
       }
     };
 
@@ -238,21 +348,7 @@ export function usePresence(): UsePresenceResult {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [mood, sendHeartbeat]);
-
-  /**
-   * Handle page unload
-   */
-  useEffect(() => {
-    const handleUnload = () => {
-      sendLeave();
-    };
-
-    window.addEventListener('beforeunload', handleUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleUnload);
-    };
-  }, [sendLeave]);
+  }, [connectWebSocket]);
 
   return {
     count: presence.count,
@@ -260,6 +356,7 @@ export function usePresence(): UsePresenceResult {
     mood,
     setMood,
     isConnected,
-    isMock,
+    isMock: connectionType === 'mock',
+    connectionType,
   };
 }
