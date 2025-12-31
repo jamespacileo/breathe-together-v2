@@ -25,27 +25,27 @@ import { breathPhase, phaseType } from '../breath/traits';
 import { getTextAspectRatio, sampleTextToParticles } from './textSampler';
 
 // Constants for particle text appearance
-const PARTICLE_SIZE = 0.025; // Size of each particle dot
-const TEXT_SCALE = 2.5; // Overall text scale in 3D world units
+const PARTICLE_SIZE = 0.045; // Size of each particle dot (larger for legibility)
+const TEXT_SCALE = 3.0; // Overall text scale in 3D world units
 // Camera at Z=10, scene at Z=0. Position text at Z=7 (between camera and scene)
 const TEXT_Z_POSITION = 7;
-const TOP_TEXT_Y = 2.5; // Y position for top text (above scene)
-const BOTTOM_TEXT_Y = -2.5; // Y position for bottom text (below scene)
+const TOP_TEXT_Y = 2.8; // Y position for top text (above scene)
+const BOTTOM_TEXT_Y = -2.8; // Y position for bottom text (below scene)
 
 // Sampling options for text-to-particle conversion
 const SAMPLE_OPTIONS = {
-  fontSize: 72,
+  fontSize: 96, // Larger font for better sampling
   fontFamily: "'Cormorant Garamond', Georgia, serif", // Matches loaded Google Font
-  fontWeight: '400',
-  sampleSpacing: 2,
-  maxParticles: 1500,
-  padding: 16,
+  fontWeight: '500', // Slightly bolder for better definition
+  sampleSpacing: 3, // Spacing between samples (lower = more particles but diminishing returns)
+  maxParticles: 2000,
+  padding: 20,
 };
 
 // Animation constants
-const AMBIENT_SPEED = 0.3; // Speed of floating motion
-const AMBIENT_AMPLITUDE = 0.02; // Amplitude of floating motion
-const PARTICLE_SCATTER_RANGE = 0.15; // How far particles scatter during transitions
+const AMBIENT_SPEED = 0.2; // Speed of floating motion (subtle)
+const AMBIENT_AMPLITUDE = 0.008; // Amplitude of floating motion (minimal for legibility)
+const PARTICLE_SCATTER_RANGE = 0.08; // How far particles scatter during transitions
 
 // Reusable objects for animation loop
 const _tempObject = new THREE.Object3D();
