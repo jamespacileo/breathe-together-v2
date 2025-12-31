@@ -199,6 +199,16 @@ interface ShardPhysicsState {
   introDelay: number;
   /** Initial random rotation for visual variety during reveal */
   introRotationOffset: THREE.Euler;
+  /** Latitude angle (phi) on fibonacci sphere - used for bloom wave effect */
+  latitude: number;
+  /** Longitude angle (theta) on fibonacci sphere - used for spiral direction */
+  longitude: number;
+  /** Spiral rotation amount during intro (radians) */
+  introSpiralAmount: number;
+  /** Vertical offset during intro (world units) */
+  introVerticalDrop: number;
+  /** Tumble speed multiplier during intro (faster spin while emerging) */
+  introTumbleSpeed: number;
 }
 
 /**
@@ -383,13 +393,18 @@ export function ParticleSwarm({
     const physicsStates: ShardPhysicsState[] = [];
 
     // Calculate stagger timing for intro animation
-    // Uses golden ratio distribution for organic, non-linear reveals
     const goldenRatio = (1 + Math.sqrt(5)) / 2;
     const staggerWindow = introDuration - introShardDuration; // Time window for stagger distribution
 
     for (let i = 0; i < shards.length; i++) {
       const shard = shards[i];
       group.add(shard.mesh);
+
+      // Calculate fibonacci sphere angles for this shard
+      // phi = latitude (0 at top pole, PI at bottom pole)
+      // theta = longitude (wraps around)
+      const phi = Math.acos(-1 + (2 * i) / count);
+      const theta = Math.sqrt(count * Math.PI) * phi;
 
       // Initialize mesh visibility for intro animation
       if (enableIntroAnimation) {
@@ -408,12 +423,15 @@ export function ParticleSwarm({
       const scaleSeed = (i * goldenRatio + 0.5) % 1;
       const baseScaleOffset = 0.9 + scaleSeed * 0.2;
 
-      // Intro animation stagger delay using golden angle distribution
-      // Golden angle (137.5°) creates visually pleasing, non-repeating pattern
-      // Similar to sunflower seed distribution - no obvious clustering
-      const goldenAngle = 137.508 * (Math.PI / 180); // radians
-      const normalizedPosition = ((i * goldenAngle) % (2 * Math.PI)) / (2 * Math.PI);
-      const introDelay = normalizedPosition * staggerWindow;
+      // === LATITUDE-BASED BLOOM STAGGER ===
+      // Shards reveal in waves from poles to equator, creating a "blooming flower" effect
+      // Distance from equator: 0 at equator (phi = PI/2), 1 at poles (phi = 0 or PI)
+      const normalizedLatitude = Math.abs(phi - Math.PI / 2) / (Math.PI / 2); // 0 at equator, 1 at poles
+
+      // Poles reveal first, equator last - creates expanding ring effect
+      // Add slight randomness to prevent perfect synchronization
+      const latitudeJitter = (Math.random() - 0.5) * 0.15;
+      const introDelay = (1 - normalizedLatitude + latitudeJitter) * staggerWindow * 0.8;
 
       // Random rotation offset for visual variety during intro
       const introRotationOffset = new THREE.Euler(
@@ -421,6 +439,21 @@ export function ParticleSwarm({
         Math.random() * Math.PI * 2,
         Math.random() * Math.PI * 2,
       );
+
+      // === SPIRAL MOTION PARAMETERS ===
+      // Each shard spirals outward during reveal - direction based on hemisphere
+      // Northern hemisphere spirals clockwise, southern counter-clockwise
+      const hemisphere = phi < Math.PI / 2 ? 1 : -1;
+      const introSpiralAmount = hemisphere * (Math.PI * 0.5 + Math.random() * Math.PI * 0.3);
+
+      // === VERTICAL DROP ===
+      // Shards start slightly below their final position and rise up
+      // Amount varies by latitude - equator shards drop more
+      const introVerticalDrop = -0.8 - (1 - normalizedLatitude) * 0.6 + Math.random() * 0.3;
+
+      // === TUMBLE SPEED ===
+      // Faster tumbling during reveal, slows to normal rotation speed
+      const introTumbleSpeed = 3 + Math.random() * 2; // 3-5x faster during intro
 
       physicsStates.push({
         currentRadius: enableIntroAnimation ? introStartRadius : baseRadius,
@@ -431,8 +464,13 @@ export function ParticleSwarm({
         rotationSpeedX,
         rotationSpeedY,
         baseScaleOffset,
-        introDelay,
+        introDelay: Math.max(0, introDelay), // Ensure non-negative
         introRotationOffset,
+        latitude: phi,
+        longitude: theta,
+        introSpiralAmount,
+        introVerticalDrop,
+        introTumbleSpeed,
       });
     }
 
@@ -460,6 +498,7 @@ export function ParticleSwarm({
     introDuration,
     introShardDuration,
     introStartRadius,
+    count,
   ]);
 
   // Cleanup material on unmount
@@ -600,23 +639,59 @@ export function ParticleSwarm({
       const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE * ambientScale;
       const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE * ambientScale;
 
-      // Compute final position: spring-smoothed radius + ambient offset
-      shard.mesh.position
-        .copy(shard.direction)
-        .multiplyScalar(shardState.currentRadius)
-        .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+      // === POSITION CALCULATION ===
+      if (introProgress < 1) {
+        // During intro: apply spiral motion + vertical rise + radial expansion
+
+        // Inverse progress for "remaining animation" calculations
+        const remainingProgress = 1 - introProgress;
+
+        // Spiral: rotate the direction vector around Y axis
+        // Amount decreases as shard approaches final position
+        const spiralAngle = shardState.introSpiralAmount * remainingProgress * remainingProgress;
+        const spiralDirection = shard.direction.clone();
+        spiralDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), spiralAngle);
+
+        // Vertical rise: start below, rise to final Y position
+        // Uses smooth ease-out for natural settling
+        const verticalOffset = shardState.introVerticalDrop * remainingProgress * remainingProgress;
+
+        // Combine: spiral direction × radius + vertical offset + ambient
+        shard.mesh.position
+          .copy(spiralDirection)
+          .multiplyScalar(shardState.currentRadius)
+          .add(new THREE.Vector3(ambientX, ambientY + verticalOffset, ambientZ));
+      } else {
+        // After intro: normal position (direction × radius + ambient)
+        shard.mesh.position
+          .copy(shard.direction)
+          .multiplyScalar(shardState.currentRadius)
+          .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+      }
 
       // === ROTATION ===
       if (introProgress < 1) {
-        // During intro: blend from random start rotation to normal rotation
-        const targetRotX = shardState.introRotationOffset.x * (1 - introProgress);
-        const targetRotY = shardState.introRotationOffset.y * (1 - introProgress);
-        const targetRotZ = shardState.introRotationOffset.z * (1 - introProgress);
+        // During intro: dynamic tumbling that slows as shard settles
 
-        // Add continuous rotation on top
-        shard.mesh.rotation.x = targetRotX + time * 0.2 * shardState.rotationSpeedX;
-        shard.mesh.rotation.y = targetRotY + time * 0.3 * shardState.rotationSpeedY;
-        shard.mesh.rotation.z = targetRotZ;
+        // Inverse progress for "remaining animation" calculations
+        const remainingProgress = 1 - introProgress;
+
+        // Tumble speed decreases as shard approaches final position
+        // Starts fast (introTumbleSpeed), ends at normal speed (1x)
+        const currentTumbleSpeed = 1 + (shardState.introTumbleSpeed - 1) * remainingProgress;
+
+        // Random starting offset blends out as intro completes
+        const offsetFade = remainingProgress * remainingProgress; // Quadratic fade
+        const baseRotX = shardState.introRotationOffset.x * offsetFade;
+        const baseRotY = shardState.introRotationOffset.y * offsetFade;
+        const baseRotZ = shardState.introRotationOffset.z * offsetFade * 0.5; // Less Z tumble
+
+        // Apply time-based rotation with tumble speed multiplier
+        shard.mesh.rotation.x =
+          baseRotX + time * 0.3 * shardState.rotationSpeedX * currentTumbleSpeed;
+        shard.mesh.rotation.y =
+          baseRotY + time * 0.4 * shardState.rotationSpeedY * currentTumbleSpeed;
+        shard.mesh.rotation.z = baseRotZ + time * 0.15 * currentTumbleSpeed;
       } else {
         // After intro: normal continuous rotation
         shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
