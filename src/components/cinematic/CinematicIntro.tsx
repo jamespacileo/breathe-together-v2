@@ -40,7 +40,7 @@ export function CinematicIntro({
   });
 
   // Handle scene visibility based on phase
-  // Title appears on black first (0-50%), then scene fades in (50-100%)
+  // Title appears on black first (15-40%), then scene gently fades in (50-100%)
   useEffect(() => {
     switch (phase) {
       case 'void':
@@ -48,9 +48,11 @@ export function CinematicIntro({
         break;
       case 'reveal': {
         // Scene starts fading in at 50% of reveal phase
-        // Maps progress 0.5-1.0 → opacity 0-1
+        // Maps progress 0.5-1.0 → opacity 0-1 with easing
         const sceneProgress = Math.max(0, (progress - 0.5) * 2);
-        setSceneOpacity(sceneProgress);
+        // Apply ease-out for smoother reveal
+        const easedProgress = 1 - (1 - sceneProgress) ** 2;
+        setSceneOpacity(easedProgress);
         break;
       }
       case 'cta':
@@ -60,17 +62,20 @@ export function CinematicIntro({
     }
   }, [phase, progress]);
 
-  // Handle CTA click
-  const handleJoin = useCallback(() => {
-    // Start exit animation
-    setIsRetracting(true);
+  // Handle CTA click (after mood selection in TitleReveal)
+  const handleJoin = useCallback(
+    (selectedMood?: string) => {
+      // Start exit animation
+      setIsRetracting(true);
 
-    // Advance to complete after brief delay
-    setTimeout(() => {
-      advance();
-      onJoin?.();
-    }, 600);
-  }, [advance, onJoin]);
+      // Advance to complete after brief delay
+      setTimeout(() => {
+        advance();
+        onJoin?.(selectedMood);
+      }, 600);
+    },
+    [advance, onJoin],
+  );
 
   // Skip intro on Escape key
   useEffect(() => {
@@ -116,20 +121,20 @@ export function CinematicIntro({
             pointerEvents: phase === 'cta' ? 'auto' : 'none',
           }}
         >
-          {/* Black overlay - stays visible while title appears, then fades */}
+          {/* Black overlay - stays visible while title appears, then fades gently */}
           <div
             style={{
               position: 'absolute',
               inset: 0,
-              background: '#0a0908',
-              // Black overlay stays at 100% until 50% of reveal, then fades
+              background: '#000',
+              // Black overlay stays at 100% until 45% of reveal, then fades gradually
               opacity:
                 phase === 'void'
                   ? 1
                   : phase === 'reveal'
-                    ? Math.max(0, 1 - (progress - 0.4) * 2.5)
+                    ? Math.max(0, 1 - (progress - 0.45) * 1.8)
                     : 0,
-              transition: 'opacity 0.8s ease-out',
+              transition: 'opacity 1.2s ease-out',
               pointerEvents: 'none',
             }}
             aria-hidden="true"

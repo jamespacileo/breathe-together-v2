@@ -17,8 +17,8 @@ export type IntroPhase = 'void' | 'reveal' | 'cta' | 'complete';
  * Phase timing configuration (milliseconds)
  */
 export const PHASE_TIMING: Record<IntroPhase, number> = {
-  void: 600, // 0.6s black screen
-  reveal: 3000, // 3s - title appears on black (0-50%), then scene fades in (50-100%)
+  void: 1000, // 1s pure black screen
+  reveal: 4000, // 4s - title fades in (15-40%), scene gently fades in (50-100%)
   cta: 0, // Main menu - waits for user interaction
   complete: 0, // Immediate transition
 };
@@ -38,6 +38,6 @@ export interface CinematicConfig {
   speedMultiplier?: number;
   /** Callback when intro completes */
   onComplete?: () => void;
-  /** Callback when user clicks CTA */
-  onJoin?: () => void;
+  /** Callback when user clicks CTA (after mood selection) */
+  onJoin?: (selectedMood?: string) => void;
 }
