@@ -9,8 +9,10 @@
  */
 
 import { useFrame, useThree } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { orbitRadius, rawProgress as rawProgressTrait } from '../breath/traits';
 
 // Backface vertex shader - renders normals from back faces
 const backfaceVertexShader = `
@@ -45,13 +47,14 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates frosted glass effect with mood color tinting
+// Refraction fragment shader - frosted glass with phase transition flash
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
 uniform vec2 resolution;
 uniform float ior;
 uniform float backfaceIntensity;
+uniform float rawProgress;  // 0-1 progress within current phase
 
 varying vec3 vColor;
 varying vec3 worldNormal;
@@ -69,19 +72,39 @@ void main() {
   vec2 refractUv = uv + refracted.xy * 0.05;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // 1. FROSTED TINT: mood color tints refraction (50% mix)
-  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor, 0.5);
+  // Phase transition pulse - peaks exactly at phase change
+  // Ramps up at end of phase (anticipation), peaks at transition, decays after
+  float pulse = 0.0;
+  if (rawProgress > 0.85) {
+    // Anticipation: ramp up during last 15% of phase
+    float t = (rawProgress - 0.85) / 0.15;
+    pulse = t * t * 0.12;
+  } else if (rawProgress < 0.20) {
+    // Decay: smooth falloff over first 20% of new phase
+    float t = rawProgress / 0.20;
+    pulse = (1.0 - t * t) * 0.12;
+  }
 
-  // 2. MATTE BODY: solid mood color (25% mix)
+  // Base color: frosted glass with mood tint
+  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor, 0.5);
   vec3 bodyColor = mix(tintedRefraction, vColor, 0.25);
 
-  // 3. FRESNEL RIM: white edge highlight
-  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
-  vec3 finalColor = mix(bodyColor, vec3(1.0), fresnel * 0.4);
+  // Apply pulse (adds white/brightness to create pulsing glow)
+  bodyColor = mix(bodyColor, vec3(1.0), pulse);
 
-  // 4. SOFT TOP-DOWN LIGHT
+  // Fresnel rim glow (white edge highlight)
+  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
+  vec3 colorWithRim = mix(bodyColor, vec3(1.0), fresnel * 0.4);
+
+  // Soft top-down light
   float topLight = smoothstep(0.0, 1.0, normal.y) * 0.1;
-  finalColor += vec3(1.0) * topLight;
+  colorWithRim += vec3(1.0) * topLight;
+
+  // Edge desaturation for atmospheric depth (reduces over-saturation, adds softness)
+  float facing = clamp(dot(normal, -eyeVector), 0.0, 1.0);
+  float facingBoost = facing * 0.08;
+  vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
+  vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
 
   gl_FragColor = vec4(finalColor, 1.0);
 }
@@ -235,6 +258,12 @@ interface RefractionPipelineProps {
    * @default 3
    */
   maxBlur?: number;
+  /**
+   * Progress within current phase (0-1).
+   * Used for subtle flash at phase transitions.
+   * @default 0
+   */
+  rawProgress?: number;
   /** Children meshes to render with refraction */
   children?: React.ReactNode;
 }
@@ -246,10 +275,12 @@ export function RefractionPipeline({
   focusDistance = 15,
   focalRange = 8,
   maxBlur = 3,
+  rawProgress = 0,
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
   const perspCamera = camera as THREE.PerspectiveCamera;
+  const world = useWorld();
 
   // Create render targets
   const { envFBO, backfaceFBO, compositeFBO } = useMemo(() => {
@@ -330,6 +361,7 @@ export function RefractionPipeline({
         resolution: { value: new THREE.Vector2(size.width, size.height) },
         ior: { value: ior },
         backfaceIntensity: { value: backfaceIntensity },
+        rawProgress: { value: 0 },
       },
       vertexShader: refractionVertexShader,
       fragmentShader: refractionFragmentShader,
@@ -396,6 +428,20 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
+    // Query rawProgress from ECS for phase transition flash
+    let currentRawProgress = rawProgress;
+    try {
+      const breathEntity = world.queryFirst(orbitRadius);
+      if (breathEntity) {
+        currentRawProgress = breathEntity.get(rawProgressTrait)?.value ?? rawProgress;
+      }
+    } catch {
+      // Ignore ECS errors during unmount/remount in Triplex
+    }
+
+    // Update rawProgress uniform for phase transition flash
+    refractionMaterial.uniforms.rawProgress.value = currentRawProgress;
+
     // Validate cached meshes are still valid (in scene and have useRefraction flag)
     // This handles cases where meshes are recreated with same scene.children.length
     let needsRefresh = sceneVersionRef.current !== scene.children.length;

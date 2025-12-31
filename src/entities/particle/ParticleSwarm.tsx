@@ -206,6 +206,17 @@ const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 
 /**
+ * Rotation multipliers by phase type
+ *
+ * Provides visual cue for which phase the user is in:
+ * - Inhale (0): Forward rotation (gathering energy)
+ * - Hold-in (1): Slow rotation (stillness, presence)
+ * - Exhale (2): Reverse rotation (releasing)
+ * - Hold-out (3): Minimal rotation (calm)
+ */
+const PHASE_ROTATION_MULTIPLIERS = [1.0, 0.3, -0.8, 0.2] as const;
+
+/**
  * Reusable Vector3 objects for animation loop
  * Pre-allocated to avoid garbage collection pressure in hot path
  * ~240+ allocations per frame eliminated by reusing these vectors
@@ -375,8 +386,10 @@ export function ParticleSwarm({
 
     // Update shader material uniforms for all shards
     // (shared material means updating once affects all)
+    // Note: rawProgress is handled by RefractionPipeline directly
     if (material.uniforms) {
       material.uniforms.breathPhase.value = currentBreathPhase;
+      material.uniforms.phaseType.value = currentPhaseType;
       material.uniforms.time.value = time;
     }
 
@@ -439,9 +452,10 @@ export function ParticleSwarm({
         .addScaledVector(_tempTangent2, wobble2)
         .add(_tempAmbient);
 
-      // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
-      shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
-      shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
+      // Per-shard rotation with phase-based direction (see PHASE_ROTATION_MULTIPLIERS)
+      const rotationMultiplier = PHASE_ROTATION_MULTIPLIERS[currentPhaseType] ?? 1.0;
+      shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX * rotationMultiplier;
+      shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY * rotationMultiplier;
 
       // Subtle scale breathing - shards pulse slightly with breath (3-8% range)
       // Combined with base scale offset for depth variation
