@@ -8,6 +8,7 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { InspirationalParticleText } from '../entities/particleText';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -38,6 +39,8 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
+  // Particle text toggle (3D particles vs DOM overlay)
+  showParticleText = true,
 }: Partial<BreathingLevelProps> = {}) {
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
@@ -135,6 +138,10 @@ export function BreathingLevel({
             )}
           </PresentationControls>
         </RefractionPipeline>
+
+        {/* 3D Particle Text - inspirational messages formed by particles */}
+        {/* Positioned outside RefractionPipeline to avoid refraction, stays fixed in camera view */}
+        {showParticleText && <InspirationalParticleText />}
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>

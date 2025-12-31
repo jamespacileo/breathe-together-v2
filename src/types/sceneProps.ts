@@ -36,6 +36,14 @@ export interface BreathingLevelProps {
    * @default true
    */
   showEnvironment?: boolean;
+
+  /**
+   * Show 3D particle text for inspirational messages.
+   * When enabled, text is rendered as particles in 3D space instead of DOM overlay.
+   * @group "Entity Visibility"
+   * @default true
+   */
+  showParticleText?: boolean;
 }
 
 // ============================================================================
