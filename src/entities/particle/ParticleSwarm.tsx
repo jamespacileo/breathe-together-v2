@@ -6,6 +6,7 @@
  * - Calculates Fibonacci positions dynamically each frame
  * - Gentle opacity fade for enter/exit (no scale animation)
  * - Positions naturally redistribute as count changes
+ * - Uses exponential lerp for breathing (no spring bounce)
  *
  * Performance optimizations:
  * - Colors only updated when mood changes (tracked per-shard)
@@ -72,19 +73,32 @@ interface PooledShard {
 }
 
 /**
- * Physics state for organic breathing
+ * Physics state for organic breathing animation
+ *
+ * SIMPLIFIED: Uses exponential lerp for smooth following of ECS orbitRadius.
+ * No spring physics = no bounce or overshoot.
  */
 interface ShardPhysics {
+  /** Current interpolated radius (lerp-smoothed) */
   currentRadius: number;
-  velocity: number;
+  /** Seed for ambient floating motion */
   ambientSeed: number;
+  /** Per-shard rotation speed X */
   rotSpeedX: number;
+  /** Per-shard rotation speed Y */
   rotSpeedY: number;
 }
 
-// Spring constants for smooth breathing
-const SPRING_K = 6;
-const SPRING_D = 4.5;
+/**
+ * Exponential lerp speed for breathing animation
+ * Higher = faster response, lower = smoother/slower
+ */
+const BREATH_LERP_SPEED = 6.0;
+
+/**
+ * Ambient floating motion scale
+ * Secondary motion - particles "float" even during holds
+ */
 const AMBIENT_SCALE = 0.06;
 
 // Reusable Vector3 instances to avoid allocations in useFrame
@@ -147,7 +161,6 @@ export function ParticleSwarm({
       const seed = i * 137.508;
       physics.push({
         currentRadius: baseRadius,
-        velocity: 0,
         ambientSeed: seed,
         rotSpeedX: 0.7 + ((i * 1.618) % 1) * 0.6,
         rotSpeedY: 0.7 + ((i * 2.236) % 1) * 0.6,
@@ -179,7 +192,7 @@ export function ParticleSwarm({
     // Tick opacity animations
     onTickAnimations?.();
 
-    // Get breathing state
+    // Get breathing state from ECS
     let targetRadius = baseRadius;
     let phase = 0;
     try {
@@ -233,12 +246,10 @@ export function ParticleSwarm({
       const theta = Math.sqrt(activeCount * Math.PI) * phi;
       _direction.setFromSphericalCoords(1, phi, theta);
 
-      // Spring physics for smooth radius changes
+      // Exponential lerp for breathing (no spring bounce)
       const clampedTarget = Math.max(targetRadius, minRadius);
-      const springForce = (clampedTarget - phys.currentRadius) * SPRING_K;
-      const dampForce = -phys.velocity * SPRING_D;
-      phys.velocity += (springForce + dampForce) * dt;
-      phys.currentRadius += phys.velocity * dt;
+      const lerpFactor = 1 - Math.exp(-BREATH_LERP_SPEED * dt);
+      phys.currentRadius += (clampedTarget - phys.currentRadius) * lerpFactor;
 
       // Ambient floating motion (reuse _ambient vector)
       const seed = phys.ambientSeed;
