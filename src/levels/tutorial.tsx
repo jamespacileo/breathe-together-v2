@@ -303,28 +303,38 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
               ))}
             </div>
 
-            {/* Main tutorial content */}
+            {/* Main tutorial content - centered on globe with legibility backdrop */}
             <div
               style={{
                 position: 'absolute',
-                bottom: '140px',
+                top: '50%',
                 left: '50%',
-                transform: 'translateX(-50%)',
+                transform: 'translate(-50%, -50%)',
                 textAlign: 'center',
-                width: '90%',
-                maxWidth: '420px',
+                // Soft elliptical gradient backdrop for legibility (like InspirationalText)
+                padding: 'clamp(24px, 5vw, 48px) clamp(32px, 8vw, 80px)',
+                background: `radial-gradient(
+                  ellipse 140% 120% at center,
+                  rgba(253, 251, 247, 0.85) 0%,
+                  rgba(253, 251, 247, 0) 70%
+                )`,
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+                borderRadius: '100px',
               }}
             >
               {/* Step title */}
               <h2
                 style={{
                   fontFamily: "'Cormorant Garamond', Georgia, serif",
-                  fontSize: 'clamp(1.5rem, 5vw, 2rem)',
-                  fontWeight: 400,
+                  fontSize: 'clamp(1.6rem, 5vw, 2.4rem)',
+                  fontWeight: 300,
                   color: '#4a3f35',
-                  letterSpacing: '0.12em',
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
                   margin: '0 0 12px 0',
-                  textShadow: '0 2px 20px rgba(201, 160, 108, 0.3)',
+                  textShadow:
+                    '0 0 30px rgba(255, 252, 240, 0.8), 0 0 60px rgba(201, 160, 108, 0.3)',
                 }}
               >
                 {stepContent.title}
@@ -333,11 +343,14 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
               {/* Step subtitle */}
               <p
                 style={{
-                  fontSize: '0.9rem',
-                  color: '#7a6b5a',
-                  letterSpacing: '0.03em',
+                  fontFamily: "'Cormorant Garamond', Georgia, serif",
+                  fontSize: 'clamp(0.95rem, 2.5vw, 1.2rem)',
+                  fontWeight: 400,
+                  color: '#5a4d42',
+                  letterSpacing: '0.05em',
                   margin: 0,
-                  lineHeight: 1.6,
+                  lineHeight: 1.5,
+                  textShadow: '0 0 20px rgba(255, 252, 240, 0.6)',
                 }}
               >
                 {stepContent.subtitle}
@@ -347,19 +360,21 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
               {currentStep === 'breathing' && (
                 <div
                   style={{
-                    marginTop: '32px',
+                    marginTop: '28px',
                   }}
                 >
                   {/* Large breathing guidance text */}
                   <span
                     style={{
                       fontFamily: "'Cormorant Garamond', Georgia, serif",
-                      fontSize: 'clamp(1.5rem, 6vw, 2.5rem)',
+                      fontSize: 'clamp(1.8rem, 7vw, 3rem)',
                       fontWeight: 300,
                       color: '#4a3f35',
-                      letterSpacing: '0.1em',
+                      letterSpacing: '0.12em',
                       display: 'block',
-                      marginBottom: '16px',
+                      marginBottom: '20px',
+                      textShadow:
+                        '0 0 30px rgba(255, 252, 240, 0.8), 0 0 60px rgba(201, 160, 108, 0.4)',
                     }}
                   >
                     {getBreathingGuidance()}
@@ -368,9 +383,9 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                   {/* Progress bar */}
                   <div
                     style={{
-                      width: '160px',
+                      width: '180px',
                       height: '3px',
-                      background: 'rgba(160, 140, 120, 0.15)',
+                      background: 'rgba(160, 140, 120, 0.2)',
                       borderRadius: '2px',
                       margin: '0 auto',
                       overflow: 'hidden',
@@ -391,11 +406,13 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                   {!canProceed && (
                     <p
                       style={{
-                        fontSize: '0.75rem',
-                        color: '#9a8a7a',
-                        marginTop: '20px',
-                        letterSpacing: '0.05em',
-                        opacity: 0.8,
+                        fontFamily: "'Cormorant Garamond', Georgia, serif",
+                        fontSize: '0.85rem',
+                        color: '#7a6b5a',
+                        marginTop: '24px',
+                        letterSpacing: '0.08em',
+                        opacity: 0.9,
+                        fontStyle: 'italic',
                       }}
                     >
                       {stepContent.hint}
@@ -408,7 +425,7 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
               {currentStep === 'others-waiting' && (
                 <div
                   style={{
-                    marginTop: '24px',
+                    marginTop: '20px',
                     opacity: othersRevealProgress,
                   }}
                 >
@@ -416,11 +433,12 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                   <span
                     style={{
                       fontFamily: "'Cormorant Garamond', Georgia, serif",
-                      fontSize: '1.1rem',
+                      fontSize: '1.2rem',
                       fontWeight: 300,
-                      color: '#7a6b5a',
-                      letterSpacing: '0.12em',
+                      color: '#5a4d42',
+                      letterSpacing: '0.15em',
                       textTransform: 'uppercase',
+                      textShadow: '0 0 20px rgba(255, 252, 240, 0.6)',
                     }}
                   >
                     {phaseName}
@@ -429,13 +447,14 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                   {/* Hint with count */}
                   <p
                     style={{
-                      fontSize: '0.8rem',
-                      color: '#9a8a7a',
+                      fontFamily: "'Cormorant Garamond', Georgia, serif",
+                      fontSize: '0.95rem',
+                      color: '#7a6b5a',
                       marginTop: '12px',
-                      letterSpacing: '0.05em',
+                      letterSpacing: '0.06em',
                     }}
                   >
-                    <span style={{ fontWeight: 600, color: '#7a6b5a' }}>73</span> breathing together
+                    <span style={{ fontWeight: 500, color: '#5a4d42' }}>73</span> breathing together
                   </p>
                 </div>
               )}
@@ -444,11 +463,11 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
               {currentStep === 'your-shape' && (
                 <p
                   style={{
-                    fontSize: '0.75rem',
-                    color: '#9a8a7a',
+                    fontFamily: "'Cormorant Garamond', Georgia, serif",
+                    fontSize: '0.9rem',
+                    color: '#7a6b5a',
                     marginTop: '20px',
-                    letterSpacing: '0.05em',
-                    opacity: 0.8,
+                    letterSpacing: '0.06em',
                     fontStyle: 'italic',
                   }}
                 >

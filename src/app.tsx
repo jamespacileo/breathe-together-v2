@@ -6,6 +6,7 @@ import { AudioProvider } from './audio';
 import { CinematicFog, CinematicIntro } from './components/cinematic';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TutorialPromptModal } from './components/TutorialPromptModal';
+import { WelcomeModal } from './components/WelcomeModal';
 import type { MoodId } from './constants';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
@@ -65,6 +66,9 @@ export function App() {
 
   // Whether user is returning (affects tutorial prompt copy)
   const [returningUser] = useState(() => isReturningUser());
+
+  // Welcome modal visibility (shown when first entering breathing phase)
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   // Layered reveal progress (0→1 over 3s after entering breathing phase)
   // Shared with CameraRig and BreathingLevel for coordinated transitions
@@ -133,12 +137,19 @@ export function App() {
   const handleSkipTutorial = useCallback(() => {
     markUserJoined();
     setAppPhase('breathing');
+    setShowWelcomeModal(true);
   }, []);
 
   // Handle tutorial completion → transition to full breathing experience
   const handleTutorialComplete = useCallback(() => {
     markUserJoined();
     setAppPhase('breathing');
+    setShowWelcomeModal(true);
+  }, []);
+
+  // Handle welcome modal dismissal
+  const handleWelcomeDismiss = useCallback(() => {
+    setShowWelcomeModal(false);
   }, []);
 
   return (
@@ -194,6 +205,9 @@ export function App() {
           isReturningUser={returningUser}
         />
       )}
+
+      {/* Welcome modal - appears when entering breathing phase */}
+      {showWelcomeModal && <WelcomeModal onDismiss={handleWelcomeDismiss} />}
     </ErrorBoundary>
   );
 }
