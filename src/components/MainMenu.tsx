@@ -52,6 +52,8 @@ export function MainMenu({ onJoin }: MainMenuProps) {
   const handleMoodSelect = useCallback(
     (mood: MoodId) => {
       setSelectedMood(mood);
+      // Store mood in localStorage so SimpleGaiaUI doesn't show welcome modal again
+      localStorage.setItem('breathe-together-selected-mood', mood);
       // Brief delay to show selection, then join
       setTimeout(() => {
         setShowMoodSelect(false);

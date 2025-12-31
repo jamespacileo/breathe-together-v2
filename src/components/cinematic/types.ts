@@ -1,24 +1,22 @@
 /**
  * Cinematic Intro Types
  *
- * Simplified phase-based state machine for the cinematic landing experience.
+ * Minimal phase-based state machine for elegant landing experience.
  */
 
 /**
  * Intro phases in sequence:
- * - void: Pure black screen
- * - reveal: Globe fades in with letterbox bars
- * - cta: Main menu state - title + CTA visible, waiting for user
+ * - reveal: Globe visible with letterbox bars, title fades in
+ * - cta: Letterbox retracts, CTA button appears
  * - complete: Intro finished, user has joined
  */
-export type IntroPhase = 'void' | 'reveal' | 'cta' | 'complete';
+export type IntroPhase = 'reveal' | 'cta' | 'complete';
 
 /**
  * Phase timing configuration (milliseconds)
  */
 export const PHASE_TIMING: Record<IntroPhase, number> = {
-  void: 1000, // 1s pure black screen
-  reveal: 4000, // 4s - title fades in (15-40%), scene gently fades in (50-100%)
+  reveal: 3000, // 3s - globe with letterbox, title fades in elegantly
   cta: 0, // Main menu - waits for user interaction
   complete: 0, // Immediate transition
 };
@@ -26,7 +24,7 @@ export const PHASE_TIMING: Record<IntroPhase, number> = {
 /**
  * Phase sequence for iteration
  */
-export const PHASE_SEQUENCE: IntroPhase[] = ['void', 'reveal', 'cta', 'complete'];
+export const PHASE_SEQUENCE: IntroPhase[] = ['reveal', 'cta', 'complete'];
 
 /**
  * Cinematic intro configuration

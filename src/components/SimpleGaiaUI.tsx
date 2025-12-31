@@ -67,6 +67,16 @@ interface SimpleGaiaUIProps {
  * - Stacks elements vertically on narrow screens
  * - Adjusts modal sizing for small viewports
  */
+// Helper to get stored mood from localStorage
+function getStoredMood(): MoodId | null {
+  if (typeof window === 'undefined') return null;
+  const stored = localStorage.getItem('breathe-together-selected-mood');
+  if (stored && MOOD_IDS.includes(stored as MoodId)) {
+    return stored as MoodId;
+  }
+  return null;
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: UI component manages multiple modal states (tune controls, settings, mood selection, welcome, hints) and phase animation loops - refactoring would reduce readability by splitting cohesive UI state management
 export function SimpleGaiaUI({
   harmony,
@@ -92,12 +102,15 @@ export function SimpleGaiaUI({
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
-  // Only show welcome if onboarding should run (scene is ready)
-  const [showWelcome, setShowWelcome] = useState(shouldRunOnboarding);
+  // Check if user already selected mood during intro - skip welcome if so
+  const storedMood = getStoredMood();
+  // Only show welcome if onboarding should run AND no mood was selected during intro
+  const [showWelcome, setShowWelcome] = useState(shouldRunOnboarding && !storedMood);
   const [showKeyHint, setShowKeyHint] = useState(false);
   const [internalShowSettings, setInternalShowSettings] = useState(false);
   const [showMoodSelect, setShowMoodSelect] = useState(false);
-  const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
+  // Initialize selected mood from localStorage if available
+  const [selectedMood, setSelectedMood] = useState<MoodId | null>(storedMood);
 
   // React 19 useTransition for non-urgent updates (modals, animations)
   // Keeps UI responsive during modal opens/closes and mood selections
@@ -377,6 +390,8 @@ export function SimpleGaiaUI({
   }, []);
 
   const handleMoodSelect = useCallback((mood: MoodId) => {
+    // Store mood in localStorage
+    localStorage.setItem('breathe-together-selected-mood', mood);
     // Use transition for non-urgent mood selection
     startTransition(() => {
       setSelectedMood(mood);

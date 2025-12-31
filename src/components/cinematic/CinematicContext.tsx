@@ -22,7 +22,7 @@ const CinematicContext = createContext<CinematicState | null>(null);
  * Provider for sharing cinematic intro state with 3D components.
  */
 export function CinematicProvider({ children }: { children: ReactNode }) {
-  const [phase, setPhase] = useState<IntroPhase>('void');
+  const [phase, setPhase] = useState<IntroPhase>('reveal');
   const [progress, setProgress] = useState(0);
   const [isComplete, setComplete] = useState(false);
 

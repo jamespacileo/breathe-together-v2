@@ -34,15 +34,10 @@ export function CinematicFog({ phase, progress, color = '#1a1816' }: CinematicFo
     let targetFar: number;
 
     switch (phase) {
-      case 'void':
-        // Completely fogged out
-        targetNear = 0;
-        targetFar = 5;
-        break;
       case 'reveal':
-        // Progressive clearing as globe appears
-        targetNear = progress * 22;
-        targetFar = 5 + progress * 45;
+        // Progressive clearing as globe appears (starts with some visibility)
+        targetNear = 5 + progress * 17;
+        targetFar = 20 + progress * 30;
         break;
       case 'cta':
         // Mostly clear, slight atmospheric haze

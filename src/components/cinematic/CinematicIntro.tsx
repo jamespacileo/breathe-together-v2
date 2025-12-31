@@ -12,11 +12,10 @@ interface CinematicIntroProps extends CinematicConfig {
 /**
  * CinematicIntro - Orchestrates the cinematic landing experience.
  *
- * Simplified flow:
- * 1. Black screen (void)
- * 2. Globe reveals with letterbox (reveal)
- * 3. Main menu with title + CTA (cta)
- * 4. User clicks Join → complete
+ * Elegant minimal flow:
+ * 1. Globe visible with letterbox bars, title fades in (reveal)
+ * 2. Letterbox retracts, CTA appears (cta)
+ * 3. User clicks Join → mood selection → complete
  */
 export function CinematicIntro({
   children,
@@ -26,7 +25,6 @@ export function CinematicIntro({
   onJoin,
 }: CinematicIntroProps) {
   const [introComplete, setIntroComplete] = useState(skipIntro);
-  const [sceneOpacity, setSceneOpacity] = useState(skipIntro ? 1 : 0);
   const [isRetracting, setIsRetracting] = useState(false);
 
   const handleComplete = useCallback(() => {
@@ -38,29 +36,6 @@ export function CinematicIntro({
     speedMultiplier,
     onComplete: handleComplete,
   });
-
-  // Handle scene visibility based on phase
-  // Title appears on black first (15-40%), then scene gently fades in (50-100%)
-  useEffect(() => {
-    switch (phase) {
-      case 'void':
-        setSceneOpacity(0);
-        break;
-      case 'reveal': {
-        // Scene starts fading in at 50% of reveal phase
-        // Maps progress 0.5-1.0 → opacity 0-1 with easing
-        const sceneProgress = Math.max(0, (progress - 0.5) * 2);
-        // Apply ease-out for smoother reveal
-        const easedProgress = 1 - (1 - sceneProgress) ** 2;
-        setSceneOpacity(easedProgress);
-        break;
-      }
-      case 'cta':
-      case 'complete':
-        setSceneOpacity(1);
-        break;
-    }
-  }, [phase, progress]);
 
   // Handle CTA click (after mood selection in TitleReveal)
   const handleJoin = useCallback(
@@ -99,13 +74,11 @@ export function CinematicIntro({
 
   return (
     <>
-      {/* 3D Scene - always renders, opacity controlled */}
+      {/* 3D Scene - always visible (no black screen) */}
       <div
         style={{
           position: 'fixed',
           inset: 0,
-          opacity: sceneOpacity,
-          transition: 'opacity 0.8s ease-out',
         }}
       >
         {renderedChildren}
@@ -121,71 +94,14 @@ export function CinematicIntro({
             pointerEvents: phase === 'cta' ? 'auto' : 'none',
           }}
         >
-          {/* Black overlay - stays visible while title appears, then fades gently */}
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: '#000',
-              // Black overlay stays at 100% until 45% of reveal, then fades gradually
-              opacity:
-                phase === 'void'
-                  ? 1
-                  : phase === 'reveal'
-                    ? Math.max(0, 1 - (progress - 0.45) * 1.8)
-                    : 0,
-              transition: 'opacity 1.2s ease-out',
-              pointerEvents: 'none',
-            }}
-            aria-hidden="true"
-          />
-
           {/* Title and CTA */}
           <TitleReveal phase={phase} progress={progress} onJoin={handleJoin} />
 
-          {/* Letterbox bars - visible during reveal and cta */}
+          {/* Letterbox bars - visible during reveal, retract during cta */}
           <Letterbox phase={phase} retracting={isRetracting} />
-
-          {/* Skip hint */}
-          {phase === 'reveal' && <SkipHint />}
         </div>
       )}
     </>
-  );
-}
-
-/**
- * Subtle skip hint in corner
- */
-function SkipHint() {
-  const [showHint, setShowHint] = useState(false);
-
-  // Show hint after 2 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => setShowHint(true), 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (!showHint) return null;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 'calc(12% + 24px)', // Above letterbox
-        right: '24px',
-        fontSize: '0.65rem',
-        color: 'rgba(200, 190, 180, 0.4)',
-        fontFamily: "'DM Sans', system-ui, sans-serif",
-        letterSpacing: '0.1em',
-        textTransform: 'uppercase',
-        pointerEvents: 'none',
-        opacity: showHint ? 1 : 0,
-        transition: 'opacity 1s ease-out',
-      }}
-    >
-      press esc to skip
-    </div>
   );
 }
 

@@ -66,6 +66,8 @@ export function TitleReveal({ phase, progress, onJoin }: TitleRevealProps) {
   const handleMoodSelect = useCallback(
     (mood: MoodId) => {
       setSelectedMood(mood);
+      // Store mood in localStorage so SimpleGaiaUI doesn't show welcome modal again
+      localStorage.setItem('breathe-together-selected-mood', mood);
       // Brief delay to show selection, then join
       setTimeout(() => {
         setShowMoodSelect(false);
@@ -81,19 +83,10 @@ export function TitleReveal({ phase, progress, onJoin }: TitleRevealProps) {
     onJoin(undefined);
   }, [onJoin]);
 
-  // Don't render during void phase
-  if (phase === 'void') {
-    return null;
-  }
-
-  // During reveal: light text on black. During cta: dark text on light background
-  // Transition happens at 70% of reveal phase when scene starts becoming visible
-  const isOnBlack = phase === 'reveal' && progress < 0.7;
-  const titleColor = isOnBlack ? '#f8f4ed' : '#4a3f35';
-  const subtitleColor = isOnBlack ? '#c8c0b8' : '#7a6b5a';
-  const textShadow = isOnBlack
-    ? '0 2px 40px rgba(0, 0, 0, 0.5)'
-    : '0 2px 40px rgba(201, 160, 108, 0.3)';
+  // Dark text on visible globe background (no black screen)
+  const titleColor = '#4a3f35';
+  const subtitleColor = '#7a6b5a';
+  const textShadow = '0 2px 40px rgba(201, 160, 108, 0.3)';
 
   // Shared text styles - longer transitions for elegant reveal
   const textBase: React.CSSProperties = {
