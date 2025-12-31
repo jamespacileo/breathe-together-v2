@@ -52,22 +52,39 @@ Signal that a user is leaving (explicit cleanup).
 
 ## Setup
 
-1. Create a KV namespace:
+### Local Development
+
+1. Create KV namespaces:
    ```bash
+   cd worker
    wrangler kv:namespace create PRESENCE_KV
+   wrangler kv:namespace create PRESENCE_KV --preview
    ```
 
-2. Copy the namespace ID to `wrangler.toml`:
+2. Copy the namespace IDs to `wrangler.toml`:
    ```toml
    [[kv_namespaces]]
    binding = "PRESENCE_KV"
-   id = "your-namespace-id-here"
+   id = "your-production-namespace-id"
+   preview_id = "your-preview-namespace-id"
    ```
 
-3. For local development, also create a preview namespace:
-   ```bash
-   wrangler kv:namespace create PRESENCE_KV --preview
-   ```
+### GitHub Actions Deployment
+
+The workflows automatically deploy the worker. You need to add these secrets:
+
+1. Go to **Settings → Secrets and variables → Actions** in your GitHub repo
+
+2. Add the following secrets:
+   - `CLOUDFLARE_API_TOKEN` - API token with Workers edit permissions
+   - `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare account ID
+   - `PRESENCE_KV_ID` - Production KV namespace ID (from step 1)
+   - `PRESENCE_KV_PREVIEW_ID` - Preview KV namespace ID (from step 1)
+
+3. To create a Cloudflare API token:
+   - Go to Cloudflare Dashboard → My Profile → API Tokens
+   - Create token with "Edit Cloudflare Workers" template
+   - Or custom: Zone:Workers Scripts:Edit, Account:Workers KV Storage:Edit
 
 ## Development
 
