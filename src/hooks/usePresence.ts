@@ -24,11 +24,12 @@ import {
   type PresenceState,
   presenceApi,
   type ServerConfig,
+  type User,
   validateMood,
 } from '../lib/presenceApi';
 
 // Re-export types for convenience
-export type { MoodId, PresenceState } from '../lib/presenceApi';
+export type { MoodId, PresenceState, User } from '../lib/presenceApi';
 
 const DEFAULT_CONFIG: ServerConfig = {
   sampleRate: 0.03,
@@ -75,6 +76,7 @@ function storeMood(mood: MoodId): void {
 export interface UsePresenceResult {
   count: number;
   moods: Record<MoodId, number>;
+  users: User[];
   mood: MoodId;
   setMood: (mood: MoodId) => void;
   isConnected: boolean;
@@ -313,6 +315,7 @@ export function usePresence(): UsePresenceResult {
   return {
     count: presence.count,
     moods: presence.moods,
+    users: presence.users,
     mood,
     setMood,
     isConnected,

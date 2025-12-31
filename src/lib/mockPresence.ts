@@ -5,9 +5,15 @@
 
 import type { MoodId } from '../constants';
 
+export interface MockUser {
+  id: string;
+  mood: MoodId;
+}
+
 export interface MockPresenceData {
   count: number;
   moods: Record<MoodId, number>;
+  users: MockUser[];
 }
 
 /**
@@ -28,8 +34,18 @@ export function generateMockPresence(userCount: number): MockPresenceData {
     connection: Math.floor(userCount * 0.15),
   };
 
+  // Generate stable mock users with deterministic IDs
+  const users: MockUser[] = [];
+  const moodKeys: MoodId[] = ['presence', 'gratitude', 'release', 'connection'];
+  for (const mood of moodKeys) {
+    for (let i = 0; i < moods[mood]; i++) {
+      users.push({ id: `${mood}-${i}`, mood });
+    }
+  }
+
   return {
     count: userCount,
     moods,
+    users,
   };
 }

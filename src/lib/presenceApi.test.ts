@@ -51,6 +51,7 @@ describe('presenceApi', () => {
       const valid = {
         count: 100,
         moods: { gratitude: 25, presence: 35, release: 25, connection: 15 },
+        users: [{ id: 'user-1', mood: 'gratitude' as const }],
         timestamp: Date.now(),
       };
       expect(PresenceStateSchema.parse(valid)).toEqual(valid);
@@ -163,6 +164,7 @@ describe('presenceApi', () => {
         type: 'presence',
         count: 100,
         moods: { gratitude: 25, presence: 35, release: 25, connection: 15 },
+        users: [{ id: 'user-1', mood: 'gratitude' as const }],
         timestamp: Date.now(),
       };
       expect(WsPresenceMessageSchema.parse(valid)).toEqual(valid);
@@ -172,6 +174,7 @@ describe('presenceApi', () => {
       const valid = {
         count: 100,
         moods: { gratitude: 25, presence: 35, release: 25, connection: 15 },
+        users: [],
         timestamp: Date.now(),
       };
       const result = WsPresenceMessageSchema.parse(valid);

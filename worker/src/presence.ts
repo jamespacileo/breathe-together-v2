@@ -183,9 +183,15 @@ export function addSample(
 
 /**
  * Convert aggregate state to public presence response
+ * Includes users array for synchronized slot-based rendering
  */
 export function toPresenceState(state: AggregateState): PresenceState {
   const count = state.estimatedCount;
+
+  // Convert samples to users array (sorted by ID for consistent ordering)
+  const users = Object.entries(state.samples)
+    .map(([id, sample]) => ({ id, mood: sample.mood }))
+    .sort((a, b) => a.id.localeCompare(b.id));
 
   return {
     count,
@@ -195,6 +201,7 @@ export function toPresenceState(state: AggregateState): PresenceState {
       release: Math.round(count * state.moodRatios.release),
       connection: Math.round(count * state.moodRatios.connection),
     },
+    users,
     timestamp: state.lastUpdate,
   };
 }

@@ -9,6 +9,17 @@
 export type MoodId = 'gratitude' | 'presence' | 'release' | 'connection';
 
 /**
+ * Individual user for slot-based rendering
+ * Enables synchronized particle positions across all clients
+ */
+export interface User {
+  /** Stable slot ID (hashed session, same for all clients) */
+  id: string;
+  /** User's current mood */
+  mood: MoodId;
+}
+
+/**
  * Individual user session stored in KV
  */
 export interface PresenceSession {
@@ -26,6 +37,8 @@ export interface PresenceState {
   count: number;
   /** Count of users per mood */
   moods: Record<MoodId, number>;
+  /** Individual users for slot-based rendering (synchronized positions) */
+  users: User[];
   /** Server timestamp when this was computed */
   timestamp: number;
 }

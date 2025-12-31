@@ -15,6 +15,13 @@ import { z } from 'zod';
 export const MoodIdSchema = z.enum(['gratitude', 'presence', 'release', 'connection']);
 export type MoodId = z.infer<typeof MoodIdSchema>;
 
+/** Individual user for slot-based rendering */
+export const UserSchema = z.object({
+  id: z.string(),
+  mood: MoodIdSchema,
+});
+export type User = z.infer<typeof UserSchema>;
+
 /** Mood counts record */
 export const MoodCountsSchema = z.object({
   gratitude: z.number(),
@@ -27,6 +34,7 @@ export const MoodCountsSchema = z.object({
 export const PresenceStateSchema = z.object({
   count: z.number(),
   moods: MoodCountsSchema,
+  users: z.array(UserSchema),
   timestamp: z.number(),
 });
 export type PresenceState = z.infer<typeof PresenceStateSchema>;

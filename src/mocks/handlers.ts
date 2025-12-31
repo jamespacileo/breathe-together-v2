@@ -73,6 +73,13 @@ function calculatePresence(): PresenceState {
     connection: 0.15,
   };
 
+  // Build users array from sessions
+  const users: { id: string; mood: MoodId }[] = [];
+  state.sessions.forEach((session, id) => {
+    users.push({ id, mood: session.mood });
+  });
+  users.sort((a, b) => a.id.localeCompare(b.id));
+
   return {
     count: estimatedCount,
     moods: {
@@ -81,6 +88,7 @@ function calculatePresence(): PresenceState {
       release: moodCounts.release + Math.round(state.baseCount * ratios.release),
       connection: moodCounts.connection + Math.round(state.baseCount * ratios.connection),
     },
+    users,
     timestamp: now,
   };
 }
