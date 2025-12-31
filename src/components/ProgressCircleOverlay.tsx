@@ -11,7 +11,7 @@
  * Visual style: Subtle, minimal overlay that complements the globe aesthetic
  */
 
-import { Ring, Text } from '@react-three/drei';
+import { Billboard, Ring, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -22,6 +22,15 @@ import { breathPhase, phaseType, rawProgress } from '../entities/breath/traits';
 
 // Phase names for display
 const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'] as const;
+
+// Phase label configuration - positioned around the ring
+// Each phase starts at a specific angle (clockwise from top)
+const PHASE_LABELS = [
+  { name: 'Inhale', angle: -Math.PI / 2, phaseIndex: 0 }, // Top (0%)
+  { name: 'Hold', angle: 0, phaseIndex: 1 }, // Right (25%)
+  { name: 'Exhale', angle: Math.PI / 2, phaseIndex: 2 }, // Bottom (50%)
+  { name: 'Hold', angle: Math.PI, phaseIndex: 3 }, // Left (75%)
+] as const;
 
 // Phase durations for progress calculation
 const PHASE_DURATIONS = [
@@ -49,9 +58,7 @@ interface ProgressCircleOverlayProps {
   expandedRadius?: number;
   /** Ring thickness @default 0.03 */
   thickness?: number;
-  /** Ring color @default '#c9a06c' */
-  ringColor?: string;
-  /** Progress arc color @default '#7ec8d4' */
+  /** Progress arc color @default '#c9a06c' */
   progressColor?: string;
   /** Text color @default '#5a4d42' */
   textColor?: string;
@@ -94,7 +101,6 @@ export function ProgressCircleOverlay({
   radius = 2.0,
   expandedRadius = 3.2,
   thickness = 0.03,
-  ringColor = 'rgba(160, 140, 120, 0.2)',
   progressColor = '#c9a06c',
   textColor = '#5a4d42',
   showUserCount = true,
@@ -111,9 +117,13 @@ export function ProgressCircleOverlay({
 
   // Phase name state (updates on phase transitions only - 4 times per 16s cycle)
   const [phaseName, setPhaseName] = useState<string>('Hold');
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(0);
 
   // Current animated radius (smoothly interpolates between radius and expandedRadius)
   const currentRadiusRef = useRef<number>(radius);
+
+  // Label offset distance from ring (slightly outside)
+  const labelOffset = 0.35;
 
   // Create progress arc geometry (will be updated each frame)
   const progressGeometryRef = useRef<THREE.BufferGeometry | null>(null);
@@ -160,6 +170,7 @@ export function ProgressCircleOverlay({
   /**
    * Update progress arc, breathing scale, and text each frame
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation loop requires multiple state checks for breathing animation, progress arc updates, indicator position, and material opacity - all tightly coupled
   useFrame((_, delta) => {
     if (!groupRef.current || !progressMeshRef.current) return;
 
@@ -189,6 +200,7 @@ export function ProgressCircleOverlay({
         prevPhaseRef.current = currentPhaseType;
         const newPhaseName = PHASE_NAMES[currentPhaseType] ?? 'Breathe';
         setPhaseName(newPhaseName);
+        setCurrentPhaseIndex(currentPhaseType);
       }
 
       // ========== BREATHING RADIUS ANIMATION ==========
@@ -285,19 +297,64 @@ export function ProgressCircleOverlay({
           <circleGeometry args={[thickness * 2.5, 16]} />
           <meshBasicMaterial color={progressColor} transparent opacity={0.95} depthWrite={false} />
         </mesh>
+
+        {/* Phase markers and labels - positioned around the ring */}
+        {PHASE_LABELS.map((label) => {
+          const isActive = currentPhaseIndex === label.phaseIndex;
+          const markerRadius = radius + thickness;
+          const labelRadius = radius + labelOffset;
+
+          // Calculate position on the ring
+          const markerX = Math.cos(label.angle) * markerRadius;
+          const markerY = Math.sin(label.angle) * markerRadius;
+          const labelX = Math.cos(label.angle) * labelRadius;
+          const labelY = Math.sin(label.angle) * labelRadius;
+
+          return (
+            <group key={`phase-${label.phaseIndex}-${label.name}`}>
+              {/* Phase marker dot */}
+              <mesh position={[markerX, markerY, 0.01]} renderOrder={renderOrder + 2}>
+                <circleGeometry args={[isActive ? thickness * 3 : thickness * 1.5, 16]} />
+                <meshBasicMaterial
+                  color={isActive ? progressColor : '#a08c78'}
+                  transparent
+                  opacity={isActive ? 0.95 : 0.4}
+                  depthWrite={false}
+                />
+              </mesh>
+
+              {/* Phase label as billboard (always faces camera) */}
+              <Billboard position={[labelX, labelY, 0.02]} follow={true}>
+                <Text
+                  fontSize={isActive ? 0.18 : 0.12}
+                  color={isActive ? progressColor : textColor}
+                  anchorX="center"
+                  anchorY="middle"
+                  letterSpacing={0.08}
+                  renderOrder={renderOrder + 4}
+                  material-transparent={true}
+                  material-depthWrite={false}
+                  fontWeight={isActive ? 'bold' : 'normal'}
+                >
+                  {label.name}
+                </Text>
+              </Billboard>
+            </group>
+          );
+        })}
       </group>
 
-      {/* Text stays fixed size (outside ring group) */}
-      {/* Phase text (centered) - displays current breathing phase */}
+      {/* Center text stays fixed size (outside ring group) */}
+      {/* Current phase text (large, centered) */}
       <Text
         position={[0, 0.1, 0.01]}
-        fontSize={0.32}
+        fontSize={0.38}
         color={textColor}
         anchorX="center"
         anchorY="middle"
-        letterSpacing={0.12}
+        letterSpacing={0.1}
         textAlign="center"
-        renderOrder={renderOrder + 3}
+        renderOrder={renderOrder + 5}
         material-transparent={true}
         material-depthWrite={false}
       >
@@ -307,13 +364,13 @@ export function ProgressCircleOverlay({
       {/* User count text (below phase name) */}
       {showUserCount && (
         <Text
-          position={[0, -0.25, 0.01]}
-          fontSize={0.12}
+          position={[0, -0.3, 0.01]}
+          fontSize={0.11}
           color={textColor}
           anchorX="center"
           anchorY="middle"
-          letterSpacing={0.08}
-          renderOrder={renderOrder + 3}
+          letterSpacing={0.06}
+          renderOrder={renderOrder + 5}
           material-transparent={true}
           material-depthWrite={false}
         >
