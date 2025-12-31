@@ -62,7 +62,22 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
+  // Generate mock users (converts count to individual users with stable IDs)
+  const mockUsers = useMemo(() => {
+    const presence = generateMockPresence(harmony);
+    // Convert aggregate mood counts to individual users
+    const users: Array<{ id: string; mood: 'gratitude' | 'presence' | 'release' | 'connection' }> =
+      [];
+    for (const [mood, count] of Object.entries(presence.moods)) {
+      for (let i = 0; i < count; i++) {
+        users.push({
+          id: `${mood}-${i}`,
+          mood: mood as 'gratitude' | 'presence' | 'release' | 'connection',
+        });
+      }
+    }
+    return users;
+  }, [harmony]);
 
   return (
     <ErrorBoundary>
@@ -92,12 +107,7 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm
-                count={harmony}
-                users={moods}
-                baseRadius={orbitRadius}
-                maxShardSize={shardSize}
-              />
+              <ParticleSwarm users={mockUsers} baseRadius={orbitRadius} maxShardSize={shardSize} />
             )}
 
             {showParticles && (
