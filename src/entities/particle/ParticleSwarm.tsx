@@ -182,6 +182,18 @@ const SPRING_DAMPING = 4.5; // Lower = oscillates, higher = settles faster
 const EXPANSION_VELOCITY_BOOST = 2.5; // Multiplier for expansion velocity injection
 
 /**
+ * Exhale transition impulse - immediate outward force when exhale begins
+ *
+ * Applied once at the exact moment we transition from hold-in to exhale.
+ * This eliminates the "bounce inward" by giving particles immediate outward
+ * momentum before spring physics can pull them back.
+ *
+ * The impulse represents the "letting go" - air being released doesn't
+ * hesitate or pull back before expanding outward.
+ */
+const EXHALE_IMPULSE = 0.8; // Immediate velocity injection at exhale start
+
+/**
  * Ambient floating motion constants
  *
  * Secondary motion layer - particles "float" even during holds
@@ -246,6 +258,7 @@ export function ParticleSwarm({
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+  const prevPhaseTypeRef = useRef<number>(-1); // Track phase transitions
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -394,6 +407,11 @@ export function ParticleSwarm({
     // Master Craftsman: Check if we're in a hold phase (1 = hold-in, 3 = hold-out)
     const isHoldPhase = currentPhaseType === 1 || currentPhaseType === 3;
 
+    // Detect exhale transition: hold-in (1) → exhale (2)
+    // This is the moment of "letting go" - apply immediate outward impulse
+    const isExhaleTransition = prevPhaseTypeRef.current === 1 && currentPhaseType === 2;
+    prevPhaseTypeRef.current = currentPhaseType;
+
     // Update shader material uniforms for all shards
     // (shared material means updating once affects all)
     if (material.uniforms) {
@@ -419,11 +437,19 @@ export function ParticleSwarm({
       // Clamp target to prevent penetrating globe
       const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
 
-      // Detect expansion (exhale) and apply velocity boost for immediate response
-      // This overcomes spring lag so exhale feels like an immediate "release"
+      // Exhale transition: Apply immediate outward impulse at the exact moment
+      // This eliminates the "bounce inward" - exhale should feel like letting go
+      if (isExhaleTransition) {
+        // Inject strong outward velocity immediately
+        shardState.velocity = EXHALE_IMPULSE;
+        // Clear velocity history to prevent momentum memory from fighting
+        shardState.velocityHistory = [EXHALE_IMPULSE, EXHALE_IMPULSE, EXHALE_IMPULSE];
+      }
+
+      // Detect ongoing expansion and apply velocity boost for sustained response
       const targetDelta = clampedTarget - shardState.previousTarget;
-      if (targetDelta > 0.001) {
-        // Expanding outward (exhale starting) - inject outward velocity
+      if (targetDelta > 0.001 && !isExhaleTransition) {
+        // Expanding outward - inject outward velocity proportional to change
         shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
       }
       shardState.previousTarget = clampedTarget;
