@@ -196,19 +196,19 @@ function OrbitingSatellite({
     const time = state.clock.elapsedTime;
     const angle = startAngle + time * speed;
 
-    // Calculate position on inclined orbit
+    // Calculate position on inclined orbit - hugging the surface
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
-    const y = Math.sin(angle) * Math.sin(inclination) * radius * 0.3;
+    const y = Math.sin(angle) * Math.sin(inclination) * radius * 0.15;
 
     meshRef.current.position.set(x, y, z);
   });
 
   return (
-    <Trail width={size * 2} length={8} color={color} attenuation={(t) => t * t} decay={1.5}>
+    <Trail width={size * 1.5} length={4} color={color} attenuation={(t) => t * t} decay={2}>
       <mesh ref={meshRef}>
-        <sphereGeometry args={[size, 8, 8]} />
-        <meshBasicMaterial color={color} transparent opacity={0.9} />
+        <sphereGeometry args={[size, 6, 6]} />
+        <meshBasicMaterial color={color} transparent opacity={0.7} />
       </mesh>
     </Trail>
   );
@@ -228,58 +228,37 @@ function GlobeCloudLayer({ radius, opacity = 0.25, speed = 0.2 }: GlobeCloudLaye
 
   useFrame((state) => {
     if (cloudsRef.current) {
-      // Slow rotation - opposite direction to globe for parallax effect
-      cloudsRef.current.rotation.y = state.clock.elapsedTime * 0.015 * speed;
+      // Very slow rotation for subtle drift
+      cloudsRef.current.rotation.y = state.clock.elapsedTime * 0.008 * speed;
     }
   });
 
-  const cloudScale = radius * 1.12; // Just above the globe surface
+  const cloudDist = radius * 1.02; // Just barely above the surface
 
   return (
     <group ref={cloudsRef}>
       <Clouds material={THREE.MeshBasicMaterial}>
-        {/* Equatorial cloud band */}
+        {/* Small wisp near equator */}
         <Cloud
-          position={[cloudScale * 0.7, 0, cloudScale * 0.5]}
-          opacity={opacity}
-          speed={speed}
-          segments={12}
-          bounds={[radius * 0.4, radius * 0.15, radius * 0.3]}
-          volume={2}
-          color="#ffffff"
-          fade={15}
-        />
-        <Cloud
-          position={[-cloudScale * 0.6, cloudScale * 0.2, cloudScale * 0.6]}
-          opacity={opacity * 0.8}
-          speed={speed * 1.2}
-          segments={10}
-          bounds={[radius * 0.35, radius * 0.12, radius * 0.25]}
-          volume={1.5}
-          color="#f8f4f0"
-          fade={12}
-        />
-        {/* Northern hemisphere wisps */}
-        <Cloud
-          position={[cloudScale * 0.3, cloudScale * 0.6, -cloudScale * 0.5]}
-          opacity={opacity * 0.7}
-          speed={speed * 0.8}
-          segments={8}
-          bounds={[radius * 0.3, radius * 0.1, radius * 0.2]}
-          volume={1.2}
-          color="#e8f0f8"
-          fade={10}
-        />
-        {/* Southern hemisphere wisps */}
-        <Cloud
-          position={[-cloudScale * 0.4, -cloudScale * 0.5, cloudScale * 0.4]}
+          position={[cloudDist * 0.8, 0.1, cloudDist * 0.4]}
           opacity={opacity * 0.6}
-          speed={speed * 1.1}
-          segments={8}
-          bounds={[radius * 0.25, radius * 0.1, radius * 0.2]}
-          volume={1}
-          color="#f0e8e0"
-          fade={10}
+          speed={speed * 0.5}
+          segments={6}
+          bounds={[radius * 0.2, radius * 0.05, radius * 0.15]}
+          volume={0.8}
+          color="#ffffff"
+          fade={8}
+        />
+        {/* Another small wisp */}
+        <Cloud
+          position={[-cloudDist * 0.5, cloudDist * 0.3, cloudDist * 0.6]}
+          opacity={opacity * 0.5}
+          speed={speed * 0.4}
+          segments={5}
+          bounds={[radius * 0.15, radius * 0.04, radius * 0.12]}
+          volume={0.6}
+          color="#f8f8f8"
+          fade={6}
         />
       </Clouds>
     </group>
@@ -369,7 +348,7 @@ interface EarthGlobeProps {
   cloudOpacity?: number;
   /** Show orbiting satellites with trails @default true */
   showSatellites?: boolean;
-  /** Number of satellites @default 3 */
+  /** Number of satellites @default 2 */
   satelliteCount?: number;
   /** Show flight path lines @default false */
   showFlightPaths?: boolean;
@@ -392,7 +371,7 @@ export function EarthGlobe({
   showClouds = true,
   cloudOpacity = 0.25,
   showSatellites = true,
-  satelliteCount = 3,
+  satelliteCount = 2,
   showFlightPaths = false,
 }: Partial<EarthGlobeProps> = {}) {
   const groupRef = useRef<THREE.Group>(null);
@@ -473,17 +452,17 @@ export function EarthGlobe({
   // Generate satellite configurations based on count
   const satelliteConfigs = useMemo(() => {
     const configs: OrbitingSatelliteProps[] = [];
-    const colors = ['#7ec8d4', '#f8b4c4', '#c4b8e8', '#b8e8d4', '#f8d0a8'];
-    const orbitRadius = radius * 1.8;
+    const colors = ['#ffffff', '#f0e8e0']; // Subtle white/cream only
+    const orbitRadius = radius * 1.08; // Just above the surface
 
     for (let i = 0; i < satelliteCount; i++) {
       configs.push({
-        radius: orbitRadius + i * 0.15,
-        speed: 0.15 + i * 0.05, // Varying speeds
-        inclination: (Math.PI / 6) * (i + 1), // Different orbital inclinations
-        startAngle: (Math.PI * 2 * i) / satelliteCount, // Evenly spaced starts
+        radius: orbitRadius + i * 0.03, // Minimal spacing
+        speed: 0.08 + i * 0.02, // Slower, calmer speeds
+        inclination: Math.PI / 8 + i * 0.2, // Gentle inclinations
+        startAngle: (Math.PI * 2 * i) / satelliteCount,
         color: colors[i % colors.length],
-        size: 0.04 + (i % 2) * 0.01, // Slight size variation
+        size: 0.02, // Tiny dots
       });
     }
 
