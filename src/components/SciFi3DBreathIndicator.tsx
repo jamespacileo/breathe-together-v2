@@ -7,60 +7,81 @@ import { calculatePhaseInfo } from '../lib/breathPhase';
 import { PHASE_NAMES } from '../styles/designTokens';
 
 /**
- * SciFi3DBreathIndicator - Minimal sci-fi inspired breathing timer
+ * SciFi3DBreathIndicator - Holographic orbital ring breathing timer
  *
  * Design inspiration: Destiny, Interstellar, Mass Effect HUDs
- * - Thin arc ring showing cycle progress
- * - Phase segment markers (4·7·8)
- * - Floating timer countdown
+ * - Orbital ring encircling the globe (tilted toward camera)
+ * - Progress arc fills as breathing cycle advances
+ * - Phase segment markers (4·7·8 boundaries)
+ * - Floating timer and phase name below ring
  * - Subtle glow synchronized to breathing
  *
- * Renders in 3D space for seamless integration with the meditation scene.
- * Uses RAF updates for 60fps smoothness without React re-renders.
+ * The ring wraps around the central globe, creating a holographic
+ * HUD that users can follow while keeping focus on the center.
  */
 
-// Phase durations for segment calculations
-const PHASE_STARTS = [
+// Phase boundaries as fractions of total cycle
+const PHASE_BOUNDARIES = [
   0,
   BREATH_PHASES.INHALE / BREATH_TOTAL_CYCLE,
   (BREATH_PHASES.INHALE + BREATH_PHASES.HOLD_IN) / BREATH_TOTAL_CYCLE,
-  1, // End marker
+  1,
 ];
 
-// Arc geometry constants
-const ARC_RADIUS = 0.8;
-const ARC_THICKNESS = 0.012;
-const ARC_ANGLE = Math.PI * 1.5; // 270 degrees
-const ARC_START_ANGLE = Math.PI * 0.75; // Start from bottom-left
+// Ring geometry constants
+const RING_RADIUS = 2.2; // Larger than globe (1.5) to orbit around it
+const RING_THICKNESS = 0.015;
 
 interface SciFi3DBreathIndicatorProps {
-  /** Y position in 3D space */
-  yPosition?: number;
-  /** Scale of the entire indicator */
-  scale?: number;
-  /** Opacity (0-1) */
+  /** Ring radius (should be larger than globe) @default 2.2 */
+  ringRadius?: number;
+  /** Opacity (0-1) @default 0.85 */
   opacity?: number;
-  /** Whether to show the phase name text */
+  /** Whether to show the phase name text @default true */
   showPhaseName?: boolean;
-  /** Whether to show the countdown timer */
+  /** Whether to show the countdown timer @default true */
   showTimer?: boolean;
-  /** Whether to show segment markers */
+  /** Whether to show segment markers @default true */
   showSegments?: boolean;
+  /** Ring tilt angle in radians @default ~0.35π */
+  ringTilt?: number;
 }
 
 /**
- * Creates a tube geometry along an arc path
+ * Creates a full ring (torus) geometry
  */
-function createArcTube(
+function createRingGeometry(radius: number, tubeRadius: number): THREE.TorusGeometry {
+  return new THREE.TorusGeometry(radius, tubeRadius, 16, 100);
+}
+
+/**
+ * Creates an arc segment of a ring
+ */
+function createArcGeometry(
   radius: number,
+  tubeRadius: number,
   startAngle: number,
-  endAngle: number,
-  thickness: number,
+  arcLength: number,
 ): THREE.TubeGeometry {
-  const curve = new THREE.EllipseCurve(0, 0, radius, radius, startAngle, endAngle, false, 0);
-  const points = curve.getPoints(64);
-  const path = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(p.x, p.y, 0)));
-  return new THREE.TubeGeometry(path, 64, thickness, 8, false);
+  const curve = new THREE.EllipseCurve(
+    0,
+    0,
+    radius,
+    radius,
+    startAngle,
+    startAngle + arcLength,
+    false,
+    0,
+  );
+  const points = curve.getPoints(Math.max(16, Math.floor(100 * (arcLength / (Math.PI * 2)))));
+  const path = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(p.x, 0, p.y)));
+  return new THREE.TubeGeometry(
+    path,
+    Math.max(8, Math.floor(64 * (arcLength / (Math.PI * 2)))),
+    tubeRadius,
+    8,
+    false,
+  );
 }
 
 /**
@@ -70,45 +91,36 @@ function updateProgressArc(
   meshRef: React.RefObject<THREE.Mesh | null>,
   cycleProgress: number,
 ): void {
-  if (!meshRef.current) return;
+  if (!meshRef.current || cycleProgress < 0.01) return;
 
-  const progressAngle = ARC_ANGLE * cycleProgress;
-  if (progressAngle < 0.01) return;
+  const arcLength = Math.PI * 2 * cycleProgress;
+  const numSegments = Math.max(8, Math.floor(64 * cycleProgress));
 
-  const numPoints = Math.max(8, Math.floor(64 * cycleProgress));
-  const progressCurve = new THREE.EllipseCurve(
+  const curve = new THREE.EllipseCurve(
     0,
     0,
-    ARC_RADIUS,
-    ARC_RADIUS,
-    ARC_START_ANGLE,
-    ARC_START_ANGLE + progressAngle,
+    RING_RADIUS,
+    RING_RADIUS,
+    -Math.PI / 2, // Start at top
+    -Math.PI / 2 + arcLength,
     false,
     0,
   );
-  const progressPoints = progressCurve.getPoints(numPoints);
+  const points = curve.getPoints(numSegments);
 
-  if (progressPoints.length < 2) return;
+  if (points.length < 2) return;
 
-  const progressPath = new THREE.CatmullRomCurve3(
-    progressPoints.map((p) => new THREE.Vector3(p.x, p.y, 0)),
-  );
-  const newGeometry = new THREE.TubeGeometry(
-    progressPath,
-    numPoints,
-    ARC_THICKNESS * 1.2,
-    8,
-    false,
-  );
+  const path = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(p.x, 0, p.y)));
+  const newGeometry = new THREE.TubeGeometry(path, numSegments, RING_THICKNESS * 1.5, 8, false);
 
   meshRef.current.geometry.dispose();
   meshRef.current.geometry = newGeometry;
 }
 
 /**
- * Updates glow intensity based on breathing phase
+ * Updates glow ring opacity based on breathing phase
  */
-function updateGlowIntensity(
+function updateGlowOpacity(
   meshRef: React.RefObject<THREE.Mesh | null>,
   phaseIndex: number,
   phaseProgress: number,
@@ -117,21 +129,21 @@ function updateGlowIntensity(
   if (!meshRef.current) return;
 
   const glowMaterial = meshRef.current.material as THREE.MeshBasicMaterial;
-  let glowIntensity = 0.1;
+  let intensity = 0.08;
 
   if (phaseIndex === 0) {
-    glowIntensity = 0.1 + phaseProgress * 0.15; // Grow during inhale
+    intensity = 0.08 + phaseProgress * 0.12; // Brighten during inhale
   } else if (phaseIndex === 1) {
-    glowIntensity = 0.25; // Peak during hold
+    intensity = 0.2; // Peak during hold
   } else if (phaseIndex === 2) {
-    glowIntensity = 0.25 - phaseProgress * 0.15; // Fade during exhale
+    intensity = 0.2 - phaseProgress * 0.12; // Dim during exhale
   }
 
-  glowMaterial.opacity = glowIntensity * baseOpacity;
+  glowMaterial.opacity = intensity * baseOpacity;
 }
 
 /**
- * Updates the progress indicator dot position and scale
+ * Updates progress dot position along the ring
  */
 function updateProgressDot(
   meshRef: React.RefObject<THREE.Mesh | null>,
@@ -141,23 +153,24 @@ function updateProgressDot(
 ): void {
   if (!meshRef.current) return;
 
-  const dotAngle = ARC_START_ANGLE + cycleProgress * ARC_ANGLE;
-  meshRef.current.position.x = Math.cos(dotAngle) * ARC_RADIUS;
-  meshRef.current.position.y = Math.sin(dotAngle) * ARC_RADIUS;
+  // Position dot along the ring (starts at top, goes clockwise)
+  const angle = -Math.PI / 2 + cycleProgress * Math.PI * 2;
+  meshRef.current.position.x = Math.cos(angle) * RING_RADIUS;
+  meshRef.current.position.z = Math.sin(angle) * RING_RADIUS;
 
   // Pulse during phase transitions
-  const isTransitioning = phaseProgress < 0.15 || phaseProgress > 0.85;
-  const dotScale = isTransitioning ? 1.2 + Math.sin(time * 8) * 0.2 : 1;
-  meshRef.current.scale.setScalar(dotScale);
+  const isTransitioning = phaseProgress < 0.1 || phaseProgress > 0.9;
+  const scale = isTransitioning ? 1.3 + Math.sin(time * 10) * 0.3 : 1;
+  meshRef.current.scale.setScalar(scale);
 }
 
 export function SciFi3DBreathIndicator({
-  yPosition = -4.5,
-  scale = 1,
+  ringRadius = 2.2,
   opacity = 0.85,
   showPhaseName = true,
   showTimer = true,
   showSegments = true,
+  ringTilt = Math.PI * 0.35,
 }: SciFi3DBreathIndicatorProps) {
   // Refs for direct manipulation
   const groupRef = useRef<THREE.Group>(null);
@@ -167,61 +180,49 @@ export function SciFi3DBreathIndicator({
   const timerTextRef = useRef<THREE.Mesh>(null);
   const dotRef = useRef<THREE.Mesh>(null);
 
-  // Cache for text updates (avoid string allocation every frame)
+  // Cache for text updates
   const prevPhaseRef = useRef(-1);
   const prevTimerRef = useRef(-1);
 
-  // Create arc geometries
-  const { backgroundArc, progressArc, glowRing } = useMemo(() => {
-    const backgroundArc = createArcTube(
-      ARC_RADIUS,
-      ARC_START_ANGLE,
-      ARC_START_ANGLE + ARC_ANGLE,
-      ARC_THICKNESS,
-    );
-    const progressArc = createArcTube(
-      ARC_RADIUS,
-      ARC_START_ANGLE,
-      ARC_START_ANGLE + ARC_ANGLE,
-      ARC_THICKNESS * 1.2,
-    );
-    const glowRing = createArcTube(
-      ARC_RADIUS + 0.02,
-      ARC_START_ANGLE,
-      ARC_START_ANGLE + ARC_ANGLE,
-      ARC_THICKNESS * 3,
-    );
+  // Update constants based on props
+  const actualRadius = ringRadius;
 
-    return { backgroundArc, progressArc, glowRing };
-  }, []);
+  // Create ring geometries
+  const { backgroundRing, progressArc, glowRing } = useMemo(() => {
+    const backgroundRing = createRingGeometry(actualRadius, RING_THICKNESS);
+    const progressArc = createArcGeometry(actualRadius, RING_THICKNESS * 1.5, -Math.PI / 2, 0.01);
+    const glowRing = createRingGeometry(actualRadius, RING_THICKNESS * 4);
 
-  // Segment marker positions
+    return { backgroundRing, progressArc, glowRing };
+  }, [actualRadius]);
+
+  // Segment marker positions (on the ring)
   const segmentMarkers = useMemo(() => {
-    return PHASE_STARTS.slice(0, 3).map((progress) => {
-      const angle = ARC_START_ANGLE + progress * ARC_ANGLE;
+    return PHASE_BOUNDARIES.slice(0, 3).map((progress) => {
+      const angle = -Math.PI / 2 + progress * Math.PI * 2;
       return {
-        x: Math.cos(angle) * ARC_RADIUS,
-        y: Math.sin(angle) * ARC_RADIUS,
+        x: Math.cos(angle) * actualRadius,
+        z: Math.sin(angle) * actualRadius,
         progress,
       };
     });
-  }, []);
+  }, [actualRadius]);
 
-  // Materials
+  // Materials with warm gold palette
   const materials = useMemo(() => {
-    const baseColor = new THREE.Color('#c9a06c'); // Gold accent
-    const dimColor = new THREE.Color('#8b7a6a'); // Muted warm
-    const glowColor = new THREE.Color('#d4a574'); // Light gold
+    const goldColor = new THREE.Color('#c9a06c');
+    const dimColor = new THREE.Color('#8b7a6a');
+    const glowColor = new THREE.Color('#d4a574');
 
     return {
       background: new THREE.MeshBasicMaterial({
         color: dimColor,
         transparent: true,
-        opacity: 0.15 * opacity,
+        opacity: 0.12 * opacity,
         side: THREE.DoubleSide,
       }),
       progress: new THREE.MeshBasicMaterial({
-        color: baseColor,
+        color: goldColor,
         transparent: true,
         opacity: 0.9 * opacity,
         side: THREE.DoubleSide,
@@ -229,41 +230,39 @@ export function SciFi3DBreathIndicator({
       glow: new THREE.MeshBasicMaterial({
         color: glowColor,
         transparent: true,
-        opacity: 0.1 * opacity,
+        opacity: 0.08 * opacity,
         side: THREE.DoubleSide,
       }),
       dot: new THREE.MeshBasicMaterial({
-        color: baseColor,
+        color: goldColor,
         transparent: true,
-        opacity: 0.8 * opacity,
+        opacity: 0.95 * opacity,
       }),
       segment: new THREE.MeshBasicMaterial({
         color: dimColor,
         transparent: true,
-        opacity: 0.4 * opacity,
+        opacity: 0.5 * opacity,
       }),
     };
   }, [opacity]);
 
-  // Cleanup materials on unmount
+  // Cleanup materials
   useEffect(() => {
     return () => {
-      materials.background.dispose();
-      materials.progress.dispose();
-      materials.glow.dispose();
-      materials.dot.dispose();
-      materials.segment.dispose();
+      for (const m of Object.values(materials)) {
+        m.dispose();
+      }
     };
   }, [materials]);
 
-  // Cleanup geometries on unmount
+  // Cleanup geometries
   useEffect(() => {
     return () => {
-      backgroundArc.dispose();
+      backgroundRing.dispose();
       progressArc.dispose();
       glowRing.dispose();
     };
-  }, [backgroundArc, progressArc, glowRing]);
+  }, [backgroundRing, progressArc, glowRing]);
 
   // Animation loop
   useFrame(() => {
@@ -275,27 +274,27 @@ export function SciFi3DBreathIndicator({
     // Overall cycle progress (0-1)
     const cycleProgress = (accumulatedTime + phaseProgress * phaseDuration) / BREATH_TOTAL_CYCLE;
 
-    // Update visual elements
+    // Update visuals
     updateProgressArc(progressArcRef, cycleProgress);
-    updateGlowIntensity(glowRingRef, phaseIndex, phaseProgress, opacity);
+    updateGlowOpacity(glowRingRef, phaseIndex, phaseProgress, opacity);
     updateProgressDot(dotRef, cycleProgress, phaseProgress, now);
 
-    // Update phase name text (only on phase change)
+    // Update phase name (only on change)
     if (phaseTextRef.current && phaseIndex !== prevPhaseRef.current) {
       prevPhaseRef.current = phaseIndex;
-      // biome-ignore lint/suspicious/noExplicitAny: drei Text component doesn't export proper instance type
+      // biome-ignore lint/suspicious/noExplicitAny: drei Text doesn't export instance type
       const textMesh = phaseTextRef.current as any;
       if (textMesh.text !== undefined) {
         textMesh.text = (PHASE_NAMES[phaseIndex] ?? 'Breathe').toUpperCase();
       }
     }
 
-    // Update timer countdown (only when second changes)
+    // Update timer (only on second change)
     if (timerTextRef.current) {
       const remaining = Math.ceil((1 - phaseProgress) * phaseDuration);
       if (remaining !== prevTimerRef.current) {
         prevTimerRef.current = remaining;
-        // biome-ignore lint/suspicious/noExplicitAny: drei Text component doesn't export proper instance type
+        // biome-ignore lint/suspicious/noExplicitAny: drei Text doesn't export instance type
         const textMesh = timerTextRef.current as any;
         if (textMesh.text !== undefined) {
           textMesh.text = `${remaining}`;
@@ -305,73 +304,82 @@ export function SciFi3DBreathIndicator({
   });
 
   return (
-    <group ref={groupRef} position={[0, yPosition, 0]} scale={scale}>
-      {/* Background arc (full circle segment, dimmed) */}
-      <mesh geometry={backgroundArc} material={materials.background} />
+    <group ref={groupRef}>
+      {/* Ring container - tilted toward camera */}
+      <group rotation={[ringTilt, 0, 0]}>
+        {/* Background ring (full circle, dimmed) */}
+        <mesh geometry={backgroundRing} material={materials.background} />
 
-      {/* Glow ring (breathing-synchronized) */}
-      <mesh ref={glowRingRef} geometry={glowRing} material={materials.glow} />
+        {/* Glow ring (breathing-synchronized) */}
+        <mesh ref={glowRingRef} geometry={glowRing} material={materials.glow} />
 
-      {/* Progress arc (fills as cycle progresses) */}
-      <mesh ref={progressArcRef} geometry={progressArc} material={materials.progress} />
+        {/* Progress arc (fills as cycle progresses) */}
+        <mesh ref={progressArcRef} geometry={progressArc} material={materials.progress} />
 
-      {/* Progress indicator dot */}
-      <mesh ref={dotRef} position={[ARC_RADIUS, 0, 0.01]} material={materials.dot}>
-        <sphereGeometry args={[0.025, 16, 16]} />
-      </mesh>
+        {/* Progress indicator dot */}
+        <mesh ref={dotRef} position={[0, 0, -actualRadius]} material={materials.dot}>
+          <sphereGeometry args={[0.06, 16, 16]} />
+        </mesh>
 
-      {/* Segment markers (4·7·8 boundaries) */}
-      {showSegments &&
-        segmentMarkers.map((marker) => (
-          <mesh
-            key={`segment-${marker.progress}`}
-            position={[marker.x, marker.y, 0.005]}
-            material={materials.segment}
+        {/* Segment markers at phase boundaries */}
+        {showSegments &&
+          segmentMarkers.map((marker) => (
+            <mesh
+              key={`segment-${marker.progress}`}
+              position={[marker.x, 0, marker.z]}
+              material={materials.segment}
+            >
+              <sphereGeometry args={[0.03, 12, 12]} />
+            </mesh>
+          ))}
+      </group>
+
+      {/* Text elements - positioned below the ring, facing camera */}
+      <group position={[0, -actualRadius * 0.9, actualRadius * 0.3]}>
+        {/* Countdown timer (large) */}
+        {showTimer && (
+          <Text
+            ref={timerTextRef}
+            position={[0, 0.15, 0]}
+            fontSize={0.35}
+            color="#5a4d42"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.01}
+            outlineColor="#ffffff"
+            outlineOpacity={0.3}
           >
-            <circleGeometry args={[0.015, 16]} />
-          </mesh>
-        ))}
+            4
+          </Text>
+        )}
 
-      {/* Phase name text */}
-      {showPhaseName && (
+        {/* Phase name */}
+        {showPhaseName && (
+          <Text
+            ref={phaseTextRef}
+            position={[0, -0.2, 0]}
+            fontSize={0.14}
+            color="#8b7a6a"
+            anchorX="center"
+            anchorY="middle"
+            letterSpacing={0.2}
+          >
+            INHALE
+          </Text>
+        )}
+
+        {/* 4·7·8 label */}
         <Text
-          ref={phaseTextRef}
-          position={[0, -0.15, 0.01]}
-          fontSize={0.12}
-          color="#5a4d42"
+          position={[0, -0.45, 0]}
+          fontSize={0.06}
+          color="#a89888"
           anchorX="center"
           anchorY="middle"
-          letterSpacing={0.15}
+          letterSpacing={0.1}
         >
-          INHALE
+          4 · 7 · 8
         </Text>
-      )}
-
-      {/* Countdown timer */}
-      {showTimer && (
-        <Text
-          ref={timerTextRef}
-          position={[0, 0.05, 0.01]}
-          fontSize={0.22}
-          color="#8b7a6a"
-          anchorX="center"
-          anchorY="middle"
-        >
-          4
-        </Text>
-      )}
-
-      {/* 4·7·8 label */}
-      <Text
-        position={[0, -0.35, 0.01]}
-        fontSize={0.045}
-        color="#a89888"
-        anchorX="center"
-        anchorY="middle"
-        letterSpacing={0.08}
-      >
-        4 · 7 · 8
-      </Text>
+      </group>
     </group>
   );
 }

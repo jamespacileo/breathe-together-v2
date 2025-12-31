@@ -109,10 +109,9 @@ export function BreathingLevel({
                 breathingOpacity={0.15}
               />
             )}
+            {/* Holographic orbital ring breathing indicator - wraps around globe */}
+            <SciFi3DBreathIndicator ringRadius={2.3} opacity={0.8} />
           </PresentationControls>
-
-          {/* Minimal sci-fi 3D breathing indicator - fixed position, not affected by rotation */}
-          <SciFi3DBreathIndicator yPosition={-4.2} scale={1.5} opacity={0.75} />
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
