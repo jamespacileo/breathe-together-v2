@@ -1,10 +1,10 @@
 /**
- * AtmosphericParticles - Ambient floating particles using drei Sparkles
+ * AtmosphericParticles - Slow drifting snow-like particles using drei Sparkles
  *
  * Features:
- * - Floating particles distributed around the scene
+ * - Gently floating particles distributed around the scene
  * - Breathing-synchronized opacity
- * - Warm gray color (#8c7b6c) for Monument Valley aesthetic
+ * - Soft white/snow color (#f0f5ff) for ethereal winter aesthetic
  *
  * Replaces custom THREE.Points implementation with drei for simpler lifecycle
  */
@@ -90,9 +90,9 @@ export function AtmosphericParticles({
       count={count}
       scale={12}
       size={size}
-      speed={0.5}
+      speed={0.15}
       opacity={baseOpacity}
-      color="#8c7b6c"
+      color="#f0f5ff"
     />
   );
 }
