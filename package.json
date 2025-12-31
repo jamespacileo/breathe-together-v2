@@ -11,7 +11,10 @@
     "format:check": "biome format ./src",
     "check": "biome check --write ./src",
     "check:ci": "biome ci ./src",
-    "prepare": "husky"
+    "prepare": "husky",
+    "worker:dev": "wrangler dev --config worker/wrangler.toml",
+    "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
+    "worker:typecheck": "tsc --project worker/tsconfig.json"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.6",
@@ -35,6 +38,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.10",
+    "@cloudflare/workers-types": "^4.20241230.0",
     "canvas": "^3.2.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.12",
