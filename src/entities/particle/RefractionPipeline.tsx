@@ -395,11 +395,22 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
-    // Only re-traverse scene when children count changes (O(1) check vs O(n) traverse)
-    // This avoids expensive scene.traverse() on every frame
-    const currentVersion = scene.children.length;
-    if (currentVersion !== sceneVersionRef.current) {
-      sceneVersionRef.current = currentVersion;
+    // Validate cached meshes are still valid (in scene and have useRefraction flag)
+    // This handles cases where meshes are recreated with same scene.children.length
+    let needsRefresh = sceneVersionRef.current !== scene.children.length;
+
+    if (!needsRefresh && refractionMeshesRef.current.length > 0) {
+      // Check if any cached mesh is stale (removed from scene or flag changed)
+      for (const mesh of refractionMeshesRef.current) {
+        if (!mesh.parent || !mesh.userData.useRefraction) {
+          needsRefresh = true;
+          break;
+        }
+      }
+    }
+
+    if (needsRefresh) {
+      sceneVersionRef.current = scene.children.length;
       refractionMeshesRef.current = [];
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
