@@ -22,11 +22,11 @@ const TUNING_DEFAULTS = {
   orbitRadius: 4.5, // Base orbit radius
   shardSize: 0.5, // Max shard size
   atmosphereDensity: 100, // Atmospheric particle count
-  // Depth of Field settings
+  // Depth of Field settings - tuned to keep globe/ring sharp, blur distant particles
   enableDepthOfField: true,
   focusDistance: 15, // Focus on center (camera distance)
-  focalRange: 8, // Range that stays sharp
-  maxBlur: 3, // Maximum blur intensity
+  focalRange: 12, // Larger range keeps center area (globe + ring) sharp
+  maxBlur: 2.5, // Slightly reduced blur intensity
 };
 
 /**

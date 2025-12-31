@@ -12,7 +12,7 @@
  */
 
 import { Billboard, Ring, Text } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { createPortal, useFrame, useThree } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -113,12 +113,16 @@ export function ProgressCircleOverlay({
   zOffset = 0.1,
   renderOrder = 10,
 }: ProgressCircleOverlayProps) {
+  const { gl, camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const ringGroupRef = useRef<THREE.Group>(null);
   const progressMeshRef = useRef<THREE.Mesh>(null);
   const indicatorRef = useRef<THREE.Mesh>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const world = useWorld();
+
+  // Create a separate scene for the overlay to render AFTER the DoF pipeline
+  const overlayScene = useMemo(() => new THREE.Scene(), []);
 
   // Phase state (updates on phase transitions only - 4 times per 16s cycle)
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(0);
@@ -276,7 +280,19 @@ export function ProgressCircleOverlay({
     };
   }, [radius, thickness]);
 
-  return (
+  // Render overlay scene after DoF pipeline completes (priority 2, pipeline is priority 1)
+  useFrame(() => {
+    if (!groupRef.current) return;
+    // Render overlay directly to screen without clearing (autoClear disabled for this render)
+    const autoClear = gl.autoClear;
+    gl.autoClear = false;
+    gl.clearDepth(); // Clear only depth to render overlay on top
+    gl.render(overlayScene, camera);
+    gl.autoClear = autoClear;
+  }, 2);
+
+  // Use createPortal to render overlay in separate scene (bypasses DoF pipeline)
+  return createPortal(
     <group ref={groupRef} position={[0, 0, zOffset]} renderOrder={renderOrder}>
       {/* Ring group - scales with breathing (expands on inhale, contracts on exhale) */}
       <group ref={ringGroupRef}>
@@ -380,7 +396,8 @@ export function ProgressCircleOverlay({
           {userCount} breathing
         </Text>
       )}
-    </group>
+    </group>,
+    overlayScene,
   );
 }
 
