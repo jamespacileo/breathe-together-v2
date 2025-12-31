@@ -173,6 +173,47 @@ export function BreathingLevel({
     [moods, setMoods],
   );
 
+  // Ambient user sync - small automatic updates during each hold phase
+  // This simulates real-world behavior where users join/leave naturally
+  // Will be replaced by Cloudflare Workers backend later
+  const lastHoldSyncRef = useRef<number>(0);
+  useEffect(() => {
+    const checkAndSync = () => {
+      const now = Date.now() / 1000;
+      const cycleTime = now % BREATH_TOTAL_CYCLE;
+      const holdStart = BREATH_PHASES.INHALE;
+      const holdEnd = holdStart + BREATH_PHASES.HOLD_IN;
+      const inHold = cycleTime >= holdStart && cycleTime < holdEnd;
+
+      // Only sync once per hold phase (track by cycle number)
+      const cycleNumber = Math.floor(now / BREATH_TOTAL_CYCLE);
+
+      if (inHold && cycleNumber !== lastHoldSyncRef.current) {
+        lastHoldSyncRef.current = cycleNumber;
+
+        // Small ambient changes: 1-3 users, 70% chance of change
+        if (Math.random() < 0.7) {
+          const changeCount = 1 + Math.floor(Math.random() * 2); // 1-2 changes
+
+          for (let i = 0; i < changeCount; i++) {
+            // 55% add, 45% remove (slight growth bias)
+            const shouldAdd = Math.random() < 0.55;
+
+            if (shouldAdd || moods.length <= 5) {
+              addUser(getRandomMood());
+            } else {
+              const randomIndex = Math.floor(Math.random() * moods.length);
+              removeUser(randomIndex);
+            }
+          }
+        }
+      }
+    };
+
+    const interval = setInterval(checkAndSync, 200);
+    return () => clearInterval(interval);
+  }, [addUser, removeUser, moods.length]);
+
   // Simulation: Random join/leave activity - only during hold phases
   // This syncs user changes with the natural breathing rhythm
   useEffect(() => {
