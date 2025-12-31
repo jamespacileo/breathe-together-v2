@@ -68,7 +68,8 @@ export function BreathDebugVisuals({
   useFrame(() => {
     try {
       const breath = world.queryFirst(breathPhase, orbitRadius, phaseType);
-      if (!breath || !world.has(breath)) return;
+      // queryFirst returns undefined if no entity matches, no need for world.has() check
+      if (!breath) return;
 
       valuesRef.current = {
         phase: breath.get(breathPhase)?.value ?? 0,
@@ -82,7 +83,7 @@ export function BreathDebugVisuals({
         setForceUpdate((v) => v + 1);
       }
     } catch (_e) {
-      // Ignore stale world errors
+      // Ignore stale world errors during Triplex hot-reload
     }
   });
 

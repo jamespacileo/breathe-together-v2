@@ -406,6 +406,8 @@ export function RefractionPipeline({
     return () => {
       envFBO.dispose();
       backfaceFBO.dispose();
+      // Dispose depth texture explicitly before render target
+      compositeFBO.depthTexture?.dispose();
       compositeFBO.dispose();
       backfaceMaterial.dispose();
       refractionMaterial.dispose();
