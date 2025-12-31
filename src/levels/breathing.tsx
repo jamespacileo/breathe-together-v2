@@ -167,9 +167,6 @@ export function BreathingLevel({
               />
             )}
 
-            {/* User "YOU" indicator - follows the current user's shard */}
-            {showParticles && <UserShapeIndicator getShardPosition={getShardPosition} />}
-
             {showParticles && (
               <AtmosphericParticles
                 count={atmosphereDensity}
@@ -179,6 +176,9 @@ export function BreathingLevel({
               />
             )}
           </PresentationControls>
+
+          {/* User "YOU" indicator - OUTSIDE PresentationControls for correct world positioning */}
+          {showParticles && <UserShapeIndicator getShardPosition={getShardPosition} />}
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
