@@ -52,7 +52,7 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - frosted glass with subtle saturation-based breathing cues
+// Refraction fragment shader - frosted glass with anticipatory phase flash
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
@@ -60,7 +60,7 @@ uniform vec2 resolution;
 uniform float ior;
 uniform float backfaceIntensity;
 
-// Breathing phase uniforms for visual cues
+// Breathing phase uniforms
 uniform float breathPhase;   // 0 = exhaled, 1 = inhaled
 uniform float phaseType;     // 0=inhale, 1=hold-in, 2=exhale, 3=hold-out
 uniform float rawProgress;   // 0-1 progress within current phase
@@ -68,17 +68,6 @@ uniform float rawProgress;   // 0-1 progress within current phase
 varying vec3 vColor;
 varying vec3 worldNormal;
 varying vec3 eyeVector;
-
-// Helper: Convert RGB to HSL luminance
-float getLuminance(vec3 color) {
-  return dot(color, vec3(0.299, 0.587, 0.114));
-}
-
-// Helper: Adjust saturation (0 = grayscale, 1 = original, >1 = boosted)
-vec3 adjustSaturation(vec3 color, float saturation) {
-  float lum = getLuminance(color);
-  return mix(vec3(lum), color, saturation);
-}
 
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution;
@@ -92,62 +81,26 @@ void main() {
   vec2 refractUv = uv + refracted.xy * 0.05;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === BREATHING CUE 1: SATURATION PULSE ===
-  // Saturation follows breath: muted when exhaled, vivid when inhaled
-  // Range: 0.6 (desaturated) → 1.2 (slightly boosted)
-  float baseSaturation = 0.6 + breathPhase * 0.6;
-
-  // === BREATHING CUE 2: PHASE TRANSITION HINT ===
-  // Gentle brightness bloom at start of each phase (first 12%)
-  // Helps user notice phase changes without being jarring
-  float transitionHint = 0.0;
-  if (rawProgress < 0.12) {
-    float t = rawProgress / 0.12;
-    transitionHint = sin(t * 3.14159) * 0.08; // Subtle 8% brightness hint
+  // === ANTICIPATORY FLASH ===
+  // Brief white flash in last 15% of each phase to signal upcoming transition
+  float flash = 0.0;
+  if (rawProgress > 0.85) {
+    float t = (rawProgress - 0.85) / 0.15;  // 0→1 over last 15%
+    flash = sin(t * 3.14159) * 0.12;        // Peaks at ~7.5% before end, 12% intensity
   }
 
-  // === BREATHING CUE 3: FRESNEL EDGE GLOW ===
-  // Edges glow brighter during hold-in (peak presence)
-  float fresnelPower = 3.0;
-  float fresnelIntensity = 0.35;
-
-  if (phaseType < 0.5) {
-    // Inhale: slightly sharper edges
-    fresnelPower = 3.2;
-    fresnelIntensity = 0.32;
-  } else if (phaseType < 1.5) {
-    // Hold-in: softer, brighter glow (presence)
-    fresnelPower = 2.5;
-    fresnelIntensity = 0.45;
-  } else if (phaseType < 2.5) {
-    // Exhale: soft, subtle glow
-    fresnelPower = 2.8;
-    fresnelIntensity = 0.38;
-  } else {
-    // Hold-out: sharp, minimal (calm)
-    fresnelPower = 3.5;
-    fresnelIntensity = 0.28;
-  }
-
-  // 1. FROSTED TINT: mood color tints refraction (50% mix)
+  // Base color: frosted glass with mood tint
   vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor, 0.5);
-
-  // 2. MATTE BODY: solid mood color (25% mix)
   vec3 bodyColor = mix(tintedRefraction, vColor, 0.25);
 
-  // Apply saturation modulation (the main visual cue)
-  bodyColor = adjustSaturation(bodyColor, baseSaturation);
+  // Apply flash (adds white/brightness)
+  bodyColor += vec3(flash);
 
-  // Subtle brightness variation with breath + transition hint
-  float breathBrightness = 0.95 + breathPhase * 0.1 + transitionHint;
-  bodyColor *= breathBrightness;
+  // Fresnel rim glow
+  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
+  vec3 finalColor = mix(bodyColor, vec3(1.0), fresnel * 0.35);
 
-  // 3. FRESNEL RIM: edge highlight
-  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), fresnelPower);
-  vec3 rimColor = vec3(1.0);
-  vec3 finalColor = mix(bodyColor, rimColor, fresnel * fresnelIntensity);
-
-  // 4. SOFT TOP-DOWN LIGHT
+  // Soft top-down light
   float topLight = smoothstep(0.0, 1.0, normal.y) * 0.08;
   finalColor += vec3(1.0) * topLight;
 
