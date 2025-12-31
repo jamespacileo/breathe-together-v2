@@ -1,5 +1,5 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useCallback, useState } from 'react';
+import { Suspense, useCallback, useState, useTransition } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -112,37 +112,45 @@ export function BreathingLevel({
   // Use simulated array when enabled, otherwise managed array
   const moodArray = simulateUserFlow ? simulatedMoodArray : managedMoodArray;
 
+  // React 19: useTransition for non-blocking batch updates
+  const [, startTransition] = useTransition();
+
   /**
    * Handle harmony slider changes - adds/removes random moods to simulate real behavior
+   * Uses functional update to avoid stale closure and unnecessary recreations
    */
-  const handleHarmonyChange = useCallback(
-    (newHarmony: number) => {
-      setHarmony(newHarmony);
+  const handleHarmonyChange = useCallback((newHarmony: number) => {
+    setHarmony(newHarmony);
 
-      // Target count is ~70% of harmony
-      const targetCount = Math.floor(newHarmony * 0.7);
-      const currentCount = managedMoodArray.length;
+    // Target count is ~70% of harmony
+    const targetCount = Math.floor(newHarmony * 0.7);
+
+    setManagedMoodArray((prev) => {
+      const currentCount = prev.length;
 
       if (targetCount > currentCount) {
         // Add random moods to reach target
-        const newMoods = [...managedMoodArray];
+        const newMoods = [...prev];
         for (let i = 0; i < targetCount - currentCount; i++) {
           newMoods.push(randomMood());
         }
-        setManagedMoodArray(newMoods);
-      } else if (targetCount < currentCount) {
+        return newMoods;
+      }
+
+      if (targetCount < currentCount) {
         // Remove random indices to reach target
-        const newMoods = [...managedMoodArray];
+        const newMoods = [...prev];
         const removeCount = currentCount - targetCount;
         for (let i = 0; i < removeCount; i++) {
           const randomIndex = Math.floor(Math.random() * newMoods.length);
           newMoods.splice(randomIndex, 1);
         }
-        setManagedMoodArray(newMoods);
+        return newMoods;
       }
-    },
-    [managedMoodArray],
-  );
+
+      return prev; // No change needed
+    });
+  }, []); // ← No dependencies - stable reference!
 
   // Utility callbacks for testing
   const addRandomUser = useCallback(() => {
@@ -157,39 +165,51 @@ export function BreathingLevel({
     });
   }, []);
 
+  // Batch operations wrapped in startTransition for non-blocking updates
+  // Note: startTransition is stable and doesn't need to be in dependencies
   const addBatchUsers = useCallback((count: number) => {
-    setManagedMoodArray((prev) => {
-      const newMoods = [...prev];
-      for (let i = 0; i < count; i++) {
-        newMoods.push(randomMood());
-      }
-      return newMoods;
+    startTransition(() => {
+      setManagedMoodArray((prev) => {
+        const newMoods = [...prev];
+        for (let i = 0; i < count; i++) {
+          newMoods.push(randomMood());
+        }
+        return newMoods;
+      });
     });
   }, []);
 
   const removeBatchUsers = useCallback((count: number) => {
-    setManagedMoodArray((prev) => {
-      const newMoods = [...prev];
-      const actualRemove = Math.min(count, newMoods.length);
-      for (let i = 0; i < actualRemove; i++) {
-        const randomIndex = Math.floor(Math.random() * newMoods.length);
-        newMoods.splice(randomIndex, 1);
-      }
-      return newMoods;
+    startTransition(() => {
+      setManagedMoodArray((prev) => {
+        const newMoods = [...prev];
+        const actualRemove = Math.min(count, newMoods.length);
+        for (let i = 0; i < actualRemove; i++) {
+          const randomIndex = Math.floor(Math.random() * newMoods.length);
+          newMoods.splice(randomIndex, 1);
+        }
+        return newMoods;
+      });
     });
   }, []);
 
   const shuffleMoods = useCallback(() => {
-    setManagedMoodArray((prev) => prev.map(() => randomMood()));
+    startTransition(() => {
+      setManagedMoodArray((prev) => prev.map(() => randomMood()));
+    });
   }, []);
 
   const clearAllUsers = useCallback(() => {
-    setManagedMoodArray([]);
+    startTransition(() => {
+      setManagedMoodArray([]);
+    });
   }, []);
 
   const resetToDefault = useCallback(() => {
     const count = Math.floor(harmony * 0.7);
-    setManagedMoodArray(generateRandomMoodArray(count));
+    startTransition(() => {
+      setManagedMoodArray(generateRandomMoodArray(count));
+    });
   }, [harmony]);
 
   return (

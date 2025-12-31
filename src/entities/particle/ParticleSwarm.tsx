@@ -19,6 +19,17 @@ import { getMoodColor, getSlotFallbackColor } from './useUserOrdering';
 /** Maximum shapes in pool - pre-allocated for performance */
 const MAX_POOL_SIZE = 150;
 
+/** Fixed geometry size - scaling done at render time to avoid pool recreation */
+const GEOMETRY_BASE_SIZE = 0.5;
+
+/** Reusable temp vectors to avoid allocation in animation loop */
+const _tempVec3 = new THREE.Vector3();
+const _upVector = new THREE.Vector3(0, 1, 0);
+const _orbitAxis = new THREE.Vector3(0, 1, 0);
+const _tangent1 = new THREE.Vector3();
+const _tangent2 = new THREE.Vector3();
+const _ambientOffset = new THREE.Vector3();
+
 /** Shape lifecycle status */
 type ShapeStatus = 'idle' | 'entering' | 'active' | 'exiting';
 
@@ -108,12 +119,17 @@ function easeInOutQuad(t: number): number {
 
 /**
  * Calculate Fibonacci sphere direction for given index and total count
+ * @param out - Output vector to avoid allocation
  */
-function fibonacciDirection(index: number, total: number): THREE.Vector3 {
-  if (total === 0) return new THREE.Vector3(0, 1, 0);
+function fibonacciDirection(index: number, total: number, out: THREE.Vector3): THREE.Vector3 {
+  if (total === 0) {
+    out.set(0, 1, 0);
+    return out;
+  }
   const phi = Math.acos(-1 + (2 * index + 1) / total);
   const theta = Math.sqrt(total * Math.PI) * phi;
-  return new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+  out.setFromSphericalCoords(1, phi, theta);
+  return out;
 }
 
 /**
@@ -216,29 +232,32 @@ export function ParticleSwarm({
   const poolRef = useRef<ShardData[]>([]);
   const statesRef = useRef<ShapeVisualState[]>([]);
   const prevMoodArrayRef = useRef<number[]>([]);
+  const shardScaleFactorRef = useRef(1);
 
-  // Dynamic shard size based on user count
+  // Dynamic shard scale factor based on user count (computed at render time, not pool creation)
   const activeCount = moodArray.length;
-  const shardSize = useMemo(
-    () => Math.min(4.0 / Math.sqrt(Math.max(activeCount, 1)), maxShardSize),
+  const shardScaleFactor = useMemo(
+    () => Math.min(4.0 / Math.sqrt(Math.max(activeCount, 1)), maxShardSize) / GEOMETRY_BASE_SIZE,
     [activeCount, maxShardSize],
   );
-  const minOrbitRadius = globeRadius + shardSize + buffer;
+  // Update ref for animation loop access (avoids stale closure)
+  shardScaleFactorRef.current = shardScaleFactor;
+  const minOrbitRadius = globeRadius + maxShardSize + buffer;
 
-  // Create shared material
+  // Create shared material (stable reference)
   const material = useMemo(() => createFrostedGlassMaterial(), []);
 
-  // Initialize pool on mount
+  // Initialize pool ONCE on mount (no shardSize dependency - scale at render time)
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
 
-    // Create pool of reusable shapes
+    // Create pool of reusable shapes with fixed geometry size
     const pool: ShardData[] = [];
     const states: ShapeVisualState[] = [];
 
     for (let i = 0; i < MAX_POOL_SIZE; i++) {
-      const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
+      const geometry = new THREE.IcosahedronGeometry(GEOMETRY_BASE_SIZE, 0);
       const fallbackColor = getSlotFallbackColor(i);
       applyVertexColors(geometry, fallbackColor);
 
@@ -262,7 +281,7 @@ export function ParticleSwarm({
         group.remove(shard.mesh);
       }
     };
-  }, [material, shardSize]);
+  }, [material]); // ← Removed shardSize - pool created once!
 
   // Cleanup material on unmount
   useEffect(() => {
@@ -294,16 +313,16 @@ export function ParticleSwarm({
       }
 
       // Only animate position if movement exceeds threshold
-      const newTarget = fibonacciDirection(i, newCount);
-      const distance = state.currentDirection.distanceTo(newTarget);
+      fibonacciDirection(i, newCount, _tempVec3);
+      const distance = state.currentDirection.distanceTo(_tempVec3);
       if (distance > POSITION_THRESHOLD) {
         state.startDirection.copy(state.currentDirection);
-        state.targetDirection.copy(newTarget);
+        state.targetDirection.copy(_tempVec3);
         state.positionLerpProgress = 0;
       } else {
         // Small movement - just snap
-        state.targetDirection.copy(newTarget);
-        state.currentDirection.copy(newTarget);
+        state.targetDirection.copy(_tempVec3);
+        state.currentDirection.copy(_tempVec3);
         state.positionLerpProgress = 1;
       }
     }
@@ -324,7 +343,7 @@ export function ParticleSwarm({
       const state = states[i];
       state.status = 'entering';
       state.moodIndex = newArray[i];
-      state.targetDirection = fibonacciDirection(i, newCount);
+      fibonacciDirection(i, newCount, state.targetDirection);
       state.currentDirection.copy(state.targetDirection);
       state.startDirection.copy(state.targetDirection);
       state.positionLerpProgress = 1;
@@ -446,45 +465,45 @@ export function ParticleSwarm({
       state.velocity += (springForce + dampingForce) * clampedDelta;
       state.currentRadius += state.velocity * clampedDelta;
 
-      // Orbital drift
+      // Orbital drift (reuse temp vectors to avoid allocation)
       state.orbitAngle += state.orbitSpeed * clampedDelta;
-      const orbitedDirection = state.currentDirection
-        .clone()
-        .applyAxisAngle(new THREE.Vector3(0, 1, 0), state.orbitAngle);
+      _tempVec3.copy(state.currentDirection).applyAxisAngle(_orbitAxis, state.orbitAngle);
 
-      // Perpendicular wobble
-      const up = new THREE.Vector3(0, 1, 0);
-      const tangent1 = orbitedDirection.clone().cross(up).normalize();
-      if (tangent1.lengthSq() < 0.001) tangent1.set(1, 0, 0);
-      const tangent2 = orbitedDirection.clone().cross(tangent1).normalize();
+      // Perpendicular wobble (reuse temp tangent vectors)
+      _tangent1.copy(_tempVec3).cross(_upVector).normalize();
+      if (_tangent1.lengthSq() < 0.001) _tangent1.set(1, 0, 0);
+      _tangent2.copy(_tempVec3).cross(_tangent1).normalize();
 
       const wobblePhase = time * PERPENDICULAR_FREQUENCY * Math.PI * 2 + state.wobbleSeed;
       const wobble1 = Math.sin(wobblePhase) * PERPENDICULAR_AMPLITUDE;
       const wobble2 = Math.cos(wobblePhase * 0.7) * PERPENDICULAR_AMPLITUDE * 0.6;
 
-      // Ambient floating
+      // Ambient floating (reuse temp vector)
       const seed = state.ambientSeed;
-      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE;
-      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
-      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
+      _ambientOffset.set(
+        Math.sin(time * 0.4 + seed) * AMBIENT_SCALE,
+        Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE,
+        Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE,
+      );
 
       // Final position
       shard.mesh.position
-        .copy(orbitedDirection)
+        .copy(_tempVec3)
         .multiplyScalar(state.currentRadius)
-        .addScaledVector(tangent1, wobble1)
-        .addScaledVector(tangent2, wobble2)
-        .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+        .addScaledVector(_tangent1, wobble1)
+        .addScaledVector(_tangent2, wobble2)
+        .add(_ambientOffset);
 
       // Rotation
       shard.mesh.rotation.x += 0.002 * state.rotationSpeedX;
       shard.mesh.rotation.y += 0.003 * state.rotationSpeedY;
 
-      // Final scale with breathing and enter/exit
+      // Final scale with breathing, enter/exit, and dynamic shard size
       const breathScale = 1.0 + currentBreathPhase * 0.05;
       const enterExitScale =
         state.status === 'entering' ? easeOutBack(state.scale) : easeOutQuad(state.scale);
-      const finalScale = state.baseScaleOffset * breathScale * enterExitScale;
+      const finalScale =
+        state.baseScaleOffset * breathScale * enterExitScale * shardScaleFactorRef.current;
       shard.mesh.scale.setScalar(finalScale);
     }
   });
