@@ -288,6 +288,7 @@ export function EarthGlobe({
   /**
    * Update globe scale, rotation, and shader uniforms
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation loop with multiple visual layers (globe, atmosphere, ring, shaders) requires coordinated updates - refactoring would reduce readability
   useFrame((state) => {
     if (!groupRef.current) return;
 
@@ -307,14 +308,17 @@ export function EarthGlobe({
         groupRef.current.scale.set(scale, scale, scale);
 
         // Animate atmosphere layers with slight phase offset for organic feel
-        atmosphereRefs.current.forEach((mesh, i) => {
+        // Use for loop instead of forEach to avoid closure allocation every frame
+        const atmosphereMeshes = atmosphereRefs.current;
+        for (let i = 0; i < atmosphereMeshes.length; i++) {
+          const mesh = atmosphereMeshes[i];
           if (mesh) {
             const phaseOffset = (i + 1) * 0.15; // Each layer slightly delayed
             const delayedPhase = Math.max(0, phase - phaseOffset);
             const layerScale = ATMOSPHERE_LAYERS[i].scale + delayedPhase * 0.04;
             mesh.scale.set(layerScale, layerScale, layerScale);
           }
-        });
+        }
 
         // Animate ring opacity with breathing
         if (ringRef.current) {

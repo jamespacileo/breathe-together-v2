@@ -362,8 +362,10 @@ export function RefractionPipeline({
     dofMaterial.uniforms.resolution.value.set(size.width, size.height);
   }, [size.width, size.height, envFBO, backfaceFBO, compositeFBO, refractionMaterial, dofMaterial]);
 
-  // Store original materials for mesh swapping
+  // Store original materials for mesh swapping (cached, not rebuilt every frame)
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
+  // Cached list of refraction meshes (collected once, persists for component lifetime)
+  const cachedMeshesRef = useRef<THREE.Mesh[]>([]);
 
   // Cleanup
   useEffect(() => {
@@ -377,6 +379,9 @@ export function RefractionPipeline({
       bgMesh.geometry.dispose();
       (bgMesh.material as THREE.Material).dispose();
       dofMesh.geometry.dispose();
+      // Clear cached mesh references to prevent stale refs on hot reload
+      cachedMeshesRef.current = [];
+      meshDataRef.current.clear();
     };
   }, [
     envFBO,
@@ -391,19 +396,22 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
-    // Collect all meshes in scene that should use refraction
-    const meshes: THREE.Mesh[] = [];
-    scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
-        meshes.push(obj);
-      }
-    });
-
-    // Store original materials
-    meshDataRef.current.clear();
-    for (const mesh of meshes) {
-      meshDataRef.current.set(mesh, mesh.material);
+    // Lazy collection: only traverse scene once when cache is empty
+    // Refraction meshes (ParticleSwarm shards) are created once and persist
+    if (cachedMeshesRef.current.length === 0) {
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
+          cachedMeshesRef.current.push(obj);
+          // Cache original material once
+          meshDataRef.current.set(obj, obj.material);
+        }
+      });
     }
+
+    const meshes = cachedMeshesRef.current;
+
+    // Skip rendering if no refraction meshes found yet
+    if (meshes.length === 0) return;
 
     // Pass 1: Render background to envFBO
     gl.setRenderTarget(envFBO);

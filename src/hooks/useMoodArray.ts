@@ -208,45 +208,79 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
   }, []);
 
   /**
-   * Tick - just update opacity, very simple
+   * Tick - update opacity in-place, avoid array allocations
+   * Only creates new arrays when structure changes (items removed)
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Performance-critical animation loop requires in-place updates with multiple conditions to avoid GC pressure from array allocations every frame
   const tickAnimations = useCallback(() => {
     const now = performance.now() / 1000;
     const duration = durationRef.current;
     const shards = shardsRef.current;
 
-    let changed = false;
+    let structureChanged = false;
+    let anyAnimating = false;
 
-    const updated = shards
-      .map((s) => {
-        if (s.state === 'idle') return s;
+    // First pass: update in-place, mark items for removal
+    // biome-ignore lint/style/useForOf: Need index for in-place mutation of shards array
+    for (let i = 0; i < shards.length; i++) {
+      const s = shards[i];
+      if (s.state === 'idle') continue;
 
-        const elapsed = now - s.startTime;
-        const t = Math.min(elapsed / duration, 1);
+      anyAnimating = true;
+      const elapsed = now - s.startTime;
+      const t = Math.min(elapsed / duration, 1);
 
-        // Simple ease-out for entering, ease-in for exiting
-        const eased = s.state === 'entering' ? 1 - (1 - t) * (1 - t) : (1 - t) * (1 - t);
+      // Simple ease-out for entering, ease-in for exiting
+      const eased = s.state === 'entering' ? 1 - (1 - t) * (1 - t) : (1 - t) * (1 - t);
 
-        if (t >= 1) {
-          changed = true;
-          if (s.state === 'exiting') return null;
-          return { ...s, state: 'idle' as const, opacity: 1 };
+      if (t >= 1) {
+        if (s.state === 'exiting') {
+          // Mark for removal (will filter in second pass)
+          structureChanged = true;
+        } else {
+          // Transition to idle in-place
+          s.state = 'idle';
+          s.opacity = 1;
         }
+      } else {
+        // Update opacity in-place
+        s.opacity = eased;
+      }
+    }
 
-        return { ...s, opacity: eased };
-      })
-      .filter((s): s is ShardRef => s !== null);
+    // Second pass: only create new array if structure changed (items removed)
+    if (structureChanged) {
+      shardsRef.current = shards.filter(
+        (s) => !(s.state === 'exiting' && now - s.startTime >= duration),
+      );
+    }
 
-    shardsRef.current = updated;
+    // Update exposed states - only rebuild if animating or structure changed
+    // When idle, statesRef already has correct values
+    if (anyAnimating || structureChanged) {
+      const current = shardsRef.current;
+      // Resize statesRef array to match (reuse existing array when possible)
+      if (statesRef.current.length !== current.length) {
+        statesRef.current = new Array(current.length);
+      }
+      for (let i = 0; i < current.length; i++) {
+        const s = current[i];
+        const existing = statesRef.current[i];
+        if (existing && existing.mood === s.mood && existing.state === s.state) {
+          // Just update opacity in-place
+          existing.opacity = s.opacity;
+        } else {
+          // Create new state object only when needed
+          statesRef.current[i] = {
+            mood: s.mood,
+            state: s.state,
+            opacity: s.opacity,
+          };
+        }
+      }
+    }
 
-    // Update exposed states
-    statesRef.current = updated.map((s) => ({
-      mood: s.mood,
-      state: s.state,
-      opacity: s.opacity,
-    }));
-
-    if (changed) forceUpdate((n) => n + 1);
+    if (structureChanged) forceUpdate((n) => n + 1);
   }, []);
 
   return {
