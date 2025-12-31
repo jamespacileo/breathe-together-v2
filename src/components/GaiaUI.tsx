@@ -4,6 +4,7 @@ import { BREATH_TOTAL_CYCLE } from '../constants';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
 import { AudioControls } from './AudioControls';
+import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { InspirationalText } from './InspirationalText';
 
 // Phase configuration
@@ -510,7 +511,7 @@ export function GaiaUI({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '14px',
+          gap: '12px',
         }}
       >
         {/* Phase Name + Timer */}
@@ -518,7 +519,7 @@ export function GaiaUI({
           style={{
             display: 'flex',
             alignItems: 'baseline',
-            gap: '10px',
+            gap: '12px',
           }}
         >
           <span
@@ -551,10 +552,13 @@ export function GaiaUI({
           </span>
         </div>
 
+        {/* 4·7·8 Cycle Indicator */}
+        <BreathCycleIndicator />
+
         {/* Progress Bar */}
         <div
           style={{
-            width: '100px',
+            width: '140px',
             height: '1.5px',
             background: colors.border,
             borderRadius: '1px',

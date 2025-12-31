@@ -3,6 +3,7 @@ import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../con
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
+import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
 
@@ -1139,15 +1140,15 @@ export function SimpleGaiaUI({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: isMobile ? '12px' : '14px',
+          gap: isMobile ? '10px' : '12px',
         }}
       >
-        {/* Phase Name + Timer */}
+        {/* Phase Name + Timer Row */}
         <div
           style={{
             display: 'flex',
             alignItems: 'baseline',
-            gap: isMobile ? '10px' : '10px',
+            gap: isMobile ? '10px' : '12px',
           }}
         >
           <span
@@ -1179,14 +1180,17 @@ export function SimpleGaiaUI({
           </span>
         </div>
 
+        {/* 4·7·8 Cycle Indicator */}
+        <BreathCycleIndicator />
+
         {/* Progress Bar */}
         <div
           ref={progressContainerRef}
           style={{
-            width: isMobile ? '100px' : '100px',
-            height: isMobile ? '3px' : '2px',
+            width: isMobile ? '120px' : '140px',
+            height: isMobile ? '2px' : '1.5px',
             background: colors.border,
-            borderRadius: '2px',
+            borderRadius: '1px',
             overflow: 'hidden',
             boxShadow: `0 0 8px ${colors.accentGlow}`,
             transition: 'box-shadow 0.3s ease',
@@ -1198,7 +1202,7 @@ export function SimpleGaiaUI({
               height: '100%',
               width: '0%',
               background: `linear-gradient(90deg, ${colors.accent}, ${colors.textGlow})`,
-              borderRadius: '2px',
+              borderRadius: '1px',
               transition: 'width 0.08s linear',
             }}
           />
@@ -1207,13 +1211,13 @@ export function SimpleGaiaUI({
         {/* Presence Count */}
         <div
           style={{
-            fontSize: isMobile ? '0.75rem' : '0.65rem',
+            fontSize: isMobile ? '0.68rem' : '0.6rem',
             fontWeight: isMobile ? 500 : 400,
-            color: colors.text,
-            opacity: isMobile ? 0.7 : 0.6,
-            letterSpacing: isMobile ? '0.08em' : '0.1em',
+            color: colors.textDim,
+            opacity: 0.65,
+            letterSpacing: '0.12em',
             textTransform: 'uppercase',
-            marginTop: isMobile ? '4px' : '4px',
+            marginTop: '2px',
           }}
         >
           <span ref={presenceCountRef}>75</span> breathing together
