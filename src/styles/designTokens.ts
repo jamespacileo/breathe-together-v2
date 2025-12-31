@@ -75,13 +75,13 @@ export const UI_COLORS = {
  *
  * Simplified 4-category system with positive framing:
  * - gratitude: Appreciating this moment
- * - stillness: Finding center
+ * - presence: Simply being here (covers calm, curiosity, rest)
  * - release: Letting go
  * - connection: Here with others
  */
 export const MOOD_COLORS = {
   gratitude: '#ffbe0b', // Warm Gold - appreciation, thankfulness
-  stillness: '#06d6a0', // Teal/Mint - calm, centered, grounded
+  presence: '#06d6a0', // Teal/Mint - being here, calm, curiosity, rest
   release: '#118ab2', // Deep Blue - letting go, processing
   connection: '#ef476f', // Warm Rose - love, community, togetherness
 } as const;

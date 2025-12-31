@@ -5,7 +5,7 @@ import type { MoodId } from '../constants';
  *
  * Simplified 4-category mood system with positive framing:
  * - gratitude (gold) - Appreciating this moment
- * - stillness (teal) - Finding center
+ * - presence (teal) - Simply being here (covers calm, curiosity, rest)
  * - release (blue) - Letting go
  * - connection (rose) - Here with others
  */
@@ -18,7 +18,7 @@ import type { MoodId } from '../constants';
  */
 export const MONUMENT_VALLEY_PALETTE = {
   gratitude: '#ffbe0b', // Warm Gold - appreciation, thankfulness
-  stillness: '#06d6a0', // Teal/Mint - calm, centered, grounded
+  presence: '#06d6a0', // Teal/Mint - being here, calm, curiosity, rest
   release: '#118ab2', // Deep Blue - letting go, processing
   connection: '#ef476f', // Warm Rose - love, community, togetherness
 } as const;
@@ -28,8 +28,8 @@ export const MONUMENT_VALLEY_PALETTE = {
  * Direct 1:1 mapping - each mood has exactly one color
  */
 export function getMonumentValleyMoodColor(moodId: MoodId | '' | undefined): string {
-  if (!moodId) return MONUMENT_VALLEY_PALETTE.stillness;
-  return MONUMENT_VALLEY_PALETTE[moodId] ?? MONUMENT_VALLEY_PALETTE.stillness;
+  if (!moodId) return MONUMENT_VALLEY_PALETTE.presence;
+  return MONUMENT_VALLEY_PALETTE[moodId] ?? MONUMENT_VALLEY_PALETTE.presence;
 }
 
 /**

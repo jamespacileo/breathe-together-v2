@@ -325,7 +325,7 @@ export function SimpleGaiaUI({
 
   // Get mood color helper
   const getMoodColor = (moodId: MoodId): string => {
-    return MOOD_COLORS[moodId] ?? MOOD_COLORS.stillness;
+    return MOOD_COLORS[moodId] ?? MOOD_COLORS.presence;
   };
 
   const handleMoodSelect = (mood: MoodId) => {

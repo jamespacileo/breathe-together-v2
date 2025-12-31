@@ -8,11 +8,11 @@
  *
  * Each mood maps to a distinct color in the Monument Valley palette:
  * - gratitude (gold) - Appreciating this moment
- * - stillness (teal) - Finding center
+ * - presence (teal) - Simply being here (covers calm, curiosity, rest, no specific intention)
  * - release (blue) - Letting go
  * - connection (rose) - Here with others
  */
-export const MOOD_IDS = ['gratitude', 'stillness', 'release', 'connection'] as const;
+export const MOOD_IDS = ['gratitude', 'presence', 'release', 'connection'] as const;
 
 export type MoodId = (typeof MOOD_IDS)[number];
 
@@ -24,9 +24,9 @@ export const MOOD_METADATA: Record<MoodId, { label: string; description: string 
     label: 'Gratitude',
     description: 'Appreciating this moment',
   },
-  stillness: {
-    label: 'Stillness',
-    description: 'Finding center',
+  presence: {
+    label: 'Presence',
+    description: 'Simply being here',
   },
   release: {
     label: 'Release',

@@ -18,7 +18,7 @@ import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 // Convert palette to THREE.Color array for random selection
 const MOOD_COLORS = [
   new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.stillness),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.presence),
   new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
   new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
 ];
@@ -26,7 +26,7 @@ const MOOD_COLORS = [
 // Direct 1:1 mapping - each mood has exactly one color
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
   gratitude: new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
-  stillness: new THREE.Color(MONUMENT_VALLEY_PALETTE.stillness),
+  presence: new THREE.Color(MONUMENT_VALLEY_PALETTE.presence),
   release: new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
   connection: new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
 };

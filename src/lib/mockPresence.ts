@@ -15,14 +15,14 @@ export interface MockPresenceData {
  * Total allocation: 100% of users distributed across 4 moods
  *
  * Distribution (simplified 4-category system):
- * - 35% stillness (finding center, meditation, grounding)
+ * - 35% presence (simply being here - covers calm, curiosity, rest)
  * - 30% gratitude (appreciation, thankfulness)
  * - 20% release (letting go, processing, unwinding)
  * - 15% connection (here with others, community)
  */
 export function generateMockPresence(userCount: number): MockPresenceData {
   const moods: Record<MoodId, number> = {
-    stillness: Math.floor(userCount * 0.35),
+    presence: Math.floor(userCount * 0.35),
     gratitude: Math.floor(userCount * 0.3),
     release: Math.floor(userCount * 0.2),
     connection: Math.floor(userCount * 0.15),
