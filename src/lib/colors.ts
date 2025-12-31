@@ -11,8 +11,8 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Monument Valley Palette - saturated colors for frosted ceramic shards
- * These colors are tinted through the refraction shader for the illustrative look
+ * Monument Valley Palette - vibrant gem colors for icosahedral shards
+ * These colors are processed through the gem shader for the illustrative look
  *
  * Each color maps directly to one mood category (1:1 mapping)
  */
