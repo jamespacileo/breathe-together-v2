@@ -68,15 +68,19 @@ function controlledBreathCurve(t: number, startRamp: number, endRamp: number): n
 }
 
 /**
- * Inhale easing: Controlled, organic breath intake for text fade-in
+ * Inhale easing: Delayed reveal that mirrors exhale timing
  *
- * Uses raised cosine ramps with linear plateau:
- * - Soft start (25%): Text begins appearing gently
- * - Steady middle (50%): Constant velocity, controlled reveal
- * - Soft end (25%): Gentle arrival at full visibility
+ * Uses asymmetric ramps - the mirror of exhale:
+ * - Extended soft start (30%): Text stays invisible longer
+ * - Steady middle (50%): Controlled reveal catches up
+ * - Quick soft end (20%): Arrives at full visibility
+ *
+ * This mirrors how exhale fades sooner - inhale reveals later,
+ * creating the sense of words emerging with the breath.
  */
 function easeInhale(t: number): number {
-  return controlledBreathCurve(t, 0.25, 0.25);
+  // Mirror of exhale: longer start ramp delays the reveal
+  return controlledBreathCurve(t, 0.3, 0.2);
 }
 
 /**
