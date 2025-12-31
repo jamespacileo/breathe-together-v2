@@ -144,6 +144,12 @@ export interface ParticleSwarmProps {
    */
   currentUserId?: string;
   /**
+   * Direct index of the user's shard (0-based)
+   * Simpler alternative to currentUserId - just specify which shard is "you"
+   * Takes precedence over currentUserId if both are provided
+   */
+  userShardIndex?: number;
+  /**
    * Ref that will be updated with the current user's world position each frame
    * Used by UserShapeIndicator to follow the shard
    */
@@ -266,6 +272,7 @@ export function ParticleSwarm({
   minShardSize = 0.15,
   performanceCap = 1000,
   currentUserId,
+  userShardIndex,
   currentUserPositionRef,
 }: ParticleSwarmProps) {
   const world = useWorld();
@@ -614,12 +621,29 @@ export function ParticleSwarm({
     }
 
     // Update current user's position ref for the indicator
-    if (currentUserId && currentUserPositionRef?.current) {
-      const userSlot = slotManager.getSlotByUserId(currentUserId);
-      if (userSlot && userSlot.state !== 'empty' && userSlot.index < currentShards.length) {
-        const userShard = currentShards[userSlot.index];
+    if (currentUserPositionRef?.current) {
+      let userShardIdx: number | undefined;
+
+      // Direct index takes precedence (simpler approach)
+      if (
+        userShardIndex !== undefined &&
+        userShardIndex >= 0 &&
+        userShardIndex < currentShards.length
+      ) {
+        userShardIdx = userShardIndex;
+      }
+      // Fall back to userId lookup
+      else if (currentUserId) {
+        const userSlot = slotManager.getSlotByUserId(currentUserId);
+        if (userSlot && userSlot.state !== 'empty' && userSlot.index < currentShards.length) {
+          userShardIdx = userSlot.index;
+        }
+      }
+
+      // Update position if we found the user's shard
+      if (userShardIdx !== undefined) {
+        const userShard = currentShards[userShardIdx];
         if (userShard) {
-          // Get world position (accounting for group transforms)
           const group = groupRef.current;
           const posRef = currentUserPositionRef.current;
           if (group) {

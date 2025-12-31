@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
-import type { MoodId } from '../constants';
+import { MOOD_IDS, type MoodId } from '../constants';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
@@ -68,14 +68,19 @@ export function BreathingLevel({
   const [showSettings, setShowSettings] = useState(false);
 
   // User's selected mood - controls which shard is highlighted as "YOU"
-  const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
+  // Auto-assign a random mood on first load so user always sees their shard
+  const [selectedMood, setSelectedMood] = useState<MoodId | null>(() => {
+    // Pick a random mood on initial load
+    const randomIndex = Math.floor(Math.random() * MOOD_IDS.length);
+    return MOOD_IDS[randomIndex];
+  });
 
   // Position ref for the current user's shard (updated by ParticleSwarm each frame)
   const currentUserPositionRef = useRef<THREE.Vector3 | null>(new THREE.Vector3());
 
-  // Generate the current user's ID from their selected mood
-  // The user is always the first shard of their mood category
-  const currentUserId = selectedMood ? `${selectedMood}-0` : undefined;
+  // Simple approach: user is always shard index 0 (first shard in the swarm)
+  // This means we don't need to do userId lookups - just mark the first shard as "you"
+  const userShardIndex = 0;
 
   // Generate mock users with randomized order for visual variety
   const mockUsers = useMemo(() => {
@@ -140,20 +145,18 @@ export function BreathingLevel({
                 users={mockUsers}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
-                currentUserId={currentUserId}
+                userShardIndex={userShardIndex}
                 currentUserPositionRef={currentUserPositionRef}
               />
             )}
 
             {/* User shape indicator - shows which shard is "YOU" */}
-            {selectedMood && (
-              <UserShapeIndicator
-                positionRef={currentUserPositionRef}
-                color={MOOD_COLORS[selectedMood]}
-                visible={true}
-                opacity={0.85}
-              />
-            )}
+            <UserShapeIndicator
+              positionRef={currentUserPositionRef}
+              color={selectedMood ? MOOD_COLORS[selectedMood] : '#ffffff'}
+              visible={true}
+              opacity={0.85}
+            />
 
             {showParticles && (
               <AtmosphericParticles
