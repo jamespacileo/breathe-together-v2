@@ -138,6 +138,16 @@ export interface ParticleSwarmProps {
    * @default 1000
    */
   performanceCap?: number;
+  /**
+   * ID of the current user (for "YOU" indicator)
+   * When provided, the shard position can be queried via onCurrentUserPosition callback
+   */
+  currentUserId?: string;
+  /**
+   * Callback to receive the current user's shard position getter
+   * Called once on mount with a function that returns the current position
+   */
+  onCurrentUserPositionGetter?: (getter: () => THREE.Vector3 | null) => void;
 }
 
 interface ShardData {
@@ -255,11 +265,15 @@ export function ParticleSwarm({
   maxShardSize = 0.6,
   minShardSize = 0.15,
   performanceCap = 1000,
+  currentUserId,
+  onCurrentUserPositionGetter,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+  // Reusable vector for returning current user position
+  const currentUserPositionRef = useRef(new THREE.Vector3());
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -460,6 +474,28 @@ export function ParticleSwarm({
       material.dispose();
     };
   }, [material]);
+
+  // Register current user position getter
+  useEffect(() => {
+    if (!onCurrentUserPositionGetter || !currentUserId) return;
+
+    const getPosition = (): THREE.Vector3 | null => {
+      const slotManager = slotManagerRef.current;
+      if (!slotManager) return null;
+
+      const slot = slotManager.getSlotByUserId(currentUserId);
+      if (!slot || slot.state === 'empty') return null;
+
+      const shard = shardsRef.current[slot.index];
+      if (!shard) return null;
+
+      // Copy mesh world position to our reusable vector
+      shard.mesh.getWorldPosition(currentUserPositionRef.current);
+      return currentUserPositionRef.current;
+    };
+
+    onCurrentUserPositionGetter(getPosition);
+  }, [onCurrentUserPositionGetter, currentUserId]);
 
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Particle physics simulation requires multiple force calculations (spring, wind, jitter, orbit) and slot lifecycle management - refactoring would reduce readability
