@@ -109,8 +109,8 @@ export function BreathingLevel({
                 breathingOpacity={0.15}
               />
             )}
-            {/* Holographic orbital ring breathing indicator - wraps around globe */}
-            <SciFi3DBreathIndicator ringRadius={2.3} opacity={0.8} />
+            {/* Holographic orbital ring breathing indicator - expands/contracts with breath */}
+            <SciFi3DBreathIndicator radiusMin={2.2} radiusMax={5.5} opacity={0.8} />
           </PresentationControls>
         </RefractionPipeline>
 

@@ -11,6 +11,7 @@ import { PHASE_NAMES } from '../styles/designTokens';
  *
  * Design inspiration: Destiny, Interstellar, Mass Effect HUDs
  * - Orbital ring encircling the globe (tilted toward camera)
+ * - Ring expands on inhale (outside particle swarm), contracts on exhale
  * - Progress arc fills as breathing cycle advances
  * - Phase segment markers (4·7·8 boundaries)
  * - Floating timer and phase name below ring
@@ -28,13 +29,19 @@ const PHASE_BOUNDARIES = [
   1,
 ];
 
-// Ring geometry constants
-const RING_RADIUS = 2.2; // Larger than globe (1.5) to orbit around it
+// Ring geometry constants (base values, will be scaled)
+const BASE_RING_RADIUS = 1.0; // Normalized, scaled by breath
 const RING_THICKNESS = 0.015;
 
+// Breathing animation range
+const RING_RADIUS_CONTRACTED = 2.2; // Close to globe during exhale
+const RING_RADIUS_EXPANDED = 5.2; // Outside particle swarm during inhale
+
 interface SciFi3DBreathIndicatorProps {
-  /** Ring radius (should be larger than globe) @default 2.2 */
-  ringRadius?: number;
+  /** Minimum ring radius (contracted, during exhale) @default 2.2 */
+  radiusMin?: number;
+  /** Maximum ring radius (expanded, during inhale) @default 5.2 */
+  radiusMax?: number;
   /** Opacity (0-1) @default 0.85 */
   opacity?: number;
   /** Whether to show the phase name text @default true */
@@ -48,73 +55,43 @@ interface SciFi3DBreathIndicatorProps {
 }
 
 /**
- * Creates a full ring (torus) geometry
+ * Creates a full ring (torus) geometry at unit radius
  */
-function createRingGeometry(radius: number, tubeRadius: number): THREE.TorusGeometry {
-  return new THREE.TorusGeometry(radius, tubeRadius, 16, 100);
+function createRingGeometry(tubeRadius: number): THREE.TorusGeometry {
+  return new THREE.TorusGeometry(BASE_RING_RADIUS, tubeRadius, 16, 100);
 }
 
 /**
- * Creates an arc segment of a ring
+ * Easing function for smooth organic motion
  */
-function createArcGeometry(
-  radius: number,
-  tubeRadius: number,
-  startAngle: number,
-  arcLength: number,
-): THREE.TubeGeometry {
-  const curve = new THREE.EllipseCurve(
-    0,
-    0,
-    radius,
-    radius,
-    startAngle,
-    startAngle + arcLength,
-    false,
-    0,
-  );
-  const points = curve.getPoints(Math.max(16, Math.floor(100 * (arcLength / (Math.PI * 2)))));
-  const path = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(p.x, 0, p.y)));
-  return new THREE.TubeGeometry(
-    path,
-    Math.max(8, Math.floor(64 * (arcLength / (Math.PI * 2)))),
-    tubeRadius,
-    8,
-    false,
-  );
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
 /**
- * Updates the progress arc geometry based on cycle progress
+ * Calculate current ring radius based on breathing phase
+ * Expands during inhale, contracts during exhale, holds during hold phases
  */
-function updateProgressArc(
-  meshRef: React.RefObject<THREE.Mesh | null>,
-  cycleProgress: number,
-): void {
-  if (!meshRef.current || cycleProgress < 0.01) return;
+function calculateBreathingRadius(
+  phaseIndex: number,
+  phaseProgress: number,
+  radiusMin: number,
+  radiusMax: number,
+): number {
+  const range = radiusMax - radiusMin;
 
-  const arcLength = Math.PI * 2 * cycleProgress;
-  const numSegments = Math.max(8, Math.floor(64 * cycleProgress));
-
-  const curve = new THREE.EllipseCurve(
-    0,
-    0,
-    RING_RADIUS,
-    RING_RADIUS,
-    -Math.PI / 2, // Start at top
-    -Math.PI / 2 + arcLength,
-    false,
-    0,
-  );
-  const points = curve.getPoints(numSegments);
-
-  if (points.length < 2) return;
-
-  const path = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(p.x, 0, p.y)));
-  const newGeometry = new THREE.TubeGeometry(path, numSegments, RING_THICKNESS * 1.5, 8, false);
-
-  meshRef.current.geometry.dispose();
-  meshRef.current.geometry = newGeometry;
+  switch (phaseIndex) {
+    case 0: // Inhale - expand from min to max
+      return radiusMin + easeInOutCubic(phaseProgress) * range;
+    case 1: // Hold after inhale - stay at max
+      return radiusMax;
+    case 2: // Exhale - contract from max to min
+      return radiusMax - easeInOutCubic(phaseProgress) * range;
+    case 3: // Hold after exhale - stay at min
+      return radiusMin;
+    default:
+      return radiusMin;
+  }
 }
 
 /**
@@ -132,40 +109,19 @@ function updateGlowOpacity(
   let intensity = 0.08;
 
   if (phaseIndex === 0) {
-    intensity = 0.08 + phaseProgress * 0.12; // Brighten during inhale
+    intensity = 0.08 + phaseProgress * 0.15; // Brighten during inhale
   } else if (phaseIndex === 1) {
-    intensity = 0.2; // Peak during hold
+    intensity = 0.23; // Peak during hold
   } else if (phaseIndex === 2) {
-    intensity = 0.2 - phaseProgress * 0.12; // Dim during exhale
+    intensity = 0.23 - phaseProgress * 0.15; // Dim during exhale
   }
 
   glowMaterial.opacity = intensity * baseOpacity;
 }
 
-/**
- * Updates progress dot position along the ring
- */
-function updateProgressDot(
-  meshRef: React.RefObject<THREE.Mesh | null>,
-  cycleProgress: number,
-  phaseProgress: number,
-  time: number,
-): void {
-  if (!meshRef.current) return;
-
-  // Position dot along the ring (starts at top, goes clockwise)
-  const angle = -Math.PI / 2 + cycleProgress * Math.PI * 2;
-  meshRef.current.position.x = Math.cos(angle) * RING_RADIUS;
-  meshRef.current.position.z = Math.sin(angle) * RING_RADIUS;
-
-  // Pulse during phase transitions
-  const isTransitioning = phaseProgress < 0.1 || phaseProgress > 0.9;
-  const scale = isTransitioning ? 1.3 + Math.sin(time * 10) * 0.3 : 1;
-  meshRef.current.scale.setScalar(scale);
-}
-
 export function SciFi3DBreathIndicator({
-  ringRadius = 2.2,
+  radiusMin = RING_RADIUS_CONTRACTED,
+  radiusMax = RING_RADIUS_EXPANDED,
   opacity = 0.85,
   showPhaseName = true,
   showTimer = true,
@@ -173,40 +129,38 @@ export function SciFi3DBreathIndicator({
   ringTilt = Math.PI * 0.35,
 }: SciFi3DBreathIndicatorProps) {
   // Refs for direct manipulation
-  const groupRef = useRef<THREE.Group>(null);
+  const ringGroupRef = useRef<THREE.Group>(null);
   const progressArcRef = useRef<THREE.Mesh>(null);
   const glowRingRef = useRef<THREE.Mesh>(null);
+  const textGroupRef = useRef<THREE.Group>(null);
   const phaseTextRef = useRef<THREE.Mesh>(null);
   const timerTextRef = useRef<THREE.Mesh>(null);
   const dotRef = useRef<THREE.Mesh>(null);
+  const segmentRefs = useRef<(THREE.Mesh | null)[]>([]);
 
-  // Cache for text updates
+  // Cache for text updates and radius smoothing
   const prevPhaseRef = useRef(-1);
   const prevTimerRef = useRef(-1);
+  const currentRadiusRef = useRef(radiusMin);
 
-  // Update constants based on props
-  const actualRadius = ringRadius;
+  // Create ring geometries at unit scale (will be scaled by breathing)
+  const { backgroundRing, glowRing } = useMemo(() => {
+    const backgroundRing = createRingGeometry(RING_THICKNESS);
+    const glowRing = createRingGeometry(RING_THICKNESS * 4);
+    return { backgroundRing, glowRing };
+  }, []);
 
-  // Create ring geometries
-  const { backgroundRing, progressArc, glowRing } = useMemo(() => {
-    const backgroundRing = createRingGeometry(actualRadius, RING_THICKNESS);
-    const progressArc = createArcGeometry(actualRadius, RING_THICKNESS * 1.5, -Math.PI / 2, 0.01);
-    const glowRing = createRingGeometry(actualRadius, RING_THICKNESS * 4);
+  // Progress arc geometry (will be regenerated each frame)
+  const progressArcGeometry = useMemo(() => {
+    return createRingGeometry(RING_THICKNESS * 1.5);
+  }, []);
 
-    return { backgroundRing, progressArc, glowRing };
-  }, [actualRadius]);
-
-  // Segment marker positions (on the ring)
-  const segmentMarkers = useMemo(() => {
+  // Segment marker angular positions
+  const segmentAngles = useMemo(() => {
     return PHASE_BOUNDARIES.slice(0, 3).map((progress) => {
-      const angle = -Math.PI / 2 + progress * Math.PI * 2;
-      return {
-        x: Math.cos(angle) * actualRadius,
-        z: Math.sin(angle) * actualRadius,
-        progress,
-      };
+      return -Math.PI / 2 + progress * Math.PI * 2;
     });
-  }, [actualRadius]);
+  }, []);
 
   // Materials with warm gold palette
   const materials = useMemo(() => {
@@ -259,10 +213,10 @@ export function SciFi3DBreathIndicator({
   useEffect(() => {
     return () => {
       backgroundRing.dispose();
-      progressArc.dispose();
       glowRing.dispose();
+      progressArcGeometry.dispose();
     };
-  }, [backgroundRing, progressArc, glowRing]);
+  }, [backgroundRing, glowRing, progressArcGeometry]);
 
   // Animation loop
   useFrame(() => {
@@ -271,13 +225,81 @@ export function SciFi3DBreathIndicator({
     const { phaseIndex, phaseProgress, accumulatedTime, phaseDuration } =
       calculatePhaseInfo(cycleTime);
 
+    // Calculate breathing radius with smooth interpolation
+    const targetRadius = calculateBreathingRadius(phaseIndex, phaseProgress, radiusMin, radiusMax);
+    // Smooth the radius changes slightly for organic feel
+    currentRadiusRef.current += (targetRadius - currentRadiusRef.current) * 0.15;
+    const currentRadius = currentRadiusRef.current;
+
+    // Scale the ring group uniformly
+    if (ringGroupRef.current) {
+      ringGroupRef.current.scale.setScalar(currentRadius);
+    }
+
     // Overall cycle progress (0-1)
     const cycleProgress = (accumulatedTime + phaseProgress * phaseDuration) / BREATH_TOTAL_CYCLE;
 
-    // Update visuals
-    updateProgressArc(progressArcRef, cycleProgress);
+    // Update progress arc geometry
+    if (progressArcRef.current && cycleProgress > 0.01) {
+      const arcLength = Math.PI * 2 * cycleProgress;
+      const numSegments = Math.max(8, Math.floor(64 * cycleProgress));
+
+      const curve = new THREE.EllipseCurve(
+        0,
+        0,
+        BASE_RING_RADIUS,
+        BASE_RING_RADIUS,
+        -Math.PI / 2,
+        -Math.PI / 2 + arcLength,
+        false,
+        0,
+      );
+      const points = curve.getPoints(numSegments);
+
+      if (points.length >= 2) {
+        const path = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(p.x, 0, p.y)));
+        const newGeometry = new THREE.TubeGeometry(
+          path,
+          numSegments,
+          RING_THICKNESS * 1.5,
+          8,
+          false,
+        );
+        progressArcRef.current.geometry.dispose();
+        progressArcRef.current.geometry = newGeometry;
+      }
+    }
+
+    // Update glow opacity
     updateGlowOpacity(glowRingRef, phaseIndex, phaseProgress, opacity);
-    updateProgressDot(dotRef, cycleProgress, phaseProgress, now);
+
+    // Update progress dot position (on unit circle, scaled by group)
+    if (dotRef.current) {
+      const dotAngle = -Math.PI / 2 + cycleProgress * Math.PI * 2;
+      dotRef.current.position.x = Math.cos(dotAngle) * BASE_RING_RADIUS;
+      dotRef.current.position.z = Math.sin(dotAngle) * BASE_RING_RADIUS;
+
+      // Pulse during phase transitions
+      const isTransitioning = phaseProgress < 0.1 || phaseProgress > 0.9;
+      const dotScale = isTransitioning ? 1.3 + Math.sin(now * 10) * 0.3 : 1;
+      dotRef.current.scale.setScalar(dotScale);
+    }
+
+    // Update segment marker positions (on unit circle)
+    segmentRefs.current.forEach((mesh, i) => {
+      if (mesh) {
+        const angle = segmentAngles[i];
+        mesh.position.x = Math.cos(angle) * BASE_RING_RADIUS;
+        mesh.position.z = Math.sin(angle) * BASE_RING_RADIUS;
+      }
+    });
+
+    // Position text group below the ring (scales with breathing)
+    if (textGroupRef.current) {
+      const textY = -currentRadius * 0.85;
+      const textZ = currentRadius * 0.25;
+      textGroupRef.current.position.set(0, textY, textZ);
+    }
 
     // Update phase name (only on change)
     if (phaseTextRef.current && phaseIndex !== prevPhaseRef.current) {
@@ -304,9 +326,9 @@ export function SciFi3DBreathIndicator({
   });
 
   return (
-    <group ref={groupRef}>
-      {/* Ring container - tilted toward camera */}
-      <group rotation={[ringTilt, 0, 0]}>
+    <group>
+      {/* Ring container - tilted toward camera, scaled by breathing */}
+      <group ref={ringGroupRef} rotation={[ringTilt, 0, 0]}>
         {/* Background ring (full circle, dimmed) */}
         <mesh geometry={backgroundRing} material={materials.background} />
 
@@ -314,28 +336,31 @@ export function SciFi3DBreathIndicator({
         <mesh ref={glowRingRef} geometry={glowRing} material={materials.glow} />
 
         {/* Progress arc (fills as cycle progresses) */}
-        <mesh ref={progressArcRef} geometry={progressArc} material={materials.progress} />
+        <mesh ref={progressArcRef} geometry={progressArcGeometry} material={materials.progress} />
 
         {/* Progress indicator dot */}
-        <mesh ref={dotRef} position={[0, 0, -actualRadius]} material={materials.dot}>
-          <sphereGeometry args={[0.06, 16, 16]} />
+        <mesh ref={dotRef} position={[0, 0, -BASE_RING_RADIUS]} material={materials.dot}>
+          <sphereGeometry args={[0.025, 16, 16]} />
         </mesh>
 
         {/* Segment markers at phase boundaries */}
         {showSegments &&
-          segmentMarkers.map((marker) => (
+          segmentAngles.map((angle, i) => (
             <mesh
-              key={`segment-${marker.progress}`}
-              position={[marker.x, 0, marker.z]}
+              key={`segment-${PHASE_BOUNDARIES[i]}`}
+              ref={(el) => {
+                segmentRefs.current[i] = el;
+              }}
+              position={[Math.cos(angle) * BASE_RING_RADIUS, 0, Math.sin(angle) * BASE_RING_RADIUS]}
               material={materials.segment}
             >
-              <sphereGeometry args={[0.03, 12, 12]} />
+              <sphereGeometry args={[0.012, 12, 12]} />
             </mesh>
           ))}
       </group>
 
       {/* Text elements - positioned below the ring, facing camera */}
-      <group position={[0, -actualRadius * 0.9, actualRadius * 0.3]}>
+      <group ref={textGroupRef} position={[0, -radiusMin * 0.85, radiusMin * 0.25]}>
         {/* Countdown timer (large) */}
         {showTimer && (
           <Text
