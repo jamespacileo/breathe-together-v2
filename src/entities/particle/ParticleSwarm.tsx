@@ -33,22 +33,23 @@ interface ShapeVisualState {
   /** Mood index (0-3) or -1 if idle/exiting */
   moodIndex: number;
 
-  // Position animation
-  /** Target Fibonacci position (based on visual index) */
+  // Position animation (store start for proper easing)
   targetDirection: THREE.Vector3;
-  /** Current interpolated direction */
+  startDirection: THREE.Vector3;
   currentDirection: THREE.Vector3;
-  /** Position lerp progress (0-1) */
   positionLerpProgress: number;
 
-  // Color animation
+  // Color animation (store start for proper easing)
+  startColor: THREE.Color;
   currentColor: THREE.Color;
   targetColor: THREE.Color;
   colorLerpProgress: number;
 
-  // Scale animation (enter/exit)
+  // Scale animation (enter/exit) with stagger delay
   scale: number;
   targetScale: number;
+  /** Stagger delay in seconds before animation starts */
+  animationDelay: number;
 
   // Physics state
   currentRadius: number;
@@ -88,6 +89,8 @@ const ENTER_DURATION = 0.4; // seconds
 const EXIT_DURATION = 0.3;
 const COLOR_DURATION = 0.5;
 const POSITION_DURATION = 0.6; // for redistribution
+const STAGGER_DELAY = 0.06; // seconds between each shape in batch
+const POSITION_THRESHOLD = 0.1; // minimum direction change to trigger animation
 
 function easeOutQuad(t: number): number {
   return 1 - (1 - t) * (1 - t);
@@ -148,6 +151,7 @@ function updateVertexColors(geometry: THREE.BufferGeometry, color: THREE.Color):
 function createInitialState(poolIndex: number): ShapeVisualState {
   const goldenRatio = (1 + Math.sqrt(5)) / 2;
   const i = poolIndex;
+  const fallbackColor = getSlotFallbackColor(i);
 
   return {
     poolIndex,
@@ -155,15 +159,18 @@ function createInitialState(poolIndex: number): ShapeVisualState {
     moodIndex: -1,
 
     targetDirection: new THREE.Vector3(0, 1, 0),
+    startDirection: new THREE.Vector3(0, 1, 0),
     currentDirection: new THREE.Vector3(0, 1, 0),
     positionLerpProgress: 1,
 
-    currentColor: getSlotFallbackColor(i),
-    targetColor: getSlotFallbackColor(i),
+    startColor: fallbackColor.clone(),
+    currentColor: fallbackColor.clone(),
+    targetColor: fallbackColor.clone(),
     colorLerpProgress: 1,
 
     scale: 0,
     targetScale: 0,
+    animationDelay: 0,
 
     currentRadius: 4.5,
     velocity: 0,
@@ -277,39 +284,58 @@ export function ParticleSwarm({
     // Update persisting slots (0 to persistCount-1)
     for (let i = 0; i < persistCount; i++) {
       const state = states[i];
-      // Update color if mood changed
+
+      // Update color if mood changed (store start for proper lerping)
       if (prevArray[i] !== newArray[i]) {
+        state.startColor.copy(state.currentColor);
         state.targetColor = getMoodColor(newArray[i]);
         state.colorLerpProgress = 0;
         state.moodIndex = newArray[i];
       }
-      // Update Fibonacci position for new total count
-      state.targetDirection = fibonacciDirection(i, newCount);
-      state.positionLerpProgress = 0;
+
+      // Only animate position if movement exceeds threshold
+      const newTarget = fibonacciDirection(i, newCount);
+      const distance = state.currentDirection.distanceTo(newTarget);
+      if (distance > POSITION_THRESHOLD) {
+        state.startDirection.copy(state.currentDirection);
+        state.targetDirection.copy(newTarget);
+        state.positionLerpProgress = 0;
+      } else {
+        // Small movement - just snap
+        state.targetDirection.copy(newTarget);
+        state.currentDirection.copy(newTarget);
+        state.positionLerpProgress = 1;
+      }
     }
 
-    // Shrinking: mark excess slots as exiting
+    // Shrinking: mark excess slots as exiting with stagger
     for (let i = newCount; i < prevCount && i < MAX_POOL_SIZE; i++) {
       const state = states[i];
       if (state.status === 'active' || state.status === 'entering') {
         state.status = 'exiting';
         state.targetScale = 0;
+        // Stagger: shapes at higher indices exit later
+        state.animationDelay = (i - newCount) * STAGGER_DELAY;
       }
     }
 
-    // Growing: mark new slots as entering
+    // Growing: mark new slots as entering with stagger
     for (let i = prevCount; i < newCount && i < MAX_POOL_SIZE; i++) {
       const state = states[i];
       state.status = 'entering';
       state.moodIndex = newArray[i];
       state.targetDirection = fibonacciDirection(i, newCount);
       state.currentDirection.copy(state.targetDirection);
+      state.startDirection.copy(state.targetDirection);
       state.positionLerpProgress = 1;
       state.targetColor = getMoodColor(newArray[i]);
       state.currentColor.copy(state.targetColor);
+      state.startColor.copy(state.targetColor);
       state.colorLerpProgress = 1;
       state.scale = 0;
       state.targetScale = 1;
+      // Stagger: shapes at higher indices enter later
+      state.animationDelay = (i - prevCount) * STAGGER_DELAY;
     }
 
     prevMoodArrayRef.current = [...newArray];
@@ -360,45 +386,47 @@ export function ParticleSwarm({
         continue;
       }
 
-      // === SCALE ANIMATION ===
+      // === STAGGER DELAY (countdown before animation starts) ===
+      if (state.animationDelay > 0) {
+        state.animationDelay = Math.max(0, state.animationDelay - clampedDelta);
+      }
+
+      // === SCALE ANIMATION (respects stagger delay) ===
       if (state.status === 'entering') {
-        state.scale = Math.min(1, state.scale + clampedDelta * enterSpeed);
-        if (state.scale >= 1) {
-          state.scale = 1;
-          state.status = 'active';
+        if (state.animationDelay <= 0) {
+          state.scale = Math.min(1, state.scale + clampedDelta * enterSpeed);
+          if (state.scale >= 1) {
+            state.scale = 1;
+            state.status = 'active';
+          }
         }
       } else if (state.status === 'exiting') {
-        state.scale = Math.max(0, state.scale - clampedDelta * exitSpeed);
-        if (state.scale <= 0) {
-          state.scale = 0;
-          state.status = 'idle';
-          state.moodIndex = -1;
+        if (state.animationDelay <= 0) {
+          state.scale = Math.max(0, state.scale - clampedDelta * exitSpeed);
+          if (state.scale <= 0) {
+            state.scale = 0;
+            state.status = 'idle';
+            state.moodIndex = -1;
+          }
         }
       }
 
-      // === COLOR ANIMATION ===
+      // === COLOR ANIMATION (proper start→target lerp with easing) ===
       if (state.colorLerpProgress < 1) {
         state.colorLerpProgress = Math.min(1, state.colorLerpProgress + clampedDelta * colorSpeed);
         const t = easeOutQuad(state.colorLerpProgress);
-        state.currentColor.lerpColors(
-          state.currentColor,
-          state.targetColor,
-          t < 0.99 ? clampedDelta * colorSpeed * 3 : 1,
-        );
+        state.currentColor.lerpColors(state.startColor, state.targetColor, t);
         updateVertexColors(shard.geometry, state.currentColor);
       }
 
-      // === POSITION ANIMATION (for redistribution) ===
+      // === POSITION ANIMATION (proper start→target lerp with easing) ===
       if (state.positionLerpProgress < 1) {
         state.positionLerpProgress = Math.min(
           1,
           state.positionLerpProgress + clampedDelta * positionSpeed,
         );
         const t = easeInOutQuad(state.positionLerpProgress);
-        state.currentDirection.lerp(
-          state.targetDirection,
-          t < 0.99 ? clampedDelta * positionSpeed * 2 : 1,
-        );
+        state.currentDirection.lerpVectors(state.startDirection, state.targetDirection, t);
       }
 
       // === PHYSICS ===
