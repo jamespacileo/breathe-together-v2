@@ -9,6 +9,7 @@
 import { useContext } from 'react';
 import { AudioContext } from '../audio/AudioProvider';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
+import { UI_COLORS, Z_INDEX } from '../styles/designTokens';
 
 interface TopRightControlsProps {
   /** Callback to open tune/animation controls */
@@ -21,24 +22,64 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
   // Use useContext directly to avoid throwing error when provider is missing
   // This allows the component to render gracefully without audio controls
   const audio = useContext(AudioContext);
-  const { deviceType } = useViewport();
+  const { deviceType, isMobile } = useViewport();
 
   // Match SimpleGaiaUI's edge padding for vertical alignment
   const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32);
 
+  // Responsive button sizing - smaller on mobile to reduce visual weight
+  const buttonSize = isMobile ? 38 : 44;
+  const iconSize = isMobile ? 18 : 20;
+  const buttonGap = isMobile ? 6 : 10;
+
+  // Use centralized design tokens
   const colors = {
-    icon: '#7a6b5e',
-    iconHover: '#5a4d42',
-    iconActive: '#c9a06c', // Warm gold when active
-    bg: 'rgba(252, 250, 246, 0.6)',
-    bgHover: 'rgba(252, 250, 246, 0.9)',
-    border: 'rgba(160, 140, 120, 0.15)',
-    shadow: '0 2px 12px rgba(0, 0, 0, 0.06)',
-    shadowHover: '0 6px 20px rgba(0, 0, 0, 0.1)',
+    icon: UI_COLORS.text.tertiary,
+    iconHover: UI_COLORS.text.secondary,
+    iconActive: UI_COLORS.accent.gold,
+    bg: UI_COLORS.surface.glassLight,
+    bgHover: UI_COLORS.surface.glassHover,
+    border: UI_COLORS.border.light,
+    shadow: UI_COLORS.shadow.soft,
+    shadowHover: UI_COLORS.shadow.medium,
   };
 
   const stopPropagation = (e: React.PointerEvent) => {
     e.stopPropagation();
+  };
+
+  // Common button styles to reduce duplication
+  const buttonStyle: React.CSSProperties = {
+    background: colors.bg,
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: `1px solid ${colors.border}`,
+    borderRadius: '50%',
+    width: `${buttonSize}px`,
+    height: `${buttonSize}px`,
+    minWidth: `${buttonSize}px`,
+    minHeight: `${buttonSize}px`,
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    color: colors.icon,
+    boxShadow: colors.shadow,
+    transform: 'translateY(0)',
+    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+  };
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.background = colors.bgHover;
+    e.currentTarget.style.boxShadow = colors.shadowHover;
+    e.currentTarget.style.transform = 'translateY(-2px)';
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.background = colors.bg;
+    e.currentTarget.style.boxShadow = colors.shadow;
+    e.currentTarget.style.transform = 'translateY(0)';
   };
 
   return (
@@ -50,8 +91,8 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: '10px',
-        zIndex: 200,
+        gap: `${buttonGap}px`,
+        zIndex: Z_INDEX.modal,
         pointerEvents: 'auto',
       }}
     >
@@ -67,40 +108,17 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
           }}
           onPointerDown={stopPropagation}
           style={{
-            background: colors.bg,
-            backdropFilter: 'blur(20px)',
-            border: `1px solid ${colors.border}`,
-            borderRadius: '50%',
-            width: '44px',
-            height: '44px',
-            minWidth: '44px',
-            minHeight: '44px',
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
+            ...buttonStyle,
             color: audio.state.enabled ? colors.iconActive : colors.icon,
-            boxShadow: colors.shadow,
-            transform: 'translateY(0)',
-            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = colors.bgHover;
-            e.currentTarget.style.boxShadow = colors.shadowHover;
-            e.currentTarget.style.transform = 'translateY(-2px)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = colors.bg;
-            e.currentTarget.style.boxShadow = colors.shadow;
-            e.currentTarget.style.transform = 'translateY(0)';
-          }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
           {audio.state.enabled ? (
             // Audio On Icon (speaker with sound waves)
             <svg
-              width="20"
-              height="20"
+              width={iconSize}
+              height={iconSize}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -129,8 +147,8 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
           ) : (
             // Audio Off Icon (speaker with X)
             <svg
-              width="20"
-              height="20"
+              width={iconSize}
+              height={iconSize}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -156,39 +174,13 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
         title="Tune Animation"
         onClick={onOpenTuneControls}
         onPointerDown={stopPropagation}
-        style={{
-          background: colors.bg,
-          backdropFilter: 'blur(20px)',
-          border: `1px solid ${colors.border}`,
-          borderRadius: '50%',
-          width: '44px',
-          height: '44px',
-          minWidth: '44px',
-          minHeight: '44px',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          color: colors.icon,
-          boxShadow: colors.shadow,
-          transform: 'translateY(0)',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = colors.bgHover;
-          e.currentTarget.style.boxShadow = colors.shadowHover;
-          e.currentTarget.style.transform = 'translateY(-2px)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = colors.bg;
-          e.currentTarget.style.boxShadow = colors.shadow;
-          e.currentTarget.style.transform = 'translateY(0)';
-        }}
+        style={buttonStyle}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <svg
-          width="20"
-          height="20"
+          width={iconSize}
+          height={iconSize}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -211,39 +203,13 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
         title="Settings & Mood"
         onClick={onOpenSettings}
         onPointerDown={stopPropagation}
-        style={{
-          background: colors.bg,
-          backdropFilter: 'blur(20px)',
-          border: `1px solid ${colors.border}`,
-          borderRadius: '50%',
-          width: '44px',
-          height: '44px',
-          minWidth: '44px',
-          minHeight: '44px',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          color: colors.icon,
-          boxShadow: colors.shadow,
-          transform: 'translateY(0)',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = colors.bgHover;
-          e.currentTarget.style.boxShadow = colors.shadowHover;
-          e.currentTarget.style.transform = 'translateY(-2px)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = colors.bg;
-          e.currentTarget.style.boxShadow = colors.shadow;
-          e.currentTarget.style.transform = 'translateY(0)';
-        }}
+        style={buttonStyle}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <svg
-          width="20"
-          height="20"
+          width={iconSize}
+          height={iconSize}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

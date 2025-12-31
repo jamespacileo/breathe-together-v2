@@ -223,6 +223,7 @@ export const useInspirationalTextStore = create<InspirationalTextStore>()(
       },
 
       advanceCycle: () => {
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: State machine for inspirational text sequences handles multiple transition cases (sequence/queue/ambient) - splitting would fragment related logic
         set((state) => {
           const { currentSequence, queue, ambientPool, ambientIndex } = state;
 

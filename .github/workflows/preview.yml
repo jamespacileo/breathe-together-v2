@@ -11,6 +11,9 @@ jobs:
     name: Code Validation
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Explicitly checkout the PR head commit (not merge commit) for consistent validation
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -39,6 +42,9 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Explicitly checkout the PR head commit (not merge commit) to ensure latest code
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,19 +63,31 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Use stable wrangler version (4.55.0/4.56.0 have opennextjs-cloudflare delegation bug)
+          wranglerVersion: "4.54.0"
           command: deploy --name breathe-together-v2-pr-${{ github.event.pull_request.number }}
 
       - name: Comment PR with preview URL
         uses: actions/github-script@v7
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          BRANCH_NAME: ${{ github.head_ref }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
             const workerName = `breathe-together-v2-pr-${prNumber}`;
             const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+            const commitSha = process.env.COMMIT_SHA;
+            const shortSha = commitSha.substring(0, 7);
+            const branchName = process.env.BRANCH_NAME;
+            const workflowRunId = process.env.WORKFLOW_RUN_ID;
+            const repoUrl = context.payload.repository.html_url;
             const previewUrl = `https://${workerName}.palladio-registry.workers.dev`;
             const dashboardUrl = `https://dash.cloudflare.com/${accountId}/workers-and-pages/application/workers/${workerName}`;
+            const commitUrl = `${repoUrl}/commit/${commitSha}`;
+            const workflowUrl = `${repoUrl}/actions/runs/${workflowRunId}`;
             const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
             const comments = await github.rest.issues.listComments({
@@ -86,14 +104,25 @@ jobs:
               '<!-- preview-comment -->',
               '## 🚀 Preview Deployment',
               '',
-              '| Info | Value |',
-              '|------|-------|',
-              `| **Preview URL** | ${previewUrl} |`,
-              `| **Dashboard** | [View Worker](${dashboardUrl}) |`,
-              `| **Last deployed** | ${timestamp} |`,
+              `**[▶️ Open Preview](${previewUrl})**`,
+              '',
+              '<details>',
+              '<summary>Deployment Details</summary>',
+              '',
+              '| | |',
+              '|---|---|',
+              `| **Branch** | \`${branchName}\` |`,
+              `| **Commit** | [\`${shortSha}\`](${commitUrl}) |`,
+              `| **Deployed** | ${timestamp} |`,
+              `| **Worker** | [View on Cloudflare](${dashboardUrl}) |`,
+              `| **Workflow** | [View logs](${workflowUrl}) |`,
+              '',
+              '</details>',
+              '',
+              '> 💡 **Tip:** Hard refresh (`Cmd/Ctrl + Shift + R`) if you don\'t see your latest changes.',
               '',
               '---',
-              '<sub>This preview will be automatically deleted when the PR is closed.</sub>'
+              '<sub>Preview auto-updates on each push. Deleted when PR closes.</sub>'
             ].join('\n');
 
             if (botComment) {

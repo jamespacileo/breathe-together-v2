@@ -17,20 +17,18 @@ import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
 const MOOD_COLORS = [
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.presence),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
 ];
 
+// Direct 1:1 mapping - each mood has exactly one color
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
-  grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+  gratitude: new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
+  presence: new THREE.Color(MONUMENT_VALLEY_PALETTE.presence),
+  release: new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
+  connection: new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
 };
 
 /**
@@ -174,6 +172,8 @@ interface ShardData {
  * - Rotation speeds: per-shard variation for organic feel
  * - Scale offset: subtle size variation for depth
  * - Intro animation: staggered reveal timing per shard
+ * - Orbit: slow orbital drift around center
+ * - Perpendicular: tangent wobble for organic floating feel
  */
 interface ShardPhysicsState {
   /** Current interpolated radius (spring-smoothed) */
@@ -209,6 +209,15 @@ interface ShardPhysicsState {
   introVerticalDrop: number;
   /** Tumble speed multiplier during intro (faster spin while emerging) */
   introTumbleSpeed: number;
+
+  // === Orbital Motion State ===
+
+  /** Current orbit angle offset (radians, accumulates over time) */
+  orbitAngle: number;
+  /** Per-shard orbit speed (radians/second) */
+  orbitSpeed: number;
+  /** Seed for perpendicular wobble phase */
+  wobbleSeed: number;
 }
 
 /**
@@ -242,6 +251,24 @@ const EXPANSION_VELOCITY_BOOST = 2.5; // Multiplier for expansion velocity injec
  */
 const AMBIENT_SCALE = 0.08; // Maximum ambient offset
 const AMBIENT_Y_SCALE = 0.04; // Vertical motion is more subtle
+
+/**
+ * Orbital drift constants
+ *
+ * Very slow rotation around center - shards gradually orbit the globe
+ * Kept subtle (0.01-0.03 rad/s) to avoid dizziness
+ */
+const ORBIT_BASE_SPEED = 0.015; // Base orbit speed (radians/second)
+const ORBIT_SPEED_VARIATION = 0.01; // ±variation per shard
+
+/**
+ * Perpendicular wobble constants
+ *
+ * Small movement tangent to radial direction - adds organic "floating" feel
+ * Distinct from orbital motion (faster frequency, smaller amplitude)
+ */
+const PERPENDICULAR_AMPLITUDE = 0.03; // Maximum tangent offset (subtle)
+const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
 
 /**
  * Phase stagger for wave effect
@@ -455,6 +482,15 @@ export function ParticleSwarm({
       // Faster tumbling during reveal, slows to normal rotation speed
       const introTumbleSpeed = 3 + Math.random() * 2; // 3-5x faster during intro
 
+      // === ORBITAL DRIFT ===
+      // Orbital drift speed variation - all shards orbit same direction to prevent overlap
+      // Small speed variation creates gentle relative drift between neighbors
+      const orbitSeed = (i * Math.PI + 0.1) % 1;
+      const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
+
+      // Wobble seed for perpendicular motion phase offset
+      const wobbleSeed = i * Math.E; // e-based offset for unique phases
+
       physicsStates.push({
         currentRadius: enableIntroAnimation ? introStartRadius : baseRadius,
         velocity: 0,
@@ -471,6 +507,9 @@ export function ParticleSwarm({
         introSpiralAmount,
         introVerticalDrop,
         introTumbleSpeed,
+        orbitAngle: 0,
+        orbitSpeed,
+        wobbleSeed,
       });
     }
 
@@ -509,7 +548,7 @@ export function ParticleSwarm({
   }, [material]);
 
   // Animation loop - intro animation + spring physics + ambient motion + shader updates
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation loop requires multiple force calculations (spring, ambient, intro reveal) + per-shard state management - refactoring would reduce readability and performance
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation loop requires multiple force calculations (spring, ambient, intro reveal, orbit, wobble) + per-shard state management - refactoring would reduce readability and performance
   useFrame((state, delta) => {
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
@@ -631,6 +670,11 @@ export function ParticleSwarm({
         }
       }
 
+      // Update orbital drift angle (only accumulate when intro is complete)
+      if (introProgress >= 1) {
+        shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
+      }
+
       // Ambient floating motion (secondary layer, scaled by intro progress)
       // Uses different frequencies per axis for organic feel
       const seed = shardState.ambientSeed;
@@ -662,10 +706,33 @@ export function ParticleSwarm({
           .multiplyScalar(shardState.currentRadius)
           .add(new THREE.Vector3(ambientX, ambientY + verticalOffset, ambientZ));
       } else {
-        // After intro: normal position (direction × radius + ambient)
+        // After intro: apply orbital rotation to direction vector (rotate around Y axis)
+        // This creates a slow drift around the center globe
+        const orbitedDirection = shard.direction
+          .clone()
+          .applyAxisAngle(new THREE.Vector3(0, 1, 0), shardState.orbitAngle);
+
+        // Compute perpendicular wobble (tangent to radial direction)
+        // Get two perpendicular vectors using cross products
+        const up = new THREE.Vector3(0, 1, 0);
+        const tangent1 = orbitedDirection.clone().cross(up).normalize();
+        // Handle edge case when direction is parallel to up
+        if (tangent1.lengthSq() < 0.001) {
+          tangent1.set(1, 0, 0);
+        }
+        const tangent2 = orbitedDirection.clone().cross(tangent1).normalize();
+
+        // Perpendicular wobble with unique phase per shard
+        const wobblePhase = time * PERPENDICULAR_FREQUENCY * Math.PI * 2 + shardState.wobbleSeed;
+        const wobble1 = Math.sin(wobblePhase) * PERPENDICULAR_AMPLITUDE;
+        const wobble2 = Math.cos(wobblePhase * 0.7) * PERPENDICULAR_AMPLITUDE * 0.6;
+
+        // Compute final position: orbited direction + spring radius + tangent wobble + ambient
         shard.mesh.position
-          .copy(shard.direction)
+          .copy(orbitedDirection)
           .multiplyScalar(shardState.currentRadius)
+          .addScaledVector(tangent1, wobble1)
+          .addScaledVector(tangent2, wobble2)
           .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
       }
 
