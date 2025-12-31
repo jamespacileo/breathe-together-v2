@@ -10,7 +10,7 @@
  * - Instanced rendering for performance
  * - Breathing-synchronized fade in/out animations
  * - Organic floating motion for dreamy effect
- * - Positioned at Z=-10 (in front) to avoid scene overlap
+ * - Positioned at Z=7 (between camera at Z=10 and scene at Z=0)
  *
  * Integration:
  * - Uses breathing phase from ECS traits for opacity animation
@@ -26,10 +26,11 @@ import { getTextAspectRatio, sampleTextToParticles } from './textSampler';
 
 // Constants for particle text appearance
 const PARTICLE_SIZE = 0.025; // Size of each particle dot
-const TEXT_SCALE = 3.5; // Overall text scale in 3D world units
-const TEXT_Z_POSITION = -10; // Z position (in front of camera, away from scene)
-const TOP_TEXT_Y = 3.2; // Y position for top text
-const BOTTOM_TEXT_Y = -3.2; // Y position for bottom text
+const TEXT_SCALE = 2.5; // Overall text scale in 3D world units
+// Camera at Z=10, scene at Z=0. Position text at Z=7 (between camera and scene)
+const TEXT_Z_POSITION = 7;
+const TOP_TEXT_Y = 2.5; // Y position for top text (above scene)
+const BOTTOM_TEXT_Y = -2.5; // Y position for bottom text (below scene)
 
 // Sampling options for text-to-particle conversion
 const SAMPLE_OPTIONS = {

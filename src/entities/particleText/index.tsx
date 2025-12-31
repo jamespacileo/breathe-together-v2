@@ -10,9 +10,9 @@
  *   <ParticleText3D topText="..." bottomText="..." />  // Direct control
  *
  * Position:
- * - Z = -10 (in front of camera, well away from scene at Z=0)
- * - Top text at Y = 3.2
- * - Bottom text at Y = -3.2
+ * - Z = 7 (between camera at Z=10 and scene at Z=0)
+ * - Top text at Y = 2.5
+ * - Bottom text at Y = -2.5
  * - Scene elements (globe, particles) are at Z=0, radius 0-6
  *
  * Animation:
