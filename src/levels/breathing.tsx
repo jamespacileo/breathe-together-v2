@@ -3,6 +3,7 @@ import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
+import { OrbitalTravelers, ShootingStars, WanderingMotes } from '../entities/atmosphere';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
@@ -108,7 +109,21 @@ export function BreathingLevel({
                 breathingOpacity={0.15}
               />
             )}
+
+            {/* Atmospheric additions for life and movement */}
+            {showParticles && (
+              <>
+                {/* Satellites orbiting in a heart shape around the globe */}
+                <OrbitalTravelers pattern="heart" />
+
+                {/* Lazy drifting dust motes */}
+                <WanderingMotes count={15} radius={7} opacity={0.5} />
+              </>
+            )}
           </PresentationControls>
+
+          {/* Shooting stars in the background (outside rotation controls) */}
+          {showEnvironment && <ShootingStars />}
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
