@@ -1,9 +1,9 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
-import type { MoodId } from '../constants';
+import { BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
@@ -14,6 +14,13 @@ import type { BreathingLevelProps } from '../types/sceneProps';
 
 /** Unique ID for the current user's shard */
 const CURRENT_USER_ID = 'current-user';
+
+/**
+ * Delay before other users appear after onboarding completes.
+ * This gives the user time to settle into the breathing rhythm
+ * before introducing the visual complexity of other breathers.
+ */
+const OTHER_USERS_DELAY_MS = BREATH_TOTAL_CYCLE * 1000; // One full breath cycle (19s)
 
 /**
  * Tuning defaults for visual aesthetics (matching reference)
@@ -70,6 +77,10 @@ export function BreathingLevel({
   const [currentUserMood, setCurrentUserMood] = useState<MoodId | null>(null);
   const [showUserHighlight, setShowUserHighlight] = useState(false);
 
+  // Delayed appearance: other users join after user settles into breathing
+  const [showOtherUsers, setShowOtherUsers] = useState(false);
+  const otherUsersTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Handle mood selection from onboarding
   const handleMoodSelected = useCallback((mood: MoodId) => {
     setCurrentUserMood(mood);
@@ -79,13 +90,31 @@ export function BreathingLevel({
   const handleOnboardingComplete = useCallback((mood: MoodId, highlight: boolean) => {
     setCurrentUserMood(mood);
     setShowUserHighlight(highlight);
+
+    // Start timer to show other users after one breath cycle
+    // This lets the user settle into the rhythm before adding visual complexity
+    if (otherUsersTimerRef.current) {
+      clearTimeout(otherUsersTimerRef.current);
+    }
+    otherUsersTimerRef.current = setTimeout(() => {
+      setShowOtherUsers(true);
+    }, OTHER_USERS_DELAY_MS);
   }, []);
 
-  // Generate mock users with randomized order for visual variety
-  // Includes the current user if they've selected a mood
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (otherUsersTimerRef.current) {
+        clearTimeout(otherUsersTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Generate users list based on current state:
+  // 1. Before mood selection: empty globe
+  // 2. After onboarding: just the current user (settling in)
+  // 3. After one breath cycle: all users join
   const allUsers = useMemo(() => {
-    const presence = generateMockPresence(harmony - (currentUserMood ? 1 : 0)); // Reserve 1 slot for current user
-    // Convert aggregate mood counts to individual users
     const users: Array<{ id: string; mood: 'gratitude' | 'presence' | 'release' | 'connection' }> =
       [];
 
@@ -97,31 +126,35 @@ export function BreathingLevel({
       });
     }
 
-    for (const [mood, count] of Object.entries(presence.moods)) {
-      for (let i = 0; i < count; i++) {
-        users.push({
-          id: `${mood}-${i}`,
-          mood: mood as 'gratitude' | 'presence' | 'release' | 'connection',
-        });
+    // Only add other users after the delay period
+    if (showOtherUsers && currentUserMood) {
+      const presence = generateMockPresence(harmony - 1); // Reserve 1 slot for current user
+
+      for (const [mood, count] of Object.entries(presence.moods)) {
+        for (let i = 0; i < count; i++) {
+          users.push({
+            id: `${mood}-${i}`,
+            mood: mood as 'gratitude' | 'presence' | 'release' | 'connection',
+          });
+        }
+      }
+
+      // Shuffle only the other users for visual variety
+      // Keep current user at index 0
+      const seed = harmony;
+      const seededRandom = (i: number) => {
+        const x = Math.sin(seed * 9999 + i * 1234) * 10000;
+        return x - Math.floor(x);
+      };
+
+      for (let i = users.length - 1; i > 1; i--) {
+        const j = Math.floor(seededRandom(i) * (i - 1 + 1)) + 1;
+        [users[i], users[j]] = [users[j], users[i]];
       }
     }
 
-    // Shuffle only the non-current users for visual variety
-    // Keep current user at index 0
-    const startIndex = currentUserMood ? 1 : 0;
-    const seed = harmony;
-    const seededRandom = (i: number) => {
-      const x = Math.sin(seed * 9999 + i * 1234) * 10000;
-      return x - Math.floor(x);
-    };
-
-    for (let i = users.length - 1; i > startIndex; i--) {
-      const j = Math.floor(seededRandom(i) * (i - startIndex + 1)) + startIndex;
-      [users[i], users[j]] = [users[j], users[i]];
-    }
-
     return users;
-  }, [harmony, currentUserMood]);
+  }, [harmony, currentUserMood, showOtherUsers]);
 
   return (
     <ErrorBoundary>
