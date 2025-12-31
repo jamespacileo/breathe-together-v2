@@ -9,8 +9,15 @@
  */
 
 import { useFrame, useThree } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import {
+  breathPhase as breathPhaseTrait,
+  orbitRadius,
+  phaseType as phaseTypeTrait,
+  rawProgress as rawProgressTrait,
+} from '../breath/traits';
 
 // Backface vertex shader - renders normals from back faces
 const backfaceVertexShader = `
@@ -45,13 +52,18 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates frosted glass effect with mood color tinting
+// Refraction fragment shader - creates frosted glass effect with mood color tinting + breathing cues
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
 uniform vec2 resolution;
 uniform float ior;
 uniform float backfaceIntensity;
+
+// Breathing phase uniforms for visual cues
+uniform float breathPhase;   // 0 = exhaled, 1 = inhaled
+uniform float phaseType;     // 0=inhale, 1=hold-in, 2=exhale, 3=hold-out
+uniform float rawProgress;   // 0-1 progress within current phase
 
 varying vec3 vColor;
 varying vec3 worldNormal;
@@ -69,18 +81,78 @@ void main() {
   vec2 refractUv = uv + refracted.xy * 0.05;
   vec4 tex = texture2D(envMap, refractUv);
 
+  // === BREATHING CUE 1: COLOR TEMPERATURE SHIFT ===
+  // Warm on inhale/hold-in, cool on exhale/hold-out
+  vec3 warmShift = vec3(0.06, 0.03, -0.03);  // Add warmth (red/yellow)
+  vec3 coolShift = vec3(-0.03, 0.02, 0.06);  // Add coolness (blue)
+
+  vec3 temperatureShift = vec3(0.0);
+  if (phaseType < 0.5) {
+    // Inhale: gradually warm up
+    temperatureShift = warmShift * rawProgress;
+  } else if (phaseType < 1.5) {
+    // Hold-in: stay warm (peak warmth)
+    temperatureShift = warmShift;
+  } else if (phaseType < 2.5) {
+    // Exhale: transition warm to cool
+    temperatureShift = mix(warmShift * 0.5, coolShift, rawProgress);
+  } else {
+    // Hold-out: stay cool
+    temperatureShift = coolShift * 0.8;
+  }
+
+  // === BREATHING CUE 2: TRANSITION PULSE ===
+  // Brief brightness flash at phase start (first 15% of each phase)
+  float transitionPulse = 0.0;
+  if (rawProgress < 0.15) {
+    float pulseT = rawProgress / 0.15;
+    transitionPulse = sin(pulseT * 3.14159) * 0.2; // 20% brightness boost
+  }
+
+  // === BREATHING CUE 3: PHASE-AWARE FRESNEL ===
+  // Edge glow intensity varies by phase
+  float fresnelPower = 3.0;
+  float fresnelIntensity = 0.4;
+
+  if (phaseType < 0.5) {
+    // Inhale: sharper, moderate glow
+    fresnelPower = 3.5;
+    fresnelIntensity = 0.35;
+  } else if (phaseType < 1.5) {
+    // Hold-in: soft edges, brightest glow (peak presence)
+    fresnelPower = 2.5;
+    fresnelIntensity = 0.55;
+  } else if (phaseType < 2.5) {
+    // Exhale: soft, ethereal glow
+    fresnelPower = 2.8;
+    fresnelIntensity = 0.45;
+  } else {
+    // Hold-out: minimal glow (calm)
+    fresnelPower = 4.0;
+    fresnelIntensity = 0.25;
+  }
+
   // 1. FROSTED TINT: mood color tints refraction (50% mix)
   vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor, 0.5);
 
-  // 2. MATTE BODY: solid mood color (25% mix)
-  vec3 bodyColor = mix(tintedRefraction, vColor, 0.25);
+  // 2. MATTE BODY: solid mood color (25% mix) + temperature shift
+  vec3 bodyColor = mix(tintedRefraction, vColor, 0.25) + temperatureShift;
 
-  // 3. FRESNEL RIM: white edge highlight
-  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
-  vec3 finalColor = mix(bodyColor, vec3(1.0), fresnel * 0.4);
+  // === BREATHING CUE 4: LUMINOSITY PULSE ===
+  // Brightness varies with breath phase
+  float breathLuminosity = 1.0 + breathPhase * 0.15 + transitionPulse;
+  bodyColor *= breathLuminosity;
 
-  // 4. SOFT TOP-DOWN LIGHT
-  float topLight = smoothstep(0.0, 1.0, normal.y) * 0.1;
+  // 3. FRESNEL RIM: phase-aware edge highlight
+  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), fresnelPower);
+
+  // Rim color also shifts with temperature
+  vec3 rimColor = vec3(1.0) + temperatureShift * 0.3;
+  vec3 finalColor = mix(bodyColor, rimColor, fresnel * fresnelIntensity);
+
+  // 4. SOFT TOP-DOWN LIGHT (slightly enhanced during hold-in)
+  float topLightBoost = phaseType < 1.5 && phaseType > 0.5 ? 1.3 : 1.0;
+  float topLight = smoothstep(0.0, 1.0, normal.y) * 0.1 * topLightBoost;
   finalColor += vec3(1.0) * topLight;
 
   gl_FragColor = vec4(finalColor, 1.0);
@@ -235,6 +307,24 @@ interface RefractionPipelineProps {
    * @default 3
    */
   maxBlur?: number;
+  /**
+   * Current breath phase (0 = exhaled, 1 = inhaled).
+   * Used for visual breathing cues on icosahedrons.
+   * @default 0
+   */
+  breathPhase?: number;
+  /**
+   * Current phase type (0=inhale, 1=hold-in, 2=exhale, 3=hold-out).
+   * Used for phase-specific visual effects.
+   * @default 0
+   */
+  phaseType?: number;
+  /**
+   * Progress within current phase (0-1).
+   * Used for transition pulses and gradual effects.
+   * @default 0
+   */
+  rawProgress?: number;
   /** Children meshes to render with refraction */
   children?: React.ReactNode;
 }
@@ -246,10 +336,14 @@ export function RefractionPipeline({
   focusDistance = 15,
   focalRange = 8,
   maxBlur = 3,
+  breathPhase = 0,
+  phaseType = 0,
+  rawProgress = 0,
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
   const perspCamera = camera as THREE.PerspectiveCamera;
+  const world = useWorld();
 
   // Create render targets
   const { envFBO, backfaceFBO, compositeFBO } = useMemo(() => {
@@ -330,6 +424,10 @@ export function RefractionPipeline({
         resolution: { value: new THREE.Vector2(size.width, size.height) },
         ior: { value: ior },
         backfaceIntensity: { value: backfaceIntensity },
+        // Breathing phase uniforms for visual cues
+        breathPhase: { value: 0 },
+        phaseType: { value: 0 },
+        rawProgress: { value: 0 },
       },
       vertexShader: refractionVertexShader,
       fragmentShader: refractionFragmentShader,
@@ -391,6 +489,26 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
+    // Query breath data from ECS for visual cues
+    let currentBreathPhase = breathPhase;
+    let currentPhaseType = phaseType;
+    let currentRawProgress = rawProgress;
+    try {
+      const breathEntity = world.queryFirst(orbitRadius);
+      if (breathEntity) {
+        currentBreathPhase = breathEntity.get(breathPhaseTrait)?.value ?? breathPhase;
+        currentPhaseType = breathEntity.get(phaseTypeTrait)?.value ?? phaseType;
+        currentRawProgress = breathEntity.get(rawProgressTrait)?.value ?? rawProgress;
+      }
+    } catch {
+      // Ignore ECS errors during unmount/remount in Triplex
+    }
+
+    // Update breath uniforms for visual cues
+    refractionMaterial.uniforms.breathPhase.value = currentBreathPhase;
+    refractionMaterial.uniforms.phaseType.value = currentPhaseType;
+    refractionMaterial.uniforms.rawProgress.value = currentRawProgress;
+
     // Collect all meshes in scene that should use refraction
     const meshes: THREE.Mesh[] = [];
     scene.traverse((obj) => {
