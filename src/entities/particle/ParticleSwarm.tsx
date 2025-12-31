@@ -106,6 +106,54 @@ export interface ParticleSwarmProps {
   buffer?: number;
   /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
   maxShardSize?: number;
+
+  // === Intro Animation Props ===
+
+  /**
+   * Enable staggered reveal animation on mount.
+   *
+   * When enabled, shards animate from center outward with staggered timing
+   * creating a beautiful "bloom" welcome effect.
+   *
+   * @default true
+   */
+  enableIntroAnimation?: boolean;
+
+  /**
+   * Total duration of the intro animation in seconds.
+   *
+   * All shards will complete their reveal within this window.
+   * Individual shard timing is distributed across this duration.
+   *
+   * @default 3.0
+   * @min 0.5
+   * @max 8.0
+   */
+  introDuration?: number;
+
+  /**
+   * Per-shard reveal animation duration in seconds.
+   *
+   * How long each individual shard takes to animate from hidden to visible.
+   * Overlaps with other shards based on stagger timing.
+   *
+   * @default 1.2
+   * @min 0.2
+   * @max 3.0
+   */
+  introShardDuration?: number;
+
+  /**
+   * Starting radius for shards during intro animation.
+   *
+   * Shards animate from this radius outward to their orbit position.
+   * 0 = start at center, higher = start closer to final position.
+   *
+   * @default 0.5
+   * @min 0
+   * @max 3.0
+   */
+  introStartRadius?: number;
 }
 
 interface ShardData {
@@ -123,6 +171,7 @@ interface ShardData {
  * - Ambient seed: unique floating pattern per shard
  * - Rotation speeds: per-shard variation for organic feel
  * - Scale offset: subtle size variation for depth
+ * - Intro animation: staggered reveal timing per shard
  * - Orbit: slow orbital drift around center
  * - Perpendicular: tangent wobble for organic floating feel
  */
@@ -143,6 +192,26 @@ interface ShardPhysicsState {
   rotationSpeedY: number;
   /** Base scale offset for depth variation (0.85-1.15 range) */
   baseScaleOffset: number;
+
+  // === Intro Animation State ===
+
+  /** Staggered delay before this shard starts revealing (seconds) */
+  introDelay: number;
+  /** Initial random rotation for visual variety during reveal */
+  introRotationOffset: THREE.Euler;
+  /** Latitude angle (phi) on fibonacci sphere - used for bloom wave effect */
+  latitude: number;
+  /** Longitude angle (theta) on fibonacci sphere - used for spiral direction */
+  longitude: number;
+  /** Spiral rotation amount during intro (radians) */
+  introSpiralAmount: number;
+  /** Vertical offset during intro (world units) */
+  introVerticalDrop: number;
+  /** Tumble speed multiplier during intro (faster spin while emerging) */
+  introTumbleSpeed: number;
+
+  // === Orbital Motion State ===
+
   /** Current orbit angle offset (radians, accumulates over time) */
   orbitAngle: number;
   /** Per-shard orbit speed (radians/second) */
@@ -209,6 +278,67 @@ const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
  */
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 
+/**
+ * Easing function for smooth intro animation
+ *
+ * Custom ease-out-expo for a satisfying "bloom" feel:
+ * - Starts fast (immediate visual feedback)
+ * - Gradually slows (settles naturally into position)
+ * - Asymptotic approach (never jarring stop)
+ */
+function easeOutExpo(t: number): number {
+  return t === 1 ? 1 : 1 - 2 ** (-10 * t);
+}
+
+/**
+ * Easing function for scale animation
+ *
+ * Custom ease-out-back for "pop" effect:
+ * - Slight overshoot gives satisfying bounce
+ * - Settles to final scale naturally
+ */
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
+}
+
+/**
+ * Organic easing function for opacity fade-in
+ *
+ * Custom smooth curve inspired by natural breathing rhythm:
+ * - Slow start (gentle emergence from nothing)
+ * - Accelerates through middle (building presence)
+ * - Soft landing (settles naturally into full opacity)
+ *
+ * Uses sine-based ease-in-out with slight asymmetry
+ * to feel more alive and less mechanical
+ */
+function easeOrganicFade(t: number): number {
+  // Combine sine easing with subtle cubic acceleration
+  // Creates a "breathing" feel to the fade
+  const sineEase = -(Math.cos(Math.PI * t) - 1) / 2;
+  const cubicBoost = t * t * (3 - 2 * t); // Smoothstep
+
+  // Blend: 70% sine (organic), 30% smoothstep (subtle acceleration)
+  return sineEase * 0.7 + cubicBoost * 0.3;
+}
+
+/**
+ * Global intro animation state
+ *
+ * Tracks animation start time and completion status
+ * Shared across all shards for synchronized timing
+ */
+interface IntroAnimationState {
+  /** Animation start time (clock.elapsedTime at mount) */
+  startTime: number;
+  /** Whether intro animation has completed */
+  isComplete: boolean;
+  /** Whether we've initialized the start time */
+  isInitialized: boolean;
+}
+
 export function ParticleSwarm({
   count = 48,
   users,
@@ -217,11 +347,21 @@ export function ParticleSwarm({
   globeRadius = 1.5,
   buffer = 0.3,
   maxShardSize = 0.6,
+  // Intro animation props
+  enableIntroAnimation = true,
+  introDuration = 3.0,
+  introShardDuration = 1.2,
+  introStartRadius = 0.5,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+  const introRef = useRef<IntroAnimationState>({
+    startTime: 0,
+    isComplete: !enableIntroAnimation,
+    isInitialized: false,
+  });
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -278,13 +418,26 @@ export function ParticleSwarm({
 
     // Add new shards and initialize physics state
     const physicsStates: ShardPhysicsState[] = [];
+
+    // Calculate stagger timing for intro animation
+    const goldenRatio = (1 + Math.sqrt(5)) / 2;
+    const staggerWindow = introDuration - introShardDuration; // Time window for stagger distribution
+
     for (let i = 0; i < shards.length; i++) {
       const shard = shards[i];
       group.add(shard.mesh);
 
-      // Initialize physics state with staggered phase offsets
-      // Use golden ratio distribution for even visual spread
-      const goldenRatio = (1 + Math.sqrt(5)) / 2;
+      // Calculate fibonacci sphere angles for this shard
+      // phi = latitude (0 at top pole, PI at bottom pole)
+      // theta = longitude (wraps around)
+      const phi = Math.acos(-1 + (2 * i) / count);
+      const theta = Math.sqrt(count * Math.PI) * phi;
+
+      // Initialize mesh visibility for intro animation
+      if (enableIntroAnimation) {
+        shard.mesh.scale.setScalar(0); // Start invisible
+        shard.mesh.position.copy(shard.direction).multiplyScalar(introStartRadius);
+      }
 
       // Per-shard rotation speed variation (0.7-1.3 range)
       // Uses different seeds for X and Y to avoid synchronized rotation
@@ -297,6 +450,39 @@ export function ParticleSwarm({
       const scaleSeed = (i * goldenRatio + 0.5) % 1;
       const baseScaleOffset = 0.9 + scaleSeed * 0.2;
 
+      // === LATITUDE-BASED BLOOM STAGGER ===
+      // Shards reveal in waves from poles to equator, creating a "blooming flower" effect
+      // Distance from equator: 0 at equator (phi = PI/2), 1 at poles (phi = 0 or PI)
+      const normalizedLatitude = Math.abs(phi - Math.PI / 2) / (Math.PI / 2); // 0 at equator, 1 at poles
+
+      // Poles reveal first, equator last - creates expanding ring effect
+      // Add slight randomness to prevent perfect synchronization
+      const latitudeJitter = (Math.random() - 0.5) * 0.15;
+      const introDelay = (1 - normalizedLatitude + latitudeJitter) * staggerWindow * 0.8;
+
+      // Random rotation offset for visual variety during intro
+      const introRotationOffset = new THREE.Euler(
+        Math.random() * Math.PI * 2,
+        Math.random() * Math.PI * 2,
+        Math.random() * Math.PI * 2,
+      );
+
+      // === SPIRAL MOTION PARAMETERS ===
+      // Each shard spirals outward during reveal - direction based on hemisphere
+      // Northern hemisphere spirals clockwise, southern counter-clockwise
+      const hemisphere = phi < Math.PI / 2 ? 1 : -1;
+      const introSpiralAmount = hemisphere * (Math.PI * 0.5 + Math.random() * Math.PI * 0.3);
+
+      // === VERTICAL DROP ===
+      // Shards start slightly below their final position and rise up
+      // Amount varies by latitude - equator shards drop more
+      const introVerticalDrop = -0.8 - (1 - normalizedLatitude) * 0.6 + Math.random() * 0.3;
+
+      // === TUMBLE SPEED ===
+      // Faster tumbling during reveal, slows to normal rotation speed
+      const introTumbleSpeed = 3 + Math.random() * 2; // 3-5x faster during intro
+
+      // === ORBITAL DRIFT ===
       // Orbital drift speed variation - all shards orbit same direction to prevent overlap
       // Small speed variation creates gentle relative drift between neighbors
       const orbitSeed = (i * Math.PI + 0.1) % 1;
@@ -306,7 +492,7 @@ export function ParticleSwarm({
       const wobbleSeed = i * Math.E; // e-based offset for unique phases
 
       physicsStates.push({
-        currentRadius: baseRadius,
+        currentRadius: enableIntroAnimation ? introStartRadius : baseRadius,
         velocity: 0,
         phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
         ambientSeed: i * 137.508, // Golden angle in degrees for unique patterns
@@ -314,11 +500,25 @@ export function ParticleSwarm({
         rotationSpeedX,
         rotationSpeedY,
         baseScaleOffset,
+        introDelay: Math.max(0, introDelay), // Ensure non-negative
+        introRotationOffset,
+        latitude: phi,
+        longitude: theta,
+        introSpiralAmount,
+        introVerticalDrop,
+        introTumbleSpeed,
         orbitAngle: 0,
         orbitSpeed,
         wobbleSeed,
       });
     }
+
+    // Reset intro animation state
+    introRef.current = {
+      startTime: 0,
+      isComplete: !enableIntroAnimation,
+      isInitialized: false,
+    };
 
     shardsRef.current = shards;
     physicsRef.current = physicsStates;
@@ -330,7 +530,15 @@ export function ParticleSwarm({
         group.remove(shard.mesh);
       }
     };
-  }, [shards, baseRadius]);
+  }, [
+    shards,
+    baseRadius,
+    enableIntroAnimation,
+    introDuration,
+    introShardDuration,
+    introStartRadius,
+    count,
+  ]);
 
   // Cleanup material on unmount
   useEffect(() => {
@@ -339,15 +547,26 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - spring physics + ambient motion + shader updates
+  // Animation loop - intro animation + spring physics + ambient motion + shader updates
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation loop requires multiple force calculations (spring, ambient, intro reveal, orbit, wobble) + per-shard state management - refactoring would reduce readability and performance
   useFrame((state, delta) => {
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
+    const intro = introRef.current;
     if (currentShards.length === 0 || physics.length === 0) return;
 
     // Cap delta to prevent physics explosion on tab switch
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
+
+    // Initialize intro animation start time on first frame
+    if (!intro.isInitialized && enableIntroAnimation) {
+      intro.startTime = time;
+      intro.isInitialized = true;
+    }
+
+    // Calculate intro animation elapsed time
+    const introElapsed = time - intro.startTime;
 
     // Get breathing state from ECS
     let targetRadius = baseRadius;
@@ -362,17 +581,53 @@ export function ParticleSwarm({
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
+    // Calculate global intro opacity with organic easing
+    // This creates a soft "emerging from the void" effect for the whole swarm
+    let globalOpacity = 1;
+    if (enableIntroAnimation && !intro.isComplete) {
+      // Opacity fades in over the first portion of the intro duration
+      // Slightly faster than the full duration so shards are visible during their reveals
+      const opacityDuration = introDuration * 0.6; // 60% of intro duration
+      const opacityProgress = Math.min(introElapsed / opacityDuration, 1);
+      globalOpacity = easeOrganicFade(opacityProgress);
+    }
+
     // Update shader material uniforms for all shards
     // (shared material means updating once affects all)
     if (material.uniforms) {
       material.uniforms.breathPhase.value = currentBreathPhase;
       material.uniforms.time.value = time;
+      material.uniforms.opacity.value = globalOpacity;
     }
 
-    // Update each shard with spring physics + ambient motion
+    // Track if all shards have completed their intro animation
+    let allIntroComplete = true;
+
+    // Update each shard with intro animation + spring physics + ambient motion
     for (let i = 0; i < currentShards.length; i++) {
       const shard = currentShards[i];
       const shardState = physics[i];
+
+      // === INTRO ANIMATION ===
+      // Calculate per-shard intro progress based on staggered delay
+      let introProgress = 1; // 1 = fully revealed (normal state)
+
+      if (enableIntroAnimation && !intro.isComplete) {
+        // Time since this shard's intro should start
+        const shardElapsed = introElapsed - shardState.introDelay;
+
+        if (shardElapsed < 0) {
+          // Shard hasn't started revealing yet
+          introProgress = 0;
+          allIntroComplete = false;
+        } else if (shardElapsed < introShardDuration) {
+          // Shard is currently animating
+          const rawProgress = shardElapsed / introShardDuration;
+          introProgress = easeOutExpo(rawProgress);
+          allIntroComplete = false;
+        }
+        // else: shardElapsed >= introShardDuration → introProgress = 1 (complete)
+      }
 
       // Apply phase offset for wave effect
       // This creates subtle stagger in breathing motion
@@ -387,72 +642,148 @@ export function ParticleSwarm({
       // Clamp target to prevent penetrating globe
       const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
 
-      // Detect expansion (exhale) and apply velocity boost for immediate response
-      // This overcomes spring lag so exhale feels like an immediate "release"
-      const targetDelta = clampedTarget - shardState.previousTarget;
-      if (targetDelta > 0.001) {
-        // Expanding outward (exhale starting) - inject outward velocity
-        shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+      // === PHYSICS (only when intro is progressing or complete) ===
+      if (introProgress > 0) {
+        // Detect expansion (exhale) and apply velocity boost for immediate response
+        // This overcomes spring lag so exhale feels like an immediate "release"
+        const targetDelta = clampedTarget - shardState.previousTarget;
+        if (targetDelta > 0.001) {
+          // Expanding outward (exhale starting) - inject outward velocity
+          shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+        }
+        shardState.previousTarget = clampedTarget;
+
+        // Spring physics: F = -k(x - target) - c*v
+        const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
+        const dampingForce = -shardState.velocity * SPRING_DAMPING;
+        const totalForce = springForce + dampingForce;
+
+        // Integrate velocity and position (scaled by intro progress for smooth transition)
+        shardState.velocity += totalForce * clampedDelta * introProgress;
+        shardState.currentRadius += shardState.velocity * clampedDelta;
+
+        // During intro, blend from intro start radius to physics-driven radius
+        if (introProgress < 1) {
+          const introRadius =
+            introStartRadius + (shardState.currentRadius - introStartRadius) * introProgress;
+          shardState.currentRadius = introRadius;
+        }
       }
-      shardState.previousTarget = clampedTarget;
 
-      // Spring physics: F = -k(x - target) - c*v
-      const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
-      const dampingForce = -shardState.velocity * SPRING_DAMPING;
-      const totalForce = springForce + dampingForce;
-
-      // Integrate velocity and position
-      shardState.velocity += totalForce * clampedDelta;
-      shardState.currentRadius += shardState.velocity * clampedDelta;
-
-      // Update orbital drift angle
-      shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
-
-      // Apply orbital rotation to direction vector (rotate around Y axis)
-      // This creates a slow drift around the center globe
-      const orbitedDirection = shard.direction
-        .clone()
-        .applyAxisAngle(new THREE.Vector3(0, 1, 0), shardState.orbitAngle);
-
-      // Compute perpendicular wobble (tangent to radial direction)
-      // Get two perpendicular vectors using cross products
-      const up = new THREE.Vector3(0, 1, 0);
-      const tangent1 = orbitedDirection.clone().cross(up).normalize();
-      // Handle edge case when direction is parallel to up
-      if (tangent1.lengthSq() < 0.001) {
-        tangent1.set(1, 0, 0);
+      // Update orbital drift angle (only accumulate when intro is complete)
+      if (introProgress >= 1) {
+        shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
       }
-      const tangent2 = orbitedDirection.clone().cross(tangent1).normalize();
 
-      // Perpendicular wobble with unique phase per shard
-      const wobblePhase = time * PERPENDICULAR_FREQUENCY * Math.PI * 2 + shardState.wobbleSeed;
-      const wobble1 = Math.sin(wobblePhase) * PERPENDICULAR_AMPLITUDE;
-      const wobble2 = Math.cos(wobblePhase * 0.7) * PERPENDICULAR_AMPLITUDE * 0.6;
-
-      // Ambient floating motion (secondary layer)
+      // Ambient floating motion (secondary layer, scaled by intro progress)
       // Uses different frequencies per axis for organic feel
       const seed = shardState.ambientSeed;
-      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE;
-      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
-      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
+      const ambientScale = introProgress; // Fade in ambient motion with intro
+      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE * ambientScale;
+      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE * ambientScale;
+      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE * ambientScale;
 
-      // Compute final position: orbited direction + spring radius + tangent wobble + ambient
-      shard.mesh.position
-        .copy(orbitedDirection)
-        .multiplyScalar(shardState.currentRadius)
-        .addScaledVector(tangent1, wobble1)
-        .addScaledVector(tangent2, wobble2)
-        .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+      // === POSITION CALCULATION ===
+      if (introProgress < 1) {
+        // During intro: apply spiral motion + vertical rise + radial expansion
 
-      // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
-      shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
-      shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
+        // Inverse progress for "remaining animation" calculations
+        const remainingProgress = 1 - introProgress;
 
+        // Spiral: rotate the direction vector around Y axis
+        // Amount decreases as shard approaches final position
+        const spiralAngle = shardState.introSpiralAmount * remainingProgress * remainingProgress;
+        const spiralDirection = shard.direction.clone();
+        spiralDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), spiralAngle);
+
+        // Vertical rise: start below, rise to final Y position
+        // Uses smooth ease-out for natural settling
+        const verticalOffset = shardState.introVerticalDrop * remainingProgress * remainingProgress;
+
+        // Combine: spiral direction × radius + vertical offset + ambient
+        shard.mesh.position
+          .copy(spiralDirection)
+          .multiplyScalar(shardState.currentRadius)
+          .add(new THREE.Vector3(ambientX, ambientY + verticalOffset, ambientZ));
+      } else {
+        // After intro: apply orbital rotation to direction vector (rotate around Y axis)
+        // This creates a slow drift around the center globe
+        const orbitedDirection = shard.direction
+          .clone()
+          .applyAxisAngle(new THREE.Vector3(0, 1, 0), shardState.orbitAngle);
+
+        // Compute perpendicular wobble (tangent to radial direction)
+        // Get two perpendicular vectors using cross products
+        const up = new THREE.Vector3(0, 1, 0);
+        const tangent1 = orbitedDirection.clone().cross(up).normalize();
+        // Handle edge case when direction is parallel to up
+        if (tangent1.lengthSq() < 0.001) {
+          tangent1.set(1, 0, 0);
+        }
+        const tangent2 = orbitedDirection.clone().cross(tangent1).normalize();
+
+        // Perpendicular wobble with unique phase per shard
+        const wobblePhase = time * PERPENDICULAR_FREQUENCY * Math.PI * 2 + shardState.wobbleSeed;
+        const wobble1 = Math.sin(wobblePhase) * PERPENDICULAR_AMPLITUDE;
+        const wobble2 = Math.cos(wobblePhase * 0.7) * PERPENDICULAR_AMPLITUDE * 0.6;
+
+        // Compute final position: orbited direction + spring radius + tangent wobble + ambient
+        shard.mesh.position
+          .copy(orbitedDirection)
+          .multiplyScalar(shardState.currentRadius)
+          .addScaledVector(tangent1, wobble1)
+          .addScaledVector(tangent2, wobble2)
+          .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+      }
+
+      // === ROTATION ===
+      if (introProgress < 1) {
+        // During intro: dynamic tumbling that slows as shard settles
+
+        // Inverse progress for "remaining animation" calculations
+        const remainingProgress = 1 - introProgress;
+
+        // Tumble speed decreases as shard approaches final position
+        // Starts fast (introTumbleSpeed), ends at normal speed (1x)
+        const currentTumbleSpeed = 1 + (shardState.introTumbleSpeed - 1) * remainingProgress;
+
+        // Random starting offset blends out as intro completes
+        const offsetFade = remainingProgress * remainingProgress; // Quadratic fade
+        const baseRotX = shardState.introRotationOffset.x * offsetFade;
+        const baseRotY = shardState.introRotationOffset.y * offsetFade;
+        const baseRotZ = shardState.introRotationOffset.z * offsetFade * 0.5; // Less Z tumble
+
+        // Apply time-based rotation with tumble speed multiplier
+        shard.mesh.rotation.x =
+          baseRotX + time * 0.3 * shardState.rotationSpeedX * currentTumbleSpeed;
+        shard.mesh.rotation.y =
+          baseRotY + time * 0.4 * shardState.rotationSpeedY * currentTumbleSpeed;
+        shard.mesh.rotation.z = baseRotZ + time * 0.15 * currentTumbleSpeed;
+      } else {
+        // After intro: normal continuous rotation
+        shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
+        shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
+      }
+
+      // === SCALE ===
       // Subtle scale breathing - shards pulse slightly with breath (3-8% range)
       // Combined with base scale offset for depth variation
       const breathScale = 1.0 + currentBreathPhase * 0.05; // 0-5% breath pulse
-      const finalScale = shardState.baseScaleOffset * breathScale;
-      shard.mesh.scale.setScalar(finalScale);
+      const normalScale = shardState.baseScaleOffset * breathScale;
+
+      if (introProgress < 1) {
+        // During intro: animate scale from 0 to normal with "pop" effect
+        const scaleProgress = easeOutBack(introProgress);
+        shard.mesh.scale.setScalar(normalScale * scaleProgress);
+      } else {
+        // After intro: normal breathing scale
+        shard.mesh.scale.setScalar(normalScale);
+      }
+    }
+
+    // Mark intro as complete once all shards have finished
+    if (enableIntroAnimation && allIntroComplete && !intro.isComplete) {
+      intro.isComplete = true;
     }
   });
 
