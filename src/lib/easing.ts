@@ -1,9 +1,12 @@
 /**
  * Shared Easing Functions for breathe-together-v2
  *
- * Centralized easing functions used across the application for consistent
- * breathing animation curves. All breathing-related easing should use these
- * functions as the single source of truth.
+ * Centralized easing functions with immediate visual feedback.
+ * Both inhale and exhale use sin(t × π/2) for instant visible movement
+ * that syncs with UI phase transitions.
+ *
+ * The asymmetry comes from phase DURATIONS (4s inhale, 8s exhale),
+ * not from different easing shapes.
  *
  * Used by:
  * - src/lib/breathCalc.ts (core breathing state)
@@ -62,18 +65,21 @@ export function controlledBreathCurve(t: number, startRamp: number, endRamp: num
 }
 
 /**
- * Inhale easing: Controlled, organic breath intake
+ * Inhale easing: Fast intake with smooth landing
  *
- * Uses raised cosine ramps with linear plateau:
- * - Soft start (25%): Gentle acceleration, overcoming initial resistance
- * - Steady middle (50%): Constant velocity, controlled even intake
- * - Soft end (25%): Gentle deceleration, lungs filling naturally
+ * Uses sin(t × π/2) for immediate visual feedback:
+ * - Fast start: High initial velocity syncs with UI phase transition
+ * - Smooth landing: Natural deceleration as lungs fill
+ *
+ * Derivative at t=0: π/2 ≈ 1.57 (fast - visible immediately)
+ * Derivative at t=1: 0 (smooth stop)
  *
  * @param t Progress 0-1
  * @returns Eased value 0-1
  */
 export function easeInhale(t: number): number {
-  return controlledBreathCurve(t, 0.25, 0.25);
+  const tClamped = Math.max(0, Math.min(1, t));
+  return Math.sin(tClamped * Math.PI * 0.5);
 }
 
 /**
@@ -95,18 +101,22 @@ export function easeInhaleText(t: number): number {
 }
 
 /**
- * Exhale easing: Controlled, relaxing breath release
+ * Exhale easing: Immediate release with smooth completion
  *
- * Uses asymmetric ramps for relaxation breathing:
- * - Soft start (20%): Gentle release begins
- * - Steady middle (50%): Constant velocity, controlled even exhale
- * - Extended soft end (30%): Extra gentle landing for relaxation
+ * Uses sin(t × π/2) for immediate visual feedback:
+ * - Fast start: Visible movement the instant exhale begins
+ * - Smooth landing: Gentle deceleration as exhale completes
  *
- * The longer end ramp creates the "letting go" feel essential for relaxation.
+ * Derivative at t=0: π/2 ≈ 1.57 (fast - syncs with UI phase change)
+ * Derivative at t=1: 0 (smooth stop)
+ *
+ * The "slow controlled exhale" feel comes from the longer duration
+ * (8s exhale vs 4s inhale), not from slow starting velocity.
  *
  * @param t Progress 0-1
  * @returns Eased value 0-1
  */
 export function easeExhale(t: number): number {
-  return controlledBreathCurve(t, 0.2, 0.3);
+  const tClamped = Math.max(0, Math.min(1, t));
+  return Math.sin(tClamped * Math.PI * 0.5);
 }
