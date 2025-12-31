@@ -2,26 +2,26 @@ import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BreathingProgressRing } from '../components/BreathingProgressRing';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { TutorialModal } from '../components/TutorialModal';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { useTutorialTour } from '../hooks/useTutorialTour';
 import { calculatePhaseInfo } from '../lib/breathPhase';
+import '../styles/tutorial-tour.css';
 
 /**
- * Tutorial steps - modal-guided progression
+ * Tutorial phases - tracks progression through the experience
  *
  * Flow:
- * 1. welcome-modal: Explain 4/7/8 technique
- * 2. your-shape: Brief intro to user's presence (3s)
- * 3. breathing: Guided breathing with segmented progress ring
- * 4. others-modal: Reveal others are breathing together
- * 5. complete: Exit to main experience
+ * 1. tour: Driver.js guided tour (welcome → technique → user intro)
+ * 2. breathing: Practice one breathing cycle with prompts
+ * 3. others: Reveal social aspect
+ * 4. complete: Exit to main experience
  */
-type TutorialStep = 'welcome-modal' | 'your-shape' | 'breathing' | 'others-modal';
+type TutorialPhase = 'tour' | 'breathing' | 'others' | 'complete';
 
 interface TutorialLevelProps {
   /** User's selected mood */
@@ -38,21 +38,25 @@ const PHASE_GUIDANCE = [
 ];
 
 /**
- * TutorialLevel - Modal-guided introduction to breathing.
+ * TutorialLevel - Driver.js guided introduction to breathing.
  *
- * Key design decisions:
- * - Welcome modal explains 4/7/8 technique upfront
- * - Segmented progress ring shows all phases proportionally
- * - Others modal creates suspense before joining
- * - User controls progression via modals
+ * Uses Driver.js for step-by-step tour explaining:
+ * - The 4-7-8 breathing technique
+ * - User's presence visualization
+ * - How to follow breathing prompts
+ *
+ * After tour, user practices one cycle then sees others.
  */
 export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLevelProps) {
-  const [currentStep, setCurrentStep] = useState<TutorialStep>('welcome-modal');
+  const [phase, setPhase] = useState<TutorialPhase>('tour');
   const [isExiting, setIsExiting] = useState(false);
 
   // Track breathing phase for UI
   const [phaseProgress, setPhaseProgress] = useState(0);
   const [phaseIndex, setPhaseIndex] = useState(0);
+
+  // Show user shard after welcome step
+  const [showUserShard, setShowUserShard] = useState(false);
 
   // Track breathing cycles completed
   const cyclesCompletedRef = useRef(0);
@@ -72,22 +76,40 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
     setTimeout(onComplete, 600);
   }, [onComplete]);
 
-  // Handle welcome modal continue
-  const handleWelcomeContinue = useCallback(() => {
-    setCurrentStep('your-shape');
-    // Auto-advance to breathing after 3s
-    setTimeout(() => setCurrentStep('breathing'), 3000);
+  // Driver.js tour callbacks
+  const handleWelcomeComplete = useCallback(() => {
+    setShowUserShard(true);
   }, []);
 
-  // Handle others modal continue
-  const handleOthersContinue = useCallback(() => {
-    handleComplete();
-  }, [handleComplete]);
+  const handleBreathingStart = useCallback(() => {
+    // Tour moves to breathing target, but we start breathing after tour ends
+  }, []);
+
+  const handleTourComplete = useCallback(() => {
+    setPhase('breathing');
+  }, []);
+
+  // Initialize Driver.js tour
+  const tour = useTutorialTour({
+    onWelcomeComplete: handleWelcomeComplete,
+    onBreathingStart: handleBreathingStart,
+    onComplete: handleTourComplete,
+    onDestroy: handleTourComplete,
+  });
+
+  // Start tour on mount
+  useEffect(() => {
+    // Small delay to ensure DOM targets are rendered
+    const timer = setTimeout(() => {
+      tour.start();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [tour]);
 
   // RAF loop for breathing phase tracking
   useEffect(() => {
-    // Don't track during modals
-    if (currentStep === 'welcome-modal' || currentStep === 'others-modal') {
+    // Only track during breathing phase
+    if (phase !== 'breathing') {
       return;
     }
 
@@ -102,14 +124,12 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
       setPhaseIndex(idx);
 
       // Detect cycle completion
-      if (currentStep === 'breathing') {
-        if (idx === 0 && lastPhaseIndexRef.current === 2) {
-          cyclesCompletedRef.current += 1;
+      if (idx === 0 && lastPhaseIndexRef.current === 2) {
+        cyclesCompletedRef.current += 1;
 
-          // After one full cycle, show others modal
-          if (cyclesCompletedRef.current >= 1) {
-            setCurrentStep('others-modal');
-          }
+        // After one full cycle, show others
+        if (cyclesCompletedRef.current >= 1) {
+          setPhase('others');
         }
       }
       lastPhaseIndexRef.current = idx;
@@ -119,11 +139,11 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [currentStep]);
+  }, [phase]);
 
-  // Animate others reveal when showing others modal
+  // Animate others reveal
   useEffect(() => {
-    if (currentStep !== 'others-modal') {
+    if (phase !== 'others') {
       return;
     }
 
@@ -142,12 +162,23 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
     };
 
     requestAnimationFrame(animate);
-  }, [currentStep]);
+  }, [phase]);
+
+  // Auto-complete after others reveal
+  useEffect(() => {
+    if (phase !== 'others' || othersRevealProgress < 1) return;
+
+    const timer = setTimeout(() => {
+      handleComplete();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [phase, othersRevealProgress, handleComplete]);
 
   // Create user's single shard
   const userShard = useMemo(() => [{ id: 'user', mood: userMood }], [userMood]);
 
-  // Create mock users for "others" step
+  // Create mock users for "others" phase
   const otherUsers = useMemo(() => {
     const moods: MoodId[] = ['gratitude', 'presence', 'release', 'connection'];
     return Array.from({ length: 24 }, (_, i) => ({
@@ -157,10 +188,10 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
   }, []);
 
   // Determine what to show
-  const showUserShard = currentStep !== 'welcome-modal';
-  const showOthers = currentStep === 'others-modal';
-  const showAtmosphere = currentStep === 'others-modal';
-  const showProgressRing = currentStep === 'breathing';
+  const showOthers = phase === 'others';
+  const showAtmosphere = phase === 'others';
+  const showProgressRing = phase === 'breathing';
+  const showBreathingUI = phase === 'breathing';
 
   // Current phase guidance
   const guidance = PHASE_GUIDANCE[phaseIndex];
@@ -186,12 +217,12 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
           >
             <EarthGlobe />
 
-            {/* User's shard */}
+            {/* User's shard - shows after welcome step */}
             {showUserShard && (
               <ParticleSwarm users={userShard} baseRadius={4.5} maxShardSize={0.7} />
             )}
 
-            {/* Other users - fade in during others-modal */}
+            {/* Other users - fade in during others phase */}
             {showOthers && (
               <group>
                 <ParticleSwarm users={otherUsers} baseRadius={4.5} maxShardSize={0.5} />
@@ -210,7 +241,7 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
           </PresentationControls>
         </RefractionPipeline>
 
-        {/* Tutorial UI overlay */}
+        {/* Tutorial UI overlay with Driver.js targets */}
         <Html fullscreen>
           <div
             style={{
@@ -221,6 +252,36 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
               transition: 'opacity 0.6s ease-out',
             }}
           >
+            {/* Globe target for Driver.js highlighting */}
+            <div
+              id="tutorial-globe-target"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '280px',
+                height: '280px',
+                borderRadius: '50%',
+                pointerEvents: 'none',
+              }}
+            />
+
+            {/* Breathing target for Driver.js highlighting */}
+            <div
+              id="tutorial-breathing-target"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '340px',
+                height: '340px',
+                borderRadius: '50%',
+                pointerEvents: 'none',
+              }}
+            />
+
             {/* Centered content area */}
             <div
               style={{
@@ -234,7 +295,7 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                 justifyContent: 'center',
               }}
             >
-              {/* Progress ring during breathing step */}
+              {/* Progress ring during breathing phase */}
               {showProgressRing && (
                 <BreathingProgressRing
                   phaseIndex={phaseIndex}
@@ -244,26 +305,8 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                 />
               )}
 
-              {/* "This is you" intro text */}
-              {currentStep === 'your-shape' && (
-                <p
-                  style={{
-                    fontFamily: "'Cormorant Garamond', Georgia, serif",
-                    fontSize: 'clamp(1.4rem, 5vw, 2rem)',
-                    fontWeight: 300,
-                    color: '#4a3f35',
-                    letterSpacing: '0.12em',
-                    margin: 0,
-                    textShadow:
-                      '0 0 40px rgba(255, 252, 240, 0.9), 0 0 80px rgba(201, 160, 108, 0.4)',
-                  }}
-                >
-                  This is you
-                </p>
-              )}
-
               {/* Breathing guidance text */}
-              {currentStep === 'breathing' && guidance && (
+              {showBreathingUI && guidance && (
                 <div style={{ textAlign: 'center' }}>
                   <p
                     style={{
@@ -294,12 +337,54 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                   </p>
                 </div>
               )}
+
+              {/* Others reveal message */}
+              {phase === 'others' && (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    opacity: othersRevealProgress,
+                    transition: 'opacity 0.5s ease',
+                  }}
+                >
+                  <p
+                    style={{
+                      fontFamily: "'Cormorant Garamond', Georgia, serif",
+                      fontSize: 'clamp(1.4rem, 5vw, 2rem)',
+                      fontWeight: 300,
+                      color: '#4a3f35',
+                      letterSpacing: '0.12em',
+                      margin: 0,
+                      textShadow:
+                        '0 0 40px rgba(255, 252, 240, 0.9), 0 0 80px rgba(201, 160, 108, 0.4)',
+                    }}
+                  >
+                    You're not alone
+                  </p>
+                  <p
+                    style={{
+                      fontFamily: "'Cormorant Garamond', Georgia, serif",
+                      fontSize: '1rem',
+                      fontWeight: 400,
+                      color: '#7a6b5a',
+                      letterSpacing: '0.08em',
+                      marginTop: '12px',
+                      textShadow: '0 0 20px rgba(255, 252, 240, 0.8)',
+                    }}
+                  >
+                    73 others are breathing with you right now
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Skip button - always visible */}
             <button
               type="button"
-              onClick={handleComplete}
+              onClick={() => {
+                tour.destroy();
+                handleComplete();
+              }}
               style={{
                 position: 'absolute',
                 bottom: '32px',
@@ -324,16 +409,6 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
           </div>
         </Html>
       </Suspense>
-
-      {/* Welcome modal - explains 4/7/8 technique */}
-      {currentStep === 'welcome-modal' && (
-        <TutorialModal type="welcome" onContinue={handleWelcomeContinue} />
-      )}
-
-      {/* Others modal - reveals social aspect */}
-      {currentStep === 'others-modal' && (
-        <TutorialModal type="others" userCount={73} onContinue={handleOthersContinue} />
-      )}
     </ErrorBoundary>
   );
 }
