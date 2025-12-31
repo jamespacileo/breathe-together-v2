@@ -1,18 +1,19 @@
 /**
- * ProgressCircleOverlay - 3D progress circle with phase text overlaying the globe
+ * ProgressCircleOverlay - 3D progress circle with organic breathing animation
  *
  * Features:
- * - Circular progress ring around the globe
- * - Phase text (INHALE, HOLD, EXHALE) centered
- * - User count text below
- * - Renders in front of globe but behind icosahedron particles
- * - Synchronized with breathing cycle via UTC time
+ * - Circular progress ring that expands on inhale, contracts on exhale
+ * - Phase markers and labels around the ring
+ * - User count text centered
+ * - Synchronized with breathing cycle via ECS
  *
- * Visual style: Subtle, minimal overlay that complements the globe aesthetic
+ * Key fix: Uses depthWrite: true so DoF shader sees the ring's actual depth
+ * (close to camera = sharp). Without depthWrite, DoF sees the background
+ * depth and blurs the ring.
  */
 
 import { Billboard, Ring, Text } from '@react-three/drei';
-import { createPortal, useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -40,11 +41,8 @@ const PHASE_START_TIMES = PHASE_DURATIONS.reduce<number[]>((acc, _duration, inde
 }, []);
 
 // Dynamically generate phase labels based on active phases (duration > 0)
-// Position each phase marker at its start position around the ring
 const PHASE_LABELS = PHASE_DURATIONS.map((duration, index) => {
   const startTime = PHASE_START_TIMES[index] ?? 0;
-  // Convert time position to angle (clockwise from top)
-  // Top = -PI/2, progressing clockwise
   const progressPosition = startTime / BREATH_TOTAL_CYCLE;
   const angle = -Math.PI / 2 + progressPosition * Math.PI * 2;
 
@@ -54,15 +52,12 @@ const PHASE_LABELS = PHASE_DURATIONS.map((duration, index) => {
     phaseIndex: index,
     duration,
   };
-}).filter((phase) => phase.duration > 0); // Only include active phases
+}).filter((phase) => phase.duration > 0);
 
-/**
- * ProgressCircleOverlay component props
- */
 interface ProgressCircleOverlayProps {
-  /** Radius of the progress ring when exhaled (contracted) @default 2.0 */
+  /** Radius of the progress ring when exhaled @default 2.0 */
   radius?: number;
-  /** Radius of the progress ring when inhaled (expanded) @default 3.2 */
+  /** Radius when inhaled (expanded) @default 3.2 */
   expandedRadius?: number;
   /** Ring thickness @default 0.03 */
   thickness?: number;
@@ -72,9 +67,9 @@ interface ProgressCircleOverlayProps {
   showUserCount?: boolean;
   /** User count to display @default 77 */
   userCount?: number;
-  /** Z position offset (in front of globe) @default 0.1 */
+  /** Z position offset @default 0.1 */
   zOffset?: number;
-  /** Render order (higher renders on top) @default 10 */
+  /** Render order @default 10 */
   renderOrder?: number;
 }
 
@@ -89,20 +84,12 @@ function createArcGeometry(
   segments: number,
 ): THREE.BufferGeometry {
   const shape = new THREE.Shape();
-
-  // Outer arc
   shape.absarc(0, 0, outerRadius, startAngle, endAngle, false);
-  // Inner arc (reversed)
   shape.absarc(0, 0, innerRadius, endAngle, startAngle, true);
   shape.closePath();
-
-  const geometry = new THREE.ShapeGeometry(shape, segments);
-  return geometry;
+  return new THREE.ShapeGeometry(shape, segments);
 }
 
-/**
- * ProgressCircleOverlay - Renders a progress circle with text overlaying the globe
- */
 export function ProgressCircleOverlay({
   radius = 2.0,
   expandedRadius = 3.2,
@@ -113,7 +100,6 @@ export function ProgressCircleOverlay({
   zOffset = 0.1,
   renderOrder = 10,
 }: ProgressCircleOverlayProps) {
-  const { gl, camera } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const ringGroupRef = useRef<THREE.Group>(null);
   const progressMeshRef = useRef<THREE.Mesh>(null);
@@ -121,25 +107,14 @@ export function ProgressCircleOverlay({
   const ringRef = useRef<THREE.Mesh>(null);
   const world = useWorld();
 
-  // Create a separate scene for the overlay to render AFTER the DoF pipeline
-  const overlayScene = useMemo(() => new THREE.Scene(), []);
-
-  // Phase state (updates on phase transitions only - 4 times per 16s cycle)
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(0);
-
-  // Current animated radius (smoothly interpolates between radius and expandedRadius)
   const currentRadiusRef = useRef<number>(radius);
-
-  // Label offset distance from ring (slightly outside)
   const labelOffset = 0.5;
-
-  // Muted color for inactive elements (matches ring track)
   const mutedColor = '#a08c78';
 
-  // Create progress arc geometry (will be updated each frame)
   const progressGeometryRef = useRef<THREE.BufferGeometry | null>(null);
 
-  // Material for the progress arc
+  // CRITICAL: depthWrite: true so DoF sees this as a close object (not blurred)
   const progressMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -147,12 +122,11 @@ export function ProgressCircleOverlay({
         transparent: true,
         opacity: 0.8,
         side: THREE.DoubleSide,
-        depthWrite: false,
+        depthWrite: true, // KEY FIX: Write depth so DoF knows we're close
       }),
     [progressColor],
   );
 
-  // Ring material (background track)
   const ringMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -160,12 +134,11 @@ export function ProgressCircleOverlay({
         transparent: true,
         opacity: 0.15,
         side: THREE.DoubleSide,
-        depthWrite: false,
+        depthWrite: true, // KEY FIX: Write depth so DoF knows we're close
       }),
     [],
   );
 
-  // Cleanup materials on unmount
   useEffect(() => {
     return () => {
       progressMaterial.dispose();
@@ -174,18 +147,14 @@ export function ProgressCircleOverlay({
     };
   }, [progressMaterial, ringMaterial]);
 
-  // Track previous values to minimize updates
   const prevPhaseRef = useRef<number>(-1);
   const prevProgressRef = useRef<number>(-1);
 
-  /**
-   * Update progress arc, breathing scale, and text each frame
-   */
+  // Animation loop
   useFrame((_, delta) => {
     if (!groupRef.current || !progressMeshRef.current) return;
 
     try {
-      // Get breath state from ECS
       const breathEntity = world?.queryFirst?.(phaseType, rawProgress, breathPhase);
       if (!breathEntity) return;
 
@@ -199,74 +168,65 @@ export function ProgressCircleOverlay({
         Math.max(0, breathEntity.get?.(breathPhase)?.value ?? 0),
       );
 
-      // Calculate overall cycle progress (0-1)
+      // Calculate cycle progress
       const phaseStartTime = PHASE_START_TIMES[currentPhaseType] ?? 0;
       const phaseDuration = PHASE_DURATIONS[currentPhaseType] ?? PHASE_DURATIONS[0] ?? 1;
       const cycleProgress =
         (phaseStartTime + currentRawProgress * phaseDuration) / BREATH_TOTAL_CYCLE;
 
-      // Update phase state only on phase transition
+      // Update phase state on transitions
       if (currentPhaseType !== prevPhaseRef.current) {
         prevPhaseRef.current = currentPhaseType;
         setCurrentPhaseIndex(currentPhaseType);
       }
 
-      // ========== BREATHING RADIUS ANIMATION ==========
-      // Calculate target radius based on breath phase (0=exhaled/small, 1=inhaled/large)
+      // BREATHING RADIUS ANIMATION
       const targetRadius = radius + (expandedRadius - radius) * currentBreathPhase;
-
-      // Smooth interpolation for organic feel (lerp with damping)
-      const lerpSpeed = 4.0; // Higher = faster response
+      const lerpSpeed = 4.0;
       currentRadiusRef.current +=
         (targetRadius - currentRadiusRef.current) * Math.min(1, delta * lerpSpeed);
 
       const animatedRadius = currentRadiusRef.current;
 
-      // Apply scale to ring group (ring + progress arc + indicator)
+      // Apply scale to ring group
       if (ringGroupRef.current) {
         const scale = animatedRadius / radius;
         ringGroupRef.current.scale.set(scale, scale, 1);
       }
 
-      // Update progress arc geometry (throttle to every 2% change)
+      // Update progress arc geometry
       const progressThreshold = 0.02;
       if (Math.abs(cycleProgress - prevProgressRef.current) > progressThreshold) {
         prevProgressRef.current = cycleProgress;
-
-        // Dispose old geometry
         progressGeometryRef.current?.dispose();
 
-        // Create new arc geometry (use base radius, scale handles size)
-        // Start at top (-PI/2), progress clockwise
         const startAngle = -Math.PI / 2;
         const endAngle = startAngle + cycleProgress * Math.PI * 2;
-
         const innerRadius = radius - thickness / 2;
         const outerRadius = radius + thickness / 2;
 
         const newGeometry = createArcGeometry(innerRadius, outerRadius, startAngle, endAngle, 64);
-
         progressGeometryRef.current = newGeometry;
         progressMeshRef.current.geometry = newGeometry;
       }
 
-      // Update indicator dot position along the arc (use base radius, scale handles size)
+      // Update indicator position
       if (indicatorRef.current) {
         const angle = -Math.PI / 2 + cycleProgress * Math.PI * 2;
         indicatorRef.current.position.x = Math.cos(angle) * radius;
         indicatorRef.current.position.y = Math.sin(angle) * radius;
       }
 
-      // Subtle breathing pulse on the ring opacity
+      // Breathing pulse on opacity
       const breathPulse = 0.5 + currentBreathPhase * 0.4;
       progressMaterial.opacity = breathPulse * 0.85;
       ringMaterial.opacity = 0.1 + currentBreathPhase * 0.1;
     } catch {
-      // Ignore ECS errors during unmount/remount in Triplex
+      // Ignore ECS errors during unmount/remount
     }
   });
 
-  // Initial progress geometry (0%)
+  // Initial geometry
   useEffect(() => {
     const startAngle = -Math.PI / 2;
     const innerRadius = radius - thickness / 2;
@@ -279,27 +239,14 @@ export function ProgressCircleOverlay({
     };
   }, [radius, thickness]);
 
-  // Render overlay scene after DoF pipeline completes (priority 2, pipeline is priority 1)
-  useFrame(() => {
-    if (!groupRef.current) return;
-    // Render overlay directly to screen without clearing (autoClear disabled for this render)
-    const autoClear = gl.autoClear;
-    gl.autoClear = false;
-    gl.clearDepth(); // Clear only depth to render overlay on top
-    gl.render(overlayScene, camera);
-    gl.autoClear = autoClear;
-  }, 2);
-
-  // Use createPortal to render overlay in separate scene (bypasses DoF pipeline)
-  return createPortal(
+  return (
     <group ref={groupRef} position={[0, 0, zOffset]} renderOrder={renderOrder}>
-      {/* Ring group - scales with breathing (expands on inhale, contracts on exhale) */}
+      {/* Ring group - scales with breathing */}
       <group ref={ringGroupRef}>
-        {/* Background ring (full circle track) */}
+        {/* Background ring */}
         <Ring
           ref={ringRef}
           args={[radius - thickness / 2, radius + thickness / 2, 64]}
-          rotation={[0, 0, 0]}
           material={ringMaterial}
           renderOrder={renderOrder}
         />
@@ -312,37 +259,32 @@ export function ProgressCircleOverlay({
           geometry={progressGeometryRef.current ?? undefined}
         />
 
-        {/* Small progress indicator dot at current position */}
+        {/* Indicator dot */}
         <mesh ref={indicatorRef} position={[0, radius, 0]} renderOrder={renderOrder + 2}>
           <circleGeometry args={[thickness * 2.5, 16]} />
-          <meshBasicMaterial color={progressColor} transparent opacity={0.95} depthWrite={false} />
+          <meshBasicMaterial color={progressColor} transparent opacity={0.95} depthWrite={true} />
         </mesh>
 
-        {/* Phase markers and labels - positioned around the ring */}
+        {/* Phase markers and labels */}
         {PHASE_LABELS.map((label) => {
           const isActive = currentPhaseIndex === label.phaseIndex;
-
-          // Line marker dimensions - thick measurement-style ticks extending outward
           const lineLength = isActive ? thickness * 6 : thickness * 4;
           const lineWidth = isActive ? thickness * 1.5 : thickness * 1.0;
 
-          // Position marker at outer edge of ring, extending outward
           const ringOuterEdge = radius + thickness / 2;
           const markerCenterRadius = ringOuterEdge + lineLength / 2;
           const markerX = Math.cos(label.angle) * markerCenterRadius;
           const markerY = Math.sin(label.angle) * markerCenterRadius;
 
-          // Label positioned further out from the marker
           const labelRadius = ringOuterEdge + lineLength + labelOffset;
           const labelX = Math.cos(label.angle) * labelRadius;
           const labelY = Math.sin(label.angle) * labelRadius;
 
-          // Rotation to align line radially (perpendicular to ring)
           const rotation = label.angle;
 
           return (
             <group key={`phase-${label.phaseIndex}-${label.name}`}>
-              {/* Phase marker line (measurement-style tick extending outward) */}
+              {/* Phase marker line */}
               <mesh
                 position={[markerX, markerY, 0.01]}
                 rotation={[0, 0, rotation]}
@@ -353,12 +295,12 @@ export function ProgressCircleOverlay({
                   color={isActive ? progressColor : mutedColor}
                   transparent
                   opacity={isActive ? 0.9 : 0.4}
-                  depthWrite={false}
+                  depthWrite={true}
                   side={THREE.DoubleSide}
                 />
               </mesh>
 
-              {/* Phase label as billboard (always faces camera) */}
+              {/* Phase label */}
               <Billboard position={[labelX, labelY, 0.02]} follow={true}>
                 <Text
                   fontSize={isActive ? 0.16 : 0.11}
@@ -368,7 +310,7 @@ export function ProgressCircleOverlay({
                   letterSpacing={0.06}
                   renderOrder={renderOrder + 4}
                   material-transparent={true}
-                  material-depthWrite={false}
+                  material-depthWrite={true}
                 >
                   {label.name}
                 </Text>
@@ -378,8 +320,7 @@ export function ProgressCircleOverlay({
         })}
       </group>
 
-      {/* Center text stays fixed size (outside ring group) */}
-      {/* User count (centered) */}
+      {/* User count */}
       {showUserCount && (
         <Text
           position={[0, 0, 0.01]}
@@ -390,13 +331,12 @@ export function ProgressCircleOverlay({
           letterSpacing={0.04}
           renderOrder={renderOrder + 5}
           material-transparent={true}
-          material-depthWrite={false}
+          material-depthWrite={true}
         >
           {userCount} breathing
         </Text>
       )}
-    </group>,
-    overlayScene,
+    </group>
   );
 }
 
