@@ -11,12 +11,15 @@
  * - Animated mist layer (noise-based haze that breathes)
  * - Sparkle aura (visible floating dust particles)
  * - Equator ring (subtle rose gold accent ring)
+ * - Orbiting cloud layer (wispy weather patterns that drift above the surface)
+ * - Orbiting satellites with trails (colorful objects circling the globe)
+ * - Optional flight paths (subtle orbital ring guides)
  *
  * Visual style: Monument Valley pastel aesthetic with soft, ethereal glow.
- * Uses drei's <Sphere>, <Ring>, and <Sparkles> components.
+ * Uses drei's <Sphere>, <Ring>, <Sparkles>, <Cloud>, <Clouds>, and <Trail> components.
  */
 
-import { Ring, Sparkles, Sphere, useTexture } from '@react-three/drei';
+import { Cloud, Clouds, Ring, Sparkles, Sphere, Trail, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
@@ -163,6 +166,152 @@ void main() {
 `;
 
 /**
+ * Orbiting satellite configuration - satellites with trails
+ */
+interface OrbitingSatelliteProps {
+  radius: number;
+  speed: number;
+  inclination: number;
+  startAngle: number;
+  color: string;
+  size: number;
+}
+
+/**
+ * OrbitingSatellite - A small glowing object that orbits the globe with a trail
+ */
+function OrbitingSatellite({
+  radius,
+  speed,
+  inclination,
+  startAngle,
+  color,
+  size,
+}: OrbitingSatelliteProps) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (!meshRef.current) return;
+
+    const time = state.clock.elapsedTime;
+    const angle = startAngle + time * speed;
+
+    // Calculate position on inclined orbit - hugging the surface
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    const y = Math.sin(angle) * Math.sin(inclination) * radius * 0.15;
+
+    meshRef.current.position.set(x, y, z);
+  });
+
+  return (
+    <Trail width={size * 1.5} length={4} color={color} attenuation={(t) => t * t} decay={2}>
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[size, 6, 6]} />
+        <meshBasicMaterial color={color} transparent opacity={0.7} />
+      </mesh>
+    </Trail>
+  );
+}
+
+/**
+ * GlobeCloudLayer - Wispy clouds that float just above the globe surface
+ */
+interface GlobeCloudLayerProps {
+  radius: number;
+  opacity?: number;
+  speed?: number;
+}
+
+function GlobeCloudLayer({ radius, opacity = 0.25, speed = 0.2 }: GlobeCloudLayerProps) {
+  const cloudsRef = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (cloudsRef.current) {
+      // Very slow rotation for subtle drift
+      cloudsRef.current.rotation.y = state.clock.elapsedTime * 0.008 * speed;
+    }
+  });
+
+  const cloudDist = radius * 1.02; // Just barely above the surface
+
+  return (
+    <group ref={cloudsRef}>
+      <Clouds material={THREE.MeshBasicMaterial}>
+        {/* Small wisp near equator */}
+        <Cloud
+          position={[cloudDist * 0.8, 0.1, cloudDist * 0.4]}
+          opacity={opacity * 0.6}
+          speed={speed * 0.5}
+          segments={6}
+          bounds={[radius * 0.2, radius * 0.05, radius * 0.15]}
+          volume={0.8}
+          color="#ffffff"
+          fade={8}
+        />
+        {/* Another small wisp */}
+        <Cloud
+          position={[-cloudDist * 0.5, cloudDist * 0.3, cloudDist * 0.6]}
+          opacity={opacity * 0.5}
+          speed={speed * 0.4}
+          segments={5}
+          bounds={[radius * 0.15, radius * 0.04, radius * 0.12]}
+          volume={0.6}
+          color="#f8f8f8"
+          fade={6}
+        />
+      </Clouds>
+    </group>
+  );
+}
+
+/**
+ * FlightPath - A subtle curved line showing an orbital route
+ */
+interface FlightPathProps {
+  radius: number;
+  inclination: number;
+  color: string;
+  opacity?: number;
+}
+
+function FlightPath({ radius, inclination, color, opacity = 0.15 }: FlightPathProps) {
+  const points = useMemo(() => {
+    const pts: THREE.Vector3[] = [];
+    const segments = 64;
+
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const y = Math.sin(angle) * Math.sin(inclination) * radius * 0.3;
+      pts.push(new THREE.Vector3(x, y, z));
+    }
+
+    return pts;
+  }, [radius, inclination]);
+
+  const lineGeometry = useMemo(() => {
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    return geometry;
+  }, [points]);
+
+  // Cleanup geometry on unmount
+  useEffect(() => {
+    return () => {
+      lineGeometry.dispose();
+    };
+  }, [lineGeometry]);
+
+  return (
+    <line>
+      <primitive object={lineGeometry} attach="geometry" />
+      <lineBasicMaterial color={color} transparent opacity={opacity} linewidth={1} />
+    </line>
+  );
+}
+
+/**
  * Atmosphere halo configuration - pastel layers around the globe
  */
 const ATMOSPHERE_LAYERS = [
@@ -193,6 +342,16 @@ interface EarthGlobeProps {
   showGlow?: boolean;
   /** Show mist/haze layer @default true */
   showMist?: boolean;
+  /** Show orbiting clouds layer @default true */
+  showClouds?: boolean;
+  /** Cloud layer opacity @default 0.25 */
+  cloudOpacity?: number;
+  /** Show orbiting satellites with trails @default true */
+  showSatellites?: boolean;
+  /** Number of satellites @default 2 */
+  satelliteCount?: number;
+  /** Show flight path lines @default false */
+  showFlightPaths?: boolean;
 }
 
 /**
@@ -209,6 +368,11 @@ export function EarthGlobe({
   sparkleCount = 60,
   showGlow = true,
   showMist = true,
+  showClouds = true,
+  cloudOpacity = 0.25,
+  showSatellites = true,
+  satelliteCount = 2,
+  showFlightPaths = false,
 }: Partial<EarthGlobeProps> = {}) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
@@ -284,6 +448,26 @@ export function EarthGlobe({
       mistMaterial.dispose();
     };
   }, [material, glowMaterial, mistMaterial]);
+
+  // Generate satellite configurations based on count
+  const satelliteConfigs = useMemo(() => {
+    const configs: OrbitingSatelliteProps[] = [];
+    const colors = ['#ffffff', '#f0e8e0']; // Subtle white/cream only
+    const orbitRadius = radius * 1.08; // Just above the surface
+
+    for (let i = 0; i < satelliteCount; i++) {
+      configs.push({
+        radius: orbitRadius + i * 0.03, // Minimal spacing
+        speed: 0.08 + i * 0.02, // Slower, calmer speeds
+        inclination: Math.PI / 8 + i * 0.2, // Gentle inclinations
+        startAngle: (Math.PI * 2 * i) / satelliteCount,
+        color: colors[i % colors.length],
+        size: 0.02, // Tiny dots
+      });
+    }
+
+    return configs;
+  }, [radius, satelliteCount]);
 
   /**
    * Update globe scale, rotation, and shader uniforms
@@ -397,6 +581,27 @@ export function EarthGlobe({
           />
         </Ring>
       )}
+
+      {/* Orbiting clouds layer - wispy weather patterns */}
+      {showClouds && <GlobeCloudLayer radius={radius} opacity={cloudOpacity} speed={0.2} />}
+
+      {/* Flight path lines - subtle orbital guides */}
+      {showFlightPaths &&
+        satelliteConfigs.map((config, i) => (
+          <FlightPath
+            key={`flight-path-${config.color}-${i}`}
+            radius={config.radius}
+            inclination={config.inclination}
+            color={config.color}
+            opacity={0.12}
+          />
+        ))}
+
+      {/* Orbiting satellites with trails - planes/satellites circling the globe */}
+      {showSatellites &&
+        satelliteConfigs.map((config, i) => (
+          <OrbitingSatellite key={`satellite-${config.color}-${i}`} {...config} />
+        ))}
     </group>
   );
 }
