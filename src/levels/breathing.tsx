@@ -1,6 +1,5 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
-import { BreathingRing } from '../components/BreathingRing';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -114,9 +113,6 @@ export function BreathingLevel({
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
-          {/* Circular breathing progress ring with phase markers */}
-          <BreathingRing size={320} strokeWidth={1.5} markerLength={14} markerThickness={2} />
-
           {/* Top-right control icons (audio + tune + settings) */}
           <TopRightControls
             onOpenTuneControls={() => setShowTuneControls(true)}

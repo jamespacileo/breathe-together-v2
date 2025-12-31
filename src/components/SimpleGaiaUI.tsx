@@ -1,7 +1,18 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
-import type { MoodId } from '../constants';
+import { BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
-import { MOOD_COLORS, UI_COLORS } from '../styles/designTokens';
+import { calculatePhaseInfo } from '../lib/breathPhase';
+import {
+  ANIMATION,
+  BLUR,
+  BORDER_RADIUS,
+  MOOD_COLORS,
+  PHASE_NAMES,
+  SPACING,
+  TYPOGRAPHY,
+  UI_COLORS,
+  Z_INDEX,
+} from '../styles/designTokens';
 import { InspirationalText } from './InspirationalText';
 
 interface SimpleGaiaUIProps {
@@ -107,7 +118,11 @@ export function SimpleGaiaUI({
   const [settingsAnimated, setSettingsAnimated] = useState(false);
   const [moodSelectAnimated, setMoodSelectAnimated] = useState(false);
 
-  // Presence count ref for RAF updates (no React re-renders)
+  // Phase indicator refs for RAF updates (no React re-renders)
+  const phaseNameRef = useRef<HTMLSpanElement>(null);
+  const timerRef = useRef<HTMLSpanElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+  const progressContainerRef = useRef<HTMLDivElement>(null);
   const presenceCountRef = useRef<HTMLSpanElement>(null);
 
   // Responsive viewport detection
@@ -160,6 +175,52 @@ export function SimpleGaiaUI({
     setMoodSelectAnimated(false);
   }, [showMoodSelect]);
 
+  // Phase indicator RAF loop (60fps updates without React state)
+  useEffect(() => {
+    let animationId: number;
+    let prevPhase = -1;
+
+    const updatePhase = () => {
+      const now = Date.now() / 1000;
+      const cycleTime = now % BREATH_TOTAL_CYCLE;
+      const { phaseIndex, phaseProgress, accumulatedTime, phaseDuration } =
+        calculatePhaseInfo(cycleTime);
+      const phaseTime = phaseProgress * phaseDuration;
+
+      // Update phase name on transition
+      if (phaseIndex !== prevPhase) {
+        prevPhase = phaseIndex;
+        if (phaseNameRef.current) {
+          phaseNameRef.current.textContent = PHASE_NAMES[phaseIndex] ?? 'Breathe';
+        }
+      }
+
+      // Update timer (countdown)
+      if (timerRef.current) {
+        const remaining = Math.ceil((1 - phaseProgress) * phaseDuration);
+        timerRef.current.textContent = `${remaining}`;
+      }
+
+      // Update progress bar with breathing-synchronized glow
+      if (progressRef.current) {
+        const cycleProgress = (accumulatedTime + phaseTime) / BREATH_TOTAL_CYCLE;
+        progressRef.current.style.width = `${cycleProgress * 100}%`;
+      }
+
+      // Breathing-synchronized glow on progress container
+      if (progressContainerRef.current) {
+        // Intensity peaks during inhale (phase 0) and hold-in (phase 1)
+        const glowIntensity =
+          phaseIndex === 0 || phaseIndex === 1 ? 0.4 + phaseProgress * 0.3 : 0.2;
+        progressContainerRef.current.style.boxShadow = `0 0 ${8 + glowIntensity * 12}px rgba(201, 160, 108, ${glowIntensity})`;
+      }
+
+      animationId = requestAnimationFrame(updatePhase);
+    };
+
+    updatePhase();
+    return () => cancelAnimationFrame(animationId);
+  }, []);
 
   // Presence count simulation - updates every 2 seconds with subtle variation
   // Moved out of RAF loop to avoid 60 random number generations per second
@@ -1035,6 +1096,68 @@ export function SimpleGaiaUI({
           gap: isMobile ? '12px' : '14px',
         }}
       >
+        {/* Phase Name + Timer */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: isMobile ? '10px' : '10px',
+          }}
+        >
+          <span
+            ref={phaseNameRef}
+            style={{
+              fontFamily: "'Cormorant Garamond', Georgia, serif",
+              fontSize: isMobile ? '1.75rem' : isTablet ? '1.5rem' : '1.5rem',
+              fontWeight: 300,
+              letterSpacing: isMobile ? '0.12em' : '0.18em',
+              textTransform: 'uppercase',
+              color: colors.text,
+              textShadow: `0 2px 20px ${colors.accentGlow}, 0 1px 6px rgba(0, 0, 0, 0.15)`,
+            }}
+          >
+            Inhale
+          </span>
+          <span
+            ref={timerRef}
+            style={{
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              fontSize: isMobile ? '1.1rem' : '0.95rem',
+              fontWeight: 400,
+              color: colors.textDim,
+              minWidth: '1.2em',
+              textAlign: 'center',
+            }}
+          >
+            4
+          </span>
+        </div>
+
+        {/* Progress Bar */}
+        <div
+          ref={progressContainerRef}
+          style={{
+            width: isMobile ? '100px' : '100px',
+            height: isMobile ? '3px' : '2px',
+            background: colors.border,
+            borderRadius: '2px',
+            overflow: 'hidden',
+            boxShadow: `0 0 8px ${colors.accentGlow}`,
+            transition: 'box-shadow 0.3s ease',
+          }}
+        >
+          <div
+            ref={progressRef}
+            style={{
+              height: '100%',
+              width: '0%',
+              background: `linear-gradient(90deg, ${colors.accent}, ${colors.textGlow})`,
+              borderRadius: '2px',
+              transition: 'width 0.08s linear',
+            }}
+          />
+        </div>
+
         {/* Presence Count */}
         <div
           style={{
@@ -1044,6 +1167,7 @@ export function SimpleGaiaUI({
             opacity: isMobile ? 0.7 : 0.6,
             letterSpacing: isMobile ? '0.08em' : '0.1em',
             textTransform: 'uppercase',
+            marginTop: isMobile ? '4px' : '4px',
           }}
         >
           <span ref={presenceCountRef}>75</span> breathing together
