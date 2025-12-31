@@ -5,6 +5,7 @@ import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
+import { HolographicBreathUI } from '../entities/holographicUI';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -109,6 +110,9 @@ export function BreathingLevel({
               />
             )}
           </PresentationControls>
+
+          {/* Holographic UI ring - inside pipeline but outside PresentationControls (fixed position) */}
+          <HolographicBreathUI innerRadius={2.2} outerRadius={2.5} yOffset={0} />
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
