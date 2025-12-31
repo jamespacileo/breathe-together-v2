@@ -448,6 +448,15 @@ export function ParticleSwarm({
       shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
       shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
 
+      // === QUICK WIN #4: Gentle floating jitter ===
+      // Slow, soft oscillation like shapes drifting in still air
+      const jitterX = Math.sin(time * 0.8 + shardState.ambientSeed) * 0.003;
+      const jitterY = Math.cos(time * 0.6 + shardState.ambientSeed * 1.3) * 0.002;
+      const jitterZ = Math.sin(time * 0.9 + shardState.ambientSeed * 0.7) * 0.002;
+      shard.mesh.rotation.x += jitterX;
+      shard.mesh.rotation.y += jitterY;
+      shard.mesh.rotation.z += jitterZ;
+
       // Subtle scale breathing - shards pulse slightly with breath (3-8% range)
       // Combined with base scale offset for depth variation
       const breathScale = 1.0 + currentBreathPhase * 0.05; // 0-5% breath pulse
