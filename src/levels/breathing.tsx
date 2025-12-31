@@ -112,16 +112,15 @@ export function BreathingLevel({
           </PresentationControls>
         </RefractionPipeline>
 
-        {/* Progress circle overlay - 3D with depthWrite for organic animation */}
-        {/* Placed outside RefractionPipeline to avoid refraction, but depthWrite=true */}
-        {/* ensures DoF sees it as close (sharp) not background (blurred) */}
+        {/* Progress circle overlay - soft, organic breathing animation */}
+        {/* Contracts closer to globe on inhale, expands on exhale */}
         {showGlobe && (
           <ProgressCircleOverlay
-            radius={2.0}
-            expandedRadius={3.5}
-            thickness={0.04}
+            radius={1.8}
+            contractedRadius={1.45}
+            thickness={0.015}
             userCount={harmony}
-            zOffset={0.5}
+            zOffset={0.3}
             renderOrder={100}
           />
         )}

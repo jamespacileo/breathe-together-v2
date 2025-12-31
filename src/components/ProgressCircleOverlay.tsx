@@ -57,11 +57,11 @@ const PHASE_LABELS = PHASE_DURATIONS.map((duration, index) => {
 interface ProgressCircleOverlayProps {
   /** Radius of the progress ring when exhaled @default 2.0 */
   radius?: number;
-  /** Radius when inhaled (expanded) @default 3.2 */
-  expandedRadius?: number;
-  /** Ring thickness @default 0.03 */
+  /** Radius when inhaled (contracted, closer to globe) @default 1.6 */
+  contractedRadius?: number;
+  /** Ring thickness @default 0.02 */
   thickness?: number;
-  /** Progress arc color @default '#c9a06c' */
+  /** Progress arc color (soft neutral) @default '#d4cfc8' */
   progressColor?: string;
   /** Show user count @default true */
   showUserCount?: boolean;
@@ -92,9 +92,9 @@ function createArcGeometry(
 
 export function ProgressCircleOverlay({
   radius = 2.0,
-  expandedRadius = 3.2,
-  thickness = 0.03,
-  progressColor = '#c9a06c',
+  contractedRadius = 1.6,
+  thickness = 0.02,
+  progressColor = '#d4cfc8', // Soft warm gray
   showUserCount = true,
   userCount = 77,
   zOffset = 0.1,
@@ -109,20 +109,22 @@ export function ProgressCircleOverlay({
 
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(0);
   const currentRadiusRef = useRef<number>(radius);
-  const labelOffset = 0.5;
-  const mutedColor = '#a08c78';
+  const labelOffset = 0.35; // Closer labels for softer look
+
+  // Soft neutral colors for gentle integration
+  const mutedColor = '#c4beb6'; // Warm neutral gray
 
   const progressGeometryRef = useRef<THREE.BufferGeometry | null>(null);
 
-  // CRITICAL: depthWrite: true so DoF sees this as a close object (not blurred)
+  // Soft, transparent materials for gentle integration
   const progressMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         color: progressColor,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.45, // Much softer
         side: THREE.DoubleSide,
-        depthWrite: true, // KEY FIX: Write depth so DoF knows we're close
+        depthWrite: true,
       }),
     [progressColor],
   );
@@ -130,11 +132,11 @@ export function ProgressCircleOverlay({
   const ringMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: '#a08c78',
+        color: '#bfb8b0', // Soft warm gray
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.08, // Very subtle track
         side: THREE.DoubleSide,
-        depthWrite: true, // KEY FIX: Write depth so DoF knows we're close
+        depthWrite: true,
       }),
     [],
   );
@@ -180,9 +182,11 @@ export function ProgressCircleOverlay({
         setCurrentPhaseIndex(currentPhaseType);
       }
 
-      // BREATHING RADIUS ANIMATION
-      const targetRadius = radius + (expandedRadius - radius) * currentBreathPhase;
-      const lerpSpeed = 4.0;
+      // BREATHING RADIUS ANIMATION - contracts on inhale, expands on exhale
+      // breathPhase: 0 = exhaled (expanded, further from globe)
+      // breathPhase: 1 = inhaled (contracted, closer to globe)
+      const targetRadius = radius - (radius - contractedRadius) * currentBreathPhase;
+      const lerpSpeed = 3.5; // Slightly slower for softer feel
       currentRadiusRef.current +=
         (targetRadius - currentRadiusRef.current) * Math.min(1, delta * lerpSpeed);
 
@@ -217,10 +221,10 @@ export function ProgressCircleOverlay({
         indicatorRef.current.position.y = Math.sin(angle) * radius;
       }
 
-      // Breathing pulse on opacity
-      const breathPulse = 0.5 + currentBreathPhase * 0.4;
-      progressMaterial.opacity = breathPulse * 0.85;
-      ringMaterial.opacity = 0.1 + currentBreathPhase * 0.1;
+      // Soft breathing pulse on opacity - very subtle
+      const breathPulse = 0.35 + currentBreathPhase * 0.2; // Gentler range
+      progressMaterial.opacity = breathPulse;
+      ringMaterial.opacity = 0.06 + currentBreathPhase * 0.04; // Almost invisible track
     } catch {
       // Ignore ECS errors during unmount/remount
     }
@@ -259,17 +263,18 @@ export function ProgressCircleOverlay({
           geometry={progressGeometryRef.current ?? undefined}
         />
 
-        {/* Indicator dot */}
+        {/* Indicator dot - subtle glow point */}
         <mesh ref={indicatorRef} position={[0, radius, 0]} renderOrder={renderOrder + 2}>
-          <circleGeometry args={[thickness * 2.5, 16]} />
-          <meshBasicMaterial color={progressColor} transparent opacity={0.95} depthWrite={true} />
+          <circleGeometry args={[thickness * 2, 16]} />
+          <meshBasicMaterial color={progressColor} transparent opacity={0.5} depthWrite={true} />
         </mesh>
 
-        {/* Phase markers and labels */}
+        {/* Phase markers and labels - very subtle */}
         {PHASE_LABELS.map((label) => {
           const isActive = currentPhaseIndex === label.phaseIndex;
-          const lineLength = isActive ? thickness * 6 : thickness * 4;
-          const lineWidth = isActive ? thickness * 1.5 : thickness * 1.0;
+          // Smaller, more delicate markers
+          const lineLength = isActive ? thickness * 4 : thickness * 3;
+          const lineWidth = isActive ? thickness * 0.8 : thickness * 0.5;
 
           const ringOuterEdge = radius + thickness / 2;
           const markerCenterRadius = ringOuterEdge + lineLength / 2;
@@ -284,7 +289,7 @@ export function ProgressCircleOverlay({
 
           return (
             <group key={`phase-${label.phaseIndex}-${label.name}`}>
-              {/* Phase marker line */}
+              {/* Phase marker line - subtle tick */}
               <mesh
                 position={[markerX, markerY, 0.01]}
                 rotation={[0, 0, rotation]}
@@ -294,22 +299,23 @@ export function ProgressCircleOverlay({
                 <meshBasicMaterial
                   color={isActive ? progressColor : mutedColor}
                   transparent
-                  opacity={isActive ? 0.9 : 0.4}
+                  opacity={isActive ? 0.5 : 0.2} // Much softer
                   depthWrite={true}
                   side={THREE.DoubleSide}
                 />
               </mesh>
 
-              {/* Phase label */}
+              {/* Phase label - soft and understated */}
               <Billboard position={[labelX, labelY, 0.02]} follow={true}>
                 <Text
-                  fontSize={isActive ? 0.16 : 0.11}
+                  fontSize={isActive ? 0.12 : 0.09} // Smaller text
                   color={isActive ? progressColor : mutedColor}
                   anchorX="center"
                   anchorY="middle"
-                  letterSpacing={0.06}
+                  letterSpacing={0.08}
                   renderOrder={renderOrder + 4}
                   material-transparent={true}
+                  material-opacity={isActive ? 0.7 : 0.35} // Soft opacity
                   material-depthWrite={true}
                 >
                   {label.name}
@@ -320,17 +326,18 @@ export function ProgressCircleOverlay({
         })}
       </group>
 
-      {/* User count */}
+      {/* User count - very subtle center text */}
       {showUserCount && (
         <Text
           position={[0, 0, 0.01]}
-          fontSize={0.13}
+          fontSize={0.1}
           color={mutedColor}
           anchorX="center"
           anchorY="middle"
-          letterSpacing={0.04}
+          letterSpacing={0.06}
           renderOrder={renderOrder + 5}
           material-transparent={true}
+          material-opacity={0.4} // Very soft
           material-depthWrite={true}
         >
           {userCount} breathing
