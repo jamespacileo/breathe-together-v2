@@ -1,6 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { SciFi3DBreathIndicator } from '../components/SciFi3DBreathIndicator';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -108,6 +109,8 @@ export function BreathingLevel({
                 breathingOpacity={0.15}
               />
             )}
+            {/* Holographic orbital ring breathing indicator - expands/contracts with breath */}
+            <SciFi3DBreathIndicator radiusMin={2.2} radiusMax={5.5} opacity={0.8} />
           </PresentationControls>
         </RefractionPipeline>
 
