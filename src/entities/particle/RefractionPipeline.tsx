@@ -365,6 +365,10 @@ export function RefractionPipeline({
   // Store original materials for mesh swapping
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
 
+  // Cache refraction meshes to avoid scene.traverse() every frame
+  const refractionMeshesRef = useRef<THREE.Mesh[]>([]);
+  const sceneVersionRef = useRef<number>(0);
+
   // Cleanup
   useEffect(() => {
     return () => {
@@ -391,13 +395,20 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
-    // Collect all meshes in scene that should use refraction
-    const meshes: THREE.Mesh[] = [];
-    scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
-        meshes.push(obj);
-      }
-    });
+    // Only re-traverse scene when children count changes (O(1) check vs O(n) traverse)
+    // This avoids expensive scene.traverse() on every frame
+    const currentVersion = scene.children.length;
+    if (currentVersion !== sceneVersionRef.current) {
+      sceneVersionRef.current = currentVersion;
+      refractionMeshesRef.current = [];
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
+          refractionMeshesRef.current.push(obj);
+        }
+      });
+    }
+
+    const meshes = refractionMeshesRef.current;
 
     // Store original materials
     meshDataRef.current.clear();

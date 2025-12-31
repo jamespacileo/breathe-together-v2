@@ -1,4 +1,12 @@
-import { type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
@@ -82,6 +90,10 @@ export function SimpleGaiaUI({
   const [showMoodSelect, setShowMoodSelect] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
 
+  // React 19 useTransition for non-urgent updates (modals, animations)
+  // Keeps UI responsive during modal opens/closes and mood selections
+  const [, startTransition] = useTransition();
+
   // Use external control for tune controls if provided, otherwise use internal state
   const isControlsOpen = externalShowTuneControls ?? internalIsControlsOpen;
   // Store current value in ref to avoid stale closure in callback
@@ -102,13 +114,19 @@ export function SimpleGaiaUI({
 
   // Use external control for settings if provided, otherwise use internal state
   const showSettings = externalShowSettings ?? internalShowSettings;
-  const setShowSettings = (value: boolean) => {
-    if (onShowSettingsChange) {
-      onShowSettingsChange(value);
-    } else {
-      setInternalShowSettings(value);
-    }
-  };
+  const setShowSettings = useCallback(
+    (value: boolean) => {
+      // Use transition for non-urgent modal updates
+      startTransition(() => {
+        if (onShowSettingsChange) {
+          onShowSettingsChange(value);
+        } else {
+          setInternalShowSettings(value);
+        }
+      });
+    },
+    [onShowSettingsChange],
+  );
 
   // Animation states for modals
   const [settingsAnimated, setSettingsAnimated] = useState(false);
@@ -341,19 +359,32 @@ export function SimpleGaiaUI({
     return MOOD_COLORS[moodId] ?? MOOD_COLORS.presence;
   }, []);
 
-  const handleMoodSelect = (mood: MoodId) => {
-    setSelectedMood(mood);
+  const handleMoodSelect = useCallback((mood: MoodId) => {
+    // Use transition for non-urgent mood selection
+    startTransition(() => {
+      setSelectedMood(mood);
+    });
     // Small delay before closing to show selection feedback
-    setTimeout(() => setShowMoodSelect(false), 200);
-  };
+    setTimeout(() => {
+      startTransition(() => {
+        setShowMoodSelect(false);
+      });
+    }, 200);
+  }, []);
 
-  const handleBeginClick = () => {
-    setShowWelcome(false);
+  const handleBeginClick = useCallback(() => {
+    startTransition(() => {
+      setShowWelcome(false);
+    });
     // Show mood selection after welcome dismisses if no mood selected yet
     if (!selectedMood) {
-      setTimeout(() => setShowMoodSelect(true), 400);
+      setTimeout(() => {
+        startTransition(() => {
+          setShowMoodSelect(true);
+        });
+      }, 400);
     }
-  };
+  }, [selectedMood]);
 
   return (
     <div

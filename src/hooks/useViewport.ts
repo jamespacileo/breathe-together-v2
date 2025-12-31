@@ -82,15 +82,22 @@ export function useViewport(): ViewportSize {
         const height = window.innerHeight;
         const deviceType = getDeviceType(width);
 
-        setViewport({
-          width,
-          height,
-          deviceType,
-          isMobile: deviceType === 'mobile',
-          isTablet: deviceType === 'tablet',
-          isDesktop: deviceType === 'desktop',
-          isPortrait: height > width,
-          isLandscape: width >= height,
+        // Only update state if values actually changed - prevents unnecessary object recreation
+        setViewport((prev) => {
+          if (prev.width === width && prev.height === height && prev.deviceType === deviceType) {
+            return prev; // Return same object reference - no re-render
+          }
+
+          return {
+            width,
+            height,
+            deviceType,
+            isMobile: deviceType === 'mobile',
+            isTablet: deviceType === 'tablet',
+            isDesktop: deviceType === 'desktop',
+            isPortrait: height > width,
+            isLandscape: width >= height,
+          };
         });
       }, 100); // 100ms debounce
     };

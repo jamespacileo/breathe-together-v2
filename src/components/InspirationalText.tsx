@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef } from 'react';
+import { useShallow } from 'zustand/shallow';
 import { AMBIENT_MESSAGES, WELCOME_INTRO } from '../config/inspirationalSequences';
 import { BREATH_TOTAL_CYCLE } from '../constants';
 import { useViewport } from '../hooks/useViewport';
@@ -55,15 +56,27 @@ function InspirationalTextComponent() {
   const prevPhaseRef = useRef(-1);
   const { isMobile, isTablet } = useViewport();
 
-  // Get store state and actions
-  const getCurrentMessage = useInspirationalTextStore((state) => state.getCurrentMessage);
-  const advanceCycle = useInspirationalTextStore((state) => state.advanceCycle);
-  const setAmbientPool = useInspirationalTextStore((state) => state.setAmbientPool);
-  const enqueue = useInspirationalTextStore((state) => state.enqueue);
-  const ambientPool = useInspirationalTextStore((state) => state.ambientPool);
-  // Subscribe to both currentSequence AND ambientIndex to trigger re-renders
-  const currentSequence = useInspirationalTextStore((state) => state.currentSequence);
-  const ambientIndex = useInspirationalTextStore((state) => state.ambientIndex);
+  // Consolidated store selector - single subscription with shallow comparison
+  // Reduces 7 separate subscriptions to 1, preventing multiple re-renders
+  const {
+    getCurrentMessage,
+    advanceCycle,
+    setAmbientPool,
+    enqueue,
+    ambientPool,
+    currentSequence,
+    ambientIndex,
+  } = useInspirationalTextStore(
+    useShallow((state) => ({
+      getCurrentMessage: state.getCurrentMessage,
+      advanceCycle: state.advanceCycle,
+      setAmbientPool: state.setAmbientPool,
+      enqueue: state.enqueue,
+      ambientPool: state.ambientPool,
+      currentSequence: state.currentSequence,
+      ambientIndex: state.ambientIndex,
+    })),
+  );
 
   // Store advanceCycle in ref to avoid stale closure and prevent RAF loop restarts
   const advanceCycleRef = useRef(advanceCycle);
