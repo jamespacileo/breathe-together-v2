@@ -125,6 +125,8 @@ interface ShardData {
  * - Ambient seed: unique floating pattern per shard
  * - Rotation speeds: per-shard variation for organic feel
  * - Scale offset: subtle size variation for depth
+ * - Orbit: slow orbital drift around center
+ * - Perpendicular: tangent wobble for organic floating feel
  */
 interface ShardPhysicsState {
   /** Current interpolated radius (spring-smoothed) */
@@ -143,6 +145,12 @@ interface ShardPhysicsState {
   rotationSpeedY: number;
   /** Base scale offset for depth variation (0.85-1.15 range) */
   baseScaleOffset: number;
+  /** Current orbit angle offset (radians, accumulates over time) */
+  orbitAngle: number;
+  /** Per-shard orbit speed (radians/second) */
+  orbitSpeed: number;
+  /** Seed for perpendicular wobble phase */
+  wobbleSeed: number;
 }
 
 /**
@@ -176,6 +184,24 @@ const EXPANSION_VELOCITY_BOOST = 2.5; // Multiplier for expansion velocity injec
  */
 const AMBIENT_SCALE = 0.08; // Maximum ambient offset
 const AMBIENT_Y_SCALE = 0.04; // Vertical motion is more subtle
+
+/**
+ * Orbital drift constants
+ *
+ * Very slow rotation around center - shards gradually orbit the globe
+ * Kept subtle (0.01-0.03 rad/s) to avoid dizziness
+ */
+const ORBIT_BASE_SPEED = 0.015; // Base orbit speed (radians/second)
+const ORBIT_SPEED_VARIATION = 0.01; // ±variation per shard
+
+/**
+ * Perpendicular wobble constants
+ *
+ * Small movement tangent to radial direction - adds organic "floating" feel
+ * Distinct from orbital motion (faster frequency, smaller amplitude)
+ */
+const PERPENDICULAR_AMPLITUDE = 0.03; // Maximum tangent offset (subtle)
+const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
 
 /**
  * Phase stagger for wave effect
@@ -273,6 +299,14 @@ export function ParticleSwarm({
       const scaleSeed = (i * goldenRatio + 0.5) % 1;
       const baseScaleOffset = 0.9 + scaleSeed * 0.2;
 
+      // Orbital drift speed variation - all shards orbit same direction to prevent overlap
+      // Small speed variation creates gentle relative drift between neighbors
+      const orbitSeed = (i * 3.14159 + 0.1) % 1;
+      const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
+
+      // Wobble seed for perpendicular motion phase offset
+      const wobbleSeed = i * 2.71828; // e-based offset for unique phases
+
       physicsStates.push({
         currentRadius: baseRadius,
         velocity: 0,
@@ -282,6 +316,9 @@ export function ParticleSwarm({
         rotationSpeedX,
         rotationSpeedY,
         baseScaleOffset,
+        orbitAngle: 0,
+        orbitSpeed,
+        wobbleSeed,
       });
     }
 
@@ -370,6 +407,30 @@ export function ParticleSwarm({
       shardState.velocity += totalForce * clampedDelta;
       shardState.currentRadius += shardState.velocity * clampedDelta;
 
+      // Update orbital drift angle
+      shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
+
+      // Apply orbital rotation to direction vector (rotate around Y axis)
+      // This creates a slow drift around the center globe
+      const orbitedDirection = shard.direction
+        .clone()
+        .applyAxisAngle(new THREE.Vector3(0, 1, 0), shardState.orbitAngle);
+
+      // Compute perpendicular wobble (tangent to radial direction)
+      // Get two perpendicular vectors using cross products
+      const up = new THREE.Vector3(0, 1, 0);
+      const tangent1 = orbitedDirection.clone().cross(up).normalize();
+      // Handle edge case when direction is parallel to up
+      if (tangent1.lengthSq() < 0.001) {
+        tangent1.set(1, 0, 0);
+      }
+      const tangent2 = orbitedDirection.clone().cross(tangent1).normalize();
+
+      // Perpendicular wobble with unique phase per shard
+      const wobblePhase = time * PERPENDICULAR_FREQUENCY * Math.PI * 2 + shardState.wobbleSeed;
+      const wobble1 = Math.sin(wobblePhase) * PERPENDICULAR_AMPLITUDE;
+      const wobble2 = Math.cos(wobblePhase * 0.7) * PERPENDICULAR_AMPLITUDE * 0.6;
+
       // Ambient floating motion (secondary layer)
       // Uses different frequencies per axis for organic feel
       const seed = shardState.ambientSeed;
@@ -377,10 +438,12 @@ export function ParticleSwarm({
       const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
       const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
 
-      // Compute final position: spring-smoothed radius + ambient offset
+      // Compute final position: orbited direction + spring radius + tangent wobble + ambient
       shard.mesh.position
-        .copy(shard.direction)
+        .copy(orbitedDirection)
         .multiplyScalar(shardState.currentRadius)
+        .addScaledVector(tangent1, wobble1)
+        .addScaledVector(tangent2, wobble2)
         .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
 
       // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
