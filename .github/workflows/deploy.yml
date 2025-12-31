@@ -54,3 +54,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Use stable wrangler version (4.55.0/4.56.0 have opennextjs-cloudflare delegation bug)
+          wranglerVersion: "4.54.0"

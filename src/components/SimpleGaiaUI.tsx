@@ -1,7 +1,17 @@
 import { type SetStateAction, useCallback, useEffect, useState } from 'react';
 import type { MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
-import { MONUMENT_VALLEY_PALETTE } from '../lib/colors';
+import {
+  ANIMATION,
+  BLUR,
+  BORDER_RADIUS,
+  MOOD_COLORS,
+  PHASE_NAMES,
+  SPACING,
+  TYPOGRAPHY,
+  UI_COLORS,
+  Z_INDEX,
+} from '../styles/designTokens';
 import { InspirationalText } from './InspirationalText';
 
 interface SimpleGaiaUIProps {
@@ -201,15 +211,15 @@ export function SimpleGaiaUI({
     };
   }, [isControlsOpen]);
 
-  // Design Tokens - refined warm palette with improved contrast
+  // Design Tokens - using centralized values from designTokens.ts
   const colors = {
-    text: '#5a4d42', // Darker for better contrast (was #7a6b5e)
-    textDim: '#8b7a6a', // Darker secondary text (was #a89888)
-    textGlow: '#c4a882',
-    border: 'rgba(160, 140, 120, 0.12)',
-    glass: 'rgba(252, 250, 246, 0.72)',
-    accent: '#c9a06c',
-    accentGlow: 'rgba(201, 160, 108, 0.5)', // Stronger glow (was 0.4)
+    text: UI_COLORS.text.secondary,
+    textDim: UI_COLORS.text.muted,
+    textGlow: UI_COLORS.accent.textGlow,
+    border: UI_COLORS.border.default,
+    glass: UI_COLORS.surface.glass,
+    accent: UI_COLORS.accent.gold,
+    accentGlow: UI_COLORS.accent.goldGlow,
   };
 
   const labelStyle: React.CSSProperties = {
@@ -246,11 +256,11 @@ export function SimpleGaiaUI({
     e.stopPropagation();
   };
 
-  // Mood categories for simplified selection
+  // Mood categories for simplified selection - using centralized MOOD_COLORS
   const moodCategories = [
     {
       name: 'Joy',
-      color: MONUMENT_VALLEY_PALETTE.joy,
+      color: MOOD_COLORS.joy,
       moods: [
         { id: 'grateful' as MoodId, label: 'Grateful' },
         { id: 'celebrating' as MoodId, label: 'Celebrating' },
@@ -259,7 +269,7 @@ export function SimpleGaiaUI({
     },
     {
       name: 'Peace',
-      color: MONUMENT_VALLEY_PALETTE.peace,
+      color: MOOD_COLORS.peace,
       moods: [
         { id: 'moment' as MoodId, label: 'Taking a moment' },
         { id: 'here' as MoodId, label: 'Just here' },
@@ -268,7 +278,7 @@ export function SimpleGaiaUI({
     },
     {
       name: 'Solitude',
-      color: MONUMENT_VALLEY_PALETTE.solitude,
+      color: MOOD_COLORS.solitude,
       moods: [
         { id: 'anxious' as MoodId, label: 'Releasing tension' },
         { id: 'processing' as MoodId, label: 'Processing feelings' },
@@ -277,7 +287,7 @@ export function SimpleGaiaUI({
     },
     {
       name: 'Love',
-      color: MONUMENT_VALLEY_PALETTE.love,
+      color: MOOD_COLORS.love,
       moods: [{ id: 'preparing' as MoodId, label: 'Preparing' }],
       description: 'Connecting & readying',
     },
@@ -973,7 +983,7 @@ export function SimpleGaiaUI({
                 gap: '10px',
               }}
             >
-              {Object.entries(MONUMENT_VALLEY_PALETTE).map(([name, color]) => (
+              {Object.entries(MOOD_COLORS).map(([name, color]) => (
                 <div
                   key={name}
                   style={{
@@ -1004,105 +1014,9 @@ export function SimpleGaiaUI({
 
       {/* Note: Phase indicator moved to PhaseOverlay component */}
 
-      {/* CSS Animation for fade in/out + Custom Slider Styling */}
-      <style>
-        {`
-          @keyframes fadeInOut {
-            0% { opacity: 0; }
-            10% { opacity: 0.8; }
-            90% { opacity: 0.8; }
-            100% { opacity: 0; }
-          }
-
-          /* Custom Range Slider Thumb */
-          input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: linear-gradient(145deg, #d4a76f, #c9a06c);
-            cursor: pointer;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 2px 8px rgba(201, 160, 108, 0.4), 0 1px 2px rgba(0, 0, 0, 0.1);
-            transition: all 0.2s ease;
-          }
-
-          input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.15);
-            box-shadow: 0 4px 16px rgba(201, 160, 108, 0.6), 0 2px 4px rgba(0, 0, 0, 0.15);
-          }
-
-          input[type="range"]::-webkit-slider-thumb:active {
-            transform: scale(0.95);
-            box-shadow: 0 1px 4px rgba(201, 160, 108, 0.3);
-          }
-
-          input[type="range"]::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: linear-gradient(145deg, #d4a76f, #c9a06c);
-            cursor: pointer;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 2px 8px rgba(201, 160, 108, 0.4), 0 1px 2px rgba(0, 0, 0, 0.1);
-            transition: all 0.2s ease;
-          }
-
-          input[type="range"]::-moz-range-thumb:hover {
-            transform: scale(1.15);
-            box-shadow: 0 4px 16px rgba(201, 160, 108, 0.6), 0 2px 4px rgba(0, 0, 0, 0.15);
-          }
-
-          /* Focus state for accessibility */
-          input[type="range"]:focus {
-            outline: none;
-          }
-
-          input[type="range"]:focus::-webkit-slider-thumb {
-            box-shadow: 0 0 0 3px rgba(201, 160, 108, 0.3), 0 2px 8px rgba(201, 160, 108, 0.4);
-          }
-
-          /* Button focus states */
-          button:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(201, 160, 108, 0.5), 0 0 0 4px rgba(201, 160, 108, 0.2) !important;
-          }
-
-          /* Modal stagger entrance animation */
-          @keyframes slideUp {
-            from {
-              opacity: 0;
-              transform: translateY(12px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-
-          .modal-stagger > * {
-            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-            opacity: 0;
-          }
-
-          .modal-stagger > *:nth-child(1) { animation-delay: 0.05s; }
-          .modal-stagger > *:nth-child(2) { animation-delay: 0.1s; }
-          .modal-stagger > *:nth-child(3) { animation-delay: 0.15s; }
-          .modal-stagger > *:nth-child(4) { animation-delay: 0.2s; }
-          .modal-stagger > *:nth-child(5) { animation-delay: 0.25s; }
-          .modal-stagger > *:nth-child(6) { animation-delay: 0.3s; }
-
-          /* Mood button hover effect */
-          .mood-button {
-            transition: all 0.2s ease;
-          }
-          .mood-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-          }
-        `}
-      </style>
+      {/* Styles moved to src/styles/ui.css - imported globally in index.tsx
+          Includes: fadeInOut, slideUp animations, slider thumb styling,
+          button focus states, modal-stagger, mood-button hover effects */}
     </div>
   );
 }

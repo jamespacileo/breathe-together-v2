@@ -4,6 +4,7 @@ import { BREATH_TOTAL_CYCLE } from '../constants';
 import { useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
+import { TYPOGRAPHY, UI_COLORS, Z_INDEX } from '../styles/designTokens';
 
 /**
  * Breathing Phase Timeline:
@@ -12,28 +13,105 @@ import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
  * |   fade in 0→1   |   visible (1)    |  fade out 1→0   |   hidden (0)      |
  *
  * Text appears as user inhales, stays during hold, fades as they exhale.
+ * Uses the same controlled breathing curve as the visual elements so the
+ * text feels like it's being breathed in and out with the user.
  */
+
+/**
+ * Controlled breath curve with soft start/end and steady middle
+ *
+ * Creates organic controlled breathing feel with three sections:
+ * 1. Soft start: Raised cosine ramp (velocity 0 → steady)
+ * 2. Steady middle: Linear/constant velocity (controlled, even flow)
+ * 3. Soft end: Raised cosine ramp (velocity steady → 0)
+ *
+ * The raised cosine provides C1-continuous transitions (smooth velocity)
+ * while the linear middle creates the "steady controlled" breathing feel.
+ *
+ * @param t Progress 0-1
+ * @param startRamp Fraction of time for start ramp (0.2-0.35)
+ * @param endRamp Fraction of time for end ramp (0.2-0.35)
+ */
+function controlledBreathCurve(t: number, startRamp: number, endRamp: number): number {
+  // Clamp input
+  t = Math.max(0, Math.min(1, t));
+
+  // Middle section starts after startRamp and ends before endRamp
+  const middleEnd = 1 - endRamp;
+
+  // Calculate steady velocity needed to cover remaining distance
+  // Total distance = 1, ramps each cover (ramp * velocity / 2)
+  // So: startRamp*v/2 + middleDuration*v + endRamp*v/2 = 1
+  // v * (startRamp/2 + middleDuration + endRamp/2) = 1
+  // v = 1 / (1 - startRamp/2 - endRamp/2)
+  const middleVelocity = 1 / (1 - startRamp / 2 - endRamp / 2);
+
+  // Height reached at end of start ramp
+  const startRampHeight = (middleVelocity * startRamp) / 2;
+  // Height at start of end ramp
+  const endRampStart = 1 - (middleVelocity * endRamp) / 2;
+
+  if (t <= startRamp) {
+    // Raised cosine ramp-up: smooth acceleration from 0 to middleVelocity
+    // Integral of (1 - cos(πx))/2 from 0 to x = x/2 - sin(πx)/(2π)
+    const normalized = t / startRamp;
+    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
+    return middleVelocity * startRamp * integral;
+  }
+  if (t >= middleEnd) {
+    // Raised cosine ramp-down: smooth deceleration from middleVelocity to 0
+    const normalized = (t - middleEnd) / endRamp;
+    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
+    return endRampStart + middleVelocity * endRamp * integral;
+  }
+  // Linear middle: constant velocity for steady, controlled feel
+  return startRampHeight + middleVelocity * (t - startRamp);
+}
+
+/**
+ * Inhale easing: Delayed reveal that mirrors exhale timing
+ *
+ * Uses asymmetric ramps - the mirror of exhale:
+ * - Extended soft start (30%): Text stays invisible longer
+ * - Steady middle (50%): Controlled reveal catches up
+ * - Quick soft end (20%): Arrives at full visibility
+ *
+ * This mirrors how exhale fades sooner - inhale reveals later,
+ * creating the sense of words emerging with the breath.
+ */
+function easeInhale(t: number): number {
+  // Mirror of exhale: longer start ramp delays the reveal
+  return controlledBreathCurve(t, 0.3, 0.2);
+}
+
+/**
+ * Exhale easing: Controlled, relaxing fade-out
+ *
+ * Uses asymmetric ramps for relaxation breathing:
+ * - Soft start (20%): Text begins fading gently
+ * - Steady middle (50%): Constant velocity, controlled fade
+ * - Extended soft end (30%): Extra gentle fade-out for "letting go" feel
+ *
+ * The longer end ramp creates the sense of words being released with the breath.
+ */
+function easeExhale(t: number): number {
+  // Asymmetric: shorter start ramp, longer end ramp for relaxed finish
+  return controlledBreathCurve(t, 0.2, 0.3);
+}
+
 function calculateOpacity(phaseIndex: number, phaseProgress: number): number {
   switch (phaseIndex) {
-    case 0: // Inhale - fade in
-      return easeOutQuad(phaseProgress);
+    case 0: // Inhale - fade in with breathing curve
+      return easeInhale(phaseProgress);
     case 1: // Hold-in - fully visible
       return 1;
-    case 2: // Exhale - fade out
-      return 1 - easeInQuad(phaseProgress);
+    case 2: // Exhale - fade out with breathing curve
+      return 1 - easeExhale(phaseProgress);
     case 3: // Hold-out - hidden
       return 0;
     default:
       return 0;
   }
-}
-
-function easeOutQuad(t: number): number {
-  return 1 - (1 - t) * (1 - t);
-}
-
-function easeInQuad(t: number): number {
-  return t * t;
 }
 
 /**
@@ -126,14 +204,13 @@ export function InspirationalText() {
   void currentSequence;
   void ambientIndex;
 
-  // Design tokens matching GaiaUI warm palette
+  // Design tokens - using centralized values
   const colors = {
-    text: '#3d3229', // Darker for better contrast (was #5a4d42)
-    textGlow: 'rgba(201, 160, 108, 0.8)', // Stronger glow (was 0.7)
-    subtleGlow: 'rgba(255, 252, 245, 1)', // Full opacity for stronger glow (was 0.95)
-    // Soft backdrop - warm cream with slightly higher opacity for better contrast
-    backdropInner: 'rgba(253, 251, 247, 0.5)', // Increased from 0.4
-    backdropOuter: 'rgba(253, 251, 247, 0)',
+    text: UI_COLORS.text.primary,
+    textGlow: UI_COLORS.accent.goldGlow,
+    subtleGlow: UI_COLORS.utility.subtleGlow,
+    backdropInner: UI_COLORS.surface.backdrop,
+    backdropOuter: UI_COLORS.surface.backdropTransparent,
   };
 
   // Soft radial gradient backdrop for readability
@@ -164,7 +241,7 @@ export function InspirationalText() {
   };
 
   const textStyle: React.CSSProperties = {
-    fontFamily: "'Cormorant Garamond', Georgia, serif",
+    fontFamily: TYPOGRAPHY.fontFamily.serif,
     // Mobile: Dynamic viewport-based sizing to fill available width
     fontSize: isMobile
       ? 'clamp(1.5rem, 8vw, 2.6rem)' // Mobile: Slightly larger for impact
@@ -198,7 +275,7 @@ export function InspirationalText() {
         justifyContent: 'center',
         alignItems: 'center',
         pointerEvents: 'none',
-        zIndex: 50,
+        zIndex: Z_INDEX.overlay,
         // Mobile: Smaller gap to reduce vertical space usage and show more of 3D scene
         gap: isMobile ? 'min(30vh, 180px)' : isTablet ? 'min(34vh, 220px)' : 'min(38vh, 260px)',
         // Mobile: Use more horizontal space
