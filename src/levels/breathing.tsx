@@ -113,8 +113,8 @@ export function BreathingLevel({
             {/* Atmospheric additions for life and movement */}
             {showParticles && (
               <>
-                {/* Satellites orbiting the globe with trails - harmonious 3-ring pattern */}
-                <OrbitalTravelers />
+                {/* Satellites orbiting in a heart shape around the globe */}
+                <OrbitalTravelers pattern="heart" />
 
                 {/* Lazy drifting dust motes */}
                 <WanderingMotes count={15} radius={7} opacity={0.5} />
