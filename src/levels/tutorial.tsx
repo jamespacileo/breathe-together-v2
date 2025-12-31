@@ -8,7 +8,6 @@ import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles'
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { calculatePhaseInfo } from '../lib/breathPhase';
-import { PHASE_NAMES } from '../styles/designTokens';
 
 /**
  * Tutorial steps - progression from personal to collective
@@ -21,29 +20,6 @@ import { PHASE_NAMES } from '../styles/designTokens';
 type TutorialStep = 'your-shape' | 'breathing' | 'others-waiting';
 
 const TUTORIAL_STEPS: TutorialStep[] = ['your-shape', 'breathing', 'others-waiting'];
-
-const STEP_CONTENT: Record<
-  TutorialStep,
-  { title: string; subtitle: string; cta?: string; hint?: string }
-> = {
-  'your-shape': {
-    title: 'This is You',
-    subtitle: 'Your presence in the breathing space',
-    hint: 'Watch your shape respond to the breath...',
-  },
-  breathing: {
-    title: 'Breathe Together',
-    subtitle: 'Follow the rhythm. Let your body sync.',
-    cta: 'I Feel It',
-    hint: 'Complete one full breath cycle',
-  },
-  'others-waiting': {
-    title: 'Others Are Waiting',
-    subtitle: 'Right now, people around the world are breathing with you.',
-    cta: 'Join the Sphere',
-    hint: '73 breathing together',
-  },
-};
 
 interface TutorialLevelProps {
   /** User's selected mood */
@@ -67,7 +43,6 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
   const [isExiting, setIsExiting] = useState(false);
 
   // Track breathing phase for UI
-  const [phaseName, setPhaseName] = useState('Inhale');
   const [phaseProgress, setPhaseProgress] = useState(0);
   const [phaseIndex, setPhaseIndex] = useState(0);
 
@@ -162,7 +137,6 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
       const { phaseIndex: idx, phaseProgress: progress } = calculatePhaseInfo(cycleTime);
 
       // Update phase display
-      setPhaseName(PHASE_NAMES[idx] ?? 'Breathe');
       setPhaseProgress(progress);
       setPhaseIndex(idx);
 
@@ -205,9 +179,6 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
 
   // Calculate fade for step transitions
   const contentOpacity = isExiting ? 0 : 1;
-
-  // Get step content
-  const stepContent = STEP_CONTENT[currentStep];
 
   // Breathing guidance text based on phase
   const getBreathingGuidance = () => {
@@ -262,7 +233,7 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
           </PresentationControls>
         </RefractionPipeline>
 
-        {/* Tutorial UI overlay */}
+        {/* Tutorial UI overlay - minimal art piece */}
         <Html fullscreen>
           <div
             style={{
@@ -273,211 +244,142 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
               transition: 'opacity 0.6s ease-out',
             }}
           >
-            {/* Step indicator dots */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '32px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                display: 'flex',
-                gap: '8px',
-              }}
-            >
-              {TUTORIAL_STEPS.map((step, i) => (
-                <div
-                  key={step}
-                  style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    background:
-                      i === stepIndex
-                        ? 'rgba(201, 160, 108, 0.9)'
-                        : i < stepIndex
-                          ? 'rgba(201, 160, 108, 0.4)'
-                          : 'rgba(160, 140, 120, 0.2)',
-                    transition: 'background 0.3s ease',
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Main tutorial content - centered on globe with legibility backdrop */}
+            {/* Centered guidance - minimal, within the globe area */}
             <div
               style={{
                 position: 'absolute',
                 top: '50%',
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
-                textAlign: 'center',
-                // Soft elliptical gradient backdrop for legibility (like InspirationalText)
-                padding: 'clamp(24px, 5vw, 48px) clamp(32px, 8vw, 80px)',
-                background: `radial-gradient(
-                  ellipse 140% 120% at center,
-                  rgba(253, 251, 247, 0.85) 0%,
-                  rgba(253, 251, 247, 0) 70%
-                )`,
-                backdropFilter: 'blur(4px)',
-                WebkitBackdropFilter: 'blur(4px)',
-                borderRadius: '100px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              {/* Step title */}
-              <h2
-                style={{
-                  fontFamily: "'Cormorant Garamond', Georgia, serif",
-                  fontSize: 'clamp(1.6rem, 5vw, 2.4rem)',
-                  fontWeight: 300,
-                  color: '#4a3f35',
-                  letterSpacing: '0.15em',
-                  textTransform: 'uppercase',
-                  margin: '0 0 12px 0',
-                  textShadow:
-                    '0 0 30px rgba(255, 252, 240, 0.8), 0 0 60px rgba(201, 160, 108, 0.3)',
-                }}
-              >
-                {stepContent.title}
-              </h2>
-
-              {/* Step subtitle */}
-              <p
-                style={{
-                  fontFamily: "'Cormorant Garamond', Georgia, serif",
-                  fontSize: 'clamp(0.95rem, 2.5vw, 1.2rem)',
-                  fontWeight: 400,
-                  color: '#5a4d42',
-                  letterSpacing: '0.05em',
-                  margin: 0,
-                  lineHeight: 1.5,
-                  textShadow: '0 0 20px rgba(255, 252, 240, 0.6)',
-                }}
-              >
-                {stepContent.subtitle}
-              </p>
-
-              {/* Breathing guidance - large phase text during breathing step */}
+              {/* Progress ring - elegant minimal circle */}
               {currentStep === 'breathing' && (
-                <div
+                <svg
+                  width="140"
+                  height="140"
+                  role="img"
+                  aria-label="Breathing progress"
                   style={{
-                    marginTop: '28px',
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
                   }}
                 >
-                  {/* Large breathing guidance text */}
-                  <span
+                  <title>Breathing progress</title>
+                  {/* Background ring */}
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r="60"
+                    fill="none"
+                    stroke="rgba(160, 140, 120, 0.12)"
+                    strokeWidth="1"
+                  />
+                  {/* Progress ring */}
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r="60"
+                    fill="none"
+                    stroke="rgba(201, 160, 108, 0.6)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 60}`}
+                    strokeDashoffset={`${2 * Math.PI * 60 * (1 - phaseProgress)}`}
                     style={{
-                      fontFamily: "'Cormorant Garamond', Georgia, serif",
-                      fontSize: 'clamp(1.8rem, 7vw, 3rem)',
-                      fontWeight: 300,
-                      color: '#4a3f35',
-                      letterSpacing: '0.12em',
-                      display: 'block',
-                      marginBottom: '20px',
-                      textShadow:
-                        '0 0 30px rgba(255, 252, 240, 0.8), 0 0 60px rgba(201, 160, 108, 0.4)',
+                      transform: 'rotate(-90deg)',
+                      transformOrigin: '50% 50%',
+                      transition: 'stroke-dashoffset 0.1s linear',
                     }}
-                  >
-                    {getBreathingGuidance()}
-                  </span>
-
-                  {/* Progress bar */}
-                  <div
-                    style={{
-                      width: '180px',
-                      height: '3px',
-                      background: 'rgba(160, 140, 120, 0.2)',
-                      borderRadius: '2px',
-                      margin: '0 auto',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${phaseProgress * 100}%`,
-                        background:
-                          'linear-gradient(90deg, rgba(201, 160, 108, 0.9), rgba(201, 160, 108, 0.5))',
-                        transition: 'width 0.1s linear',
-                      }}
-                    />
-                  </div>
-
-                  {/* Hint text */}
-                  {!canProceed && (
-                    <p
-                      style={{
-                        fontFamily: "'Cormorant Garamond', Georgia, serif",
-                        fontSize: '0.85rem',
-                        color: '#7a6b5a',
-                        marginTop: '24px',
-                        letterSpacing: '0.08em',
-                        opacity: 0.9,
-                        fontStyle: 'italic',
-                      }}
-                    >
-                      {stepContent.hint}
-                    </p>
-                  )}
-                </div>
+                  />
+                </svg>
               )}
 
-              {/* Others waiting - breathing UI + count */}
-              {currentStep === 'others-waiting' && (
-                <div
-                  style={{
-                    marginTop: '20px',
-                    opacity: othersRevealProgress,
-                  }}
-                >
-                  {/* Breathing phase (smaller, secondary) */}
-                  <span
-                    style={{
-                      fontFamily: "'Cormorant Garamond', Georgia, serif",
-                      fontSize: '1.2rem',
-                      fontWeight: 300,
-                      color: '#5a4d42',
-                      letterSpacing: '0.15em',
-                      textTransform: 'uppercase',
-                      textShadow: '0 0 20px rgba(255, 252, 240, 0.6)',
-                    }}
-                  >
-                    {phaseName}
-                  </span>
-
-                  {/* Hint with count */}
+              {/* Step 1: "This is You" - minimal intro */}
+              {currentStep === 'your-shape' && (
+                <div style={{ textAlign: 'center' }}>
                   <p
                     style={{
                       fontFamily: "'Cormorant Garamond', Georgia, serif",
-                      fontSize: '0.95rem',
-                      color: '#7a6b5a',
-                      marginTop: '12px',
-                      letterSpacing: '0.06em',
+                      fontSize: 'clamp(1.4rem, 5vw, 2rem)',
+                      fontWeight: 300,
+                      color: '#4a3f35',
+                      letterSpacing: '0.12em',
+                      margin: 0,
+                      textShadow:
+                        '0 0 40px rgba(255, 252, 240, 0.9), 0 0 80px rgba(201, 160, 108, 0.4)',
                     }}
                   >
-                    <span style={{ fontWeight: 500, color: '#5a4d42' }}>73</span> breathing together
+                    This is you
                   </p>
                 </div>
               )}
 
-              {/* Hint for step 1 */}
-              {currentStep === 'your-shape' && (
+              {/* Step 2: Breathing guidance - just the word */}
+              {currentStep === 'breathing' && (
                 <p
                   style={{
                     fontFamily: "'Cormorant Garamond', Georgia, serif",
-                    fontSize: '0.9rem',
-                    color: '#7a6b5a',
-                    marginTop: '20px',
-                    letterSpacing: '0.06em',
-                    fontStyle: 'italic',
+                    fontSize: 'clamp(1.6rem, 6vw, 2.4rem)',
+                    fontWeight: 300,
+                    color: '#4a3f35',
+                    letterSpacing: '0.15em',
+                    margin: 0,
+                    textShadow:
+                      '0 0 40px rgba(255, 252, 240, 0.9), 0 0 80px rgba(201, 160, 108, 0.4)',
                   }}
                 >
-                  {stepContent.hint}
+                  {getBreathingGuidance()}
                 </p>
+              )}
+
+              {/* Step 3: Others waiting - user count */}
+              {currentStep === 'others-waiting' && (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    opacity: othersRevealProgress,
+                  }}
+                >
+                  <p
+                    style={{
+                      fontFamily: "'Cormorant Garamond', Georgia, serif",
+                      fontSize: 'clamp(2rem, 8vw, 3.5rem)',
+                      fontWeight: 300,
+                      color: '#4a3f35',
+                      letterSpacing: '0.08em',
+                      margin: 0,
+                      textShadow:
+                        '0 0 40px rgba(255, 252, 240, 0.9), 0 0 80px rgba(201, 160, 108, 0.4)',
+                    }}
+                  >
+                    73
+                  </p>
+                  <p
+                    style={{
+                      fontFamily: "'Cormorant Garamond', Georgia, serif",
+                      fontSize: 'clamp(0.9rem, 2.5vw, 1.1rem)',
+                      fontWeight: 400,
+                      color: '#7a6b5a',
+                      letterSpacing: '0.1em',
+                      margin: '8px 0 0 0',
+                      textShadow: '0 0 30px rgba(255, 252, 240, 0.8)',
+                    }}
+                  >
+                    breathing together
+                  </p>
+                </div>
               )}
             </div>
 
-            {/* CTA Button - appears when canProceed is true */}
-            {canProceed && stepContent.cta && (
+            {/* CTA Button - appears when canProceed is true (breathing and others-waiting steps) */}
+            {canProceed && currentStep !== 'your-shape' && (
               <button
                 type="button"
                 onClick={handleNextStep}
@@ -507,7 +409,7 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                   animation: isLastStep ? 'pulse-glow 2s ease-in-out infinite' : 'none',
                 }}
               >
-                {stepContent.cta}
+                {isLastStep ? 'Join the Sphere' : 'I Feel It'}
               </button>
             )}
 
@@ -517,7 +419,7 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
               onClick={handleComplete}
               style={{
                 position: 'absolute',
-                bottom: canProceed && stepContent.cta ? '16px' : '48px',
+                bottom: canProceed && currentStep !== 'your-shape' ? '16px' : '48px',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 background: 'transparent',
