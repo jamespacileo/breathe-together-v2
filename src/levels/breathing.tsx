@@ -3,7 +3,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
-import { MOOD_IDS, type MoodId } from '../constants';
+import { BREATH_PHASES, BREATH_TOTAL_CYCLE, MOOD_IDS, type MoodId } from '../constants';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
@@ -14,6 +14,20 @@ import type { BreathingLevelProps } from '../types/sceneProps';
 
 /** Get a random mood from the available moods */
 const getRandomMood = (): MoodId => MOOD_IDS[Math.floor(Math.random() * MOOD_IDS.length)];
+
+/**
+ * Check if we're currently in a hold phase (good time to sync users)
+ * Returns true during HOLD_IN phase (phase 1) which is 7 seconds long
+ * This provides a natural sync point where visual changes are less jarring
+ */
+function isInHoldPhase(): boolean {
+  const now = Date.now() / 1000;
+  const cycleTime = now % BREATH_TOTAL_CYCLE;
+  // Hold-in starts after inhale (4s) and lasts 7s
+  const holdStart = BREATH_PHASES.INHALE;
+  const holdEnd = holdStart + BREATH_PHASES.HOLD_IN;
+  return cycleTime >= holdStart && cycleTime < holdEnd;
+}
 
 /**
  * Tuning defaults for visual aesthetics (matching reference)
@@ -73,7 +87,17 @@ export function BreathingLevel({
   // Demo controls state
   const [showDemoControls, setShowDemoControls] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [inHoldPhase, setInHoldPhase] = useState(false);
   const simulationRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Track hold phase for UI indicator
+  useEffect(() => {
+    if (!showDemoControls) return;
+    const checkPhase = () => setInHoldPhase(isInHoldPhase());
+    checkPhase();
+    const interval = setInterval(checkPhase, 100);
+    return () => clearInterval(interval);
+  }, [showDemoControls]);
 
   // Dynamic mood array system - count is derived from array length
   // This format matches the future backend: a direct array of mood IDs
@@ -149,28 +173,35 @@ export function BreathingLevel({
     [moods, setMoods],
   );
 
-  // Simulation: Random join/leave activity
+  // Simulation: Random join/leave activity - only during hold phases
+  // This syncs user changes with the natural breathing rhythm
   useEffect(() => {
     if (isSimulating) {
       const tick = () => {
-        // Random action: 60% add, 40% remove (net growth bias)
-        const shouldAdd = Math.random() < 0.6;
+        // Only apply changes during hold phase (less jarring visually)
+        if (isInHoldPhase()) {
+          // Random action: 60% add, 40% remove (net growth bias)
+          const shouldAdd = Math.random() < 0.6;
 
-        if (shouldAdd) {
-          addUser(getRandomMood());
-        } else if (moods.length > 5) {
-          // Keep minimum 5 users
-          const randomIndex = Math.floor(Math.random() * moods.length);
-          removeUser(randomIndex);
+          if (shouldAdd) {
+            addUser(getRandomMood());
+          } else if (moods.length > 5) {
+            // Keep minimum 5 users
+            const randomIndex = Math.floor(Math.random() * moods.length);
+            removeUser(randomIndex);
+          }
         }
 
-        // Random interval: 500ms - 2000ms
-        const nextInterval = 500 + Math.random() * 1500;
+        // Check more frequently during hold phase, less during active breathing
+        // Hold phase: 200-500ms intervals for responsive updates
+        // Active phase: 500-1000ms intervals (will skip but still check)
+        const inHold = isInHoldPhase();
+        const nextInterval = inHold ? 200 + Math.random() * 300 : 500 + Math.random() * 500;
         simulationRef.current = setTimeout(tick, nextInterval);
       };
 
       // Start first tick
-      simulationRef.current = setTimeout(tick, 1000);
+      simulationRef.current = setTimeout(tick, 500);
 
       return () => {
         if (simulationRef.current) {
@@ -292,6 +323,44 @@ export function BreathingLevel({
                 <span style={{ fontSize: '12px', opacity: 0.7, fontWeight: 400 }}>
                   Press D to close
                 </span>
+              </div>
+
+              {/* Sync Phase Indicator */}
+              <div
+                style={{
+                  marginBottom: '16px',
+                  padding: '10px 12px',
+                  background: inHoldPhase ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '8px',
+                  border: inHoldPhase
+                    ? '1px solid rgba(34, 197, 94, 0.4)'
+                    : '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: inHoldPhase ? '#22c55e' : '#666',
+                    boxShadow: inHoldPhase ? '0 0 8px #22c55e' : 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600 }}>
+                    {inHoldPhase ? 'SYNC WINDOW OPEN' : 'WAITING FOR HOLD'}
+                  </div>
+                  <div style={{ fontSize: '10px', opacity: 0.6 }}>
+                    {inHoldPhase
+                      ? 'Changes apply during hold phase'
+                      : 'Changes queued until hold phase'}
+                  </div>
+                </div>
               </div>
 
               {/* User Count Display */}
