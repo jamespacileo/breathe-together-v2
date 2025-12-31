@@ -48,7 +48,7 @@ function applyVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Col
 export interface ParticleSwarmProps {
   /**
    * Array of users with unique IDs and moods.
-   * The swarm dynamically adapts to this array.
+   * The swarm dynamically adapts to this array - one shard per user.
    * Users are assigned to slots in arrival order for visual stability.
    */
   users?: User[];
@@ -62,8 +62,8 @@ export interface ParticleSwarmProps {
   buffer?: number;
   /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
   maxShardSize?: number;
-  /** Maximum number of slots (pre-allocated) @default 96 */
-  maxSlots?: number;
+  /** Performance ceiling - maximum supported users @default 1000 */
+  maxUsers?: number;
 }
 
 interface ShardData {
@@ -132,6 +132,9 @@ const _tempTangent2 = new THREE.Vector3();
 const _tempAmbient = new THREE.Vector3();
 const _yAxis = new THREE.Vector3(0, 1, 0);
 
+/** Performance ceiling for maximum users */
+const MAX_USERS_CEILING = 1000;
+
 export function ParticleSwarm({
   users = [],
   baseRadius = 4.5,
@@ -139,7 +142,7 @@ export function ParticleSwarm({
   globeRadius = 1.5,
   buffer = 0.3,
   maxShardSize = 0.6,
-  maxSlots = 96,
+  maxUsers = MAX_USERS_CEILING,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
@@ -148,16 +151,16 @@ export function ParticleSwarm({
   const slotManagerRef = useRef<SlotManager>(new SlotManager());
   const lastPhaseTypeRef = useRef<number>(-1);
 
-  // Calculate dynamic slot count based on user count
-  // Always have at least maxSlots to handle future growth
-  const slotCount = useMemo(() => {
-    return Math.max(users.length, Math.min(maxSlots, 48));
-  }, [users.length, maxSlots]);
+  // Shard count = user count (capped at performance ceiling)
+  // One shard per user, no pre-allocation
+  const shardCount = useMemo(() => {
+    return Math.min(users.length, maxUsers);
+  }, [users.length, maxUsers]);
 
-  // Calculate shard size based on slot count
+  // Calculate shard size based on user count
   const shardSize = useMemo(
-    () => Math.min(baseShardSize / Math.sqrt(slotCount), maxShardSize),
-    [baseShardSize, slotCount, maxShardSize],
+    () => Math.min(baseShardSize / Math.sqrt(Math.max(shardCount, 1)), maxShardSize),
+    [baseShardSize, shardCount, maxShardSize],
   );
 
   const minOrbitRadius = useMemo(
@@ -168,25 +171,25 @@ export function ParticleSwarm({
   // Create shared material
   const material = useMemo(() => createFrostedGlassMaterial(), []);
 
-  // Initialize slot manager when slot count changes
+  // Initialize slot manager when shard count changes
   useEffect(() => {
-    slotManagerRef.current.initialize(slotCount);
-  }, [slotCount]);
+    slotManagerRef.current.initialize(shardCount);
+  }, [shardCount]);
 
-  // Create shards (pool of reusable meshes)
+  // Create shards - one per user, dynamically sized
   const shards = useMemo(() => {
     const result: ShardData[] = [];
 
-    for (let i = 0; i < slotCount; i++) {
+    for (let i = 0; i < shardCount; i++) {
       const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
 
-      // Start with a fallback color (will be updated by slot manager)
+      // Start with a fallback color (will be updated based on user mood)
       const fallbackColor = FALLBACK_COLORS[i % FALLBACK_COLORS.length];
       applyVertexColors(geometry, fallbackColor);
 
-      // Fibonacci sphere distribution for stable positions
-      const phi = Math.acos(-1 + (2 * i) / slotCount);
-      const theta = Math.sqrt(slotCount * Math.PI) * phi;
+      // Fibonacci sphere distribution for uniform coverage
+      const phi = Math.acos(-1 + (2 * i + 1) / shardCount);
+      const theta = Math.sqrt(shardCount * Math.PI) * phi;
       const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
 
       const mesh = new THREE.Mesh(geometry, material);
@@ -194,13 +197,13 @@ export function ParticleSwarm({
       mesh.position.copy(direction).multiplyScalar(baseRadius);
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
-      mesh.visible = false; // Start invisible, controlled by slot manager
+      mesh.visible = true; // All shards visible (one per user)
 
       result.push({ mesh, direction, geometry });
     }
 
     return result;
-  }, [slotCount, shardSize, baseRadius, material]);
+  }, [shardCount, shardSize, baseRadius, material]);
 
   // Add meshes to group and initialize physics state
   useEffect(() => {
