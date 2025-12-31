@@ -121,7 +121,7 @@ interface HolographicTextProps {
 
 /**
  * Single holographic text element with billboard and glow
- * Uses ref-based animation for smooth 60fps updates without React re-renders
+ * Uses Troika's fillOpacity prop for opacity control
  */
 interface TextElementProps {
   text: string;
@@ -129,7 +129,8 @@ interface TextElementProps {
   fontSize: number;
   letterSpacing: number;
   glowWidth: number;
-  glowIntensity: number;
+  opacity: number;
+  glowOpacity: number;
 }
 
 function HolographicTextElement({
@@ -138,37 +139,19 @@ function HolographicTextElement({
   fontSize,
   letterSpacing,
   glowWidth,
-  glowIntensity,
+  opacity,
+  glowOpacity,
 }: TextElementProps) {
   const groupRef = useRef<THREE.Group>(null);
-  // biome-ignore lint/suspicious/noExplicitAny: Troika Text doesn't export proper types
-  const textRef = useRef<any>(null);
   const { camera } = useThree();
 
-  // Animation loop - updates billboard and opacity each frame
+  // Billboard effect - text always faces camera
   useFrame(() => {
-    if (!groupRef.current) return;
-
-    // Billboard effect - text always faces camera
-    groupRef.current.quaternion.copy(camera.quaternion);
-
-    // Calculate breathing-synced opacity
-    const now = Date.now() / 1000;
-    const cycleTime = now % BREATH_TOTAL_CYCLE;
-    const { phaseIndex, phaseProgress } = calculatePhaseInfo(cycleTime);
-    const opacity = calculateOpacity(phaseIndex, phaseProgress);
-
-    // Subtle scale animation
-    const scale = 0.96 + opacity * 0.04;
-    groupRef.current.scale.setScalar(scale);
-
-    // Update text material opacity directly (Troika Text exposes material)
-    if (textRef.current?.material) {
-      textRef.current.material.opacity = opacity;
-      // Troika uses outlineOpacity uniform
-      if (textRef.current.material.uniforms?.outlineOpacity) {
-        textRef.current.material.uniforms.outlineOpacity.value = opacity * glowIntensity;
-      }
+    if (groupRef.current) {
+      groupRef.current.quaternion.copy(camera.quaternion);
+      // Subtle scale animation based on opacity
+      const scale = 0.96 + opacity * 0.04;
+      groupRef.current.scale.setScalar(scale);
     }
   });
 
@@ -177,7 +160,6 @@ function HolographicTextElement({
   return (
     <group ref={groupRef} position={position}>
       <Text
-        ref={textRef}
         fontSize={fontSize}
         letterSpacing={letterSpacing}
         maxWidth={14}
@@ -185,11 +167,10 @@ function HolographicTextElement({
         anchorX="center"
         anchorY="middle"
         color={COLORS.text}
-        fillOpacity={0} // Start invisible - animation loop controls this
+        fillOpacity={opacity}
         outlineColor={COLORS.glow}
         outlineWidth={glowWidth}
-        outlineOpacity={0} // Start invisible
-        // Uses Troika's default Inter font - clean and readable
+        outlineOpacity={glowOpacity}
       >
         {text.toUpperCase()}
       </Text>
@@ -207,17 +188,6 @@ function HolographicTextElement({
  * **Integration:**
  * Place inside Canvas but OUTSIDE the PresentationControls group
  * so text doesn't rotate with user interaction.
- *
- * **Example:**
- * ```tsx
- * <Canvas>
- *   <PresentationControls>
- *     <EarthGlobe />
- *     <ParticleSwarm />
- *   </PresentationControls>
- *   <HolographicText3D />  {/* Outside rotation control *}
- * </Canvas>
- * ```
  */
 function HolographicText3DComponent({
   yOffset = TEXT_Y_OFFSET,
@@ -229,18 +199,33 @@ function HolographicText3DComponent({
 }: HolographicTextProps) {
   const prevPhaseRef = useRef(-1);
   const [currentMessage, setCurrentMessage] = useState({ top: '', bottom: '' });
+  const [opacity, setOpacity] = useState(0);
 
   // Store subscriptions for message cycling
-  const { getCurrentMessage, advanceCycle, setAmbientPool, enqueue, ambientPool } =
-    useInspirationalTextStore(
-      useShallow((state) => ({
-        getCurrentMessage: state.getCurrentMessage,
-        advanceCycle: state.advanceCycle,
-        setAmbientPool: state.setAmbientPool,
-        enqueue: state.enqueue,
-        ambientPool: state.ambientPool,
-      })),
-    );
+  // Subscribe to currentSequence and ambientIndex to trigger re-renders when message changes
+  const {
+    getCurrentMessage,
+    advanceCycle,
+    setAmbientPool,
+    enqueue,
+    ambientPool,
+    currentSequence,
+    ambientIndex,
+  } = useInspirationalTextStore(
+    useShallow((state) => ({
+      getCurrentMessage: state.getCurrentMessage,
+      advanceCycle: state.advanceCycle,
+      setAmbientPool: state.setAmbientPool,
+      enqueue: state.enqueue,
+      ambientPool: state.ambientPool,
+      currentSequence: state.currentSequence,
+      ambientIndex: state.ambientIndex,
+    })),
+  );
+
+  // Suppress unused variable warnings - these subscriptions trigger re-renders
+  void currentSequence;
+  void ambientIndex;
 
   // Store advanceCycle in ref to avoid stale closure
   const advanceCycleRef = useRef(advanceCycle);
@@ -254,31 +239,34 @@ function HolographicText3DComponent({
     }
   }, [ambientPool.length, setAmbientPool, enqueue]);
 
-  // Update current message when it changes
+  // Update message whenever store state changes (currentSequence or ambientIndex)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: currentSequence and ambientIndex are intentionally included to trigger re-renders when store state changes, even though they're not directly used in the effect body
   useEffect(() => {
     const message = getCurrentMessage();
     if (message) {
       setCurrentMessage(message);
     }
-  }, [getCurrentMessage]);
+  }, [getCurrentMessage, currentSequence, ambientIndex]);
 
-  // Animation loop - track cycle completion to advance messages
+  // Animation loop - update opacity and track cycle completion
   useFrame(() => {
     const now = Date.now() / 1000;
     const cycleTime = now % BREATH_TOTAL_CYCLE;
-    const { phaseIndex } = calculatePhaseInfo(cycleTime);
+    const { phaseIndex, phaseProgress } = calculatePhaseInfo(cycleTime);
+
+    // Calculate and set opacity
+    const newOpacity = calculateOpacity(phaseIndex, phaseProgress);
+    setOpacity(newOpacity);
 
     // Track cycle completion and advance queue
+    // The message update is handled by the useEffect watching currentSequence/ambientIndex
     if (phaseIndex === 0 && prevPhaseRef.current === 3) {
       advanceCycleRef.current();
-      // Update message after advancing
-      const newMessage = getCurrentMessage();
-      if (newMessage) {
-        setCurrentMessage(newMessage);
-      }
     }
     prevPhaseRef.current = phaseIndex;
   });
+
+  const glowOpacity = opacity * glowIntensity;
 
   return (
     <group>
@@ -289,7 +277,8 @@ function HolographicText3DComponent({
         fontSize={fontSize}
         letterSpacing={letterSpacing}
         glowWidth={glowWidth}
-        glowIntensity={glowIntensity}
+        opacity={opacity}
+        glowOpacity={glowOpacity}
       />
 
       {/* Bottom text - below the globe and particles */}
@@ -299,7 +288,8 @@ function HolographicText3DComponent({
         fontSize={fontSize}
         letterSpacing={letterSpacing}
         glowWidth={glowWidth}
-        glowIntensity={glowIntensity}
+        opacity={opacity}
+        glowOpacity={glowOpacity}
       />
     </group>
   );
