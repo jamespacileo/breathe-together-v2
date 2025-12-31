@@ -5,10 +5,11 @@
  * 1. Try WebSocket connection (Durable Objects) - ~$8/month at 10k users
  * 2. Fall back to polling with probabilistic sampling - ~$30/month at 1k users
  *
- * WebSocket provides:
- * - Real-time push updates (no polling overhead)
- * - Exact user counts (no sampling needed)
- * - Lower cost at scale
+ * Features:
+ * - Type-safe API with Zod runtime validation
+ * - Automatic reconnection on disconnect
+ * - Visibility-aware (reconnects when tab becomes visible)
+ * - Graceful fallback to mock data when offline
  *
  * Usage:
  * ```tsx
@@ -17,21 +18,17 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MoodId } from '../constants';
 import { generateMockPresence } from '../lib/mockPresence';
+import {
+  type MoodId,
+  type PresenceState,
+  presenceApi,
+  type ServerConfig,
+  validateMood,
+} from '../lib/presenceApi';
 
-export interface PresenceState {
-  count: number;
-  moods: Record<MoodId, number>;
-  timestamp: number;
-}
-
-interface ServerConfig {
-  sampleRate: number;
-  heartbeatIntervalMs: number;
-  supportsWebSocket: boolean;
-  version: number;
-}
+// Re-export types for convenience
+export type { MoodId, PresenceState } from '../lib/presenceApi';
 
 const DEFAULT_CONFIG: ServerConfig = {
   sampleRate: 0.03,
@@ -41,9 +38,8 @@ const DEFAULT_CONFIG: ServerConfig = {
 };
 
 const CONFIG = {
-  API_URL: import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787',
-  PRESENCE_POLL_INTERVAL_MS: 10_000,
   WS_RECONNECT_DELAY_MS: 3_000,
+  WS_TIMEOUT_MS: 5_000,
   STORAGE_KEYS: {
     SESSION_ID: 'breathe-together:sessionId',
     MOOD: 'breathe-together:mood',
@@ -74,10 +70,7 @@ function getSessionId(): string {
 function getStoredMood(): MoodId {
   if (typeof window === 'undefined') return 'presence';
   const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
-  if (stored && ['gratitude', 'presence', 'release', 'connection'].includes(stored)) {
-    return stored as MoodId;
-  }
-  return 'presence';
+  return validateMood(stored);
 }
 
 function storeMood(mood: MoodId): void {
@@ -112,20 +105,20 @@ export function usePresence(): UsePresenceResult {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
-   * Get WebSocket URL from HTTP URL
-   */
-  const getWsUrl = useCallback((): string => {
-    const httpUrl = new URL(CONFIG.API_URL);
-    const wsProtocol = httpUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProtocol}//${httpUrl.host}/api/room?sessionId=${sessionIdRef.current}&mood=${mood}`;
-  }, [mood]);
-
-  /**
-   * Handle incoming WebSocket presence update
+   * Handle incoming presence update
    */
   const handlePresenceUpdate = useCallback((data: PresenceState) => {
     setPresence(data);
     setIsConnected(true);
+  }, []);
+
+  /**
+   * Fall back to mock data
+   */
+  const fallbackToMock = useCallback(() => {
+    setIsConnected(false);
+    setConnectionType('mock');
+    setPresence({ ...generateMockPresence(42), timestamp: Date.now() });
   }, []);
 
   /**
@@ -135,22 +128,18 @@ export function usePresence(): UsePresenceResult {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
-      const ws = new WebSocket(getWsUrl());
+      const wsUrl = presenceApi.getWsUrl(sessionIdRef.current, mood);
+      const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         setIsConnected(true);
         setConnectionType('websocket');
-        console.log('Presence: WebSocket connected');
       };
 
       ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as { type?: string } & PresenceState;
-          if (data.type === 'presence' || data.count !== undefined) {
-            handlePresenceUpdate(data);
-          }
-        } catch (e) {
-          console.warn('Failed to parse WebSocket message:', e);
+        const data = presenceApi.parseWsMessage(event.data);
+        if (data) {
+          handlePresenceUpdate(data);
         }
       };
 
@@ -165,15 +154,13 @@ export function usePresence(): UsePresenceResult {
 
       ws.onerror = () => {
         // Will trigger onclose, which handles reconnect
-        console.warn('Presence: WebSocket error, falling back to polling');
       };
 
       wsRef.current = ws;
-    } catch (e) {
+    } catch {
       // WebSocket failed, will fall back to polling in init()
-      console.warn('Failed to create WebSocket:', e);
     }
-  }, [getWsUrl, handlePresenceUpdate]);
+  }, [mood, handlePresenceUpdate]);
 
   /**
    * Send mood update via WebSocket
@@ -195,20 +182,14 @@ export function usePresence(): UsePresenceResult {
    */
   const fetchPresence = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch(`${CONFIG.API_URL}/api/presence`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = (await response.json()) as PresenceState;
+      const data = await presenceApi.getPresence();
       setPresence(data);
       setIsConnected(true);
       if (connectionType === 'mock') setConnectionType('polling');
-    } catch (e) {
-      console.warn('Presence fetch failed:', e);
-      setIsConnected(false);
-      setConnectionType('mock');
-      setPresence({ ...generateMockPresence(42), timestamp: Date.now() });
+    } catch {
+      fallbackToMock();
     }
-  }, [connectionType]);
+  }, [connectionType, fallbackToMock]);
 
   /**
    * Send heartbeat via HTTP (polling fallback)
@@ -222,23 +203,14 @@ export function usePresence(): UsePresenceResult {
       }
 
       try {
-        const response = await fetch(`${CONFIG.API_URL}/api/heartbeat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sessionId: sessionIdRef.current,
-            mood: currentMood,
-          }),
+        const data = await presenceApi.sendHeartbeat({
+          sessionId: sessionIdRef.current,
+          mood: currentMood,
         });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const data = (await response.json()) as PresenceState;
         setPresence(data);
         setIsConnected(true);
         setConnectionType('polling');
-      } catch (e) {
-        console.warn('Heartbeat failed:', e);
+      } catch {
         await fetchPresence();
       }
     },
@@ -285,15 +257,12 @@ export function usePresence(): UsePresenceResult {
     let mounted = true;
 
     const init = async () => {
-      // Fetch config
+      // Fetch config with Zod validation
       try {
-        const response = await fetch(`${CONFIG.API_URL}/api/config`);
-        if (response.ok) {
-          const data = (await response.json()) as ServerConfig;
-          configRef.current = data;
-        }
-      } catch (e) {
-        console.warn('Failed to fetch config:', e);
+        const data = await presenceApi.getConfig();
+        configRef.current = data;
+      } catch {
+        // Use default config on error
       }
 
       if (!mounted) return;
@@ -301,13 +270,12 @@ export function usePresence(): UsePresenceResult {
       // Try WebSocket first, with timeout fallback to polling
       if (configRef.current.supportsWebSocket && typeof WebSocket !== 'undefined') {
         connectWebSocket();
-        // If WebSocket doesn't connect within 5s, fall back to polling
+        // If WebSocket doesn't connect within timeout, fall back to polling
         setTimeout(() => {
           if (mounted && wsRef.current?.readyState !== WebSocket.OPEN) {
-            console.log('Presence: WebSocket timeout, falling back to polling');
             startPolling();
           }
-        }, 5000);
+        }, CONFIG.WS_TIMEOUT_MS);
       } else {
         startPolling();
       }

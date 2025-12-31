@@ -7,7 +7,12 @@
  */
 
 import { HttpResponse, http } from 'msw';
-import type { MoodId } from '../constants';
+import {
+  HeartbeatRequestSchema,
+  type MoodId,
+  type PresenceState,
+  validateMood,
+} from '../lib/presenceApi';
 
 // Simulated presence state
 interface MockPresenceState {
@@ -29,7 +34,7 @@ const CONFIG = {
 /**
  * Calculate presence from mock state
  */
-function calculatePresence() {
+function calculatePresence(): PresenceState {
   const now = Date.now();
   const cutoff = now - CONFIG.SESSION_TTL_MS;
 
@@ -99,17 +104,17 @@ export const handlers = [
   // POST /api/heartbeat - Register presence heartbeat
   http.post('*/api/heartbeat', async ({ request }) => {
     try {
-      const body = (await request.json()) as { sessionId?: string; mood?: string };
-      const { sessionId, mood } = body;
+      const body = await request.json();
+      const result = HeartbeatRequestSchema.safeParse(body);
 
-      if (!sessionId || typeof sessionId !== 'string' || sessionId.length < 8) {
-        return HttpResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
+      if (!result.success) {
+        return HttpResponse.json({ error: 'Invalid request' }, { status: 400 });
       }
 
-      const validMoods: MoodId[] = ['gratitude', 'presence', 'release', 'connection'];
-      const validMood: MoodId = validMoods.includes(mood as MoodId) ? (mood as MoodId) : 'presence';
+      const { sessionId, mood } = result.data;
+      const validMood = validateMood(mood);
 
-      // Store session
+      // Store session (hash to first 8 chars like the real worker)
       state.sessions.set(sessionId.slice(0, 8), {
         mood: validMood,
         lastSeen: Date.now(),
