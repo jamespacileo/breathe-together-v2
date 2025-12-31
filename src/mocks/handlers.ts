@@ -80,35 +80,24 @@ function calculatePresence() {
   };
 }
 
-/**
- * API URL matcher - works with any base URL
- */
-const apiUrl = (path: string) => new RegExp(`.*${path.replace(/\//g, '\\/')}$`);
-
 export const handlers = [
-  /**
-   * GET /api/config - Server configuration
-   */
-  http.get(apiUrl('/api/config'), () => {
+  // GET /api/config - Server configuration
+  http.get('*/api/config', () => {
     return HttpResponse.json({
       sampleRate: CONFIG.SAMPLE_RATE,
       heartbeatIntervalMs: 30000,
-      supportsWebSocket: false, // MSW doesn't support WebSocket, force polling
+      supportsWebSocket: false, // MSW doesn't support WebSocket
       version: 2,
     });
   }),
 
-  /**
-   * GET /api/presence - Current presence state
-   */
-  http.get(apiUrl('/api/presence'), () => {
+  // GET /api/presence - Current presence state
+  http.get('*/api/presence', () => {
     return HttpResponse.json(calculatePresence());
   }),
 
-  /**
-   * POST /api/heartbeat - Register presence heartbeat
-   */
-  http.post(apiUrl('/api/heartbeat'), async ({ request }) => {
+  // POST /api/heartbeat - Register presence heartbeat
+  http.post('*/api/heartbeat', async ({ request }) => {
     try {
       const body = (await request.json()) as { sessionId?: string; mood?: string };
       const { sessionId, mood } = body;
@@ -132,10 +121,8 @@ export const handlers = [
     }
   }),
 
-  /**
-   * POST /api/leave - Remove session
-   */
-  http.post(apiUrl('/api/leave'), async ({ request }) => {
+  // POST /api/leave - Remove session
+  http.post('*/api/leave', async ({ request }) => {
     try {
       const body = (await request.json()) as { sessionId?: string };
       const { sessionId } = body;

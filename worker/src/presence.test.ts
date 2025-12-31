@@ -18,6 +18,31 @@ import {
 } from './presence';
 
 describe('presence', () => {
+  describe('createInitialState', () => {
+    it('creates state with default ratios', () => {
+      const now = 1700000000000;
+      const state = createInitialState(now);
+
+      expect(state.estimatedCount).toBe(0);
+      expect(state.sampleCount).toBe(0);
+      expect(state.lastUpdate).toBe(now);
+      expect(state.samples).toEqual({});
+      expect(state.moodRatios.gratitude).toBe(0.25);
+      expect(state.moodRatios.presence).toBe(0.35);
+      expect(state.moodRatios.release).toBe(0.25);
+      expect(state.moodRatios.connection).toBe(0.15);
+    });
+
+    it('uses current time when no timestamp provided', () => {
+      const before = Date.now();
+      const state = createInitialState();
+      const after = Date.now();
+
+      expect(state.lastUpdate).toBeGreaterThanOrEqual(before);
+      expect(state.lastUpdate).toBeLessThanOrEqual(after);
+    });
+  });
+
   describe('hashSession', () => {
     it('returns first 8 characters of session ID', () => {
       expect(hashSession('12345678-abcd-efgh')).toBe('12345678');
