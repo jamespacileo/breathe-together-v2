@@ -1,5 +1,5 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
-import { BREATH_TOTAL_CYCLE, type MoodId } from '../constants';
+import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import {
@@ -13,6 +13,7 @@ import {
   UI_COLORS,
   Z_INDEX,
 } from '../styles/designTokens';
+import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
 
 interface SimpleGaiaUIProps {
@@ -322,46 +323,15 @@ export function SimpleGaiaUI({
     e.stopPropagation();
   };
 
-  // Mood categories for simplified selection - using centralized MOOD_COLORS
-  const moodCategories = [
-    {
-      name: 'Joy',
-      color: MOOD_COLORS.joy,
-      moods: [
-        { id: 'grateful' as MoodId, label: 'Grateful' },
-        { id: 'celebrating' as MoodId, label: 'Celebrating' },
-      ],
-      description: 'Energetic & celebratory',
-    },
-    {
-      name: 'Peace',
-      color: MOOD_COLORS.peace,
-      moods: [
-        { id: 'moment' as MoodId, label: 'Taking a moment' },
-        { id: 'here' as MoodId, label: 'Just here' },
-      ],
-      description: 'Present & grounded',
-    },
-    {
-      name: 'Solitude',
-      color: MOOD_COLORS.solitude,
-      moods: [
-        { id: 'anxious' as MoodId, label: 'Releasing tension' },
-        { id: 'processing' as MoodId, label: 'Processing feelings' },
-      ],
-      description: 'Introspective & reflective',
-    },
-    {
-      name: 'Love',
-      color: MOOD_COLORS.love,
-      moods: [{ id: 'preparing' as MoodId, label: 'Preparing' }],
-      description: 'Connecting & readying',
-    },
-  ];
+  // Get mood color helper
+  const getMoodColor = (moodId: MoodId): string => {
+    return MOOD_COLORS[moodId] ?? MOOD_COLORS.presence;
+  };
 
   const handleMoodSelect = (mood: MoodId) => {
     setSelectedMood(mood);
-    setShowMoodSelect(false);
+    // Small delay before closing to show selection feedback
+    setTimeout(() => setShowMoodSelect(false), 200);
   };
 
   const handleBeginClick = () => {
@@ -476,7 +446,7 @@ export function SimpleGaiaUI({
               Settings
             </h2>
 
-            {/* Current Mood */}
+            {/* Current Mood - with icosahedron preview */}
             <div style={{ marginBottom: '24px' }}>
               <div
                 style={{
@@ -487,32 +457,92 @@ export function SimpleGaiaUI({
                   marginBottom: '12px',
                 }}
               >
-                Your Current Mood
+                Your Presence
               </div>
               <button
                 type="button"
                 onClick={() => {
                   setShowSettings(false);
-                  setShowMoodSelect(true);
+                  setTimeout(() => setShowMoodSelect(true), 150);
                 }}
                 onPointerDown={stopPropagation}
                 style={{
-                  background: colors.glass,
-                  border: `1px solid ${colors.border}`,
-                  padding: '12px 20px',
-                  borderRadius: '24px',
+                  background: selectedMood
+                    ? `linear-gradient(135deg, ${getMoodColor(selectedMood)}12 0%, rgba(255,255,255,0.5) 100%)`
+                    : colors.glass,
+                  border: selectedMood
+                    ? `2px solid ${getMoodColor(selectedMood)}30`
+                    : `1px solid ${colors.border}`,
+                  padding: '14px 18px',
+                  borderRadius: '20px',
                   fontSize: '0.85rem',
                   color: colors.text,
                   cursor: 'pointer',
                   width: '100%',
                   textAlign: 'left',
                   display: 'flex',
-                  justifyContent: 'space-between',
                   alignItems: 'center',
+                  gap: '14px',
+                  transition: 'all 0.25s ease',
                 }}
               >
-                <span>{selectedMood ? selectedMood : 'Select a mood'}</span>
-                <span style={{ opacity: 0.5 }}>→</span>
+                {/* Icosahedron indicator */}
+                <CSSIcosahedron
+                  color={selectedMood ? getMoodColor(selectedMood) : '#9a8a7a'}
+                  size={28}
+                  isActive={!!selectedMood}
+                  animated={!!selectedMood}
+                  glowIntensity={selectedMood ? 0.5 : 0.2}
+                />
+
+                {/* Mood info */}
+                <div style={{ flex: 1 }}>
+                  {selectedMood ? (
+                    <>
+                      <div
+                        style={{
+                          fontSize: '0.9rem',
+                          fontWeight: 500,
+                          color: '#4a3f35',
+                          marginBottom: '2px',
+                        }}
+                      >
+                        {MOOD_METADATA[selectedMood].label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.7rem',
+                          color: '#9a8a7a',
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        {MOOD_METADATA[selectedMood].description}
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      style={{
+                        fontSize: '0.85rem',
+                        color: '#9a8a7a',
+                      }}
+                    >
+                      Tap to choose your mood
+                    </div>
+                  )}
+                </div>
+
+                {/* Change indicator */}
+                <div
+                  style={{
+                    fontSize: '0.65rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: '#9a8a7a',
+                    opacity: 0.8,
+                  }}
+                >
+                  Change
+                </div>
               </button>
             </div>
 
@@ -541,7 +571,7 @@ export function SimpleGaiaUI({
         </div>
       )}
 
-      {/* Mood Selection Modal */}
+      {/* Mood Selection Modal - Simplified single-level selection */}
       {showMoodSelect && (
         // biome-ignore lint/a11y/noStaticElementInteractions: Modal backdrop overlay requires onClick for dismissal; role="presentation" indicates non-interactive semantics
         <div
@@ -549,8 +579,8 @@ export function SimpleGaiaUI({
           style={{
             position: 'absolute',
             inset: 0,
-            background: moodSelectAnimated ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0)',
-            backdropFilter: 'blur(8px)',
+            background: moodSelectAnimated ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0)',
+            backdropFilter: 'blur(12px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -567,131 +597,154 @@ export function SimpleGaiaUI({
             onClick={(e) => e.stopPropagation()}
             onPointerDown={stopPropagation}
             style={{
-              background: colors.glass,
+              background: 'rgba(253, 251, 247, 0.85)',
               backdropFilter: 'blur(40px)',
-              borderRadius: isMobile ? '20px' : '32px',
-              border: `1px solid ${colors.border}`,
-              padding: `${modalPadding}px`,
-              maxWidth: isMobile ? '90%' : '520px',
-              width: '90%',
-              maxHeight: '85vh',
-              overflow: 'auto',
+              borderRadius: isMobile ? '24px' : '32px',
+              border: '1px solid rgba(160, 140, 120, 0.15)',
+              padding: isMobile ? '28px 24px' : '40px 36px',
+              maxWidth: isMobile ? '92%' : '420px',
+              width: isMobile ? '92%' : '420px',
               opacity: moodSelectAnimated ? 1 : 0,
               transform: moodSelectAnimated
                 ? 'scale(1) translateY(0)'
-                : 'scale(0.97) translateY(12px)',
-              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                : 'scale(0.97) translateY(16px)',
+              transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.12)',
             }}
           >
-            <h2
-              style={{
-                fontFamily: "'Cormorant Garamond', Georgia, serif",
-                fontSize: isMobile ? '1.4rem' : '1.8rem',
-                fontWeight: 300,
-                margin: '0 0 12px 0',
-                letterSpacing: isMobile ? '0.1em' : '0.15em',
-                textTransform: 'uppercase',
-                color: colors.text,
-                textAlign: 'center',
-              }}
-            >
-              How are you feeling?
-            </h2>
-            <p
-              style={{
-                fontSize: '0.85rem',
-                color: colors.textDim,
-                textAlign: 'center',
-                marginBottom: '32px',
-                lineHeight: 1.6,
-              }}
-            >
-              Choose a mood to add your presence to the shared breathing space
-            </p>
+            {/* Header */}
+            <div style={{ textAlign: 'center', marginBottom: isMobile ? '24px' : '32px' }}>
+              <h2
+                style={{
+                  fontFamily: "'Cormorant Garamond', Georgia, serif",
+                  fontSize: isMobile ? '1.5rem' : '1.75rem',
+                  fontWeight: 400,
+                  margin: '0 0 8px 0',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: '#4a3f35',
+                }}
+              >
+                How are you?
+              </h2>
+              <p
+                style={{
+                  fontSize: '0.8rem',
+                  color: '#8b7a6a',
+                  margin: 0,
+                  lineHeight: 1.5,
+                  letterSpacing: '0.02em',
+                }}
+              >
+                Your presence joins others in the breathing space
+              </p>
+            </div>
 
-            {/* Mood Categories */}
+            {/* Mood Options - Single level, clean cards */}
             <div
               className="modal-stagger"
-              style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: isMobile ? '10px' : '12px',
+              }}
             >
-              {moodCategories.map((category) => (
-                <div
-                  key={category.name}
-                  style={{
-                    padding: '20px',
-                    background: 'rgba(255, 255, 255, 0.3)',
-                    borderRadius: '20px',
-                    border: `2px solid ${category.color}20`,
-                  }}
-                >
-                  <div
+              {MOOD_IDS.map((moodId) => {
+                const metadata = MOOD_METADATA[moodId];
+                const color = getMoodColor(moodId);
+                const isSelected = selectedMood === moodId;
+
+                return (
+                  <button
+                    key={moodId}
+                    type="button"
+                    onClick={() => handleMoodSelect(moodId)}
+                    onPointerDown={stopPropagation}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '12px',
-                      marginBottom: '12px',
+                      gap: isMobile ? '14px' : '16px',
+                      padding: isMobile ? '16px 18px' : '18px 22px',
+                      background: isSelected
+                        ? `linear-gradient(135deg, ${color}18 0%, ${color}08 100%)`
+                        : 'rgba(255, 255, 255, 0.5)',
+                      borderRadius: '18px',
+                      border: isSelected
+                        ? `2px solid ${color}50`
+                        : '2px solid rgba(255, 255, 255, 0.4)',
+                      cursor: 'pointer',
+                      transition: 'all 0.25s ease',
+                      textAlign: 'left',
+                      transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                      boxShadow: isSelected
+                        ? `0 4px 20px ${color}25, 0 0 0 1px ${color}15`
+                        : '0 2px 8px rgba(0, 0, 0, 0.04)',
                     }}
                   >
-                    <div
-                      style={{
-                        width: '16px',
-                        height: '16px',
-                        borderRadius: '50%',
-                        background: category.color,
-                        boxShadow: `0 0 12px ${category.color}60`,
-                      }}
+                    {/* CSS Icosahedron instead of circle */}
+                    <CSSIcosahedron
+                      color={color}
+                      size={isMobile ? 28 : 32}
+                      isActive={isSelected}
+                      animated={isSelected}
+                      glowIntensity={isSelected ? 0.7 : 0.3}
                     />
-                    <div>
+
+                    {/* Text content */}
+                    <div style={{ flex: 1 }}>
                       <div
                         style={{
-                          fontSize: '1rem',
-                          fontWeight: 500,
-                          color: colors.text,
-                          letterSpacing: '0.05em',
+                          fontSize: isMobile ? '0.95rem' : '1rem',
+                          fontWeight: isSelected ? 600 : 500,
+                          color: isSelected ? '#3d3229' : '#5a4d42',
+                          letterSpacing: '0.03em',
+                          marginBottom: '2px',
                         }}
                       >
-                        {category.name}
+                        {metadata.label}
                       </div>
                       <div
                         style={{
-                          fontSize: '0.65rem',
-                          color: colors.textDim,
-                          letterSpacing: '0.03em',
+                          fontSize: '0.72rem',
+                          color: isSelected ? '#6a5d52' : '#9a8a7a',
+                          letterSpacing: '0.02em',
+                          fontStyle: 'italic',
                         }}
                       >
-                        {category.description}
+                        {metadata.description}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Mood Options */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {category.moods.map((mood) => (
-                      <button
-                        key={mood.id}
-                        type="button"
-                        className="mood-button"
-                        onClick={() => handleMoodSelect(mood.id)}
-                        onPointerDown={stopPropagation}
+                    {/* Selection indicator */}
+                    {isSelected && (
+                      <div
                         style={{
-                          background:
-                            selectedMood === mood.id ? category.color : 'rgba(255, 255, 255, 0.5)',
-                          color: selectedMood === mood.id ? '#fff' : colors.text,
-                          border: 'none',
-                          padding: '10px 18px',
-                          borderRadius: '16px',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          fontWeight: selectedMood === mood.id ? 600 : 400,
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: color,
+                          boxShadow: `0 0 8px ${color}80`,
                         }}
-                      >
-                        {mood.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </div>
+
+            {/* Preview - shows what you'll become */}
+            {selectedMood && (
+              <div
+                style={{
+                  marginTop: '24px',
+                  opacity: moodSelectAnimated ? 1 : 0,
+                  transform: moodSelectAnimated ? 'translateY(0)' : 'translateY(8px)',
+                  transition: 'all 0.4s ease 0.2s',
+                }}
+              >
+                <MiniIcosahedronPreview color={getMoodColor(selectedMood)} label="Your presence" />
+              </div>
+            )}
 
             {/* Skip Button */}
             <button
@@ -700,16 +753,17 @@ export function SimpleGaiaUI({
               onPointerDown={stopPropagation}
               style={{
                 background: 'transparent',
-                color: colors.textDim,
+                color: '#9a8a7a',
                 border: 'none',
-                padding: '16px',
-                fontSize: '0.7rem',
+                padding: '14px',
+                fontSize: '0.68rem',
                 textTransform: 'uppercase',
                 letterSpacing: '0.1em',
                 cursor: 'pointer',
                 width: '100%',
                 marginTop: '16px',
-                opacity: 0.7,
+                opacity: 0.8,
+                transition: 'opacity 0.2s ease',
               }}
             >
               Skip for now
