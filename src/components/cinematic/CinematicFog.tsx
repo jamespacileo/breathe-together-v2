@@ -39,17 +39,11 @@ export function CinematicFog({ phase, progress, color = '#1a1816' }: CinematicFo
         targetNear = 0;
         targetFar = 5;
         break;
-      case 'glow':
-        // Start to lift slightly
-        targetNear = 0 + progress * 2;
-        targetFar = 5 + progress * 5;
-        break;
       case 'reveal':
-        // Progressive clearing
-        targetNear = 2 + progress * 20;
-        targetFar = 10 + progress * 40;
+        // Progressive clearing as globe appears
+        targetNear = progress * 22;
+        targetFar = 5 + progress * 45;
         break;
-      case 'title':
       case 'cta':
         // Mostly clear, slight atmospheric haze
         targetNear = 22 + progress * 10;

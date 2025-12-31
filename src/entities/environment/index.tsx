@@ -62,10 +62,12 @@ export function Environment({
       <BackgroundGradient />
 
       {/* Volumetric 3D clouds - pastel colored wisps */}
+      {/* Each cloud has a stable seed to prevent re-generation on re-renders */}
       {showClouds && (
         <Clouds ref={cloudsRef} material={THREE.MeshBasicMaterial}>
           {/* Soft pink cloud - upper left */}
           <Cloud
+            seed={1}
             position={[-15, 12, -25]}
             opacity={cloudOpacity * 0.5}
             speed={cloudSpeed}
@@ -77,6 +79,7 @@ export function Environment({
           />
           {/* Soft lavender cloud - upper right */}
           <Cloud
+            seed={2}
             position={[18, 14, -30]}
             opacity={cloudOpacity * 0.45}
             speed={cloudSpeed * 0.8}
@@ -88,6 +91,7 @@ export function Environment({
           />
           {/* Soft sky blue cloud - center high */}
           <Cloud
+            seed={3}
             position={[0, 20, -40]}
             opacity={cloudOpacity * 0.4}
             speed={cloudSpeed * 1.2}
@@ -99,6 +103,7 @@ export function Environment({
           />
           {/* Soft peach cloud - left horizon */}
           <Cloud
+            seed={4}
             position={[-20, 5, -45]}
             opacity={cloudOpacity * 0.4}
             speed={cloudSpeed * 0.5}
@@ -110,6 +115,7 @@ export function Environment({
           />
           {/* Soft mint cloud - right horizon */}
           <Cloud
+            seed={5}
             position={[22, 6, -42]}
             opacity={cloudOpacity * 0.35}
             speed={cloudSpeed * 0.6}

@@ -11,46 +11,27 @@ interface TitleRevealProps {
 /**
  * Title reveal with "breathe together" text and CTA button.
  *
- * Phases:
- * - title: "breathe" fades in, then "together" below
- * - cta: Button appears to join the breathing sphere
+ * All elements appear together during the 'cta' phase (main menu state).
  */
 export function TitleReveal({ phase, onJoin }: TitleRevealProps) {
-  const [breatheVisible, setBreatheVisible] = useState(false);
-  const [togetherVisible, setTogetherVisible] = useState(false);
-  const [ctaVisible, setCtaVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const [ctaHovered, setCtaHovered] = useState(false);
 
-  // Stagger text appearance during title phase
+  // Fade in when entering cta phase
   useEffect(() => {
-    if (phase === 'title') {
-      // "breathe" appears immediately
-      const breatheTimer = setTimeout(() => setBreatheVisible(true), 100);
-      // "together" appears after 1.5s
-      const togetherTimer = setTimeout(() => setTogetherVisible(true), 1500);
-
-      return () => {
-        clearTimeout(breatheTimer);
-        clearTimeout(togetherTimer);
-      };
-    }
-
     if (phase === 'cta') {
-      // CTA button appears after a brief pause
-      const ctaTimer = setTimeout(() => setCtaVisible(true), 500);
-      return () => clearTimeout(ctaTimer);
+      // Small delay for smooth transition
+      const timer = setTimeout(() => setIsVisible(true), 200);
+      return () => clearTimeout(timer);
     }
 
     if (phase === 'complete') {
-      // Fade everything out
-      setBreatheVisible(false);
-      setTogetherVisible(false);
-      setCtaVisible(false);
+      setIsVisible(false);
     }
   }, [phase]);
 
-  // Don't render during early phases
-  if (phase === 'void' || phase === 'glow' || phase === 'reveal') {
+  // Don't render during void or reveal phases
+  if (phase === 'void' || phase === 'reveal') {
     return null;
   }
 
@@ -61,8 +42,8 @@ export function TitleReveal({ phase, onJoin }: TitleRevealProps) {
     letterSpacing: '0.25em',
     textTransform: 'lowercase',
     margin: 0,
-    textShadow: '0 2px 40px rgba(255, 250, 240, 0.3)',
-    transition: 'opacity 1.5s ease-out, transform 1.5s ease-out',
+    textShadow: '0 2px 40px rgba(201, 160, 108, 0.3)',
+    transition: 'opacity 0.8s ease-out, transform 0.8s ease-out',
   };
 
   return (
@@ -76,21 +57,16 @@ export function TitleReveal({ phase, onJoin }: TitleRevealProps) {
         justifyContent: 'center',
         pointerEvents: phase === 'cta' ? 'auto' : 'none',
         zIndex: 1500,
-        background:
-          phase === 'complete'
-            ? 'transparent'
-            : 'radial-gradient(ellipse at center, rgba(0,0,0,0.2) 0%, transparent 70%)',
-        transition: 'background 1s ease-out',
       }}
     >
       {/* Main title: "breathe" */}
       <h1
         style={{
           ...textBase,
-          fontSize: 'clamp(2.5rem, 10vw, 6rem)',
-          color: '#f8f4ed',
-          opacity: breatheVisible ? 1 : 0,
-          transform: breatheVisible ? 'translateY(0)' : 'translateY(20px)',
+          fontSize: 'clamp(2.5rem, 10vw, 5rem)',
+          color: '#4a3f35',
+          opacity: isVisible ? 1 : 0,
+          transform: isVisible ? 'translateY(0)' : 'translateY(15px)',
         }}
       >
         breathe
@@ -100,11 +76,12 @@ export function TitleReveal({ phase, onJoin }: TitleRevealProps) {
       <h2
         style={{
           ...textBase,
-          fontSize: 'clamp(1.2rem, 5vw, 3rem)',
-          color: '#d4ccc0',
-          marginTop: '0.3em',
-          opacity: togetherVisible ? 1 : 0,
-          transform: togetherVisible ? 'translateY(0)' : 'translateY(15px)',
+          fontSize: 'clamp(1.2rem, 5vw, 2.5rem)',
+          color: '#7a6b5a',
+          marginTop: '0.2em',
+          opacity: isVisible ? 1 : 0,
+          transform: isVisible ? 'translateY(0)' : 'translateY(10px)',
+          transitionDelay: '0.1s',
         }}
       >
         together
@@ -120,29 +97,30 @@ export function TitleReveal({ phase, onJoin }: TitleRevealProps) {
           onFocus={() => setCtaHovered(true)}
           onBlur={() => setCtaHovered(false)}
           style={{
-            marginTop: 'clamp(2rem, 6vh, 4rem)',
-            padding: '16px 48px',
-            background: ctaHovered ? 'rgba(255, 250, 240, 0.2)' : 'rgba(255, 250, 240, 0.08)',
+            marginTop: 'clamp(2rem, 5vh, 3rem)',
+            padding: '16px 40px',
+            background: ctaHovered ? 'rgba(255, 252, 245, 0.95)' : 'rgba(255, 252, 245, 0.85)',
             backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 250, 240, 0.3)',
-            borderRadius: '40px',
-            color: '#f8f4ed',
+            border: '1px solid rgba(201, 160, 108, 0.3)',
+            borderRadius: '32px',
+            color: '#4a3f35',
             fontFamily: "'DM Sans', system-ui, sans-serif",
-            fontSize: 'clamp(0.8rem, 2vw, 1rem)',
+            fontSize: 'clamp(0.75rem, 1.5vw, 0.85rem)',
             fontWeight: 500,
-            letterSpacing: '0.2em',
+            letterSpacing: '0.15em',
             textTransform: 'uppercase',
             cursor: 'pointer',
-            opacity: ctaVisible ? 1 : 0,
-            transform: ctaVisible
+            opacity: isVisible ? 1 : 0,
+            transform: isVisible
               ? ctaHovered
-                ? 'translateY(0) scale(1.02)'
+                ? 'translateY(0) scale(1.03)'
                 : 'translateY(0) scale(1)'
-              : 'translateY(20px) scale(0.95)',
-            transition: 'all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              : 'translateY(15px) scale(0.95)',
+            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            transitionDelay: isVisible ? '0.2s' : '0s',
             boxShadow: ctaHovered
-              ? '0 8px 32px rgba(255, 250, 240, 0.15), inset 0 0 20px rgba(255, 250, 240, 0.05)'
-              : '0 4px 24px rgba(0, 0, 0, 0.1)',
+              ? '0 12px 40px rgba(201, 160, 108, 0.25)'
+              : '0 8px 32px rgba(138, 131, 124, 0.15)',
           }}
         >
           Join the Sphere
@@ -150,16 +128,17 @@ export function TitleReveal({ phase, onJoin }: TitleRevealProps) {
       )}
 
       {/* Subtle hint text below CTA */}
-      {phase === 'cta' && ctaVisible && (
+      {phase === 'cta' && (
         <p
           style={{
             marginTop: '1.5rem',
-            fontSize: 'clamp(0.65rem, 1.5vw, 0.8rem)',
-            color: 'rgba(212, 204, 192, 0.6)',
+            fontSize: 'clamp(0.65rem, 1.2vw, 0.75rem)',
+            color: '#9a8a7a',
             fontFamily: "'DM Sans', system-ui, sans-serif",
             letterSpacing: '0.1em',
-            opacity: ctaVisible ? 1 : 0,
-            transition: 'opacity 1s ease-out 0.3s',
+            opacity: isVisible ? 0.7 : 0,
+            transition: 'opacity 0.8s ease-out',
+            transitionDelay: '0.3s',
           }}
         >
           synchronize your breath with the world

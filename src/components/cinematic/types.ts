@@ -1,36 +1,32 @@
 /**
  * Cinematic Intro Types
  *
- * Phase-based state machine for the cinematic landing experience.
+ * Simplified phase-based state machine for the cinematic landing experience.
  */
 
 /**
  * Intro phases in sequence:
- * - void: Pure black, letterbox visible
- * - glow: Warm center glow emerges
- * - reveal: Camera pulls back, fog clears, scene appears
- * - title: "breathe together" text fades in
- * - cta: Call-to-action "Begin" button appears
- * - complete: Intro finished, unmount
+ * - void: Pure black screen
+ * - reveal: Globe fades in with letterbox bars
+ * - cta: Main menu state - title + CTA visible, waiting for user
+ * - complete: Intro finished, user has joined
  */
-export type IntroPhase = 'void' | 'glow' | 'reveal' | 'title' | 'cta' | 'complete';
+export type IntroPhase = 'void' | 'reveal' | 'cta' | 'complete';
 
 /**
  * Phase timing configuration (milliseconds)
  */
 export const PHASE_TIMING: Record<IntroPhase, number> = {
-  void: 1500, // 1.5s black screen
-  glow: 2000, // 2s warm glow
-  reveal: 3500, // 3.5s camera dolly + fog clear
-  title: 4000, // 4s title display
-  cta: 0, // CTA waits for user interaction (no auto-advance)
+  void: 800, // 0.8s black screen
+  reveal: 2000, // 2s globe reveal
+  cta: 0, // Main menu - waits for user interaction
   complete: 0, // Immediate transition
 };
 
 /**
  * Phase sequence for iteration
  */
-export const PHASE_SEQUENCE: IntroPhase[] = ['void', 'glow', 'reveal', 'title', 'cta', 'complete'];
+export const PHASE_SEQUENCE: IntroPhase[] = ['void', 'reveal', 'cta', 'complete'];
 
 /**
  * Cinematic intro configuration

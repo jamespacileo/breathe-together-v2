@@ -12,14 +12,11 @@ interface CinematicIntroProps extends CinematicConfig {
 /**
  * CinematicIntro - Orchestrates the cinematic landing experience.
  *
- * Wraps the main scene and overlays cinematic elements:
- * - Black screen fade
- * - Letterbox bars (2.35:1 aspect)
- * - Fog reveal
- * - Title sequence
- * - CTA button
- *
- * The 3D scene renders underneath but is progressively revealed.
+ * Simplified flow:
+ * 1. Black screen (void)
+ * 2. Globe reveals with letterbox (reveal)
+ * 3. Main menu with title + CTA (cta)
+ * 4. User clicks Join → complete
  */
 export function CinematicIntro({
   children,
@@ -42,29 +39,19 @@ export function CinematicIntro({
     onComplete: handleComplete,
   });
 
-  // Handle scene visibility based on phase
+  // Handle scene visibility based on phase - simplified
   useEffect(() => {
     switch (phase) {
       case 'void':
         setSceneOpacity(0);
         break;
-      case 'glow':
-        // Start revealing scene slightly
-        setSceneOpacity(0.1 + progress * 0.2);
-        break;
       case 'reveal':
-        // Progressive reveal
-        setSceneOpacity(0.3 + progress * 0.5);
-        break;
-      case 'title':
-        setSceneOpacity(0.8 + progress * 0.1);
+        // Smooth reveal from 0 to 1
+        setSceneOpacity(progress);
         break;
       case 'cta':
-        setSceneOpacity(0.9);
-        break;
       case 'complete':
         setSceneOpacity(1);
-        setIsRetracting(true);
         break;
     }
   }, [phase, progress]);
@@ -78,7 +65,7 @@ export function CinematicIntro({
     setTimeout(() => {
       advance();
       onJoin?.();
-    }, 800);
+    }, 600);
   }, [advance, onJoin]);
 
   // Skip intro on Escape key
@@ -96,9 +83,9 @@ export function CinematicIntro({
   // Render children - support both ReactNode and render prop
   const renderedChildren = typeof children === 'function' ? children(phase, progress) : children;
 
-  // If skip is enabled, render children directly
+  // If skip is enabled, render children directly with main menu overlay
   if (skipIntro) {
-    return <>{typeof children === 'function' ? children('complete', 1) : children}</>;
+    return <>{typeof children === 'function' ? children('cta', 1) : children}</>;
   }
 
   return (
@@ -109,7 +96,7 @@ export function CinematicIntro({
           position: 'fixed',
           inset: 0,
           opacity: sceneOpacity,
-          transition: 'opacity 1.5s ease-out',
+          transition: 'opacity 0.8s ease-out',
         }}
       >
         {renderedChildren}
@@ -125,20 +112,27 @@ export function CinematicIntro({
             pointerEvents: phase === 'cta' ? 'auto' : 'none',
           }}
         >
-          {/* Black overlay for void/glow phases */}
-          <VoidOverlay phase={phase} progress={progress} />
+          {/* Black overlay that fades during reveal */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: '#0a0908',
+              opacity: phase === 'void' ? 1 : phase === 'reveal' ? 1 - progress : 0,
+              transition: 'opacity 0.5s ease-out',
+              pointerEvents: 'none',
+            }}
+            aria-hidden="true"
+          />
 
-          {/* Center glow during glow phase */}
-          <CenterGlow phase={phase} progress={progress} />
-
-          {/* Title and CTA */}
+          {/* Title and CTA - shown during cta phase */}
           <TitleReveal phase={phase} onJoin={handleJoin} />
 
-          {/* Letterbox bars */}
+          {/* Letterbox bars - visible during reveal and cta */}
           <Letterbox phase={phase} retracting={isRetracting} />
 
           {/* Skip hint */}
-          <SkipHint phase={phase} visible={phase !== 'void' && phase !== 'complete'} />
+          {phase === 'reveal' && <SkipHint />}
         </div>
       )}
     </>
@@ -146,113 +140,16 @@ export function CinematicIntro({
 }
 
 /**
- * Black overlay that fades during reveal
- */
-function VoidOverlay({ phase, progress }: { phase: IntroPhase; progress: number }) {
-  const getOpacity = () => {
-    switch (phase) {
-      case 'void':
-        return 1;
-      case 'glow':
-        return 1 - progress * 0.3;
-      case 'reveal':
-        return 0.7 - progress * 0.5;
-      case 'title':
-        return 0.2 - progress * 0.15;
-      case 'cta':
-        return 0.05;
-      case 'complete':
-        return 0;
-      default:
-        return 0;
-    }
-  };
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        background: '#0a0908',
-        opacity: getOpacity(),
-        transition: 'opacity 0.5s ease-out',
-        pointerEvents: 'none',
-      }}
-      aria-hidden="true"
-    />
-  );
-}
-
-/**
- * Warm center glow that appears during glow phase
- */
-function CenterGlow({ phase, progress }: { phase: IntroPhase; progress: number }) {
-  const getOpacity = () => {
-    switch (phase) {
-      case 'void':
-        return 0;
-      case 'glow':
-        return progress * 0.6;
-      case 'reveal':
-        return 0.6 - progress * 0.4;
-      case 'title':
-      case 'cta':
-        return 0.2;
-      case 'complete':
-        return 0;
-      default:
-        return 0;
-    }
-  };
-
-  const getScale = () => {
-    switch (phase) {
-      case 'glow':
-        return 0.5 + progress * 0.5;
-      case 'reveal':
-        return 1 + progress * 0.5;
-      default:
-        return 1;
-    }
-  };
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        width: '60vmin',
-        height: '60vmin',
-        transform: `translate(-50%, -50%) scale(${getScale()})`,
-        background:
-          'radial-gradient(ellipse at center, rgba(255, 235, 205, 0.4) 0%, rgba(255, 220, 180, 0.15) 40%, transparent 70%)',
-        opacity: getOpacity(),
-        transition: 'opacity 0.8s ease-out, transform 1.5s ease-out',
-        pointerEvents: 'none',
-        filter: 'blur(30px)',
-      }}
-      aria-hidden="true"
-    />
-  );
-}
-
-/**
  * Subtle skip hint in corner
  */
-function SkipHint({ phase, visible }: { phase: IntroPhase; visible: boolean }) {
+function SkipHint() {
   const [showHint, setShowHint] = useState(false);
 
-  // Show hint after 3 seconds
+  // Show hint after 2 seconds
   useEffect(() => {
-    if (visible && phase !== 'cta') {
-      const timer = setTimeout(() => setShowHint(true), 3000);
-      return () => clearTimeout(timer);
-    }
-    if (phase === 'cta' || phase === 'complete') {
-      setShowHint(false);
-    }
-  }, [visible, phase]);
+    const timer = setTimeout(() => setShowHint(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   if (!showHint) return null;
 
