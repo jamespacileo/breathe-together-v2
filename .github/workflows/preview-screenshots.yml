@@ -263,6 +263,11 @@ jobs:
           echo "Saved screenshots to temp location:"
           ls -la "${TEMP_SCREENSHOTS}/"
 
+          # Also save the file list for later use (since we switch branches)
+          ls ./screenshots/*.png | xargs -n1 basename > "${TEMP_SCREENSHOTS}/filelist.txt"
+          echo "Screenshot files:"
+          cat "${TEMP_SCREENSHOTS}/filelist.txt"
+
           # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -273,8 +278,10 @@ jobs:
 
           # Fetch the branch if it exists, or create it as orphan
           if git ls-remote --heads origin ${SCREENSHOTS_BRANCH} | grep -q ${SCREENSHOTS_BRANCH}; then
-            git fetch origin ${SCREENSHOTS_BRANCH}
+            git fetch origin ${SCREENSHOTS_BRANCH}:${SCREENSHOTS_BRANCH}
             git checkout ${SCREENSHOTS_BRANCH}
+            # Pull latest to avoid push conflicts from concurrent runs
+            git pull origin ${SCREENSHOTS_BRANCH} --rebase || true
           else
             git checkout --orphan ${SCREENSHOTS_BRANCH}
             git rm -rf . 2>/dev/null || true
@@ -292,17 +299,46 @@ jobs:
           echo "Copied screenshots to PR folder:"
           ls -la "${PR_FOLDER}/"
 
-          # Commit and push
+          # Commit and push with retry logic for concurrent workflows
           git add "${PR_FOLDER}"
           git commit -m "Update screenshots for PR #${PR_NUMBER}" || echo "No changes to commit"
-          git push origin ${SCREENSHOTS_BRANCH}
 
-          # Cleanup temp
+          # Retry push up to 3 times to handle race conditions
+          PUSH_ATTEMPTS=0
+          MAX_PUSH_ATTEMPTS=3
+          while [ $PUSH_ATTEMPTS -lt $MAX_PUSH_ATTEMPTS ]; do
+            if git push origin ${SCREENSHOTS_BRANCH}; then
+              echo "Push succeeded on attempt $((PUSH_ATTEMPTS + 1))"
+              break
+            else
+              PUSH_ATTEMPTS=$((PUSH_ATTEMPTS + 1))
+              if [ $PUSH_ATTEMPTS -lt $MAX_PUSH_ATTEMPTS ]; then
+                echo "Push failed, retrying after pull... (attempt $PUSH_ATTEMPTS of $MAX_PUSH_ATTEMPTS)"
+                git pull origin ${SCREENSHOTS_BRANCH} --rebase || true
+                sleep 2
+              else
+                echo "::warning::Push failed after $MAX_PUSH_ATTEMPTS attempts, using force push"
+                git push --force-with-lease origin ${SCREENSHOTS_BRANCH}
+              fi
+            fi
+          done
+
+          # Get the commit SHA for cache-busting in image URLs
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "Pushed commit: ${COMMIT_SHA}"
+
+          # Small delay to allow GitHub CDN to update
+          sleep 3
+
+          # Cleanup temp (but keep filelist for comment step)
+          cp "${TEMP_SCREENSHOTS}/filelist.txt" /tmp/screenshot-filelist.txt
           rm -rf "${TEMP_SCREENSHOTS}"
 
-          # Output the raw URL base
+          # Output values for comment step
           echo "branch=${SCREENSHOTS_BRANCH}" >> $GITHUB_OUTPUT
           echo "folder=${PR_FOLDER}" >> $GITHUB_OUTPUT
+          echo "commit_sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
+          echo "push_success=true" >> $GITHUB_OUTPUT
 
       - name: Comment PR with screenshots
         if: steps.pr.outputs.found == 'true'
@@ -315,6 +351,8 @@ jobs:
           CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
           SCREENSHOTS_BRANCH: ${{ steps.push_screenshots.outputs.branch }}
           SCREENSHOTS_FOLDER: ${{ steps.push_screenshots.outputs.folder }}
+          SCREENSHOTS_COMMIT_SHA: ${{ steps.push_screenshots.outputs.commit_sha }}
+          PUSH_SUCCESS: ${{ steps.push_screenshots.outputs.push_success }}
         with:
           script: |
             const fs = require('fs');
@@ -325,34 +363,70 @@ jobs:
             const captureOutcome = process.env.CAPTURE_OUTCOME;
             const screenshotsBranch = process.env.SCREENSHOTS_BRANCH || 'screenshots';
             const screenshotsFolder = process.env.SCREENSHOTS_FOLDER || `pr-${prNumber}`;
+            const commitSha = process.env.SCREENSHOTS_COMMIT_SHA;
+            const pushSuccess = process.env.PUSH_SUCCESS === 'true';
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
             const artifactUrl = `${repoUrl}/actions/runs/${workflowRunId}`;
             const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
-            // Base URL for raw image access
-            const rawBaseUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${screenshotsBranch}/${screenshotsFolder}`;
+            // Use commit SHA in URLs to avoid CDN caching issues
+            // Fall back to branch name if SHA not available
+            const refForUrl = commitSha || screenshotsBranch;
+            const rawBaseUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${refForUrl}/${screenshotsFolder}`;
 
-            // List captured screenshots from the PR folder on screenshots branch
-            const screenshotsDir = `./${screenshotsFolder}`;
+            console.log(`Using image base URL: ${rawBaseUrl}`);
+            console.log(`Push success: ${pushSuccess}, Commit SHA: ${commitSha}`);
+
+            // Read screenshot file list from temp file (saved before branch switch)
             let screenshotFiles = [];
             try {
-              screenshotFiles = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.png'));
-              console.log(`Found ${screenshotFiles.length} screenshots in ${screenshotsDir}`);
-            } catch (e) {
-              console.log('No screenshots directory found, trying fallback...');
-              // Fallback: try the original screenshots directory
-              try {
-                screenshotFiles = fs.readdirSync('./screenshots').filter(f => f.endsWith('.png'));
-              } catch (e2) {
-                console.log('No screenshots found in either location');
+              const filelistPath = '/tmp/screenshot-filelist.txt';
+              if (fs.existsSync(filelistPath)) {
+                const content = fs.readFileSync(filelistPath, 'utf8');
+                screenshotFiles = content.trim().split('\n').filter(f => f.endsWith('.png'));
+                console.log(`Found ${screenshotFiles.length} screenshots from filelist: ${screenshotFiles.join(', ')}`);
+              } else {
+                console.log('Filelist not found at /tmp/screenshot-filelist.txt');
               }
+            } catch (e) {
+              console.log('Error reading filelist:', e.message);
+            }
+
+            // Fallback: try to read from current directory (may work in some cases)
+            if (screenshotFiles.length === 0) {
+              console.log('Trying fallback directories...');
+              const fallbackDirs = [`./${screenshotsFolder}`, './screenshots'];
+              for (const dir of fallbackDirs) {
+                try {
+                  screenshotFiles = fs.readdirSync(dir).filter(f => f.endsWith('.png'));
+                  if (screenshotFiles.length > 0) {
+                    console.log(`Found ${screenshotFiles.length} screenshots in ${dir}`);
+                    break;
+                  }
+                } catch (e) {
+                  console.log(`Directory ${dir} not accessible`);
+                }
+              }
+            }
+
+            // If still no files found but we know screenshots were captured, use expected filenames
+            if (screenshotFiles.length === 0 && hasScreenshots) {
+              console.log('Using expected screenshot filenames as fallback');
+              screenshotFiles = [
+                'desktop-initial.png', 'desktop-animation.png',
+                'tablet-initial.png', 'tablet-animation.png',
+                'mobile-initial.png', 'mobile-animation.png'
+              ];
             }
 
             // Build status indicator
             let statusEmoji, statusText;
-            if (hasScreenshots && captureOutcome === 'success') {
+            if (hasScreenshots && captureOutcome === 'success' && pushSuccess) {
               statusEmoji = '✅';
-              statusText = 'Screenshots captured successfully';
+              statusText = 'Screenshots captured and uploaded successfully';
+            } else if (hasScreenshots && captureOutcome === 'success' && !pushSuccess) {
+              statusEmoji = '⚠️';
+              statusText = 'Screenshots captured but push may have failed - images might not display';
             } else if (hasScreenshots) {
               statusEmoji = '⚠️';
               statusText = 'Partial capture (some viewports may have failed)';
