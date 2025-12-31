@@ -72,15 +72,19 @@ void main() {
   vec2 refractUv = uv + refracted.xy * 0.05;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // Phase transition flash - gentle brightness at start of each phase
-  float flash = rawProgress < 0.15 ? (1.0 - rawProgress / 0.15) * (1.0 - rawProgress / 0.15) * 0.05 : 0.0;
+  // Phase transition pulse - smooth brightness wave at start of each phase
+  // Uses sine curve (0→π) for gentle rise and fall over 35% of phase
+  float pulse = 0.0;
+  if (rawProgress < 0.35) {
+    pulse = sin(rawProgress / 0.35 * 3.14159) * 0.06;
+  }
 
   // Base color: frosted glass with mood tint
   vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor, 0.5);
   vec3 bodyColor = mix(tintedRefraction, vColor, 0.25);
 
-  // Apply flash (adds white/brightness)
-  bodyColor += vec3(flash);
+  // Apply pulse (adds white/brightness)
+  bodyColor += vec3(pulse);
 
   // Fresnel rim glow (white edge highlight)
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
