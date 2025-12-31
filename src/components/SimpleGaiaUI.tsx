@@ -1030,8 +1030,8 @@ export function SimpleGaiaUI({
                 </div>
                 <input
                   type="range"
-                  min="12"
-                  max="200"
+                  min="1"
+                  max="1000"
                   step="1"
                   value={harmony}
                   onChange={(e) => setHarmony(parseInt(e.target.value, 10))}

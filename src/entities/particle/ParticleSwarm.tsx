@@ -92,9 +92,14 @@ function applyVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Col
 }
 
 export interface ParticleSwarmProps {
-  /** Number of shards (default 48 matches reference) */
+  /**
+   * Number of shards to render.
+   * Dynamic based on total mood/user count. Max 1000 for performance.
+   * In production, this equals sum of all mood counts from presence data.
+   * @default 48 (demo/testing value)
+   */
   count?: number;
-  /** Users by mood for color distribution */
+  /** Users by mood for color distribution - each user gets one shard */
   users?: Partial<Record<MoodId, number>>;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;

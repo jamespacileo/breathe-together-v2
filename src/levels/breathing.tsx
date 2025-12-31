@@ -14,10 +14,12 @@ import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
- * Tuning defaults for visual aesthetics (matching reference)
+ * Tuning defaults for visual aesthetics.
+ * Note: Shard count is dynamic based on moods/users (max 1000 for performance).
+ * These presets are for demo/testing when no real presence data is available.
  */
 const TUNING_DEFAULTS = {
-  particleCounts: { sparse: 24, normal: 48, dense: 96 },
+  particleCounts: { sparse: 24, normal: 48, dense: 96, max: 1000 },
   ior: 1.3, // Index of Refraction
   backfaceIntensity: 0.3, // Glass depth/distortion
   orbitRadius: 4.5, // Base orbit radius
