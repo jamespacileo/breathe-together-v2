@@ -76,20 +76,20 @@ function easeInhale(t: number): number {
 }
 
 /**
- * Exhale easing: Controlled, relaxing breath release
+ * Exhale easing: Immediate release with gentle landing
  *
- * Uses highly asymmetric ramps for immediate visual feedback:
- * - Minimal start (3%): ~0.24s ramp, movement visible almost instantly
- * - Steady middle (67%): Constant velocity, controlled even exhale
+ * Uses NO start ramp for instant visual feedback:
+ * - Immediate start (0%): Movement begins instantly at steady velocity
+ * - Steady middle (70%): Constant velocity, controlled even exhale
  * - Extended soft end (30%): Extra gentle landing for relaxation
  *
- * The tiny start ramp ensures users see expansion begin within the first
- * quarter-second (critical for following breathing cues visually).
- * The long end ramp creates the "letting go" feel.
+ * Unlike inhale (which has a soft start to feel like "filling up"),
+ * exhale needs instant movement to signal "letting go". Users should
+ * see expansion begin immediately when the phase changes.
  */
 function easeExhale(t: number): number {
-  // Highly asymmetric: minimal start ramp for near-instant visual feedback
-  return controlledBreathCurve(t, 0.03, 0.3);
+  // No start ramp: instant velocity for immediate visual feedback
+  return controlledBreathCurve(t, 0, 0.3);
 }
 
 /**
