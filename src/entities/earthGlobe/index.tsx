@@ -22,6 +22,7 @@ import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
+import { useDisposeMaterials } from '../../hooks/useDisposeMaterials';
 import { breathPhase } from '../breath/traits';
 
 // Vertex shader for textured globe with fresnel
@@ -172,6 +173,13 @@ const ATMOSPHERE_LAYERS = [
 ];
 
 /**
+ * Pre-allocated Color objects for shader uniforms
+ * Hoisted to module level to avoid recreation on component remount
+ */
+const GLOW_COLOR = new THREE.Color('#efe5da'); // Very soft muted cream
+const MIST_COLOR = new THREE.Color('#f0ebe6'); // Soft warm white
+
+/**
  * EarthGlobe component props
  */
 interface EarthGlobeProps {
@@ -240,11 +248,12 @@ export function EarthGlobe({
   );
 
   // Create glow material - additive blended fresnel glow
+  // Uses pre-allocated GLOW_COLOR from module level
   const glowMaterial = useMemo(
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
-          glowColor: { value: new THREE.Color('#efe5da') }, // Very soft muted cream
+          glowColor: { value: GLOW_COLOR },
           glowIntensity: { value: 0.25 },
           breathPhase: { value: 0 },
         },
@@ -259,13 +268,14 @@ export function EarthGlobe({
   );
 
   // Create mist material - animated noise haze
+  // Uses pre-allocated MIST_COLOR from module level
   const mistMaterial = useMemo(
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
           time: { value: 0 },
           breathPhase: { value: 0 },
-          mistColor: { value: new THREE.Color('#f0ebe6') }, // Soft warm white
+          mistColor: { value: MIST_COLOR },
         },
         vertexShader: mistVertexShader,
         fragmentShader: mistFragmentShader,
@@ -276,14 +286,8 @@ export function EarthGlobe({
     [],
   );
 
-  // Cleanup materials on unmount
-  useEffect(() => {
-    return () => {
-      material.dispose();
-      glowMaterial.dispose();
-      mistMaterial.dispose();
-    };
-  }, [material, glowMaterial, mistMaterial]);
+  // Cleanup materials on unmount using helper hook
+  useDisposeMaterials([material, glowMaterial, mistMaterial]);
 
   /**
    * Update globe scale, rotation, and shader uniforms
