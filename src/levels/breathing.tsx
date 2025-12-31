@@ -1,5 +1,6 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import type * as THREE from 'three';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -8,8 +9,27 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { UserShapeIndicator } from '../entities/particle/UserShapeIndicator';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
+
+/**
+ * Generate or retrieve persistent current user ID
+ * Uses localStorage for session persistence
+ */
+function getCurrentUserId(): string {
+  const STORAGE_KEY = 'breathe-together-user-id';
+  let userId = localStorage.getItem(STORAGE_KEY);
+  if (!userId) {
+    // Generate a new user ID using crypto for randomness
+    userId = `user-${crypto.randomUUID().slice(0, 8)}`;
+    localStorage.setItem(STORAGE_KEY, userId);
+  }
+  return userId;
+}
+
+// Current user ID (stable across session)
+const CURRENT_USER_ID = getCurrentUserId();
 
 /**
  * Tuning defaults for visual aesthetics (matching reference)
@@ -63,7 +83,21 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Current user's shard position getter (provided by ParticleSwarm)
+  const positionGetterRef = useRef<(() => THREE.Vector3 | null) | null>(null);
+
+  // Handler to receive position getter from ParticleSwarm
+  const handlePositionGetter = useCallback((getter: () => THREE.Vector3 | null) => {
+    positionGetterRef.current = getter;
+  }, []);
+
+  // Wrapper function that calls the stored getter
+  const getShardPosition = useCallback(() => {
+    return positionGetterRef.current?.() ?? null;
+  }, []);
+
   // Generate mock users with randomized order for visual variety
+  // Current user is always included in the list
   const mockUsers = useMemo(() => {
     const presence = generateMockPresence(harmony);
     // Convert aggregate mood counts to individual users
@@ -91,7 +125,9 @@ export function BreathingLevel({
       [users[i], users[j]] = [users[j], users[i]];
     }
 
-    return users;
+    // Add current user at the beginning (will get slot 0)
+    // Use 'connection' mood (rose color) to make the user stand out
+    return [{ id: CURRENT_USER_ID, mood: 'connection' as const }, ...users];
   }, [harmony]);
 
   return (
@@ -122,7 +158,13 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm users={mockUsers} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <ParticleSwarm
+                users={mockUsers}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
+                currentUserId={CURRENT_USER_ID}
+                onCurrentUserPositionGetter={handlePositionGetter}
+              />
             )}
 
             {showParticles && (
@@ -134,6 +176,9 @@ export function BreathingLevel({
               />
             )}
           </PresentationControls>
+
+          {/* User "YOU" indicator - OUTSIDE PresentationControls for correct world positioning */}
+          {showParticles && <UserShapeIndicator getShardPosition={getShardPosition} />}
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
