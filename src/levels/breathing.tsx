@@ -1,5 +1,5 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -11,23 +11,23 @@ import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useSimulatedUserFlow } from '../hooks/useSimulatedUserFlow';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
+/** Generate a random mood index (0-3) */
+function randomMood(): number {
+  return Math.floor(Math.random() * 4);
+}
+
 /**
  * Generate a randomized mood array for initial display
  * Each element is a mood index (0-3) representing the 4 mood categories
  *
  * @param count - Number of users to generate
- * @param fillRatio - Ratio of max slots to fill with users (0-1), default 0.7
  * @returns Array of mood indices (only active moods, no -1 values)
  */
-function generateRandomMoodArray(count: number, fillRatio = 0.7): number[] {
-  const filledCount = Math.floor(count * fillRatio);
+function generateRandomMoodArray(count: number): number[] {
   const result: number[] = [];
-
-  // Fill with random moods (0-3)
-  for (let i = 0; i < filledCount; i++) {
-    result.push(Math.floor(Math.random() * 4));
+  for (let i = 0; i < count; i++) {
+    result.push(randomMood());
   }
-
   return result;
 }
 
@@ -89,9 +89,17 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Static randomized mood array for initial display
-  // This will be replaced with real user data from backend
-  const staticMoodArray = useMemo(() => generateRandomMoodArray(harmony, 0.7), [harmony]);
+  // Managed mood array state - source of truth for particle swarm
+  const initialCount = Math.floor(
+    (particleDensity === 'sparse'
+      ? TUNING_DEFAULTS.particleCounts.sparse
+      : particleDensity === 'dense'
+        ? TUNING_DEFAULTS.particleCounts.dense
+        : TUNING_DEFAULTS.particleCounts.normal) * 0.7,
+  );
+  const [managedMoodArray, setManagedMoodArray] = useState<number[]>(() =>
+    generateRandomMoodArray(initialCount),
+  );
 
   // Dynamic simulated user flow (for demo/testing)
   const { moodArray: simulatedMoodArray } = useSimulatedUserFlow({
@@ -101,8 +109,88 @@ export function BreathingLevel({
     paused: !simulateUserFlow,
   });
 
-  // Use simulated array when enabled, otherwise static random array
-  const moodArray = simulateUserFlow ? simulatedMoodArray : staticMoodArray;
+  // Use simulated array when enabled, otherwise managed array
+  const moodArray = simulateUserFlow ? simulatedMoodArray : managedMoodArray;
+
+  /**
+   * Handle harmony slider changes - adds/removes random moods to simulate real behavior
+   */
+  const handleHarmonyChange = useCallback(
+    (newHarmony: number) => {
+      setHarmony(newHarmony);
+
+      // Target count is ~70% of harmony
+      const targetCount = Math.floor(newHarmony * 0.7);
+      const currentCount = managedMoodArray.length;
+
+      if (targetCount > currentCount) {
+        // Add random moods to reach target
+        const newMoods = [...managedMoodArray];
+        for (let i = 0; i < targetCount - currentCount; i++) {
+          newMoods.push(randomMood());
+        }
+        setManagedMoodArray(newMoods);
+      } else if (targetCount < currentCount) {
+        // Remove random indices to reach target
+        const newMoods = [...managedMoodArray];
+        const removeCount = currentCount - targetCount;
+        for (let i = 0; i < removeCount; i++) {
+          const randomIndex = Math.floor(Math.random() * newMoods.length);
+          newMoods.splice(randomIndex, 1);
+        }
+        setManagedMoodArray(newMoods);
+      }
+    },
+    [managedMoodArray],
+  );
+
+  // Utility callbacks for testing
+  const addRandomUser = useCallback(() => {
+    setManagedMoodArray((prev) => [...prev, randomMood()]);
+  }, []);
+
+  const removeRandomUser = useCallback(() => {
+    setManagedMoodArray((prev) => {
+      if (prev.length === 0) return prev;
+      const randomIndex = Math.floor(Math.random() * prev.length);
+      return prev.filter((_, i) => i !== randomIndex);
+    });
+  }, []);
+
+  const addBatchUsers = useCallback((count: number) => {
+    setManagedMoodArray((prev) => {
+      const newMoods = [...prev];
+      for (let i = 0; i < count; i++) {
+        newMoods.push(randomMood());
+      }
+      return newMoods;
+    });
+  }, []);
+
+  const removeBatchUsers = useCallback((count: number) => {
+    setManagedMoodArray((prev) => {
+      const newMoods = [...prev];
+      const actualRemove = Math.min(count, newMoods.length);
+      for (let i = 0; i < actualRemove; i++) {
+        const randomIndex = Math.floor(Math.random() * newMoods.length);
+        newMoods.splice(randomIndex, 1);
+      }
+      return newMoods;
+    });
+  }, []);
+
+  const shuffleMoods = useCallback(() => {
+    setManagedMoodArray((prev) => prev.map(() => randomMood()));
+  }, []);
+
+  const clearAllUsers = useCallback(() => {
+    setManagedMoodArray([]);
+  }, []);
+
+  const resetToDefault = useCallback(() => {
+    const count = Math.floor(harmony * 0.7);
+    setManagedMoodArray(generateRandomMoodArray(count));
+  }, [harmony]);
 
   return (
     <ErrorBoundary>
@@ -161,7 +249,8 @@ export function BreathingLevel({
           {/* Main UI with breathing phase, inspirational text, and modals */}
           <SimpleGaiaUI
             harmony={harmony}
-            setHarmony={setHarmony}
+            setHarmony={handleHarmonyChange}
+            userCount={moodArray.length}
             ior={ior}
             setIor={setIor}
             glassDepth={glassDepth}
@@ -176,6 +265,14 @@ export function BreathingLevel({
             onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
+            // Utility callbacks for testing user events
+            onAddUser={addRandomUser}
+            onRemoveUser={removeRandomUser}
+            onAddBatch={() => addBatchUsers(5)}
+            onRemoveBatch={() => removeBatchUsers(5)}
+            onShuffle={shuffleMoods}
+            onClearAll={clearAllUsers}
+            onReset={resetToDefault}
           />
         </Html>
       </Suspense>
