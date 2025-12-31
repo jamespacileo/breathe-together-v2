@@ -8,6 +8,7 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { useSimulatedUserFlow } from '../hooks/useSimulatedUserFlow';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -26,6 +27,11 @@ const TUNING_DEFAULTS = {
 /**
  * BreathingLevel - Core meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * User Ordering System (Dec 2024):
+ * - Set `useOrderedUsers=true` to enable simulated user arrivals/departures
+ * - Users appear in arrival order with smooth enter/exit animations
+ * - Color transitions happen smoothly when mood changes
  */
 export function BreathingLevel({
   particleDensity,
@@ -33,7 +39,9 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-}: Partial<BreathingLevelProps> = {}) {
+  // User ordering system
+  useOrderedUsers = false,
+}: Partial<BreathingLevelProps> & { useOrderedUsers?: boolean } = {}) {
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
     particleDensity === 'sparse'
@@ -52,7 +60,16 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Legacy mood distribution (mood counts per type)
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
+
+  // Simulated user flow (ordered arrivals/departures)
+  const { moodArray } = useSimulatedUserFlow({
+    maxSlots: harmony,
+    initialUsers: Math.floor(harmony * 0.6),
+    targetUserCount: Math.floor(harmony * 0.7),
+    paused: !useOrderedUsers,
+  });
 
   return (
     <ErrorBoundary>
@@ -77,7 +94,9 @@ export function BreathingLevel({
             {showParticles && (
               <ParticleSwarm
                 count={harmony}
-                users={moods}
+                // Use ordered moodArray when enabled, otherwise legacy moods object
+                moodArray={useOrderedUsers ? moodArray : undefined}
+                users={useOrderedUsers ? undefined : moods}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
               />

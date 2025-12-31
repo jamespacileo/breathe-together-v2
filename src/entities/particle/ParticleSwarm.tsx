@@ -4,68 +4,27 @@
  * Uses separate Mesh objects (not InstancedMesh) to match reference exactly.
  * Each mesh has per-vertex color attribute for mood coloring.
  * Rendered via RefractionPipeline 3-pass FBO system.
+ *
+ * User Ordering System (Dec 2024):
+ * - Supports ordered mood array where index = arrival order
+ * - Slot-based positioning with smooth color/scale transitions
+ * - Handles rapid updates gracefully (lerping blends naturally)
+ * - No teleporting: positions stable, only colors/scales animate
  */
 
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
-import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
-
-// Convert palette to THREE.Color array for random selection
-const MOOD_COLORS = [
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
-];
-
-const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
-  grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
-};
-
-/**
- * Build color distribution array from presence data
- *
- * Converts mood counts into an array of Three.js Color instances, where each
- * user is represented by their mood color. This array is used for distributing
- * colors across particle shards.
- *
- * **Example:**
- * ```ts
- * const users = { calm: 3, energized: 2 };
- * // Returns: [calmColor, calmColor, calmColor, energizedColor, energizedColor]
- * ```
- *
- * **Performance:** Linear time O(n) where n is total user count. Called once
- * per presence update (typically ~1-5 times per minute).
- *
- * @param users - Mood distribution from presence data (e.g., { calm: 5, energized: 3 })
- * @returns Array of colors, one per user. Empty array if no users.
- */
-function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefined): THREE.Color[] {
-  if (!users) return [];
-
-  const colorDistribution: THREE.Color[] = [];
-  for (const [moodId, moodCount] of Object.entries(users)) {
-    const color = MOOD_TO_COLOR[moodId as MoodId];
-    if (color) {
-      for (let i = 0; i < (moodCount ?? 0); i++) {
-        colorDistribution.push(color);
-      }
-    }
-  }
-  return colorDistribution;
-}
+import {
+  EMPTY_SLOT,
+  getMoodColor,
+  getSlotFallbackColor,
+  presenceToMoodArray,
+} from './useUserOrdering';
 
 /**
  * Apply per-vertex color to icosahedron geometry
@@ -93,10 +52,37 @@ function applyVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Col
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 }
 
+/**
+ * Update existing vertex colors in-place (no allocation)
+ *
+ * Mutates the geometry's color attribute directly.
+ * Much more efficient than recreating geometry for color changes.
+ *
+ * @param geometry - Geometry with existing color attribute
+ * @param color - New color to apply
+ */
+function updateVertexColors(geometry: THREE.BufferGeometry, color: THREE.Color): void {
+  const colorAttr = geometry.attributes.color;
+  if (!colorAttr) return;
+
+  const colors = colorAttr.array as Float32Array;
+  for (let c = 0; c < colors.length; c += 3) {
+    colors[c] = color.r;
+    colors[c + 1] = color.g;
+    colors[c + 2] = color.b;
+  }
+  colorAttr.needsUpdate = true;
+}
+
 export interface ParticleSwarmProps {
   /** Number of shards (default 48 matches reference) */
   count?: number;
-  /** Users by mood for color distribution */
+  /**
+   * Ordered mood array - index = arrival order, value = mood index (0-6) or -1 for empty
+   * When provided, takes precedence over `users` prop for coloring
+   */
+  moodArray?: number[];
+  /** Users by mood for color distribution (legacy, use moodArray for ordered display) */
   users?: Partial<Record<MoodId, number>>;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
@@ -108,6 +94,10 @@ export interface ParticleSwarmProps {
   buffer?: number;
   /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
   maxShardSize?: number;
+  /** Color transition duration in seconds @default 0.5 */
+  colorTransitionDuration?: number;
+  /** Enter/exit scale animation duration in seconds @default 0.3 */
+  scaleTransitionDuration?: number;
 }
 
 interface ShardData {
@@ -127,6 +117,8 @@ interface ShardData {
  * - Scale offset: subtle size variation for depth
  * - Orbit: slow orbital drift around center
  * - Perpendicular: tangent wobble for organic floating feel
+ * - Color state: current/target color with lerp progress (user ordering system)
+ * - Active state: enter/exit scale animation (user ordering system)
  */
 interface ShardPhysicsState {
   /** Current interpolated radius (spring-smoothed) */
@@ -151,6 +143,24 @@ interface ShardPhysicsState {
   orbitSpeed: number;
   /** Seed for perpendicular wobble phase */
   wobbleSeed: number;
+
+  // User ordering color animation state
+  /** Current displayed color (interpolated) */
+  currentColor: THREE.Color;
+  /** Target color (lerping towards) */
+  targetColor: THREE.Color;
+  /** Color lerp progress (0 = start transition, 1 = at target) */
+  colorLerpProgress: number;
+  /** Mood index for this slot (-1 for empty) */
+  moodIndex: number;
+
+  // User ordering active/scale state
+  /** Whether slot is currently visible (has user) */
+  isActive: boolean;
+  /** Target active state (for animation) */
+  targetActive: boolean;
+  /** Scale animation progress (0 = hidden, 1 = full size) */
+  activeProgress: number;
 }
 
 /**
@@ -211,19 +221,41 @@ const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
  */
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 
+/**
+ * Easing function for smooth color/scale transitions
+ * easeOutQuad: fast start, slow finish - feels natural for "settling"
+ */
+function easeOutQuad(t: number): number {
+  return 1 - (1 - t) * (1 - t);
+}
+
+/**
+ * Easing function for scale animations
+ * easeOutBack: slight overshoot for bouncy feel
+ */
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
+}
+
 export function ParticleSwarm({
   count = 48,
+  moodArray: moodArrayProp,
   users,
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
   buffer = 0.3,
   maxShardSize = 0.6,
+  colorTransitionDuration = 0.5,
+  scaleTransitionDuration = 0.3,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+  const prevMoodArrayRef = useRef<number[]>([]);
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -238,18 +270,33 @@ export function ParticleSwarm({
   // Create shared material (will be swapped by RefractionPipeline)
   const material = useMemo(() => createFrostedGlassMaterial(), []);
 
-  // Create shards with per-vertex colors
+  // Compute effective mood array from either prop
+  const effectiveMoodArray = useMemo(() => {
+    if (moodArrayProp) {
+      // Pad or truncate to count
+      const result = [...moodArrayProp];
+      while (result.length < count) {
+        result.push(EMPTY_SLOT);
+      }
+      return result.slice(0, count);
+    }
+    // Convert users object to mood array (legacy mode)
+    return presenceToMoodArray(users, count);
+  }, [moodArrayProp, users, count]);
+
+  // Create shards with initial per-vertex colors
+  // biome-ignore lint/correctness/useExhaustiveDependencies: effectiveMoodArray intentionally excluded - colors are updated dynamically via processMoodArrayChanges, not by recreating shards
   const shards = useMemo(() => {
     const result: ShardData[] = [];
-    const colorDistribution = buildColorDistribution(users);
 
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
 
-      // Apply per-vertex color from distribution or random fallback
-      const mood =
-        colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
-      applyVertexColors(geometry, mood);
+      // Get initial color from mood array or fallback
+      const moodIndex = effectiveMoodArray[i] ?? EMPTY_SLOT;
+      const initialColor =
+        moodIndex !== EMPTY_SLOT ? getMoodColor(moodIndex) : getSlotFallbackColor(i);
+      applyVertexColors(geometry, initialColor);
 
       // Fibonacci sphere distribution
       const phi = Math.acos(-1 + (2 * i) / count);
@@ -262,11 +309,16 @@ export function ParticleSwarm({
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
 
+      // Set initial visibility based on mood
+      const isActive = moodIndex !== EMPTY_SLOT;
+      mesh.visible = true; // Always visible, scale handles appearance
+      mesh.scale.setScalar(isActive ? 1 : 0);
+
       result.push({ mesh, direction, geometry });
     }
 
     return result;
-  }, [count, users, baseRadius, shardSize, material]);
+  }, [count, shardSize, material, baseRadius]); // Note: removed effectiveMoodArray dependency
 
   // Add meshes to group and initialize physics state
   useEffect(() => {
@@ -301,11 +353,17 @@ export function ParticleSwarm({
 
       // Orbital drift speed variation - all shards orbit same direction to prevent overlap
       // Small speed variation creates gentle relative drift between neighbors
-      const orbitSeed = (i * 3.14159 + 0.1) % 1;
+      const orbitSeed = (i * Math.PI + 0.1) % 1;
       const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
 
       // Wobble seed for perpendicular motion phase offset
-      const wobbleSeed = i * 2.71828; // e-based offset for unique phases
+      const wobbleSeed = i * Math.E; // e-based offset for unique phases
+
+      // Initialize color state from mood array
+      const moodIndex = effectiveMoodArray[i] ?? EMPTY_SLOT;
+      const initialColor =
+        moodIndex !== EMPTY_SLOT ? getMoodColor(moodIndex) : getSlotFallbackColor(i);
+      const isActive = moodIndex !== EMPTY_SLOT;
 
       physicsStates.push({
         currentRadius: baseRadius,
@@ -319,11 +377,23 @@ export function ParticleSwarm({
         orbitAngle: 0,
         orbitSpeed,
         wobbleSeed,
+
+        // Color animation state
+        currentColor: initialColor.clone(),
+        targetColor: initialColor.clone(),
+        colorLerpProgress: 1, // Start fully transitioned
+        moodIndex,
+
+        // Active/scale state
+        isActive,
+        targetActive: isActive,
+        activeProgress: isActive ? 1 : 0,
       });
     }
 
     shardsRef.current = shards;
     physicsRef.current = physicsStates;
+    prevMoodArrayRef.current = [...effectiveMoodArray];
 
     // Cleanup on unmount
     return () => {
@@ -332,7 +402,7 @@ export function ParticleSwarm({
         group.remove(shard.mesh);
       }
     };
-  }, [shards, baseRadius]);
+  }, [shards, baseRadius, effectiveMoodArray]);
 
   // Cleanup material on unmount
   useEffect(() => {
@@ -341,7 +411,55 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - spring physics + ambient motion + shader updates
+  // Handle mood array changes - update target colors and active states
+  const processMoodArrayChanges = useCallback((newMoodArray: number[]) => {
+    const physics = physicsRef.current;
+    const prevMoodArray = prevMoodArrayRef.current;
+
+    for (let i = 0; i < physics.length; i++) {
+      const state = physics[i];
+      const oldMood = prevMoodArray[i] ?? EMPTY_SLOT;
+      const newMood = newMoodArray[i] ?? EMPTY_SLOT;
+
+      if (oldMood === newMood) continue;
+
+      const wasEmpty = oldMood === EMPTY_SLOT;
+      const isNowEmpty = newMood === EMPTY_SLOT;
+
+      if (wasEmpty && !isNowEmpty) {
+        // Enter: slot was empty, now has user
+        state.moodIndex = newMood;
+        state.targetColor = getMoodColor(newMood);
+        state.currentColor.copy(state.targetColor); // Instant color on enter
+        state.colorLerpProgress = 1;
+        state.targetActive = true;
+        // activeProgress will animate 0→1 in useFrame
+      } else if (!wasEmpty && isNowEmpty) {
+        // Exit: slot had user, now empty
+        state.moodIndex = EMPTY_SLOT;
+        state.targetActive = false;
+        // Keep current color during fade out
+        // activeProgress will animate 1→0 in useFrame
+      } else {
+        // Color change: both have users but different moods
+        state.moodIndex = newMood;
+        state.targetColor = getMoodColor(newMood);
+        state.colorLerpProgress = 0; // Start lerping
+      }
+    }
+
+    prevMoodArrayRef.current = [...newMoodArray];
+  }, []);
+
+  // Watch for mood array changes
+  useEffect(() => {
+    if (physicsRef.current.length > 0) {
+      processMoodArrayChanges(effectiveMoodArray);
+    }
+  }, [effectiveMoodArray, processMoodArrayChanges]);
+
+  // Animation loop - spring physics + ambient motion + shader updates + color/scale transitions
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation + color/scale animations require multiple interleaved calculations - splitting would reduce readability
   useFrame((state, delta) => {
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
@@ -350,6 +468,10 @@ export function ParticleSwarm({
     // Cap delta to prevent physics explosion on tab switch
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
+
+    // Animation speeds
+    const colorSpeed = 1 / colorTransitionDuration;
+    const scaleSpeed = 1 / scaleTransitionDuration;
 
     // Get breathing state from ECS
     let targetRadius = baseRadius;
@@ -371,10 +493,53 @@ export function ParticleSwarm({
       material.uniforms.time.value = time;
     }
 
-    // Update each shard with spring physics + ambient motion
+    // Update each shard with spring physics + ambient motion + color/scale transitions
     for (let i = 0; i < currentShards.length; i++) {
       const shard = currentShards[i];
       const shardState = physics[i];
+
+      // === COLOR TRANSITION ===
+      if (shardState.colorLerpProgress < 1) {
+        shardState.colorLerpProgress = Math.min(
+          1,
+          shardState.colorLerpProgress + clampedDelta * colorSpeed,
+        );
+        const t = easeOutQuad(shardState.colorLerpProgress);
+        shardState.currentColor.lerpColors(
+          shardState.currentColor,
+          shardState.targetColor,
+          // Use incremental lerp for smoother animation
+          t < 0.99 ? clampedDelta * colorSpeed * 3 : 1,
+        );
+        // Update vertex colors
+        updateVertexColors(shard.geometry, shardState.currentColor);
+      }
+
+      // === ACTIVE/SCALE TRANSITION ===
+      let activeScale = 1;
+      if (shardState.targetActive && shardState.activeProgress < 1) {
+        // Animating in (enter)
+        shardState.activeProgress = Math.min(
+          1,
+          shardState.activeProgress + clampedDelta * scaleSpeed,
+        );
+        activeScale = easeOutBack(shardState.activeProgress);
+        if (shardState.activeProgress >= 1) {
+          shardState.isActive = true;
+        }
+      } else if (!shardState.targetActive && shardState.activeProgress > 0) {
+        // Animating out (exit)
+        shardState.activeProgress = Math.max(
+          0,
+          shardState.activeProgress - clampedDelta * scaleSpeed,
+        );
+        activeScale = easeOutQuad(shardState.activeProgress);
+        if (shardState.activeProgress <= 0) {
+          shardState.isActive = false;
+        }
+      } else {
+        activeScale = shardState.isActive ? 1 : 0;
+      }
 
       // Apply phase offset for wave effect
       // This creates subtle stagger in breathing motion
@@ -451,9 +616,9 @@ export function ParticleSwarm({
       shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
 
       // Subtle scale breathing - shards pulse slightly with breath (3-8% range)
-      // Combined with base scale offset for depth variation
+      // Combined with base scale offset for depth variation AND active scale
       const breathScale = 1.0 + currentBreathPhase * 0.05; // 0-5% breath pulse
-      const finalScale = shardState.baseScaleOffset * breathScale;
+      const finalScale = shardState.baseScaleOffset * breathScale * activeScale;
       shard.mesh.scale.setScalar(finalScale);
     }
   });
