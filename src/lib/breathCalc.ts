@@ -76,27 +76,47 @@ function easeInhale(t: number): number {
 }
 
 /**
- * Exhale easing: Fast release with gradual landing
+ * Exhale easing: Fast-slow-fast pattern for controlled release
  *
- * Uses ease-out curve for immediate visible movement at phase start:
- * - Fast initial release: ~40% of movement in first 25% of time
- * - Gradual deceleration: Smooth landing as lungs empty
+ * Three-phase curve matching natural exhale mechanics:
+ * - Fast start (0-20%): Immediate visible release, ~35% of movement
+ * - Slow middle (20-80%): Controlled sustained exhale, ~30% of movement
+ * - Fast finish (80-100%): Complete the exhale, ~35% of movement
  *
- * This creates the "letting go of a rubber band" feel:
- * - Instant visible pop when exhale begins (matches UI phase change)
- * - Natural slowdown as tension releases
- * - No constant velocity that feels mechanical
- *
- * Technical: Uses cubic ease-out: 1 - (1-t)^3
- * This provides strong initial velocity that decelerates smoothly.
+ * This creates natural breathing feel:
+ * - Instant visible pop when exhale begins (matches UI)
+ * - Sustained controlled middle (relaxation zone)
+ * - Natural completion at end
  */
 function easeExhale(t: number): number {
-  // Cubic ease-out: fast start, gradual landing
-  // At t=0: slope = 3 (3x faster than linear)
-  // At t=0.5: slope = 0.75
-  // At t=1: slope = 0 (smooth stop)
   const tClamped = Math.max(0, Math.min(1, t));
-  return 1 - (1 - tClamped) ** 3;
+
+  // Phase boundaries
+  const startEnd = 0.2; // First 20% = fast start
+  const middleEnd = 0.8; // 20-80% = slow middle
+
+  // Movement distribution
+  const startMovement = 0.35; // 35% of total movement in first 20%
+  const middleMovement = 0.3; // 30% of total movement in middle 60%
+  // endMovement = 0.35 (remaining 35% in last 20%)
+
+  if (tClamped <= startEnd) {
+    // Fast start: ease-out curve (decelerating from high velocity)
+    const localT = tClamped / startEnd;
+    const easeOut = 1 - (1 - localT) ** 2; // Quadratic ease-out
+    return easeOut * startMovement;
+  }
+
+  if (tClamped <= middleEnd) {
+    // Slow middle: linear interpolation (low constant velocity)
+    const localT = (tClamped - startEnd) / (middleEnd - startEnd);
+    return startMovement + localT * middleMovement;
+  }
+
+  // Fast finish: ease-in curve (accelerating to complete)
+  const localT = (tClamped - middleEnd) / (1 - middleEnd);
+  const easeIn = localT ** 2; // Quadratic ease-in
+  return startMovement + middleMovement + easeIn * (1 - startMovement - middleMovement);
 }
 
 /**
