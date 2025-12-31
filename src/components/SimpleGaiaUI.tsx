@@ -1,4 +1,4 @@
-import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
+import { type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
@@ -274,55 +274,72 @@ export function SimpleGaiaUI({
     };
   }, [isControlsOpen]);
 
-  // Design Tokens - using centralized values from designTokens.ts
-  const colors = {
-    text: UI_COLORS.text.secondary,
-    textDim: UI_COLORS.text.muted,
-    textGlow: UI_COLORS.accent.textGlow,
-    border: UI_COLORS.border.default,
-    glass: UI_COLORS.surface.glass,
-    accent: UI_COLORS.accent.gold,
-    accentGlow: UI_COLORS.accent.goldGlow,
-  };
+  // Design Tokens - memoized to prevent object recreation on every render
+  const colors = useMemo(
+    () => ({
+      text: UI_COLORS.text.secondary,
+      textDim: UI_COLORS.text.muted,
+      textGlow: UI_COLORS.accent.textGlow,
+      border: UI_COLORS.border.default,
+      glass: UI_COLORS.surface.glass,
+      accent: UI_COLORS.accent.gold,
+      accentGlow: UI_COLORS.accent.goldGlow,
+    }),
+    [],
+  );
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: '0.72rem',
-    fontWeight: 500,
-    fontVariant: 'small-caps',
-    letterSpacing: '0.08em',
-    color: colors.text,
-    marginBottom: '8px',
-    display: 'flex',
-    justifyContent: 'space-between',
-  };
+  // Memoized style objects to prevent recreation on every render
+  const labelStyle: React.CSSProperties = useMemo(
+    () => ({
+      fontSize: '0.72rem',
+      fontWeight: 500,
+      fontVariant: 'small-caps',
+      letterSpacing: '0.08em',
+      color: colors.text,
+      marginBottom: '8px',
+      display: 'flex',
+      justifyContent: 'space-between',
+    }),
+    [colors.text],
+  );
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    cursor: 'pointer',
-    height: '6px',
-    borderRadius: '3px',
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    background: `linear-gradient(to right, ${colors.accent}40, ${colors.border})`,
-    outline: 'none',
-    transition: 'background 0.2s ease',
-  };
+  const inputStyle: React.CSSProperties = useMemo(
+    () => ({
+      width: '100%',
+      cursor: 'pointer',
+      height: '6px',
+      borderRadius: '3px',
+      appearance: 'none',
+      WebkitAppearance: 'none',
+      background: `linear-gradient(to right, ${colors.accent}40, ${colors.border})`,
+      outline: 'none',
+      transition: 'background 0.2s ease',
+    }),
+    [colors.accent, colors.border],
+  );
 
-  const sectionStyle: React.CSSProperties = {
-    marginBottom: '16px',
-    paddingBottom: '16px',
-    borderBottom: `1px solid ${colors.border}`,
-  };
+  const sectionStyle: React.CSSProperties = useMemo(
+    () => ({
+      marginBottom: '16px',
+      paddingBottom: '16px',
+      borderBottom: `1px solid ${colors.border}`,
+    }),
+    [colors.border],
+  );
 
   // Stop pointer/touch events from propagating to PresentationControls
-  const stopPropagation = (e: React.PointerEvent | React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-  };
+  // Memoized to maintain stable reference
+  const stopPropagation = useCallback(
+    (e: React.PointerEvent | React.MouseEvent | React.TouchEvent) => {
+      e.stopPropagation();
+    },
+    [],
+  );
 
-  // Get mood color helper
-  const getMoodColor = (moodId: MoodId): string => {
+  // Get mood color helper - memoized
+  const getMoodColor = useCallback((moodId: MoodId): string => {
     return MOOD_COLORS[moodId] ?? MOOD_COLORS.presence;
-  };
+  }, []);
 
   const handleMoodSelect = (mood: MoodId) => {
     setSelectedMood(mood);

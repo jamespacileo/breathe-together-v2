@@ -209,6 +209,17 @@ const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
  */
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 
+/**
+ * Reusable Vector3 objects for animation loop
+ * Pre-allocated to avoid garbage collection pressure in hot path
+ * ~240+ allocations per frame eliminated by reusing these vectors
+ */
+const _tempOrbitedDir = new THREE.Vector3();
+const _tempTangent1 = new THREE.Vector3();
+const _tempTangent2 = new THREE.Vector3();
+const _tempAmbient = new THREE.Vector3();
+const _yAxis = new THREE.Vector3(0, 1, 0);
+
 export function ParticleSwarm({
   count = 48,
   users,
@@ -410,19 +421,17 @@ export function ParticleSwarm({
 
       // Apply orbital rotation to direction vector (rotate around Y axis)
       // This creates a slow drift around the center globe
-      const orbitedDirection = shard.direction
-        .clone()
-        .applyAxisAngle(new THREE.Vector3(0, 1, 0), shardState.orbitAngle);
+      // Uses pre-allocated vectors to avoid GC pressure
+      _tempOrbitedDir.copy(shard.direction).applyAxisAngle(_yAxis, shardState.orbitAngle);
 
       // Compute perpendicular wobble (tangent to radial direction)
       // Get two perpendicular vectors using cross products
-      const up = new THREE.Vector3(0, 1, 0);
-      const tangent1 = orbitedDirection.clone().cross(up).normalize();
+      _tempTangent1.copy(_tempOrbitedDir).cross(_yAxis).normalize();
       // Handle edge case when direction is parallel to up
-      if (tangent1.lengthSq() < 0.001) {
-        tangent1.set(1, 0, 0);
+      if (_tempTangent1.lengthSq() < 0.001) {
+        _tempTangent1.set(1, 0, 0);
       }
-      const tangent2 = orbitedDirection.clone().cross(tangent1).normalize();
+      _tempTangent2.copy(_tempOrbitedDir).cross(_tempTangent1).normalize();
 
       // Perpendicular wobble with unique phase per shard
       const wobblePhase = time * PERPENDICULAR_FREQUENCY * Math.PI * 2 + shardState.wobbleSeed;
@@ -432,17 +441,19 @@ export function ParticleSwarm({
       // Ambient floating motion (secondary layer)
       // Uses different frequencies per axis for organic feel
       const seed = shardState.ambientSeed;
-      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE;
-      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
-      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
+      _tempAmbient.set(
+        Math.sin(time * 0.4 + seed) * AMBIENT_SCALE,
+        Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE,
+        Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE,
+      );
 
       // Compute final position: orbited direction + spring radius + tangent wobble + ambient
       shard.mesh.position
-        .copy(orbitedDirection)
+        .copy(_tempOrbitedDir)
         .multiplyScalar(shardState.currentRadius)
-        .addScaledVector(tangent1, wobble1)
-        .addScaledVector(tangent2, wobble2)
-        .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+        .addScaledVector(_tempTangent1, wobble1)
+        .addScaledVector(_tempTangent2, wobble2)
+        .add(_tempAmbient);
 
       // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
       shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;

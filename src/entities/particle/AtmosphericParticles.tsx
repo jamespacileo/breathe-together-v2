@@ -12,7 +12,7 @@
 import { Sparkles } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import type * as THREE from 'three';
 import { breathPhase } from '../breath/traits';
 
@@ -60,27 +60,33 @@ export interface AtmosphericParticlesProps {
  * Creates an ethereal swarm of floating particles distributed around
  * the central globe. Uses drei Sparkles for automatic lifecycle management
  * with breathing-synchronized opacity modulation.
+ *
+ * Wrapped with React.memo to prevent re-renders from parent component updates.
  */
-export function AtmosphericParticles({
+export const AtmosphericParticles = memo(function AtmosphericParticlesComponent({
   count = 100,
   size = 0.08,
   baseOpacity = 0.1,
   breathingOpacity = 0.15,
 }: AtmosphericParticlesProps = {}) {
   const sparklesRef = useRef<THREE.Points>(null);
+  // Cache material reference to avoid repeated type casting in animation loop
+  const materialRef = useRef<THREE.PointsMaterial | null>(null);
   const world = useWorld();
 
   // Update opacity based on breathing phase
   useFrame(() => {
     if (!sparklesRef.current) return;
 
+    // Cache material on first frame to avoid repeated type assertion
+    if (!materialRef.current) {
+      materialRef.current = sparklesRef.current.material as THREE.PointsMaterial;
+    }
+
     const breathEntity = world?.queryFirst?.(breathPhase);
-    if (breathEntity) {
+    if (breathEntity && materialRef.current?.opacity !== undefined) {
       const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
-      const material = sparklesRef.current.material as THREE.PointsMaterial;
-      if (material.opacity !== undefined) {
-        material.opacity = baseOpacity + phase * breathingOpacity;
-      }
+      materialRef.current.opacity = baseOpacity + phase * breathingOpacity;
     }
   });
 
@@ -95,4 +101,4 @@ export function AtmosphericParticles({
       color="#8c7b6c"
     />
   );
-}
+});
