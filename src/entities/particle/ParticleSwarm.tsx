@@ -182,6 +182,7 @@ export function ParticleSwarm({
   }, [material]);
 
   // Animation loop - optimized to avoid allocations
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation loop requires multiple calculations per shard (ECS query, color update, position, physics, scale) - refactoring would reduce readability
   useFrame((state, delta) => {
     const physics = physicsRef.current;
     if (pool.length === 0 || physics.length === 0) return;
@@ -240,10 +241,11 @@ export function ParticleSwarm({
 
       const opacity = shardState.opacity;
 
-      // Calculate Fibonacci position (reuse _direction vector)
-      const activeCount = Math.max(1, visibleCount);
-      const phi = Math.acos(-1 + (2 * i + 1) / activeCount);
-      const theta = Math.sqrt(activeCount * Math.PI) * phi;
+      // Use stable position index for Fibonacci sphere (prevents redistribution glitch)
+      // Each shard keeps its position even when others are added/removed
+      const posIdx = shardState.positionIndex;
+      const phi = Math.acos(-1 + (2 * posIdx + 1) / MAX_CAPACITY);
+      const theta = Math.sqrt(MAX_CAPACITY * Math.PI) * phi;
       _direction.setFromSphericalCoords(1, phi, theta);
 
       // Exponential lerp for breathing (no spring bounce)

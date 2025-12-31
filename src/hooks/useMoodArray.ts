@@ -6,10 +6,18 @@
  * - No duplicate data structures
  * - React only notified for UI-visible changes (userCount)
  * - Animation tick is pure: read ref, update in-place, done
+ *
+ * STABLE POSITIONS (Dec 2024):
+ * - Each shard gets a stable positionIndex that doesn't change
+ * - When shards are added/removed, other shards don't move
+ * - Eliminates jarring "Fibonacci redistribution" glitch
  */
 
 import { useCallback, useRef, useState } from 'react';
 import { MOOD_IDS, type MoodId } from '../constants';
+
+/** Maximum slots - used for stable Fibonacci distribution */
+const MAX_SLOTS = 150;
 
 /**
  * Shard state - combines animation + render data in one place
@@ -18,6 +26,8 @@ export interface ShardAnimationState {
   mood: MoodId;
   state: 'entering' | 'idle' | 'exiting';
   opacity: number;
+  /** Stable position index (0 to MAX_SLOTS-1) - doesn't change after creation */
+  positionIndex: number;
   /** Animation start time (internal) */
   startTime: number;
 }
@@ -61,15 +71,40 @@ export interface UseMoodArrayResult {
 export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResult {
   const { animationDuration = 0.4, initialMoods = [] } = config;
 
-  // Single source of truth: one array with all shard data
-  const shardsRef = useRef<ShardAnimationState[]>(
-    initialMoods.map((mood) => ({
-      mood,
-      state: 'idle' as const,
-      opacity: 1,
-      startTime: 0,
-    })),
-  );
+  // Track available position indices (those not in use)
+  // Initialized with all slots available, then removes initial moods
+  const availableIndicesRef = useRef<Set<number>>(null!);
+  const shardsRef = useRef<ShardAnimationState[]>(null!);
+
+  // One-time initialization (runs synchronously before any callbacks)
+  if (availableIndicesRef.current === null) {
+    const available = new Set(Array.from({ length: MAX_SLOTS }, (_, i) => i));
+    const shards = initialMoods.map((mood, i) => {
+      available.delete(i);
+      return {
+        mood,
+        state: 'idle' as const,
+        opacity: 1,
+        positionIndex: i,
+        startTime: 0,
+      };
+    });
+    availableIndicesRef.current = available;
+    shardsRef.current = shards;
+  }
+
+  // Stable helper functions (only access refs, never change identity)
+  const getNextIndex = useCallback((): number => {
+    const available = availableIndicesRef.current!;
+    if (available.size === 0) return Math.floor(Math.random() * MAX_SLOTS);
+    const idx = available.values().next().value as number;
+    available.delete(idx);
+    return idx;
+  }, []);
+
+  const returnIndex = useCallback((idx: number) => {
+    availableIndicesRef.current!.add(idx);
+  }, []);
 
   const durationRef = useRef(animationDuration);
 
@@ -80,74 +115,82 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
   /**
    * Update the mood array with gentle fade transitions
    */
-  const setMoods = useCallback((newMoods: MoodId[]) => {
-    const now = performance.now() / 1000;
-    const prev = shardsRef.current;
-    const next: ShardAnimationState[] = [];
+  const setMoods = useCallback(
+    (newMoods: MoodId[]) => {
+      const now = performance.now() / 1000;
+      const prev = shardsRef.current;
+      const next: ShardAnimationState[] = [];
 
-    // Keep active (non-exiting) shards
-    const active = prev.filter((s) => s.state !== 'exiting');
-    const oldLen = active.length;
-    const newLen = newMoods.length;
+      // Keep active (non-exiting) shards
+      const active = prev.filter((s) => s.state !== 'exiting');
+      const oldLen = active.length;
+      const newLen = newMoods.length;
 
-    // Process new moods
-    for (let i = 0; i < newLen; i++) {
-      if (i < oldLen) {
-        // Update existing - keep animation state if animating
-        next.push({ ...active[i], mood: newMoods[i] });
-      } else {
-        // New shard - fade in
+      // Process new moods
+      for (let i = 0; i < newLen; i++) {
+        if (i < oldLen) {
+          // Update existing - keep position and animation state
+          next.push({ ...active[i], mood: newMoods[i] });
+        } else {
+          // New shard - fade in with new stable position
+          next.push({
+            mood: newMoods[i],
+            state: 'entering',
+            opacity: 0,
+            positionIndex: getNextIndex(),
+            startTime: now,
+          });
+        }
+      }
+
+      // Mark removed as exiting (keep their stable positions until animation completes)
+      for (let i = newLen; i < oldLen; i++) {
         next.push({
-          mood: newMoods[i],
-          state: 'entering',
-          opacity: 0,
+          ...active[i],
+          state: 'exiting',
           startTime: now,
         });
       }
-    }
 
-    // Mark removed as exiting
-    for (let i = newLen; i < oldLen; i++) {
-      next.push({
-        ...active[i],
-        state: 'exiting',
-        startTime: now,
-      });
-    }
-
-    // Keep already exiting shards
-    for (const s of prev) {
-      if (s.state === 'exiting' && !next.includes(s)) {
-        next.push(s);
+      // Keep already exiting shards
+      for (const s of prev) {
+        if (s.state === 'exiting' && !next.includes(s)) {
+          next.push(s);
+        }
       }
-    }
 
-    shardsRef.current = next;
-    setUserCount(newLen);
-  }, []);
+      shardsRef.current = next;
+      setUserCount(newLen);
+    },
+    [getNextIndex],
+  );
 
   /**
    * Add a single user
    */
-  const addUser = useCallback((mood: MoodId) => {
-    const now = performance.now() / 1000;
-    const shards = shardsRef.current;
+  const addUser = useCallback(
+    (mood: MoodId) => {
+      const now = performance.now() / 1000;
+      const shards = shardsRef.current;
 
-    // Insert new shard before exiting ones (keeps visual order stable)
-    const activeEnd = shards.findIndex((s) => s.state === 'exiting');
-    const insertIndex = activeEnd === -1 ? shards.length : activeEnd;
+      // Insert new shard before exiting ones (keeps array order stable)
+      const activeEnd = shards.findIndex((s) => s.state === 'exiting');
+      const insertIndex = activeEnd === -1 ? shards.length : activeEnd;
 
-    const newShard: ShardAnimationState = {
-      mood,
-      state: 'entering',
-      opacity: 0,
-      startTime: now,
-    };
+      const newShard: ShardAnimationState = {
+        mood,
+        state: 'entering',
+        opacity: 0,
+        positionIndex: getNextIndex(),
+        startTime: now,
+      };
 
-    shardsRef.current = [...shards.slice(0, insertIndex), newShard, ...shards.slice(insertIndex)];
+      shardsRef.current = [...shards.slice(0, insertIndex), newShard, ...shards.slice(insertIndex)];
 
-    setUserCount((prev) => prev + 1);
-  }, []);
+      setUserCount((prev) => prev + 1);
+    },
+    [getNextIndex],
+  );
 
   /**
    * Remove user at index
@@ -183,6 +226,7 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
     const shards = shardsRef.current;
 
     let needsCleanup = false;
+    const indicesToReturn: number[] = [];
 
     // Single pass: update all animations in-place
     for (const s of shards) {
@@ -194,6 +238,7 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
       if (t >= 1) {
         if (s.state === 'exiting') {
           needsCleanup = true;
+          indicesToReturn.push(s.positionIndex);
         } else {
           // Entering complete -> idle
           s.state = 'idle';
@@ -205,11 +250,14 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
       }
     }
 
-    // Remove completed exits (only allocates when needed)
+    // Remove completed exits and return their position indices to the pool
     if (needsCleanup) {
       shardsRef.current = shards.filter((s) => !(s.state === 'exiting' && s.opacity <= 0.01));
+      for (const idx of indicesToReturn) {
+        returnIndex(idx);
+      }
     }
-  }, []);
+  }, [returnIndex]);
 
   // Compute moods array from active shards (for compatibility)
   const moods = shardsRef.current.filter((s) => s.state !== 'exiting').map((s) => s.mood);
