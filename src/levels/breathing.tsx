@@ -22,6 +22,11 @@ const TUNING_DEFAULTS = {
   orbitRadius: 4.5, // Base orbit radius
   shardSize: 0.5, // Max shard size
   atmosphereDensity: 100, // Atmospheric particle count
+  // Depth of Field settings
+  enableDepthOfField: true,
+  focusDistance: 15, // Focus on center (camera distance)
+  focalRange: 8, // Range that stays sharp
+  maxBlur: 3, // Maximum blur intensity
 };
 
 /**
@@ -48,6 +53,11 @@ export function BreathingLevel({
   const [orbitRadius, setOrbitRadius] = useState(TUNING_DEFAULTS.orbitRadius);
   const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
   const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
+  // Depth of Field state
+  const [enableDepthOfField] = useState(TUNING_DEFAULTS.enableDepthOfField);
+  const [focusDistance] = useState(TUNING_DEFAULTS.focusDistance);
+  const [focalRange] = useState(TUNING_DEFAULTS.focalRange);
+  const [maxBlur] = useState(TUNING_DEFAULTS.maxBlur);
 
   // UI modal states (controlled by TopRightControls)
   const [showTuneControls, setShowTuneControls] = useState(false);
@@ -58,8 +68,15 @@ export function BreathingLevel({
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
-        {/* 3-Pass FBO Refraction Pipeline handles background + refraction rendering */}
-        <RefractionPipeline ior={ior} backfaceIntensity={glassDepth}>
+        {/* 4-Pass FBO Refraction Pipeline handles background + refraction + depth of field rendering */}
+        <RefractionPipeline
+          ior={ior}
+          backfaceIntensity={glassDepth}
+          enableDepthOfField={enableDepthOfField}
+          focusDistance={focusDistance}
+          focalRange={focalRange}
+          maxBlur={maxBlur}
+        >
           {/* Monument Valley inspired atmosphere - clouds, lighting, fog */}
           {showEnvironment && <Environment showClouds={true} showStars={true} />}
 

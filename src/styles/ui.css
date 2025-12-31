@@ -1,0 +1,180 @@
+/**
+ * UI Component Styles - breathe-together-v2
+ *
+ * Shared CSS styles for UI components.
+ * This file contains keyframe animations, custom input styling,
+ * and button focus states that were previously embedded in components.
+ *
+ * Import this file in your main app entry point (main.tsx) or
+ * import directly in components that need it.
+ */
+
+/* =============================================================================
+   KEYFRAME ANIMATIONS
+   ============================================================================= */
+
+/**
+ * Fade In/Out Animation
+ * Used for hints and transient notifications that fade in then out
+ */
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/**
+ * Slide Up Animation
+ * Used for modal content staggered entrance
+ */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =============================================================================
+   RANGE SLIDER STYLING
+   ============================================================================= */
+
+/**
+ * Custom Range Slider Thumb - WebKit (Chrome, Safari, Edge)
+ * Styled to match the warm gold accent color palette
+ */
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #d4a76f, #c9a06c);
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 2px 8px rgba(201, 160, 108, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+input[type='range']::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow:
+    0 4px 16px rgba(201, 160, 108, 0.6),
+    0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+input[type='range']::-webkit-slider-thumb:active {
+  transform: scale(0.95);
+  box-shadow: 0 1px 4px rgba(201, 160, 108, 0.3);
+}
+
+/**
+ * Custom Range Slider Thumb - Firefox
+ */
+input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #d4a76f, #c9a06c);
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 2px 8px rgba(201, 160, 108, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+input[type='range']::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  box-shadow:
+    0 4px 16px rgba(201, 160, 108, 0.6),
+    0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/**
+ * Focus State for Accessibility
+ * Shows a visible focus ring when using keyboard navigation
+ */
+input[type='range']:focus {
+  outline: none;
+}
+
+input[type='range']:focus::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 3px rgba(201, 160, 108, 0.3),
+    0 2px 8px rgba(201, 160, 108, 0.4);
+}
+
+/* =============================================================================
+   BUTTON STYLES
+   ============================================================================= */
+
+/**
+ * Button Focus States
+ * Provides accessible focus indication for keyboard navigation
+ */
+button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(201, 160, 108, 0.5),
+    0 0 0 4px rgba(201, 160, 108, 0.2) !important;
+}
+
+/**
+ * Mood Button Hover Effect
+ * Subtle lift and shadow on hover
+ */
+.mood-button {
+  transition: all 0.2s ease;
+}
+
+.mood-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* =============================================================================
+   MODAL ANIMATIONS
+   ============================================================================= */
+
+/**
+ * Modal Stagger Entrance
+ * Each child element animates in sequence with slight delay
+ */
+.modal-stagger > * {
+  animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  opacity: 0;
+}
+
+.modal-stagger > *:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.modal-stagger > *:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.modal-stagger > *:nth-child(3) {
+  animation-delay: 0.15s;
+}
+.modal-stagger > *:nth-child(4) {
+  animation-delay: 0.2s;
+}
+.modal-stagger > *:nth-child(5) {
+  animation-delay: 0.25s;
+}
+.modal-stagger > *:nth-child(6) {
+  animation-delay: 0.3s;
+}
