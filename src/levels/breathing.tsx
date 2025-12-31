@@ -62,7 +62,7 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Generate mock users (converts count to individual users with stable IDs)
+  // Generate mock users with randomized order for visual variety
   const mockUsers = useMemo(() => {
     const presence = generateMockPresence(harmony);
     // Convert aggregate mood counts to individual users
@@ -76,6 +76,20 @@ export function BreathingLevel({
         });
       }
     }
+
+    // Shuffle users for visual variety (colors distributed across sphere)
+    // Use Fisher-Yates shuffle with seeded random for consistency within session
+    const seed = harmony; // Same count = same shuffle
+    const seededRandom = (i: number) => {
+      const x = Math.sin(seed * 9999 + i * 1234) * 10000;
+      return x - Math.floor(x);
+    };
+
+    for (let i = users.length - 1; i > 0; i--) {
+      const j = Math.floor(seededRandom(i) * (i + 1));
+      [users[i], users[j]] = [users[j], users[i]];
+    }
+
     return users;
   }, [harmony]);
 
