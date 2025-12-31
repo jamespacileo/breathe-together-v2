@@ -209,7 +209,6 @@ export function ParticleSwarm({
   const poolRef = useRef<ShardData[]>([]);
   const statesRef = useRef<ShapeVisualState[]>([]);
   const prevMoodArrayRef = useRef<number[]>([]);
-  const pendingRedistributeRef = useRef(false);
 
   // Dynamic shard size based on user count
   const activeCount = moodArray.length;
@@ -263,8 +262,7 @@ export function ParticleSwarm({
     return () => material.dispose();
   }, [material]);
 
-  // Handle mood array changes
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Mood array diffing requires comparing prev/new states, tracking active/exiting slots, and assigning pool slots - inherently complex state machine
+  // Handle mood array changes - simple index-based identity (array[i] = slot[i])
   useEffect(() => {
     const states = statesRef.current;
     const prevArray = prevMoodArrayRef.current;
@@ -274,95 +272,44 @@ export function ParticleSwarm({
 
     const prevCount = prevArray.length;
     const newCount = newArray.length;
+    const persistCount = Math.min(prevCount, newCount);
 
-    // Track which pool slots are used
-    const activeSlots = new Set<number>();
-    const exitingSlots: number[] = [];
-
-    // First pass: handle existing shapes
-    for (let i = 0; i < states.length; i++) {
+    // Update persisting slots (0 to persistCount-1)
+    for (let i = 0; i < persistCount; i++) {
       const state = states[i];
+      // Update color if mood changed
+      if (prevArray[i] !== newArray[i]) {
+        state.targetColor = getMoodColor(newArray[i]);
+        state.colorLerpProgress = 0;
+        state.moodIndex = newArray[i];
+      }
+      // Update Fibonacci position for new total count
+      state.targetDirection = fibonacciDirection(i, newCount);
+      state.positionLerpProgress = 0;
+    }
 
+    // Shrinking: mark excess slots as exiting
+    for (let i = newCount; i < prevCount && i < MAX_POOL_SIZE; i++) {
+      const state = states[i];
       if (state.status === 'active' || state.status === 'entering') {
-        // Find if this shape's logical index still exists
-        const logicalIndex = states.findIndex(
-          (s, idx) =>
-            idx < prevCount && s.status !== 'idle' && s.status !== 'exiting' && s === state,
-        );
-
-        if (logicalIndex >= newCount) {
-          // This shape should exit
-          state.status = 'exiting';
-          state.targetScale = 0;
-          exitingSlots.push(i);
-        } else {
-          activeSlots.add(i);
-        }
+        state.status = 'exiting';
+        state.targetScale = 0;
       }
     }
 
-    // Second pass: assign new shapes to pool slots
-    let poolSlotIndex = 0;
-    const newAssignments: Array<{ poolIndex: number; moodIndex: number; visualIndex: number }> = [];
-
-    for (let visualIndex = 0; visualIndex < newCount; visualIndex++) {
-      const mood = newArray[visualIndex];
-
-      // Check if this position already has an active shape
-      let existingSlot = -1;
-      if (visualIndex < prevCount) {
-        for (let i = 0; i < states.length; i++) {
-          const state = states[i];
-          if ((state.status === 'active' || state.status === 'entering') && activeSlots.has(i)) {
-            existingSlot = i;
-            activeSlots.delete(i);
-            break;
-          }
-        }
-      }
-
-      if (existingSlot >= 0) {
-        // Update existing shape
-        const state = states[existingSlot];
-        if (state.moodIndex !== mood) {
-          state.targetColor = getMoodColor(mood);
-          state.colorLerpProgress = 0;
-          state.moodIndex = mood;
-        }
-        // Update target position for new Fibonacci distribution
-        state.targetDirection = fibonacciDirection(visualIndex, newCount);
-        state.positionLerpProgress = 0;
-      } else {
-        // Find idle pool slot
-        while (poolSlotIndex < MAX_POOL_SIZE && states[poolSlotIndex].status !== 'idle') {
-          poolSlotIndex++;
-        }
-
-        if (poolSlotIndex < MAX_POOL_SIZE) {
-          newAssignments.push({ poolIndex: poolSlotIndex, moodIndex: mood, visualIndex });
-          poolSlotIndex++;
-        }
-      }
-    }
-
-    // Apply new assignments (entering shapes)
-    for (const assignment of newAssignments) {
-      const state = states[assignment.poolIndex];
+    // Growing: mark new slots as entering
+    for (let i = prevCount; i < newCount && i < MAX_POOL_SIZE; i++) {
+      const state = states[i];
       state.status = 'entering';
-      state.moodIndex = assignment.moodIndex;
-      state.targetDirection = fibonacciDirection(assignment.visualIndex, newCount);
+      state.moodIndex = newArray[i];
+      state.targetDirection = fibonacciDirection(i, newCount);
       state.currentDirection.copy(state.targetDirection);
       state.positionLerpProgress = 1;
-      state.targetColor = getMoodColor(assignment.moodIndex);
+      state.targetColor = getMoodColor(newArray[i]);
       state.currentColor.copy(state.targetColor);
       state.colorLerpProgress = 1;
       state.scale = 0;
       state.targetScale = 1;
-    }
-
-    // Mark that we may need to redistribute after exits complete
-    if (exitingSlots.length > 0) {
-      pendingRedistributeRef.current = true;
     }
 
     prevMoodArrayRef.current = [...newArray];
@@ -403,9 +350,6 @@ export function ParticleSwarm({
       material.uniforms.time.value = time;
     }
 
-    let hasExiting = false;
-    let allExitsComplete = true;
-
     // Update each shape
     for (let i = 0; i < MAX_POOL_SIZE; i++) {
       const shard = pool[i];
@@ -424,14 +368,11 @@ export function ParticleSwarm({
           state.status = 'active';
         }
       } else if (state.status === 'exiting') {
-        hasExiting = true;
         state.scale = Math.max(0, state.scale - clampedDelta * exitSpeed);
         if (state.scale <= 0) {
           state.scale = 0;
           state.status = 'idle';
           state.moodIndex = -1;
-        } else {
-          allExitsComplete = false;
         }
       }
 
@@ -517,20 +458,6 @@ export function ParticleSwarm({
         state.status === 'entering' ? easeOutBack(state.scale) : easeOutQuad(state.scale);
       const finalScale = state.baseScaleOffset * breathScale * enterExitScale;
       shard.mesh.scale.setScalar(finalScale);
-    }
-
-    // Redistribute positions after all exits complete
-    if (pendingRedistributeRef.current && hasExiting && allExitsComplete) {
-      pendingRedistributeRef.current = false;
-
-      // Recalculate positions for remaining active shapes
-      const activeStates = states.filter((s) => s.status === 'active' || s.status === 'entering');
-      const newCount = activeStates.length;
-
-      activeStates.forEach((state, visualIndex) => {
-        state.targetDirection = fibonacciDirection(visualIndex, newCount);
-        state.positionLerpProgress = 0;
-      });
     }
   });
 
