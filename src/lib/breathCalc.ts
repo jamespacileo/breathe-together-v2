@@ -15,13 +15,14 @@ import { easeExhale, easeInhale } from './easing';
  * Physics: Underdamped harmonic oscillator creates subtle "breathing"
  * even during holds - nothing in nature is perfectly still.
  *
- * amplitude: 1.2% keeps it subtle but perceptible
+ * amplitude: 0.4% very subtle micro-movement (reduced from 1.2% to avoid
+ *            appearing as a "bounce" before exhale begins)
  * damping: Reduces amplitude over the hold phase
- * frequency: ~1.5 cycles per hold for gentle rhythm
+ * frequency: ~1.0 cycles per hold for gentler rhythm (reduced from 1.5)
  */
-const HOLD_AMPLITUDE = 0.012;
-const HOLD_DAMPING = 0.5; // How much oscillation decreases over hold
-const HOLD_FREQUENCY = 1.5; // Oscillation cycles per hold phase
+const HOLD_AMPLITUDE = 0.004; // Reduced from 0.012 to avoid visible bounce
+const HOLD_DAMPING = 0.6; // Slightly increased to settle faster
+const HOLD_FREQUENCY = 1.0; // Reduced from 1.5 for gentler rhythm
 
 /**
  * Breath Phase Convention:
