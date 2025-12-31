@@ -446,7 +446,7 @@ export function SimpleGaiaUI({
               Settings
             </h2>
 
-            {/* Current Mood */}
+            {/* Current Mood - with icosahedron preview */}
             <div style={{ marginBottom: '24px' }}>
               <div
                 style={{
@@ -457,32 +457,92 @@ export function SimpleGaiaUI({
                   marginBottom: '12px',
                 }}
               >
-                Your Current Mood
+                Your Presence
               </div>
               <button
                 type="button"
                 onClick={() => {
                   setShowSettings(false);
-                  setShowMoodSelect(true);
+                  setTimeout(() => setShowMoodSelect(true), 150);
                 }}
                 onPointerDown={stopPropagation}
                 style={{
-                  background: colors.glass,
-                  border: `1px solid ${colors.border}`,
-                  padding: '12px 20px',
-                  borderRadius: '24px',
+                  background: selectedMood
+                    ? `linear-gradient(135deg, ${getMoodColor(selectedMood)}12 0%, rgba(255,255,255,0.5) 100%)`
+                    : colors.glass,
+                  border: selectedMood
+                    ? `2px solid ${getMoodColor(selectedMood)}30`
+                    : `1px solid ${colors.border}`,
+                  padding: '14px 18px',
+                  borderRadius: '20px',
                   fontSize: '0.85rem',
                   color: colors.text,
                   cursor: 'pointer',
                   width: '100%',
                   textAlign: 'left',
                   display: 'flex',
-                  justifyContent: 'space-between',
                   alignItems: 'center',
+                  gap: '14px',
+                  transition: 'all 0.25s ease',
                 }}
               >
-                <span>{selectedMood ? selectedMood : 'Select a mood'}</span>
-                <span style={{ opacity: 0.5 }}>→</span>
+                {/* Icosahedron indicator */}
+                <CSSIcosahedron
+                  color={selectedMood ? getMoodColor(selectedMood) : '#9a8a7a'}
+                  size={28}
+                  isActive={!!selectedMood}
+                  animated={!!selectedMood}
+                  glowIntensity={selectedMood ? 0.5 : 0.2}
+                />
+
+                {/* Mood info */}
+                <div style={{ flex: 1 }}>
+                  {selectedMood ? (
+                    <>
+                      <div
+                        style={{
+                          fontSize: '0.9rem',
+                          fontWeight: 500,
+                          color: '#4a3f35',
+                          marginBottom: '2px',
+                        }}
+                      >
+                        {MOOD_METADATA[selectedMood].label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.7rem',
+                          color: '#9a8a7a',
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        {MOOD_METADATA[selectedMood].description}
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      style={{
+                        fontSize: '0.85rem',
+                        color: '#9a8a7a',
+                      }}
+                    >
+                      Tap to choose your mood
+                    </div>
+                  )}
+                </div>
+
+                {/* Change indicator */}
+                <div
+                  style={{
+                    fontSize: '0.65rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: '#9a8a7a',
+                    opacity: 0.8,
+                  }}
+                >
+                  Change
+                </div>
               </button>
             </div>
 
