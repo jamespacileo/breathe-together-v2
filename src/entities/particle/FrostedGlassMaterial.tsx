@@ -31,10 +31,11 @@ void main() {
 }
 `;
 
-// Fragment shader - fresnel rim + breathing luminosity
+// Fragment shader - fresnel rim + breathing luminosity + anticipation edge glint
 const shardFragmentShader = `
 uniform float breathPhase;
 uniform float time;
+uniform float anticipation; // 0-1, intensifies near phase transitions
 
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -64,6 +65,47 @@ void main() {
   // Subtle inner luminance - very gentle glow from within
   float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
   colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
+
+  // ANTICIPATION EFFECT: Smooth organic glint with wind-like motion
+  // Gentle, flowing light that builds naturally before transitions
+
+  // WIND EFFECT: Soft directional light that "breathes" with the cycle
+  // Creates feeling of gentle wind/energy flowing through the shards
+  float windAngle = time * 0.8; // Slow, gentle rotation
+  vec3 windDir = vec3(cos(windAngle), 0.3, sin(windAngle));
+  float windLight = max(dot(vNormal, windDir), 0.0);
+  float windGlow = pow(windLight, 3.0) * 0.15 * (1.0 + breathPhase * 0.3);
+  colorWithRim += vec3(1.0, 0.98, 0.95) * windGlow;
+
+  // ANTICIPATION GLINT: Smooth sweep that intensifies approaching transition
+  // Uses smooth sine waves instead of harsh thresholds
+  float sweepAngle = time * 1.5; // Slower, more graceful sweep
+  vec3 lightDir = vec3(cos(sweepAngle), 0.5, sin(sweepAngle));
+  float edgeDot = max(dot(vNormal, lightDir), 0.0);
+
+  // Smooth glint with organic falloff
+  float glint = pow(edgeDot, 4.0) * anticipation * 0.8;
+
+  // Secondary softer sweep for depth
+  float sweepAngle2 = -time * 0.9 + 2.0;
+  vec3 lightDir2 = vec3(cos(sweepAngle2), 0.6, sin(sweepAngle2));
+  float edgeDot2 = max(dot(vNormal, lightDir2), 0.0);
+  float glint2 = pow(edgeDot2, 5.0) * anticipation * 0.4;
+
+  // Gentle pulsing glow (slow sine wave, no harsh threshold)
+  float pulseGlow = sin(time * 3.0) * 0.5 + 0.5; // Smooth 0-1 oscillation
+  pulseGlow *= anticipation * anticipation * 0.3; // Squared for organic ramp
+
+  // Combine with warm golden color
+  vec3 glintColor = vec3(1.0, 0.95, 0.88);
+  colorWithRim += glintColor * (glint + glint2 + pulseGlow) * 0.5;
+
+  // EDGE GLOW: Soft fresnel rim that builds smoothly
+  float anticipationRim = fresnel * anticipation * 0.35;
+  colorWithRim += vec3(1.0, 0.97, 0.9) * anticipationRim;
+
+  // Gentle overall brightness lift
+  colorWithRim *= 1.0 + anticipation * 0.12;
 
   // Slight desaturation toward edges for atmospheric feel
   vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
@@ -106,12 +148,14 @@ export function FrostedGlassMaterial({ color = '#ffffff' }: FrostedGlassMaterial
  * - Fresnel rim glow (soft edge lighting)
  * - Breathing luminosity (synced brightness pulse)
  * - Per-vertex color support
+ * - Anticipation edge glint (subtle "catching light" before transitions)
  */
 export function createFrostedGlassMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       breathPhase: { value: 0 },
       time: { value: 0 },
+      anticipation: { value: 0 }, // 0-1, drives edge glint effect
     },
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,

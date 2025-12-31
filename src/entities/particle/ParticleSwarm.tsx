@@ -10,7 +10,8 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { MoodId } from '../../constants';
+import { BREATH_TOTAL_CYCLE, type MoodId } from '../../constants';
+import { calculateAnticipation, calculatePhaseInfo } from '../../lib/breathPhase';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -339,7 +340,7 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - spring physics + ambient motion + shader updates
+  // Animation loop - spring physics + ambient motion + shader updates + anticipation
   useFrame((state, delta) => {
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
@@ -348,6 +349,12 @@ export function ParticleSwarm({
     // Cap delta to prevent physics explosion on tab switch
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
+
+    // Calculate anticipation from UTC time (same source as breathing)
+    const now = Date.now() / 1000;
+    const cycleTime = now % BREATH_TOTAL_CYCLE;
+    const phaseInfo = calculatePhaseInfo(cycleTime);
+    const anticipation = calculateAnticipation(phaseInfo);
 
     // Get breathing state from ECS
     let targetRadius = baseRadius;
@@ -367,6 +374,7 @@ export function ParticleSwarm({
     if (material.uniforms) {
       material.uniforms.breathPhase.value = currentBreathPhase;
       material.uniforms.time.value = time;
+      material.uniforms.anticipation.value = anticipation.easedAnticipation;
     }
 
     // Update each shard with spring physics + ambient motion
@@ -436,13 +444,20 @@ export function ParticleSwarm({
       const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
       const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
 
-      // Compute final position: orbited direction + spring radius + tangent wobble + ambient
+      // WIND EFFECT: Gentle global wind that follows breathing rhythm
+      // Creates the feeling of ethereal wind flowing through the shards
+      const windPhase = time * 0.4; // Slow wind cycle
+      const breathWindStrength = 0.08 + currentBreathPhase * 0.06; // Stronger on inhale
+      const windX = Math.sin(windPhase) * breathWindStrength;
+      const windZ = Math.cos(windPhase * 0.7) * breathWindStrength * 0.6;
+
+      // Compute final position: orbited direction + spring radius + tangent wobble + ambient + wind
       shard.mesh.position
         .copy(orbitedDirection)
         .multiplyScalar(shardState.currentRadius)
         .addScaledVector(tangent1, wobble1)
         .addScaledVector(tangent2, wobble2)
-        .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+        .add(new THREE.Vector3(ambientX + windX, ambientY, ambientZ + windZ));
 
       // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
       shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;

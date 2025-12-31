@@ -1,7 +1,7 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
-import { calculatePhaseInfo } from '../lib/breathPhase';
+import { calculateAnticipation, calculatePhaseInfo } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
@@ -176,9 +176,12 @@ export function SimpleGaiaUI({
     const updatePhase = () => {
       const now = Date.now() / 1000;
       const cycleTime = now % BREATH_TOTAL_CYCLE;
-      const { phaseIndex, phaseProgress, accumulatedTime, phaseDuration } =
-        calculatePhaseInfo(cycleTime);
+      const phaseInfo = calculatePhaseInfo(cycleTime);
+      const { phaseIndex, phaseProgress, accumulatedTime, phaseDuration } = phaseInfo;
       const phaseTime = phaseProgress * phaseDuration;
+
+      // Calculate anticipation for tension glow effect
+      const anticipation = calculateAnticipation(phaseInfo);
 
       // Update phase name on transition
       if (phaseIndex !== prevPhase) {
@@ -200,12 +203,40 @@ export function SimpleGaiaUI({
         progressRef.current.style.width = `${cycleProgress * 100}%`;
       }
 
-      // Breathing-synchronized glow on progress container
+      // ANTICIPATION EFFECT: Progress bar glow (smooth, organic)
+      // Gentle breathing glow that intensifies smoothly before transitions
       if (progressContainerRef.current) {
-        // Intensity peaks during inhale (phase 0) and hold-in (phase 1)
-        const glowIntensity =
-          phaseIndex === 0 || phaseIndex === 1 ? 0.4 + phaseProgress * 0.3 : 0.2;
-        progressContainerRef.current.style.boxShadow = `0 0 ${8 + glowIntensity * 12}px rgba(201, 160, 108, ${glowIntensity})`;
+        // Base glow follows breathing rhythm smoothly
+        const breathGlow = 0.25 + phaseProgress * 0.15;
+
+        // Anticipation builds smoothly (squared for organic curve)
+        const anticipationSquared = anticipation.easedAnticipation * anticipation.easedAnticipation;
+        const tensionGlow = anticipationSquared * 0.4;
+
+        // Gentle continuous pulse (slow sine wave, always active)
+        const gentlePulse =
+          Math.sin(now * 2.5) * 0.05 * (0.3 + anticipation.easedAnticipation * 0.7);
+
+        const totalGlow = Math.min(0.9, breathGlow + tensionGlow + gentlePulse);
+
+        // Glow radius expands smoothly
+        const glowRadius = 8 + totalGlow * 12 + anticipationSquared * 8;
+
+        // Smooth color transition (base golden → warmer gold)
+        // Base: rgb(201, 160, 108) - warm gold
+        // Target: rgb(235, 190, 120) - brighter warm gold
+        const colorR = Math.floor(201 + anticipationSquared * 34);
+        const colorG = Math.floor(160 + anticipationSquared * 30);
+        const colorB = Math.floor(108 + anticipationSquared * 12);
+
+        // Soft outer glow that fades in smoothly
+        const outerOpacity = anticipationSquared * 0.2;
+        const outerGlow =
+          outerOpacity > 0.02
+            ? `, 0 0 ${glowRadius * 1.8}px rgba(220, 180, 120, ${outerOpacity})`
+            : '';
+
+        progressContainerRef.current.style.boxShadow = `0 0 ${glowRadius}px rgba(${colorR}, ${colorG}, ${colorB}, ${totalGlow})${outerGlow}`;
       }
 
       animationId = requestAnimationFrame(updatePhase);
