@@ -2,8 +2,10 @@
  * ParticleSwarm - Monument Valley inspired icosahedral shards
  *
  * Uses slot-based user ordering for visual stability:
- * - Users maintain their position when others join/leave
+ * - Users maintain their slot when others join/leave
+ * - Fibonacci positions dynamically redistribute based on active count
  * - Smooth scale animations (0→1 on enter, 1→0 on exit)
+ * - Smooth position animations when distribution changes
  * - Diff-based reconciliation for minimal disruption
  * - Updates only during hold phase, once per breathing cycle
  *
@@ -80,16 +82,24 @@ function updateVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Co
 /**
  * Calculate Fibonacci sphere point for even distribution
  *
- * @param index - Point index
- * @param total - Total number of points
- * @returns Normalized direction vector
+ * Uses golden angle distribution for uniform coverage regardless of count.
+ * Each point is evenly spaced on the sphere surface.
+ *
+ * @param index - Point index (0 to total-1)
+ * @param total - Total number of points to distribute
+ * @returns Normalized direction vector on unit sphere
  */
 function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
-  // Golden angle in radians
+  if (total <= 1) {
+    // Single point goes to top of sphere
+    return new THREE.Vector3(0, 1, 0);
+  }
+
+  // Golden angle in radians (137.5077... degrees)
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
-  // Y goes from 1 to -1
-  const y = 1 - (index / Math.max(total - 1, 1)) * 2;
+  // Y goes from 1 to -1 (top to bottom of sphere)
+  const y = 1 - (index / (total - 1)) * 2;
   const radiusAtY = Math.sqrt(1 - y * y);
 
   const theta = goldenAngle * index;
@@ -126,7 +136,10 @@ export interface ParticleSwarmProps {
 
 interface ShardData {
   mesh: THREE.Mesh;
+  /** Current direction (interpolated toward targetDirection) */
   direction: THREE.Vector3;
+  /** Target direction from Fibonacci redistribution */
+  targetDirection: THREE.Vector3;
   geometry: THREE.IcosahedronGeometry;
   currentMood: MoodId | null;
 }
@@ -171,6 +184,13 @@ interface ShardPhysicsState {
 const BREATH_LERP_SPEED = 6.0;
 
 /**
+ * Lerp speed for position redistribution
+ * How quickly shards move to new Fibonacci positions when count changes.
+ * Lower = smoother but slower transitions.
+ */
+const POSITION_LERP_SPEED = 3.0;
+
+/**
  * Ambient floating motion constants
  */
 const AMBIENT_SCALE = 0.08;
@@ -202,6 +222,7 @@ const _tempTangent1 = new THREE.Vector3();
 const _tempTangent2 = new THREE.Vector3();
 const _tempAmbient = new THREE.Vector3();
 const _yAxis = new THREE.Vector3(0, 1, 0);
+const _tempLerpDir = new THREE.Vector3();
 
 /**
  * Normalize users input to User[] format
@@ -246,6 +267,9 @@ export function ParticleSwarm({
   // Track previous hold phase to detect transitions
   const wasInHoldRef = useRef(false);
 
+  // Track previous active count for position redistribution
+  const prevActiveCountRef = useRef(0);
+
   // Normalize users input
   const normalizedUsers = useMemo(() => normalizeUsers(users), [users]);
 
@@ -276,13 +300,14 @@ export function ParticleSwarm({
   // Create initial shard pool (will grow dynamically)
   const initialShardCount = 48;
 
-  // Create a shard at a specific index
+  // Create a shard at a specific index (initial distribution uses pool size)
   const createShardAtIndex = useCallback(
-    (index: number, shardSize: number) => {
+    (index: number, shardSize: number, totalForDistribution: number) => {
       const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
       applyVertexColors(geometry, DEFAULT_COLOR);
 
-      const direction = getFibonacciSpherePoint(index, maxShards);
+      // Use actual total for Fibonacci distribution
+      const direction = getFibonacciSpherePoint(index, totalForDistribution);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.userData.useRefraction = true;
       mesh.position.copy(direction).multiplyScalar(baseRadius);
@@ -298,7 +323,8 @@ export function ParticleSwarm({
 
       const shard: ShardData = {
         mesh,
-        direction,
+        direction: direction.clone(),
+        targetDirection: direction.clone(),
         geometry,
         currentMood: null,
       };
@@ -317,7 +343,7 @@ export function ParticleSwarm({
 
       return { shard, physics };
     },
-    [material, maxShards, baseRadius],
+    [material, baseRadius],
   );
 
   // Ensure we have enough shards for all slots
@@ -331,7 +357,8 @@ export function ParticleSwarm({
       const shardSize = calculateShardSize(requiredCount);
 
       for (let i = shards.length; i < Math.min(requiredCount, maxShards); i++) {
-        const { shard, physics: physicsState } = createShardAtIndex(i, shardSize);
+        // New shards use current active count for initial distribution
+        const { shard, physics: physicsState } = createShardAtIndex(i, shardSize, requiredCount);
         group.add(shard.mesh);
         shard.mesh.scale.setScalar(0); // Start invisible
         shards.push(shard);
@@ -340,6 +367,37 @@ export function ParticleSwarm({
     },
     [calculateShardSize, createShardAtIndex, maxShards],
   );
+
+  /**
+   * Redistribute Fibonacci positions for all active slots
+   * Called when active count changes to maintain uniform sphere coverage
+   */
+  const redistributePositions = useCallback((activeCount: number) => {
+    const shards = shardsRef.current;
+    if (activeCount === 0) return;
+
+    // Update target directions for all shards that will be active
+    // Each active slot gets a new Fibonacci position based on its rank
+    let activeIndex = 0;
+    const slotManager = slotManagerRef.current;
+    if (!slotManager) return;
+
+    const slots = slotManager.slots;
+    for (let i = 0; i < slots.length && i < shards.length; i++) {
+      const slot = slots[i];
+      const shard = shards[i];
+
+      if (slot.state !== 'empty') {
+        // This slot is active - assign it a Fibonacci position based on its rank
+        const newDirection = getFibonacciSpherePoint(activeIndex, activeCount);
+        shard.targetDirection.copy(newDirection);
+        activeIndex++;
+      } else {
+        // Empty slots keep their current direction (won't be visible anyway)
+        shard.targetDirection.copy(shard.direction);
+      }
+    }
+  }, []);
 
   // Initialize shard pool
   useEffect(() => {
@@ -357,7 +415,7 @@ export function ParticleSwarm({
     const shardSize = calculateShardSize(initialShardCount);
 
     for (let i = 0; i < initialShardCount; i++) {
-      const { shard, physics } = createShardAtIndex(i, shardSize);
+      const { shard, physics } = createShardAtIndex(i, shardSize, initialShardCount);
       group.add(shard.mesh);
       shards.push(shard);
       physicsStates.push(physics);
@@ -373,6 +431,16 @@ export function ParticleSwarm({
     const slotManager = slotManagerRef.current;
     if (slotManager) {
       slotManager.reconcile(pendingUsersRef.current);
+      // Set initial active count and redistribute
+      const activeCount = slotManager.activeCount;
+      prevActiveCountRef.current = activeCount;
+      if (activeCount > 0) {
+        redistributePositions(activeCount);
+        // Snap to target positions immediately on init
+        for (const shard of shards) {
+          shard.direction.copy(shard.targetDirection);
+        }
+      }
     }
 
     return () => {
@@ -381,7 +449,7 @@ export function ParticleSwarm({
         group.remove(shard.mesh);
       }
     };
-  }, [calculateShardSize, createShardAtIndex]);
+  }, [calculateShardSize, createShardAtIndex, redistributePositions]);
 
   // Cleanup material on unmount
   useEffect(() => {
@@ -431,6 +499,13 @@ export function ParticleSwarm({
       slotManager.reconcile(pendingUsersRef.current);
       slotManager.markReconciled(cycleIndex);
 
+      // Check if active count changed - redistribute positions
+      const newActiveCount = slotManager.activeCount;
+      if (newActiveCount !== prevActiveCountRef.current) {
+        redistributePositions(newActiveCount);
+        prevActiveCountRef.current = newActiveCount;
+      }
+
       // Update shard colors based on slot moods
       const slots = slotManager.slots;
       for (let i = 0; i < slots.length && i < currentShards.length; i++) {
@@ -455,6 +530,9 @@ export function ParticleSwarm({
       material.uniforms.time.value = time;
     }
 
+    // Position lerp factor for smooth redistribution
+    const positionLerpFactor = 1 - Math.exp(-POSITION_LERP_SPEED * clampedDelta);
+
     // Update each shard with physics and slot scale
     const slots = slotManager.slots;
     for (let i = 0; i < currentShards.length; i++) {
@@ -468,6 +546,13 @@ export function ParticleSwarm({
       // Skip physics if slot is empty and scale is 0
       if (slotScale === 0 && shard.mesh.scale.x === 0) {
         continue;
+      }
+
+      // Lerp direction toward target (smooth position redistribution)
+      _tempLerpDir.copy(shard.targetDirection).sub(shard.direction);
+      if (_tempLerpDir.lengthSq() > 0.0001) {
+        shard.direction.addScaledVector(_tempLerpDir, positionLerpFactor);
+        shard.direction.normalize(); // Keep on unit sphere
       }
 
       // Physics calculations (same as before)
