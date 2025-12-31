@@ -90,28 +90,28 @@ interface HolographicTextProps {
 
   /**
    * Letter spacing for the text.
-   * Higher values create more spaced-out, elegant text.
+   * Lower values improve legibility for short words.
    * @min 0
-   * @max 0.5
-   * @default 0.1
+   * @max 0.2
+   * @default 0.05
    */
   letterSpacing?: number;
 
   /**
    * Glow outline width around text.
-   * Creates the holographic edge effect.
+   * Creates the holographic edge effect. Thinner = sharper text.
    * @min 0
-   * @max 0.1
-   * @default 0.03
+   * @max 0.05
+   * @default 0.015
    */
   glowWidth?: number;
 
   /**
    * Intensity of the glow effect (0-1).
-   * Higher values create more visible glow.
+   * Lower values improve text legibility.
    * @min 0
    * @max 1
-   * @default 0.8
+   * @default 0.5
    */
   glowIntensity?: number;
 }
@@ -190,9 +190,9 @@ function HolographicText3DComponent({
   yOffset = TEXT_Y_OFFSET,
   fontSize = 0.8,
   zPosition = 5,
-  letterSpacing = 0.1,
-  glowWidth = 0.03,
-  glowIntensity = 0.8,
+  letterSpacing = 0.05,
+  glowWidth = 0.015,
+  glowIntensity = 0.5,
 }: HolographicTextProps) {
   const prevPhaseRef = useRef(-1);
   const [currentMessage, setCurrentMessage] = useState({ top: '', bottom: '' });
