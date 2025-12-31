@@ -31,10 +31,11 @@ void main() {
 }
 `;
 
-// Fragment shader - fresnel rim + breathing luminosity
+// Fragment shader - fresnel rim + breathing luminosity + opacity fade
 const shardFragmentShader = `
 uniform float breathPhase;
 uniform float time;
+uniform float opacity;
 
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -69,7 +70,7 @@ void main() {
   vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
   vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
 
-  gl_FragColor = vec4(finalColor, 1.0);
+  gl_FragColor = vec4(finalColor, opacity);
 }
 `;
 
@@ -106,16 +107,20 @@ export function FrostedGlassMaterial({ color = '#ffffff' }: FrostedGlassMaterial
  * - Fresnel rim glow (soft edge lighting)
  * - Breathing luminosity (synced brightness pulse)
  * - Per-vertex color support
+ * - Opacity control for fade-in animations
  */
 export function createFrostedGlassMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       breathPhase: { value: 0 },
       time: { value: 0 },
+      opacity: { value: 1 },
     },
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,
     vertexColors: true,
     side: THREE.FrontSide,
+    transparent: true,
+    depthWrite: true,
   });
 }

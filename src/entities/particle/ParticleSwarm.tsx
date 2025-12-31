@@ -267,6 +267,27 @@ function easeOutBack(t: number): number {
 }
 
 /**
+ * Organic easing function for opacity fade-in
+ *
+ * Custom smooth curve inspired by natural breathing rhythm:
+ * - Slow start (gentle emergence from nothing)
+ * - Accelerates through middle (building presence)
+ * - Soft landing (settles naturally into full opacity)
+ *
+ * Uses sine-based ease-in-out with slight asymmetry
+ * to feel more alive and less mechanical
+ */
+function easeOrganicFade(t: number): number {
+  // Combine sine easing with subtle cubic acceleration
+  // Creates a "breathing" feel to the fade
+  const sineEase = -(Math.cos(Math.PI * t) - 1) / 2;
+  const cubicBoost = t * t * (3 - 2 * t); // Smoothstep
+
+  // Blend: 70% sine (organic), 30% smoothstep (subtle acceleration)
+  return sineEase * 0.7 + cubicBoost * 0.3;
+}
+
+/**
  * Global intro animation state
  *
  * Tracks animation start time and completion status
@@ -482,11 +503,23 @@ export function ParticleSwarm({
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
+    // Calculate global intro opacity with organic easing
+    // This creates a soft "emerging from the void" effect for the whole swarm
+    let globalOpacity = 1;
+    if (enableIntroAnimation && !intro.isComplete) {
+      // Opacity fades in over the first portion of the intro duration
+      // Slightly faster than the full duration so shards are visible during their reveals
+      const opacityDuration = introDuration * 0.6; // 60% of intro duration
+      const opacityProgress = Math.min(introElapsed / opacityDuration, 1);
+      globalOpacity = easeOrganicFade(opacityProgress);
+    }
+
     // Update shader material uniforms for all shards
     // (shared material means updating once affects all)
     if (material.uniforms) {
       material.uniforms.breathPhase.value = currentBreathPhase;
       material.uniforms.time.value = time;
+      material.uniforms.opacity.value = globalOpacity;
     }
 
     // Track if all shards have completed their intro animation
