@@ -1,6 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { SciFi3DBreathIndicator } from '../components/SciFi3DBreathIndicator';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -109,6 +110,9 @@ export function BreathingLevel({
               />
             )}
           </PresentationControls>
+
+          {/* Minimal sci-fi 3D breathing indicator - fixed position, not affected by rotation */}
+          <SciFi3DBreathIndicator yPosition={-4.2} scale={1.5} opacity={0.75} />
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
