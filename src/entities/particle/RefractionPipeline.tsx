@@ -398,9 +398,8 @@ export function RefractionPipeline({
   // Store original materials for mesh swapping
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
 
-  // Cache refraction meshes to avoid scene.traverse() every frame
+  // Cache refraction meshes (refreshed when count changes or meshes become stale)
   const refractionMeshesRef = useRef<THREE.Mesh[]>([]);
-  const sceneVersionRef = useRef<number>(0);
 
   // Cleanup
   useEffect(() => {
@@ -428,9 +427,16 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
-    // Validate cached meshes are still valid (in scene and have useRefraction flag)
-    // This handles cases where meshes are recreated with same scene.children.length
-    let needsRefresh = sceneVersionRef.current !== scene.children.length;
+    // Count actual refraction meshes in scene (handles dynamic additions)
+    let actualMeshCount = 0;
+    scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
+        actualMeshCount++;
+      }
+    });
+
+    // Refresh cache if count changed or any cached mesh is stale
+    let needsRefresh = actualMeshCount !== refractionMeshesRef.current.length;
 
     if (!needsRefresh && refractionMeshesRef.current.length > 0) {
       // Check if any cached mesh is stale (removed from scene or flag changed)
@@ -443,7 +449,6 @@ export function RefractionPipeline({
     }
 
     if (needsRefresh) {
-      sceneVersionRef.current = scene.children.length;
       refractionMeshesRef.current = [];
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
