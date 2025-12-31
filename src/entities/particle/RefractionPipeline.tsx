@@ -72,11 +72,17 @@ void main() {
   vec2 refractUv = uv + refracted.xy * 0.05;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // Phase transition pulse - smooth brightness wave at start of each phase
-  // Uses sine curve (0→π) for gentle rise and fall over 35% of phase
+  // Phase transition pulse - peaks exactly at phase change
+  // Ramps up at end of phase (anticipation), peaks at transition, decays after
   float pulse = 0.0;
-  if (rawProgress < 0.35) {
-    pulse = sin(rawProgress / 0.35 * 3.14159) * 0.15;
+  if (rawProgress > 0.85) {
+    // Anticipation: ramp up during last 15% of phase
+    float t = (rawProgress - 0.85) / 0.15;
+    pulse = t * t * 0.12;
+  } else if (rawProgress < 0.20) {
+    // Decay: smooth falloff over first 20% of new phase
+    float t = rawProgress / 0.20;
+    pulse = (1.0 - t * t) * 0.12;
   }
 
   // Base color: frosted glass with mood tint
