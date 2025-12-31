@@ -35,11 +35,11 @@ import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
 // Vertical offset from center - places text safely outside particle orbit
 const TEXT_Y_OFFSET = 4.5;
 
-// Holographic color palette - warm whites with teal accent
+// Text color palette - darker for better legibility
 const COLORS = {
-  text: '#f5efe6', // Warm white - main text color
-  glow: '#7ec8d4', // Teal accent - outline glow
-  secondary: '#e8dfd0', // Softer warm - fallback
+  text: '#4a3f35', // Dark warm brown - high contrast
+  glow: '#c9a06c', // Gold accent - subtle outline
+  secondary: '#5a4d42', // Medium brown - fallback
 };
 
 /**
@@ -188,11 +188,11 @@ function HolographicTextElement({
  */
 function HolographicText3DComponent({
   yOffset = TEXT_Y_OFFSET,
-  fontSize = 0.8,
+  fontSize = 1.0,
   zPosition = 5,
-  letterSpacing = 0.05,
-  glowWidth = 0.015,
-  glowIntensity = 0.5,
+  letterSpacing = 0.02,
+  glowWidth = 0,
+  glowIntensity = 0,
 }: HolographicTextProps) {
   const prevPhaseRef = useRef(-1);
   const [currentMessage, setCurrentMessage] = useState({ top: '', bottom: '' });
