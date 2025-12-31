@@ -81,12 +81,12 @@ void main() {
   vec2 refractUv = uv + refracted.xy * 0.05;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === ANTICIPATORY FLASH ===
-  // Subtle brightness hint in last 10% of each phase to signal upcoming transition
+  // === PHASE CHANGE FLASH ===
+  // Brief flash at the exact moment of phase transition (first 8% of new phase)
   float flash = 0.0;
-  if (rawProgress > 0.90) {
-    float t = (rawProgress - 0.90) / 0.10;  // 0→1 over last 10%
-    flash = sin(t * 3.14159) * 0.06;        // Peaks at 95%, 6% intensity
+  if (rawProgress < 0.08) {
+    float t = rawProgress / 0.08;           // 0→1 over first 8%
+    flash = (1.0 - t) * 0.08;               // Instant bright, quick fade out
   }
 
   // Base color: frosted glass with mood tint
