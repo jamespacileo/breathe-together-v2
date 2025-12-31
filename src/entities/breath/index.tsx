@@ -9,6 +9,7 @@
 import { useWorld } from 'koota/react';
 import { useEffect } from 'react';
 import { useBreathDebug } from '../../contexts/breathDebug';
+import { clamp01 } from '../../lib/easing';
 import {
   breathPhase,
   debugPhaseJump,
@@ -59,7 +60,7 @@ export function BreathEntity() {
         if (debugConfig.manualPhaseOverride !== undefined) {
           entity.set(debugPhaseOverride, {
             enabled: true,
-            value: Math.max(0, Math.min(1, debugConfig.manualPhaseOverride)),
+            value: clamp01(debugConfig.manualPhaseOverride),
           });
         }
 

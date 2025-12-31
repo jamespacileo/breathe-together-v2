@@ -14,6 +14,18 @@
  */
 
 /**
+ * Clamp a value to the 0-1 range
+ *
+ * Common utility for normalizing progress values in easing functions.
+ *
+ * @param value The value to clamp
+ * @returns Value clamped between 0 and 1
+ */
+export function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+/**
  * Controlled breath curve with soft start/end and steady middle
  *
  * Creates organic controlled breathing feel with three sections:
@@ -30,7 +42,7 @@
  */
 export function controlledBreathCurve(t: number, startRamp: number, endRamp: number): number {
   // Clamp input
-  t = Math.max(0, Math.min(1, t));
+  t = clamp01(t);
 
   // Middle section starts after startRamp and ends before endRamp
   const middleEnd = 1 - endRamp;
@@ -78,8 +90,7 @@ export function controlledBreathCurve(t: number, startRamp: number, endRamp: num
  * @returns Eased value 0-1
  */
 export function easeInhale(t: number): number {
-  const tClamped = Math.max(0, Math.min(1, t));
-  return Math.sin(tClamped * Math.PI * 0.5);
+  return Math.sin(clamp01(t) * Math.PI * 0.5);
 }
 
 /**
@@ -117,6 +128,5 @@ export function easeInhaleText(t: number): number {
  * @returns Eased value 0-1
  */
 export function easeExhale(t: number): number {
-  const tClamped = Math.max(0, Math.min(1, t));
-  return Math.sin(tClamped * Math.PI * 0.5);
+  return Math.sin(clamp01(t) * Math.PI * 0.5);
 }
