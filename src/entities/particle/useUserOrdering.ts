@@ -13,38 +13,27 @@ import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 
-/** Mood ID to palette color mapping (0-6 mood indices) */
+/**
+ * Mood ID to palette color mapping (0-3 mood indices)
+ * Direct 1:1 mapping - each mood has exactly one color
+ */
 const MOOD_INDEX_TO_COLOR: THREE.Color[] = [
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.joy), // 0: grateful
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.joy), // 1: celebrating
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.peace), // 2: moment
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.peace), // 3: here
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude), // 4: anxious
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude), // 5: processing
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.love), // 6: preparing
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude), // 0: gratitude (gold)
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.presence), // 1: presence (teal)
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.release), // 2: release (blue)
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.connection), // 3: connection (rose)
 ];
 
 /** Mood ID string to index mapping */
 export const MOOD_ID_TO_INDEX: Record<MoodId, number> = {
-  grateful: 0,
-  celebrating: 1,
-  moment: 2,
-  here: 3,
-  anxious: 4,
-  processing: 5,
-  preparing: 6,
+  gratitude: 0,
+  presence: 1,
+  release: 2,
+  connection: 3,
 };
 
 /** Index to mood ID mapping (reverse lookup) */
-export const INDEX_TO_MOOD_ID: MoodId[] = [
-  'grateful',
-  'celebrating',
-  'moment',
-  'here',
-  'anxious',
-  'processing',
-  'preparing',
-];
+export const INDEX_TO_MOOD_ID: MoodId[] = ['gratitude', 'presence', 'release', 'connection'];
 
 /** Empty slot marker */
 export const EMPTY_SLOT = -1;

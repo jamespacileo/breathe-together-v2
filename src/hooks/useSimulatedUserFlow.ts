@@ -57,10 +57,11 @@ export interface UseSimulatedUserFlowReturn {
 }
 
 /**
- * Generate a random mood index (0-6)
+ * Generate a random mood index (0-3)
+ * Matches the 4-category mood system: gratitude, presence, release, connection
  */
 function randomMood(): number {
-  return Math.floor(Math.random() * 7);
+  return Math.floor(Math.random() * 4);
 }
 
 /**

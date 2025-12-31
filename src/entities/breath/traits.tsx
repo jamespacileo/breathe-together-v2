@@ -80,7 +80,7 @@ export const debugPhaseJump = trait({
  * MOOD ARRAY TRAITS - Track ordered user moods for particle swarm
  *
  * The mood array represents users in arrival order.
- * Each element is a mood index (0-6) or -1 for empty slot.
+ * Each element is a mood index (0-3) or -1 for empty slot.
  * Index = slot position = arrival order.
  */
 
@@ -89,11 +89,11 @@ export const debugPhaseJump = trait({
  *
  * Array where:
  * - Index = slot position (arrival order)
- * - Value = mood index (0-6) or -1 for empty slot
+ * - Value = mood index (0-3) or -1 for empty slot
  *
- * Mood indices:
- * 0 = grateful, 1 = celebrating, 2 = moment, 3 = here,
- * 4 = anxious, 5 = processing, 6 = preparing
+ * Mood indices (4-category system):
+ * 0 = gratitude (gold), 1 = presence (teal),
+ * 2 = release (blue), 3 = connection (rose)
  *
  * Consumed by: ParticleSwarm (color distribution)
  */
