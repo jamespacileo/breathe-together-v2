@@ -227,6 +227,13 @@ const PERPENDICULAR_FREQUENCY = 0.35;
 const MAX_PHASE_OFFSET = 0.04;
 
 /**
+ * Settle-in animation speed
+ * Controls how quickly particles fade in after user completes first breathing cycle.
+ * Higher = faster appear, lower = slower gentle fade-in.
+ */
+const SETTLE_ANIMATION_SPEED = 1.5;
+
+/**
  * Reusable Vector3 objects for animation loop
  * Pre-allocated to avoid garbage collection pressure
  */
@@ -282,6 +289,11 @@ export function ParticleSwarm({
 
   // Track previous active count for position redistribution
   const prevActiveCountRef = useRef(0);
+
+  // Settle-in period: particles hidden until user completes first breathing cycle
+  // This gives users time to settle into the breathing rhythm before visual complexity appears
+  const hasSettledInRef = useRef(false);
+  const settleAnimationRef = useRef(0); // 0 = hidden, 1 = fully visible
 
   // Normalize users input
   const normalizedUsers = useMemo(() => normalizeUsers(users), [users]);
@@ -540,6 +552,20 @@ export function ParticleSwarm({
     }
     wasInHoldRef.current = isInHold;
 
+    // Settle-in period: Wait for user to complete first breathing cycle before showing particles
+    // This gives users time to settle into the rhythm before visual complexity appears
+    if (!hasSettledInRef.current && cycleIndex >= 1) {
+      hasSettledInRef.current = true;
+    }
+
+    // Animate settle-in progress (0 → 1)
+    if (hasSettledInRef.current && settleAnimationRef.current < 1) {
+      settleAnimationRef.current = Math.min(
+        1,
+        settleAnimationRef.current + SETTLE_ANIMATION_SPEED * clampedDelta,
+      );
+    }
+
     // Update slot animations
     slotManager.updateAnimations(clampedDelta);
 
@@ -616,9 +642,11 @@ export function ParticleSwarm({
       shard.mesh.rotation.x = 0.002 * shardState.rotationSpeedX * time + shardState.rotationOffsetX;
       shard.mesh.rotation.y = 0.003 * shardState.rotationSpeedY * time + shardState.rotationOffsetY;
 
-      // Final scale: slot scale × breath scale × base offset
+      // Final scale: settle × slot scale × breath scale × base offset
+      // settleAnimationRef is 0 until first cycle completes, then animates to 1
       const breathScale = 1.0 + currentBreathPhase * 0.05;
-      const finalScale = slotScale * shardState.baseScaleOffset * breathScale;
+      const finalScale =
+        settleAnimationRef.current * slotScale * shardState.baseScaleOffset * breathScale;
       shard.mesh.scale.setScalar(finalScale);
     }
   });
