@@ -8,7 +8,7 @@
  * as "crystalline/geometric" while being performant pure CSS.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { memo, useMemo, useRef } from 'react';
 
 interface CSSIcosahedronProps {
   /** Color of the icosahedron */
@@ -25,7 +25,33 @@ interface CSSIcosahedronProps {
   className?: string;
 }
 
-export function CSSIcosahedron({
+/**
+ * Adjusts the brightness of a hex color using THREE.Color for accuracy
+ */
+function adjustBrightness(hex: string, percent: number): string {
+  // Remove # if present
+  const cleanHex = hex.replace('#', '');
+
+  // Parse RGB values
+  const r = Number.parseInt(cleanHex.substring(0, 2), 16);
+  const g = Number.parseInt(cleanHex.substring(2, 4), 16);
+  const b = Number.parseInt(cleanHex.substring(4, 6), 16);
+
+  // Adjust brightness
+  const adjust = (value: number) => {
+    const adjusted = value + (255 * percent) / 100;
+    return Math.max(0, Math.min(255, Math.round(adjusted)));
+  };
+
+  const newR = adjust(r);
+  const newG = adjust(g);
+  const newB = adjust(b);
+
+  // Convert back to hex
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+}
+
+function CSSIcosahedronComponent({
   color,
   size = 24,
   isActive = false,
@@ -34,31 +60,16 @@ export function CSSIcosahedron({
   className = '',
 }: CSSIcosahedronProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [rotation, setRotation] = useState(0);
 
-  // Gentle continuous rotation when animated
-  useEffect(() => {
-    if (!animated) return;
-
-    let animationId: number;
-    let startTime: number;
-
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const elapsed = timestamp - startTime;
-      // Very slow rotation - 360 degrees per 20 seconds
-      setRotation((elapsed / 20000) * 360);
-      animationId = requestAnimationFrame(animate);
-    };
-
-    animationId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationId);
-  }, [animated]);
-
-  // Create lighter and darker shades for facets
-  const baseColor = color;
-  const lightColor = adjustBrightness(color, 30);
-  const darkColor = adjustBrightness(color, -20);
+  // Memoize brightness-adjusted colors to avoid recalculating on every render
+  const { baseColor, lightColor, darkColor } = useMemo(
+    () => ({
+      baseColor: color,
+      lightColor: adjustBrightness(color, 30),
+      darkColor: adjustBrightness(color, -20),
+    }),
+    [color],
+  );
 
   const glowStyle = isActive
     ? {
@@ -68,6 +79,13 @@ export function CSSIcosahedron({
         filter: `drop-shadow(0 0 ${size * 0.2 * glowIntensity}px ${color}40)`,
       };
 
+  // CSS animation style for rotation (replaces RAF loop)
+  const animationStyle: React.CSSProperties = animated
+    ? {
+        animation: 'cssIcosahedronRotate 20s linear infinite',
+      }
+    : {};
+
   return (
     <div
       ref={containerRef}
@@ -76,9 +94,9 @@ export function CSSIcosahedron({
         width: size,
         height: size,
         position: 'relative',
-        transform: animated ? `rotate(${rotation}deg)` : undefined,
         transition: isActive ? 'filter 0.3s ease' : undefined,
         ...glowStyle,
+        ...animationStyle,
       }}
     >
       {/* Main hexagonal shape with gradient for depth */}
@@ -118,66 +136,22 @@ export function CSSIcosahedron({
   );
 }
 
-/**
- * Adjusts the brightness of a hex color
- */
-function adjustBrightness(hex: string, percent: number): string {
-  // Remove # if present
-  const cleanHex = hex.replace('#', '');
-
-  // Parse RGB values
-  const r = Number.parseInt(cleanHex.substring(0, 2), 16);
-  const g = Number.parseInt(cleanHex.substring(2, 4), 16);
-  const b = Number.parseInt(cleanHex.substring(4, 6), 16);
-
-  // Adjust brightness
-  const adjust = (value: number) => {
-    const adjusted = value + (255 * percent) / 100;
-    return Math.max(0, Math.min(255, Math.round(adjusted)));
-  };
-
-  const newR = adjust(r);
-  const newG = adjust(g);
-  const newB = adjust(b);
-
-  // Convert back to hex
-  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
-}
+// Wrap with React.memo to prevent unnecessary re-renders
+export const CSSIcosahedron = memo(CSSIcosahedronComponent);
 
 /**
  * MiniIcosahedronPreview - Animated preview showing breathing-synced icosahedron
+ * Uses CSS animation instead of RAF for better performance
  */
 interface MiniIcosahedronPreviewProps {
   color: string;
   label?: string;
 }
 
-export function MiniIcosahedronPreview({
+function MiniIcosahedronPreviewComponent({
   color,
   label = 'Your presence',
 }: MiniIcosahedronPreviewProps) {
-  const [scale, setScale] = useState(1);
-
-  // Breathing-synced pulse animation
-  useEffect(() => {
-    let animationId: number;
-
-    const animate = () => {
-      const now = Date.now() / 1000;
-      const cycleTime = now % 16; // 16-second breathing cycle
-
-      // Simple sine wave for breathing effect
-      const breathProgress = Math.sin((cycleTime / 16) * Math.PI * 2);
-      const newScale = 0.85 + breathProgress * 0.15;
-      setScale(newScale);
-
-      animationId = requestAnimationFrame(animate);
-    };
-
-    animationId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationId);
-  }, []);
-
   return (
     <div
       style={{
@@ -190,10 +164,10 @@ export function MiniIcosahedronPreview({
         border: '1px solid rgba(255, 255, 255, 0.3)',
       }}
     >
+      {/* CSS animation for breathing pulse - replaces RAF loop */}
       <div
         style={{
-          transform: `scale(${scale})`,
-          transition: 'transform 0.1s ease-out',
+          animation: 'cssIcosahedronBreathPulse 16s ease-in-out infinite',
         }}
       >
         <CSSIcosahedron color={color} size={28} animated glowIntensity={0.6} />
@@ -223,3 +197,6 @@ export function MiniIcosahedronPreview({
     </div>
   );
 }
+
+// Wrap with React.memo to prevent unnecessary re-renders
+export const MiniIcosahedronPreview = memo(MiniIcosahedronPreviewComponent);
