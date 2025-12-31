@@ -137,10 +137,10 @@ export function BreathingLevel({
               />
             )}
           </PresentationControls>
-
-          {/* 3D Holographic Text - positioned outside PresentationControls so it doesn't rotate */}
-          {textMode === '3d' && <HolographicText3D />}
         </RefractionPipeline>
+
+        {/* 3D Holographic Text - OUTSIDE RefractionPipeline to avoid FBO rendering issues */}
+        {textMode === '3d' && <HolographicText3D />}
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
