@@ -84,11 +84,17 @@ void main() {
 
   // Fresnel rim glow (white edge highlight)
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
-  vec3 finalColor = mix(bodyColor, vec3(1.0), fresnel * 0.4);
+  vec3 colorWithRim = mix(bodyColor, vec3(1.0), fresnel * 0.4);
 
   // Soft top-down light
   float topLight = smoothstep(0.0, 1.0, normal.y) * 0.1;
-  finalColor += vec3(1.0) * topLight;
+  colorWithRim += vec3(1.0) * topLight;
+
+  // Edge desaturation for atmospheric depth (reduces over-saturation, adds softness)
+  float facing = clamp(dot(normal, -eyeVector), 0.0, 1.0);
+  float facingBoost = facing * 0.08;
+  vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
+  vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
 
   gl_FragColor = vec4(finalColor, 1.0);
 }
