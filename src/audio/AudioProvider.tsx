@@ -46,6 +46,11 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const engineRef = useRef<AudioEngine | null>(null);
   const [state, setState] = useState<AudioState>(defaultState);
 
+  // Ref to capture current state for use in callbacks without creating dependencies
+  // This prevents setEnabled from recreating on every state change
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // Handle visibility change (pause when tab hidden)
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -65,61 +70,55 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Enable/disable audio
-  const setEnabled = useCallback(
-    async (enabled: boolean) => {
-      if (enabled) {
-        // Initialize engine if not already
-        if (!engineRef.current) {
-          console.log(LOG_PREFIX, 'Initializing audio engine...');
+  // Uses stateRef to read current state at call time without dependency recreation
+  const setEnabled = useCallback(async (enabled: boolean) => {
+    if (enabled) {
+      // Initialize engine if not already
+      if (!engineRef.current) {
+        console.log(LOG_PREFIX, 'Initializing audio engine...');
 
-          const engine = new AudioEngine({
-            enabled: true,
-            masterVolume: state.masterVolume,
-            ambientEnabled: state.ambientEnabled,
-            breathEnabled: state.breathEnabled,
-            natureSound: state.natureSound,
-            chimesEnabled: state.chimesEnabled,
-          });
+        // Read current state from ref to avoid stale closure
+        const currentState = stateRef.current;
+        const engine = new AudioEngine({
+          enabled: true,
+          masterVolume: currentState.masterVolume,
+          ambientEnabled: currentState.ambientEnabled,
+          breathEnabled: currentState.breathEnabled,
+          natureSound: currentState.natureSound,
+          chimesEnabled: currentState.chimesEnabled,
+        });
 
-          const loadingStates = await engine.init();
-          engineRef.current = engine;
+        const loadingStates = await engine.init();
+        engineRef.current = engine;
 
-          // Start ambient sounds
-          engine.startAmbient();
+        // Start ambient sounds
+        engine.startAmbient();
 
-          // Start nature sound if set
-          if (state.natureSound) {
-            engine.setNatureSound(state.natureSound);
-          }
-
-          setState((s) => ({
-            ...s,
-            enabled: true,
-            ready: true,
-            loadingStates: Object.fromEntries(loadingStates),
-          }));
-        } else {
-          // Resume existing engine
-          engineRef.current.resume();
-          engineRef.current.startAmbient();
-          setState((s) => ({ ...s, enabled: true }));
+        // Start nature sound if set
+        if (currentState.natureSound) {
+          engine.setNatureSound(currentState.natureSound);
         }
+
+        setState((s) => ({
+          ...s,
+          enabled: true,
+          ready: true,
+          loadingStates: Object.fromEntries(loadingStates),
+        }));
       } else {
-        // Disable audio
-        if (engineRef.current) {
-          engineRef.current.stopAll();
-        }
-        setState((s) => ({ ...s, enabled: false }));
+        // Resume existing engine
+        engineRef.current.resume();
+        engineRef.current.startAmbient();
+        setState((s) => ({ ...s, enabled: true }));
       }
-    },
-    [
-      state.masterVolume,
-      state.ambientEnabled,
-      state.breathEnabled,
-      state.natureSound,
-      state.chimesEnabled,
-    ],
-  );
+    } else {
+      // Disable audio
+      if (engineRef.current) {
+        engineRef.current.stopAll();
+      }
+      setState((s) => ({ ...s, enabled: false }));
+    }
+  }, []);
 
   // Set master volume
   const setMasterVolume = useCallback((volume: number) => {
@@ -158,8 +157,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Run audio system every frame (only when enabled)
+  // Uses stateRef to avoid recreating callback on state changes
   useFrame((_, delta) => {
-    if (state.enabled && engineRef.current) {
+    if (stateRef.current.enabled && engineRef.current) {
       audioSystem(world, delta, engineRef.current);
     }
   });

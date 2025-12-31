@@ -1,55 +1,13 @@
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
+import { easeExhale, easeInhale } from './easing';
 
 /**
- * Breathing easing functions with immediate visual feedback
+ * Breathing state calculation using shared easing functions.
  *
- * Both inhale and exhale use sin(t × π/2) for instant visible movement:
- * - Fast start: High initial velocity syncs with UI phase transitions
- * - Smooth landing: Natural deceleration at phase end
- * - Holds: Damped oscillation - subtle "alive" movement
- *
- * The asymmetry comes from phase DURATIONS (4s inhale, 8s exhale),
- * not from different easing shapes. This ensures animations visually
- * sync with the UI the moment each phase begins.
+ * Easing functions are imported from src/lib/easing.ts (single source of truth)
+ * See that file for detailed documentation on the easing curves.
  */
-
-/**
- * Inhale easing: Fast intake with smooth landing
- *
- * Uses sin(t × π/2) for natural breath intake:
- * - Fast start: High initial velocity (lungs hungry for air)
- * - Smooth landing: Decelerates naturally as lungs fill
- *
- * Derivative at t=0: π/2 ≈ 1.57 (fast)
- * Derivative at t=1: 0 (smooth stop)
- *
- * This matches the natural feeling of taking a breath - eager start,
- * gentle completion as you reach full capacity.
- */
-function easeInhale(t: number): number {
-  const tClamped = Math.max(0, Math.min(1, t));
-  return Math.sin(tClamped * Math.PI * 0.5);
-}
-
-/**
- * Exhale easing: Immediate release with smooth completion
- *
- * Uses sin(t × π/2) - same curve shape as inhale:
- * - Fast start: Immediate visible movement when exhale begins
- * - Smooth landing: Gentle deceleration as exhale completes
- *
- * Derivative at t=0: π/2 ≈ 1.57 (fast - syncs with UI phase change)
- * Derivative at t=1: 0 (smooth stop)
- *
- * The "slow controlled exhale" feel comes from the longer duration
- * (8s exhale vs 4s inhale), not from slow starting velocity.
- * Using sin ensures particles move immediately when UI shows "EXHALE".
- */
-function easeExhale(t: number): number {
-  const tClamped = Math.max(0, Math.min(1, t));
-  return Math.sin(tClamped * Math.PI * 0.5);
-}
 
 /**
  * Damped oscillation parameters for hold phases
