@@ -31,10 +31,11 @@ void main() {
 }
 `;
 
-// Fragment shader - fresnel rim + breathing luminosity
+// Fragment shader - fresnel rim + breathing luminosity + user highlight
 const shardFragmentShader = `
 uniform float breathPhase;
 uniform float time;
+uniform float highlightIntensity; // 0.0 = normal, 1.0 = fully highlighted (user's shard)
 
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -64,6 +65,21 @@ void main() {
   // Subtle inner luminance - very gentle glow from within
   float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
   colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
+
+  // USER HIGHLIGHT: Pulsing outer glow for the user's shard
+  if (highlightIntensity > 0.0) {
+    // Pulsing glow synced to breathing
+    float pulsePhase = sin(time * 2.0) * 0.5 + 0.5;
+    float highlightPulse = 0.7 + pulsePhase * 0.3;
+
+    // Enhanced fresnel for highlight - brighter rim
+    float highlightRim = fresnel * highlightIntensity * highlightPulse * 0.6;
+    vec3 highlightColor = vec3(1.0, 0.98, 0.92); // Warm white glow
+    colorWithRim = mix(colorWithRim, highlightColor, highlightRim);
+
+    // Subtle overall brightness boost
+    colorWithRim *= 1.0 + highlightIntensity * 0.15 * highlightPulse;
+  }
 
   // Slight desaturation toward edges for atmospheric feel
   vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
@@ -106,12 +122,16 @@ export function FrostedGlassMaterial({ color = '#ffffff' }: FrostedGlassMaterial
  * - Fresnel rim glow (soft edge lighting)
  * - Breathing luminosity (synced brightness pulse)
  * - Per-vertex color support
+ * - Optional user highlight (pulsing glow for current user's shard)
+ *
+ * @param highlightIntensity - 0.0 for normal shards, 1.0 for user's highlighted shard
  */
-export function createFrostedGlassMaterial(): THREE.ShaderMaterial {
+export function createFrostedGlassMaterial(highlightIntensity = 0): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       breathPhase: { value: 0 },
       time: { value: 0 },
+      highlightIntensity: { value: highlightIntensity },
     },
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,

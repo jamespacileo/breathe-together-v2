@@ -8,12 +8,14 @@ import {
   useTransition,
 } from 'react';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
+import { useOnboardingSequence } from '../hooks/useOnboardingSequence';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
+import { OnboardingSequence } from './OnboardingSequence';
 
 interface SimpleGaiaUIProps {
   /** Particle count (harmony) */
@@ -42,6 +44,10 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  /** Callback when user selects a mood (for current user shard) */
+  onMoodSelected?: (mood: MoodId) => void;
+  /** Callback when onboarding completes (user's shard is ready to highlight) */
+  onOnboardingComplete?: (mood: MoodId, showHighlight: boolean) => void;
 }
 
 /**
@@ -80,6 +86,8 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  onMoodSelected,
+  onOnboardingComplete,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -88,7 +96,17 @@ export function SimpleGaiaUI({
   const [showKeyHint, setShowKeyHint] = useState(false);
   const [internalShowSettings, setInternalShowSettings] = useState(false);
   const [showMoodSelect, setShowMoodSelect] = useState(false);
-  const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
+
+  // Onboarding sequence for cinematic mood selection flow
+  const onboarding = useOnboardingSequence((phase, mood) => {
+    // Notify parent when onboarding completes
+    if (phase === 'complete' && mood) {
+      onOnboardingComplete?.(mood, true);
+    }
+  });
+
+  // Use onboarding's selectedMood as the source of truth
+  const selectedMood = onboarding.selectedMood;
 
   // React 19 useTransition for non-urgent updates (modals, animations)
   // Keeps UI responsive during modal opens/closes and mood selections
@@ -359,18 +377,23 @@ export function SimpleGaiaUI({
     return MOOD_COLORS[moodId] ?? MOOD_COLORS.presence;
   }, []);
 
-  const handleMoodSelect = useCallback((mood: MoodId) => {
-    // Use transition for non-urgent mood selection
-    startTransition(() => {
-      setSelectedMood(mood);
-    });
-    // Small delay before closing to show selection feedback
-    setTimeout(() => {
-      startTransition(() => {
-        setShowMoodSelect(false);
-      });
-    }, 200);
-  }, []);
+  const handleMoodSelect = useCallback(
+    (mood: MoodId) => {
+      // Start onboarding sequence with selected mood
+      onboarding.selectMood(mood);
+
+      // Notify parent immediately
+      onMoodSelected?.(mood);
+
+      // Hide modal after brief feedback delay
+      setTimeout(() => {
+        startTransition(() => {
+          setShowMoodSelect(false);
+        });
+      }, 100);
+    },
+    [onboarding, onMoodSelected],
+  );
 
   const handleBeginClick = useCallback(() => {
     startTransition(() => {
@@ -1275,6 +1298,13 @@ export function SimpleGaiaUI({
           <span ref={presenceCountRef}>75</span> breathing together
         </div>
       </div>
+
+      {/* Onboarding Sequence - Cinematic mood selection transition */}
+      <OnboardingSequence
+        phase={onboarding.phase}
+        phaseProgress={onboarding.phaseProgress}
+        selectedMood={onboarding.selectedMood}
+      />
 
       {/* Styles moved to src/styles/ui.css - imported globally in index.tsx
           Includes: fadeInOut, slideUp animations, slider thumb styling,

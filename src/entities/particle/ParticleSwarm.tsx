@@ -120,6 +120,16 @@ export interface ParticleSwarmProps {
    * The number of shards dynamically matches the number of users.
    */
   users?: User[] | Partial<Record<MoodId, number>>;
+  /**
+   * ID of the current user's shard (for highlighting)
+   * When set, this shard gets a subtle pulsing glow effect
+   */
+  currentUserId?: string;
+  /**
+   * Whether to show highlight on the current user's shard
+   * @default true when currentUserId is set
+   */
+  showUserHighlight?: boolean;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
   /** Base size for shards @default 4.0 */
@@ -148,6 +158,12 @@ interface ShardData {
   targetDirection: THREE.Vector3;
   geometry: THREE.IcosahedronGeometry;
   currentMood: MoodId | null;
+  /** User ID associated with this shard (for highlight matching) */
+  userId: string | null;
+  /** Whether this shard is currently highlighted (user's shard) */
+  isHighlighted: boolean;
+  /** Material instance (may be highlight or normal) */
+  material: THREE.ShaderMaterial;
 }
 
 /**
@@ -248,6 +264,8 @@ function normalizeUsers(users: User[] | Partial<Record<MoodId, number>> | undefi
 
 export function ParticleSwarm({
   users,
+  currentUserId,
+  showUserHighlight = true,
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
@@ -260,6 +278,12 @@ export function ParticleSwarm({
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+
+  // Track current user ID for highlight updates
+  const currentUserIdRef = useRef<string | null>(currentUserId ?? null);
+  currentUserIdRef.current = currentUserId ?? null;
+  const showUserHighlightRef = useRef(showUserHighlight);
+  showUserHighlightRef.current = showUserHighlight;
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -300,8 +324,11 @@ export function ParticleSwarm({
     [globeRadius, maxShardSize, buffer],
   );
 
-  // Create shared material (will be swapped by RefractionPipeline)
-  const material = useMemo(() => createFrostedGlassMaterial(), []);
+  // Create shared normal material (will be swapped by RefractionPipeline)
+  const normalMaterial = useMemo(() => createFrostedGlassMaterial(0), []);
+
+  // Create shared highlight material for current user's shard
+  const highlightMaterial = useMemo(() => createFrostedGlassMaterial(1), []);
 
   // Create a shard at a specific index
   const createShardAtIndex = useCallback(
@@ -311,7 +338,7 @@ export function ParticleSwarm({
 
       // Use actual total for Fibonacci distribution
       const direction = getFibonacciSpherePoint(index, totalForDistribution);
-      const mesh = new THREE.Mesh(geometry, material);
+      const mesh = new THREE.Mesh(geometry, normalMaterial);
       mesh.userData.useRefraction = true;
       mesh.position.copy(direction).multiplyScalar(baseRadius);
       mesh.lookAt(0, 0, 0);
@@ -330,6 +357,9 @@ export function ParticleSwarm({
         targetDirection: direction.clone(),
         geometry,
         currentMood: null,
+        userId: null,
+        isHighlighted: false,
+        material: normalMaterial,
       };
 
       const physics: ShardPhysicsState = {
@@ -346,7 +376,7 @@ export function ParticleSwarm({
 
       return { shard, physics };
     },
-    [material, baseRadius],
+    [normalMaterial, baseRadius],
   );
 
   // Ensure we have enough shards for all users (grows dynamically)
@@ -454,12 +484,13 @@ export function ParticleSwarm({
     };
   }, [ensureShardCapacity, redistributePositions]);
 
-  // Cleanup material on unmount
+  // Cleanup materials on unmount
   useEffect(() => {
     return () => {
-      material.dispose();
+      normalMaterial.dispose();
+      highlightMaterial.dispose();
     };
-  }, [material]);
+  }, [normalMaterial, highlightMaterial]);
 
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Particle physics simulation requires multiple force calculations (spring, wind, jitter, orbit) and slot lifecycle management - refactoring would reduce readability
@@ -511,28 +542,51 @@ export function ParticleSwarm({
         prevActiveCountRef.current = newStableCount;
       }
 
-      // Update shard colors based on slot moods
+      // Update shard colors and user IDs based on slot data
       const slots = slotManager.slots;
       for (let i = 0; i < slots.length && i < currentShards.length; i++) {
         const slot = slots[i];
         const shard = currentShards[i];
 
+        // Update mood color
         if (slot.mood && slot.mood !== shard.currentMood) {
           const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
           updateVertexColors(shard.geometry, color);
           shard.currentMood = slot.mood;
         }
+
+        // Update user ID tracking
+        shard.userId = slot.userId ?? null;
       }
     }
     wasInHoldRef.current = isInHold;
 
+    // Update highlight state based on current user ID
+    const currentUserIdNow = currentUserIdRef.current;
+    const shouldHighlight = showUserHighlightRef.current && currentUserIdNow !== null;
+
+    for (const shard of currentShards) {
+      const shouldBeHighlighted = shouldHighlight && shard.userId === currentUserIdNow;
+
+      if (shouldBeHighlighted !== shard.isHighlighted) {
+        // Swap material
+        shard.isHighlighted = shouldBeHighlighted;
+        shard.material = shouldBeHighlighted ? highlightMaterial : normalMaterial;
+        shard.mesh.material = shard.material;
+      }
+    }
+
     // Update slot animations
     slotManager.updateAnimations(clampedDelta);
 
-    // Update shader uniforms
-    if (material.uniforms) {
-      material.uniforms.breathPhase.value = currentBreathPhase;
-      material.uniforms.time.value = time;
+    // Update shader uniforms for both materials
+    if (normalMaterial.uniforms) {
+      normalMaterial.uniforms.breathPhase.value = currentBreathPhase;
+      normalMaterial.uniforms.time.value = time;
+    }
+    if (highlightMaterial.uniforms) {
+      highlightMaterial.uniforms.breathPhase.value = currentBreathPhase;
+      highlightMaterial.uniforms.time.value = time;
     }
 
     // Position lerp factor for smooth redistribution

@@ -1,8 +1,9 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
+import type { MoodId } from '../constants';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
@@ -10,6 +11,9 @@ import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
+
+/** Unique ID for the current user's shard */
+const CURRENT_USER_ID = 'current-user';
 
 /**
  * Tuning defaults for visual aesthetics (matching reference)
@@ -62,12 +66,37 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Current user state (set when mood is selected via onboarding)
+  const [currentUserMood, setCurrentUserMood] = useState<MoodId | null>(null);
+  const [showUserHighlight, setShowUserHighlight] = useState(false);
+
+  // Handle mood selection from onboarding
+  const handleMoodSelected = useCallback((mood: MoodId) => {
+    setCurrentUserMood(mood);
+  }, []);
+
+  // Handle onboarding completion (start highlighting user's shard)
+  const handleOnboardingComplete = useCallback((mood: MoodId, highlight: boolean) => {
+    setCurrentUserMood(mood);
+    setShowUserHighlight(highlight);
+  }, []);
+
   // Generate mock users with randomized order for visual variety
-  const mockUsers = useMemo(() => {
-    const presence = generateMockPresence(harmony);
+  // Includes the current user if they've selected a mood
+  const allUsers = useMemo(() => {
+    const presence = generateMockPresence(harmony - (currentUserMood ? 1 : 0)); // Reserve 1 slot for current user
     // Convert aggregate mood counts to individual users
     const users: Array<{ id: string; mood: 'gratitude' | 'presence' | 'release' | 'connection' }> =
       [];
+
+    // Add current user FIRST so they're at slot 0 (top of sphere)
+    if (currentUserMood) {
+      users.push({
+        id: CURRENT_USER_ID,
+        mood: currentUserMood,
+      });
+    }
+
     for (const [mood, count] of Object.entries(presence.moods)) {
       for (let i = 0; i < count; i++) {
         users.push({
@@ -77,21 +106,22 @@ export function BreathingLevel({
       }
     }
 
-    // Shuffle users for visual variety (colors distributed across sphere)
-    // Use Fisher-Yates shuffle with seeded random for consistency within session
-    const seed = harmony; // Same count = same shuffle
+    // Shuffle only the non-current users for visual variety
+    // Keep current user at index 0
+    const startIndex = currentUserMood ? 1 : 0;
+    const seed = harmony;
     const seededRandom = (i: number) => {
       const x = Math.sin(seed * 9999 + i * 1234) * 10000;
       return x - Math.floor(x);
     };
 
-    for (let i = users.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom(i) * (i + 1));
+    for (let i = users.length - 1; i > startIndex; i--) {
+      const j = Math.floor(seededRandom(i) * (i - startIndex + 1)) + startIndex;
       [users[i], users[j]] = [users[j], users[i]];
     }
 
     return users;
-  }, [harmony]);
+  }, [harmony, currentUserMood]);
 
   return (
     <ErrorBoundary>
@@ -121,7 +151,13 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm users={mockUsers} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <ParticleSwarm
+                users={allUsers}
+                currentUserId={currentUserMood ? CURRENT_USER_ID : undefined}
+                showUserHighlight={showUserHighlight}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
+              />
             )}
 
             {showParticles && (
@@ -161,6 +197,8 @@ export function BreathingLevel({
             onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
+            onMoodSelected={handleMoodSelected}
+            onOnboardingComplete={handleOnboardingComplete}
           />
         </Html>
       </Suspense>
