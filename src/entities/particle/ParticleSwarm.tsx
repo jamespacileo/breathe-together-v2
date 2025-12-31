@@ -297,6 +297,10 @@ export function ParticleSwarm({
   // Track previous hold phase to detect transitions
   const wasInHoldRef = useRef(false);
 
+  // Flag to force immediate reconciliation for first user
+  // (bypasses hold phase check so user's shard appears instantly after onboarding)
+  const forceImmediateReconcileRef = useRef(false);
+
   // Track previous active count for position redistribution
   const prevActiveCountRef = useRef(0);
 
@@ -305,6 +309,15 @@ export function ParticleSwarm({
 
   // Update pending users when props change
   useEffect(() => {
+    // Detect first user being added (0 → 1+)
+    // Force immediate reconciliation so user's shard appears right after onboarding
+    const hadNoUsers = pendingUsersRef.current.length === 0;
+    const hasUsersNow = normalizedUsers.length > 0;
+
+    if (hadNoUsers && hasUsersNow) {
+      forceImmediateReconcileRef.current = true;
+    }
+
     pendingUsersRef.current = normalizedUsers;
   }, [normalizedUsers]);
 
@@ -518,13 +531,25 @@ export function ParticleSwarm({
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
-    // Check if we should reconcile (during hold phase transition)
+    // Check if we should reconcile (during hold phase transition OR forced for first user)
     const isInHold = isHoldPhase(currentPhaseType);
     const elapsedSeconds = Date.now() / 1000;
     const cycleIndex = getBreathingCycleIndex(elapsedSeconds, BREATH_TOTAL_CYCLE);
 
-    // Reconcile only on transition INTO hold phase, once per cycle
-    if (isInHold && !wasInHoldRef.current && slotManager.shouldReconcile(cycleIndex)) {
+    // Force immediate reconciliation for first user (so their shard appears right after onboarding)
+    const forceReconcile = forceImmediateReconcileRef.current;
+    if (forceReconcile) {
+      forceImmediateReconcileRef.current = false; // Clear flag
+    }
+
+    // Reconcile on:
+    // 1. Force reconcile (first user added)
+    // 2. Transition INTO hold phase, once per cycle
+    const shouldReconcile =
+      forceReconcile ||
+      (isInHold && !wasInHoldRef.current && slotManager.shouldReconcile(cycleIndex));
+
+    if (shouldReconcile) {
       // Ensure we have enough shards
       const requiredSlots = pendingUsersRef.current.length;
       ensureShardCapacity(requiredSlots);
