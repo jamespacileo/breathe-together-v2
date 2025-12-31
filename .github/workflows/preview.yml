@@ -141,105 +141,32 @@ jobs:
               });
             }
 
-      - name: Notify Slack - Preview Deployed
-        if: success()
-        uses: slackapi/slack-github-action@v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "🚀 Preview Deployed",
-                    "emoji": true
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*PR:*\n<${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}>"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
-                    }
-                  ]
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Branch:*\n`${{ github.head_ref }}`"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Commit:*\n`${{ github.event.pull_request.head.sha }}`"
-                    }
-                  ]
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "🔗 Open Preview",
-                        "emoji": true
-                      },
-                      "url": "https://breathe-together-v2-pr-${{ github.event.pull_request.number }}.palladio-registry.workers.dev",
-                      "style": "primary"
-                    },
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "📋 View PR",
-                        "emoji": true
-                      },
-                      "url": "${{ github.event.pull_request.html_url }}"
-                    },
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "⚙️ Workflow Run",
-                        "emoji": true
-                      },
-                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    }
-                  ]
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "Deployed via GitHub Actions • ${{ github.repository }}"
-                    }
-                  ]
-                }
-              ]
-            }
-
-  # Notify when validation checks pass
-  notify-validation-success:
-    needs: validate
+  # Consolidated success notification - waits for both jobs, sends one message
+  notify-success:
+    needs: [validate, deploy-preview]
     if: success()
     runs-on: ubuntu-latest
-    name: Notify Validation Success
+    name: Notify Success
     steps:
-      - name: Notify Slack - Validation Passed
+      - name: Prepare PR description
+        id: pr_desc
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const body = context.payload.pull_request.body || '';
+            // Truncate to 500 chars for Slack, escape for JSON
+            let desc = body.substring(0, 500);
+            if (body.length > 500) desc += '...';
+            // Convert to single line for compact display, escape quotes
+            desc = desc.replace(/\r?\n/g, ' ').replace(/"/g, '\\"').trim();
+            return desc || '_No description provided_';
+
+      - name: Notify Slack - Preview Ready
         uses: slackapi/slack-github-action@v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Use dedicated preview channel if available, fallback to general webhook
+          webhook: ${{ secrets.SLACK_PREVIEW_WEBHOOK_URL || secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload: |
             {
@@ -248,42 +175,40 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "✅ Code Validation Passed",
+                    "text": "✅ Preview Ready",
                     "emoji": true
                   }
                 },
                 {
                   "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*PR:*\n<${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}>"
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "<${{ github.event.pull_request.html_url }}|*#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}*>\nby ${{ github.event.pull_request.user.login }} • `${{ github.head_ref }}`"
+                  },
+                  "accessory": {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "🔗 Open Preview",
+                      "emoji": true
                     },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
-                    }
-                  ]
+                    "url": "https://breathe-together-v2-pr-${{ github.event.pull_request.number }}.palladio-registry.workers.dev",
+                    "style": "primary"
+                  }
                 },
                 {
                   "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Branch:*\n`${{ github.head_ref }}`"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Checks:*\nBiome ✓ • TypeCheck ✓ • Build ✓"
-                    }
-                  ]
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "> ${{ steps.pr_desc.outputs.result }}"
+                  }
                 },
                 {
                   "type": "context",
                   "elements": [
                     {
                       "type": "mrkdwn",
-                      "text": "All validation checks passed • ${{ github.repository }}"
+                      "text": "Biome ✓ • TypeCheck ✓ • Build ✓ • Deploy ✓ | <${{ github.event.pull_request.html_url }}|PR> • <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Logs>"
                     }
                   ]
                 }
@@ -299,11 +224,9 @@ jobs:
     steps:
       - name: Notify Slack - Failure
         uses: slackapi/slack-github-action@v2.0.0
-        env:
-          VALIDATION_FAILED: ${{ needs.validate.result == 'failure' }}
-          DEPLOYMENT_FAILED: ${{ needs.deploy-preview.result == 'failure' }}
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Use dedicated preview channel if available, fallback to general webhook
+          webhook: ${{ secrets.SLACK_PREVIEW_WEBHOOK_URL || secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload: |
             {
