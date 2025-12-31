@@ -111,11 +111,11 @@ export function BreathingLevel({
             {showParticles && showConnections && (
               <ConnectionLines
                 particleGroupRef={particleGroupRef}
-                maxDistance={2.8}
-                maxConnectionsPerParticle={3}
-                baseOpacity={0.08}
-                breathOpacity={0.22}
-                color="#f8ece0"
+                maxDistance={3.2}
+                maxConnectionsPerParticle={4}
+                baseOpacity={0.18}
+                breathOpacity={0.35}
+                color="#ffe8d6"
               />
             )}
 
