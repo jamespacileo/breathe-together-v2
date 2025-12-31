@@ -161,6 +161,21 @@ interface ShardData {
 }
 
 /**
+ * Create holographic outline material
+ * Classic game dev trick: backface rendering + additive blend + glow color
+ */
+function createOutlineMaterial(): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    color: new THREE.Color('#ffffff'),
+    transparent: true,
+    opacity: 0.25,
+    side: THREE.BackSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+}
+
+/**
  * Physics state for organic breathing animation
  *
  * Each shard has:
@@ -274,6 +289,11 @@ export function ParticleSwarm({
   const physicsRef = useRef<ShardPhysicsState[]>([]);
   // Reusable vector for returning current user position
   const currentUserPositionRef = useRef(new THREE.Vector3());
+
+  // Holographic outline for current user's shard
+  const outlineMeshRef = useRef<THREE.Mesh | null>(null);
+  const outlineMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const outlineGeometryRef = useRef<THREE.IcosahedronGeometry | null>(null);
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -475,6 +495,37 @@ export function ParticleSwarm({
     };
   }, [material]);
 
+  // Create holographic outline mesh for current user
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group || !currentUserId) return;
+
+    // Create outline geometry and material
+    const shardSize = calculateShardSize(pendingUsersRef.current.length || 1);
+    const outlineScale = 1.15; // Slightly larger than shard
+    const geometry = new THREE.IcosahedronGeometry(shardSize * outlineScale, 0);
+    const material = createOutlineMaterial();
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.visible = false; // Hidden until user shard is positioned
+    mesh.frustumCulled = false;
+
+    outlineGeometryRef.current = geometry;
+    outlineMaterialRef.current = material;
+    outlineMeshRef.current = mesh;
+    group.add(mesh);
+
+    return () => {
+      geometry.dispose();
+      material.dispose();
+      if (outlineMeshRef.current) {
+        group.remove(outlineMeshRef.current);
+      }
+      outlineMeshRef.current = null;
+      outlineMaterialRef.current = null;
+      outlineGeometryRef.current = null;
+    };
+  }, [currentUserId, calculateShardSize]);
+
   // Register current user position getter
   useEffect(() => {
     if (!onCurrentUserPositionGetter || !currentUserId) return;
@@ -635,6 +686,34 @@ export function ParticleSwarm({
       const breathScale = 1.0 + currentBreathPhase * 0.05;
       const finalScale = slotScale * shardState.baseScaleOffset * breathScale;
       shard.mesh.scale.setScalar(finalScale);
+    }
+
+    // Update holographic outline for current user
+    if (outlineMeshRef.current && currentUserId && slotManager) {
+      const userSlot = slotManager.getSlotByUserId(currentUserId);
+      if (userSlot && userSlot.state !== 'empty' && userSlot.index < currentShards.length) {
+        const userShard = currentShards[userSlot.index];
+        const outlineMesh = outlineMeshRef.current;
+
+        // Match position and rotation of user's shard
+        outlineMesh.position.copy(userShard.mesh.position);
+        outlineMesh.rotation.copy(userShard.mesh.rotation);
+
+        // Scale slightly larger than shard with breathing pulse
+        const shardScale = userShard.mesh.scale.x;
+        const outlineScale = shardScale * 1.08;
+        outlineMesh.scale.setScalar(outlineScale);
+
+        // Subtle pulse on outline opacity
+        const pulse = 0.2 + 0.1 * Math.sin(time * 2.0);
+        if (outlineMaterialRef.current) {
+          outlineMaterialRef.current.opacity = pulse;
+        }
+
+        outlineMesh.visible = shardScale > 0.01;
+      } else {
+        outlineMeshRef.current.visible = false;
+      }
     }
   });
 

@@ -1,13 +1,13 @@
 /**
- * UserShapeIndicator - Minimal Ubisoft-style marker for user's particle
+ * UserShapeIndicator - Minimal marker for user's particle
  *
- * Clean, understated design inspired by Assassin's Creed waypoint markers:
- * - Thin vertical line extending upward from the shard
- * - Small diamond marker at the top
+ * Very simple, unobtrusive design:
+ * - Small chevron/arrow pointing down
  * - Clean "YOU" text label
- * - Subtle pulse animation (opacity only)
+ * - Subtle pulse animation
  *
- * Positioned in world space (should be placed OUTSIDE PresentationControls)
+ * The holographic outline glow is handled by ParticleSwarm directly.
+ * This component just provides the floating label above the shard.
  */
 
 import { Billboard, Text } from '@react-three/drei';
@@ -23,14 +23,14 @@ export interface UserShapeIndicatorProps {
   getShardPosition: () => THREE.Vector3 | null;
 
   /**
-   * Height of the vertical line above the shard
-   * @default 1.2
+   * Height offset above the shard
+   * @default 0.8
    */
-  lineHeight?: number;
+  heightOffset?: number;
 
   /**
    * Base opacity of the indicator elements
-   * @default 0.7
+   * @default 0.8
    */
   opacity?: number;
 
@@ -39,83 +39,49 @@ export interface UserShapeIndicatorProps {
    * @default true
    */
   visible?: boolean;
-
-  /**
-   * Primary color for the marker
-   * @default '#ffffff'
-   */
-  color?: string;
 }
 
-// Subtle accent color - warm white to match Monument Valley aesthetic
-const ACCENT_COLOR = '#f5f0e8';
-
-/**
- * Create a diamond shape geometry (rotated square)
- */
-function createDiamondGeometry(size: number): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  const half = size / 2;
-
-  // Diamond points (rotated square)
-  shape.moveTo(0, half); // Top
-  shape.lineTo(half, 0); // Right
-  shape.lineTo(0, -half); // Bottom
-  shape.lineTo(-half, 0); // Left
-  shape.closePath();
-
-  return new THREE.ShapeGeometry(shape);
-}
+// Warm white to match Monument Valley aesthetic
+const TEXT_COLOR = '#f5f0e8';
+const CHEVRON_COLOR = '#ffffff';
 
 export function UserShapeIndicator({
   getShardPosition,
-  lineHeight = 1.2,
-  opacity = 0.7,
+  heightOffset = 0.8,
+  opacity = 0.8,
   visible = true,
-  color = '#ffffff',
 }: UserShapeIndicatorProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const diamondRef = useRef<THREE.Mesh>(null);
+  const chevronRef = useRef<THREE.Line | null>(null);
   const pulseRef = useRef(0);
 
-  // Create line object
-  const lineObject = useMemo(() => {
-    const points = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, lineHeight, 0)];
+  // Create chevron (small downward pointing arrow)
+  const chevronObject = useMemo(() => {
+    const points = [
+      new THREE.Vector3(-0.08, 0.06, 0),
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0.08, 0.06, 0),
+    ];
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const material = new THREE.LineBasicMaterial({
-      color: new THREE.Color(color),
+      color: new THREE.Color(CHEVRON_COLOR),
       transparent: true,
-      opacity: opacity * 0.5,
+      opacity: opacity * 0.6,
       depthTest: true,
       depthWrite: false,
     });
-    return { line: new THREE.Line(geometry, material), geometry, material };
-  }, [lineHeight, color, opacity]);
-
-  // Create diamond geometry
-  const diamondGeometry = useMemo(() => createDiamondGeometry(0.12), []);
-
-  // Create diamond material
-  const diamondMaterial = useMemo(() => {
-    return new THREE.MeshBasicMaterial({
-      color: new THREE.Color(color),
-      transparent: true,
-      opacity: opacity,
-      side: THREE.DoubleSide,
-      depthTest: true,
-      depthWrite: false,
-    });
-  }, [color, opacity]);
+    const line = new THREE.Line(geometry, material);
+    chevronRef.current = line;
+    return { line, geometry, material };
+  }, [opacity]);
 
   // Cleanup on unmount
   useMemo(() => {
     return () => {
-      lineObject.geometry.dispose();
-      lineObject.material.dispose();
-      diamondGeometry.dispose();
-      diamondMaterial.dispose();
+      chevronObject.geometry.dispose();
+      chevronObject.material.dispose();
     };
-  }, [lineObject, diamondGeometry, diamondMaterial]);
+  }, [chevronObject]);
 
   // Animation loop - update position and subtle pulse
   useFrame((state) => {
@@ -128,52 +94,36 @@ export function UserShapeIndicator({
     }
 
     groupRef.current.visible = true;
-    groupRef.current.position.copy(position);
+    // Position above the shard
+    groupRef.current.position.set(position.x, position.y + heightOffset, position.z);
 
-    // Subtle pulse animation (slow, understated)
+    // Subtle pulse animation (very slow, understated)
     pulseRef.current = state.clock.elapsedTime;
-    const pulse = 0.85 + 0.15 * Math.sin(pulseRef.current * 1.5);
+    const pulse = 0.85 + 0.15 * Math.sin(pulseRef.current * 1.2);
 
-    // Apply pulse to materials
-    lineObject.material.opacity = opacity * 0.5 * pulse;
-    diamondMaterial.opacity = opacity * pulse;
-
-    // Make diamond always face camera (billboard effect for the diamond)
-    if (diamondRef.current) {
-      diamondRef.current.quaternion.copy(state.camera.quaternion);
-    }
+    // Apply pulse to chevron opacity
+    chevronObject.material.opacity = opacity * 0.6 * pulse;
   });
 
   if (!visible) return null;
 
   return (
     <group ref={groupRef} name="User Indicator">
-      {/* Thin vertical line */}
-      <primitive object={lineObject.line} />
-
-      {/* Small diamond marker at top of line */}
-      <mesh
-        ref={diamondRef}
-        geometry={diamondGeometry}
-        material={diamondMaterial}
-        position={[0, lineHeight + 0.1, 0]}
-      />
+      {/* Small chevron pointing down at shard */}
+      <Billboard follow>
+        <primitive object={chevronObject.line} position={[0, -0.12, 0]} />
+      </Billboard>
 
       {/* "YOU" text - clean, minimal */}
-      <Billboard
-        position={[0, lineHeight + 0.35, 0]}
-        follow
-        lockX={false}
-        lockY={false}
-        lockZ={false}
-      >
+      <Billboard follow>
         <Text
-          fontSize={0.15}
-          color={ACCENT_COLOR}
+          position={[0, 0.08, 0]}
+          fontSize={0.12}
+          color={TEXT_COLOR}
           anchorX="center"
           anchorY="bottom"
           fillOpacity={opacity * 0.9}
-          letterSpacing={0.1}
+          letterSpacing={0.08}
         >
           YOU
         </Text>
