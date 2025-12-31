@@ -508,10 +508,12 @@ export function ParticleSwarm({
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Particle physics simulation requires multiple force calculations (spring, wind, jitter, orbit) and slot lifecycle management - refactoring would reduce readability
   useFrame((state, delta) => {
+    const slotManager = slotManagerRef.current;
+    if (!slotManager) return;
+
+    // Get shards array (may be empty on first frame, reconciliation will populate it)
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
-    const slotManager = slotManagerRef.current;
-    if (!slotManager || currentShards.length === 0) return;
 
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
