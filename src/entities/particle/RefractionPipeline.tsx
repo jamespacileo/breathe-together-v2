@@ -333,6 +333,7 @@ export function RefractionPipeline({
       },
       vertexShader: refractionVertexShader,
       fragmentShader: refractionFragmentShader,
+      side: THREE.DoubleSide, // Render both faces so shapes don't appear flat from certain angles
     });
 
     return { backfaceMaterial, refractionMaterial };

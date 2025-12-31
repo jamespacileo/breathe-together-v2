@@ -116,6 +116,6 @@ export function createFrostedGlassMaterial(): THREE.ShaderMaterial {
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,
     vertexColors: true,
-    side: THREE.FrontSide,
+    side: THREE.DoubleSide, // Render both faces so shapes don't appear flat from certain angles
   });
 }
