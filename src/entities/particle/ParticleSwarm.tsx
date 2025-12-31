@@ -448,11 +448,11 @@ export function ParticleSwarm({
       shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
       shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
 
-      // === QUICK WIN #4: Micro-rotation jitter ===
-      // High-frequency subtle wobble for "alive" feel (1-2 degrees max)
-      const jitterX = Math.sin(time * 7.3 + shardState.ambientSeed) * 0.015;
-      const jitterY = Math.cos(time * 6.1 + shardState.ambientSeed * 1.3) * 0.012;
-      const jitterZ = Math.sin(time * 8.7 + shardState.ambientSeed * 0.7) * 0.01;
+      // === QUICK WIN #4: Gentle floating jitter ===
+      // Slow, soft oscillation like shapes drifting in still air
+      const jitterX = Math.sin(time * 0.8 + shardState.ambientSeed) * 0.003;
+      const jitterY = Math.cos(time * 0.6 + shardState.ambientSeed * 1.3) * 0.002;
+      const jitterZ = Math.sin(time * 0.9 + shardState.ambientSeed * 0.7) * 0.002;
       shard.mesh.rotation.x += jitterX;
       shard.mesh.rotation.y += jitterY;
       shard.mesh.rotation.z += jitterZ;
