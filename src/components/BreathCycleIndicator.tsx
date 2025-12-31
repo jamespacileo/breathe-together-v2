@@ -66,6 +66,12 @@ function BreathCycleIndicatorComponent() {
     [activeColor, inactiveColor],
   );
 
+  // Store callbacks in refs to avoid RAF loop restarts when callbacks recreate
+  const updateNumberRef = useRef(updateNumber);
+  const updateDotRef = useRef(updateDot);
+  updateNumberRef.current = updateNumber;
+  updateDotRef.current = updateDot;
+
   useEffect(() => {
     let animationId: number;
 
@@ -76,20 +82,23 @@ function BreathCycleIndicatorComponent() {
       const { phaseIndex, phaseProgress } = calculatePhaseInfo(cycleTime);
 
       // Update each number's appearance based on active phase
-      if (number4Ref.current) updateNumber(number4Ref.current, phaseIndex === 0, phaseProgress);
-      if (number7Ref.current) updateNumber(number7Ref.current, phaseIndex === 1, phaseProgress);
-      if (number8Ref.current) updateNumber(number8Ref.current, phaseIndex === 2, phaseProgress);
+      if (number4Ref.current)
+        updateNumberRef.current(number4Ref.current, phaseIndex === 0, phaseProgress);
+      if (number7Ref.current)
+        updateNumberRef.current(number7Ref.current, phaseIndex === 1, phaseProgress);
+      if (number8Ref.current)
+        updateNumberRef.current(number8Ref.current, phaseIndex === 2, phaseProgress);
 
       // Update dots - glow when adjacent phases are transitioning
       if (dot1Ref.current) {
         const transitioning1 =
           (phaseIndex === 0 && phaseProgress > 0.85) || (phaseIndex === 1 && phaseProgress < 0.15);
-        updateDot(dot1Ref.current, transitioning1);
+        updateDotRef.current(dot1Ref.current, transitioning1);
       }
       if (dot2Ref.current) {
         const transitioning2 =
           (phaseIndex === 1 && phaseProgress > 0.85) || (phaseIndex === 2 && phaseProgress < 0.15);
-        updateDot(dot2Ref.current, transitioning2);
+        updateDotRef.current(dot2Ref.current, transitioning2);
       }
 
       prevPhaseRef.current = phaseIndex;
@@ -98,7 +107,7 @@ function BreathCycleIndicatorComponent() {
 
     updateIndicator();
     return () => cancelAnimationFrame(animationId);
-  }, [updateNumber, updateDot]);
+  }, []);
 
   // Base styles for numbers
   const numberStyle: React.CSSProperties = {

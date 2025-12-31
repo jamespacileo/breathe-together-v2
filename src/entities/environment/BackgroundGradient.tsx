@@ -9,7 +9,8 @@
 
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import type * as THREE from 'three';
+import { DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
 
 const vertexShader = `
 varying vec2 vUv;
@@ -114,8 +115,11 @@ void main() {
 export function BackgroundGradient() {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
+  // Create geometry with useMemo for proper disposal
+  const geometry = useMemo(() => new PlaneGeometry(2, 2), []);
+
   const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
+    return new ShaderMaterial({
       uniforms: {
         time: { value: 0 },
       },
@@ -123,7 +127,7 @@ export function BackgroundGradient() {
       fragmentShader,
       depthTest: false,
       depthWrite: false,
-      side: THREE.DoubleSide,
+      side: DoubleSide,
     });
   }, []);
 
@@ -134,16 +138,16 @@ export function BackgroundGradient() {
     }
   });
 
-  // Cleanup on unmount
+  // Cleanup geometry and material on unmount
   useEffect(() => {
     return () => {
+      geometry.dispose();
       material.dispose();
     };
-  }, [material]);
+  }, [geometry, material]);
 
   return (
-    <mesh renderOrder={-1000} frustumCulled={false}>
-      <planeGeometry args={[2, 2]} />
+    <mesh renderOrder={-1000} frustumCulled={false} geometry={geometry}>
       <primitive object={material} ref={materialRef} attach="material" />
     </mesh>
   );

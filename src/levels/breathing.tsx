@@ -52,11 +52,12 @@ export function BreathingLevel({
   const [orbitRadius, setOrbitRadius] = useState(TUNING_DEFAULTS.orbitRadius);
   const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
   const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
-  // Depth of Field state
-  const [enableDepthOfField] = useState(TUNING_DEFAULTS.enableDepthOfField);
-  const [focusDistance] = useState(TUNING_DEFAULTS.focusDistance);
-  const [focalRange] = useState(TUNING_DEFAULTS.focalRange);
-  const [maxBlur] = useState(TUNING_DEFAULTS.maxBlur);
+
+  // Depth of Field settings - constants (not exposed to UI currently)
+  const enableDepthOfField = TUNING_DEFAULTS.enableDepthOfField;
+  const focusDistance = TUNING_DEFAULTS.focusDistance;
+  const focalRange = TUNING_DEFAULTS.focalRange;
+  const maxBlur = TUNING_DEFAULTS.maxBlur;
 
   // UI modal states (controlled by TopRightControls)
   const [showTuneControls, setShowTuneControls] = useState(false);

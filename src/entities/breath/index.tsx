@@ -41,8 +41,14 @@ export function BreathEntity() {
       // ============================================================
       // DEBUG TRAIT MANAGEMENT
       // Add/update debug traits when debug context is present
+      // Remove debug traits when debug context is disabled
       // ============================================================
-      if (debugConfig && entity && world.has(entity)) {
+      if (!debugConfig) {
+        // Remove debug traits if debug context is disabled
+        if (entity.has(debugPhaseOverride)) entity.remove(debugPhaseOverride);
+        if (entity.has(debugTimeControl)) entity.remove(debugTimeControl);
+        if (entity.has(debugPhaseJump)) entity.remove(debugPhaseJump);
+      } else if (entity && world.has(entity)) {
         // Add debug traits if they don't exist
         if (!entity.has(debugPhaseOverride)) entity.add(debugPhaseOverride);
         if (!entity.has(debugTimeControl)) entity.add(debugTimeControl);
