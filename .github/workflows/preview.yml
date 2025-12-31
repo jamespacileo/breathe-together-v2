@@ -33,8 +33,36 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-  # Preview deployment (runs immediately, no dependencies)
+  # Deploy worker preview first
+  deploy-worker-preview:
+    runs-on: ubuntu-latest
+    name: Deploy Worker Preview
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy Worker Preview
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          wranglerVersion: "4.54.0"
+          command: deploy --name breathe-together-presence-pr-${{ github.event.pull_request.number }}
+
+  # Preview deployment (depends on worker preview)
   deploy-preview:
+    needs: deploy-worker-preview
     runs-on: ubuntu-latest
     name: Deploy Preview
     permissions:
@@ -55,8 +83,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build with API URL
         run: npm run build
+        env:
+          VITE_PRESENCE_API_URL: https://breathe-together-presence-pr-${{ github.event.pull_request.number }}.palladio-registry.workers.dev
 
       - name: Deploy Preview to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
@@ -292,8 +322,8 @@ jobs:
 
   # Notify on failures (validation or deployment)
   notify-failure:
-    needs: [validate, deploy-preview]
-    if: always() && (needs.validate.result == 'failure' || needs.deploy-preview.result == 'failure')
+    needs: [validate, deploy-worker-preview, deploy-preview]
+    if: always() && (needs.validate.result == 'failure' || needs.deploy-worker-preview.result == 'failure' || needs.deploy-preview.result == 'failure')
     runs-on: ubuntu-latest
     name: Notify Failures
     steps:
