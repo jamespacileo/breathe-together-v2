@@ -1,28 +1,15 @@
-import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
+import { BREATH_TOTAL_CYCLE, HOLD_OSCILLATION, VISUALS } from '../constants';
 import type { BreathState } from '../types';
+import { calculatePhaseInfo } from './breathPhase';
 import { easeExhale, easeInhale } from './easing';
 
 /**
  * Breathing state calculation using shared easing functions.
  *
  * Easing functions are imported from src/lib/easing.ts (single source of truth)
- * See that file for detailed documentation on the easing curves.
+ * Phase detection uses src/lib/breathPhase.ts (single source of truth)
+ * Hold oscillation parameters are in src/constants.ts (centralized config)
  */
-
-/**
- * Damped oscillation parameters for hold phases
- *
- * Physics: Underdamped harmonic oscillator creates subtle "breathing"
- * even during holds - nothing in nature is perfectly still.
- *
- * amplitude: 0.4% very subtle micro-movement (reduced from 1.2% to avoid
- *            appearing as a "bounce" before exhale begins)
- * damping: Reduces amplitude over the hold phase
- * frequency: ~1.0 cycles per hold for gentler rhythm (reduced from 1.5)
- */
-const HOLD_AMPLITUDE = 0.004; // Reduced from 0.012 to avoid visible bounce
-const HOLD_DAMPING = 0.6; // Slightly increased to settle faster
-const HOLD_FREQUENCY = 1.0; // Reduced from 1.5 for gentler rhythm
 
 /**
  * Breath Phase Convention:
@@ -42,31 +29,8 @@ const HOLD_FREQUENCY = 1.0; // Reduced from 1.5 for gentler rhythm
 export function calculateBreathState(elapsedTime: number): BreathState {
   const cycleTime = elapsedTime % BREATH_TOTAL_CYCLE;
 
-  // Phase durations from config (easily changeable)
-  const phaseDurations = [
-    BREATH_PHASES.INHALE,
-    BREATH_PHASES.HOLD_IN,
-    BREATH_PHASES.EXHALE,
-    BREATH_PHASES.HOLD_OUT,
-  ];
-
-  // Find current phase
-  let accumulatedTime = 0;
-  let phaseIndex = 0;
-
-  for (let i = 0; i < phaseDurations.length; i++) {
-    const duration = phaseDurations[i] ?? 0;
-    if (cycleTime < accumulatedTime + duration) {
-      phaseIndex = i;
-      break;
-    }
-    accumulatedTime += duration;
-  }
-
-  // Progress within current phase (0-1)
-  const phaseDuration = phaseDurations[phaseIndex] ?? 1;
-  const phaseTime = cycleTime - accumulatedTime;
-  const rawProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
+  // Use shared phase detection (single source of truth)
+  const { phaseIndex, phaseProgress: rawProgress } = calculatePhaseInfo(cycleTime);
 
   // Calculate breath phase based on current phase type
   let breathPhase: number;
@@ -80,8 +44,10 @@ export function calculateBreathState(elapsedTime: number): BreathState {
       {
         // Physics: Underdamped spring oscillation centered at 1
         // Amplitude decreases over time (damping), creating settling effect
-        const dampedAmplitude1 = HOLD_AMPLITUDE * Math.exp(-HOLD_DAMPING * rawProgress);
-        breathPhase = 1 - dampedAmplitude1 * Math.sin(rawProgress * Math.PI * 2 * HOLD_FREQUENCY);
+        const dampedAmplitude1 =
+          HOLD_OSCILLATION.AMPLITUDE * Math.exp(-HOLD_OSCILLATION.DAMPING * rawProgress);
+        breathPhase =
+          1 - dampedAmplitude1 * Math.sin(rawProgress * Math.PI * 2 * HOLD_OSCILLATION.FREQUENCY);
       }
       break;
 
@@ -93,8 +59,10 @@ export function calculateBreathState(elapsedTime: number): BreathState {
       {
         // Physics: Underdamped spring oscillation centered at 0
         // Same damping behavior for consistent organic feel
-        const dampedAmplitude3 = HOLD_AMPLITUDE * Math.exp(-HOLD_DAMPING * rawProgress);
-        breathPhase = dampedAmplitude3 * Math.sin(rawProgress * Math.PI * 2 * HOLD_FREQUENCY);
+        const dampedAmplitude3 =
+          HOLD_OSCILLATION.AMPLITUDE * Math.exp(-HOLD_OSCILLATION.DAMPING * rawProgress);
+        breathPhase =
+          dampedAmplitude3 * Math.sin(rawProgress * Math.PI * 2 * HOLD_OSCILLATION.FREQUENCY);
       }
       break;
 
