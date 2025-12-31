@@ -92,19 +92,6 @@ export function BreathingLevel({
           >
             {showGlobe && <EarthGlobe />}
 
-            {/* Progress circle overlay - renders in front of globe but behind particles */}
-            {/* Expands organically with breathing: contracts to radius on exhale, expands to expandedRadius on inhale */}
-            {showGlobe && (
-              <ProgressCircleOverlay
-                radius={2.0}
-                expandedRadius={3.5}
-                thickness={0.04}
-                userCount={harmony}
-                zOffset={0.5}
-                renderOrder={5}
-              />
-            )}
-
             {showParticles && (
               <ParticleSwarm
                 count={harmony}
@@ -124,6 +111,19 @@ export function BreathingLevel({
             )}
           </PresentationControls>
         </RefractionPipeline>
+
+        {/* Progress circle overlay - OUTSIDE RefractionPipeline to avoid DoF blur */}
+        {/* Renders as crisp UI overlay in front of the blurred 3D scene */}
+        {showGlobe && (
+          <ProgressCircleOverlay
+            radius={2.0}
+            expandedRadius={3.5}
+            thickness={0.04}
+            userCount={harmony}
+            zOffset={0.5}
+            renderOrder={100}
+          />
+        )}
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
