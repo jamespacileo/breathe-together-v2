@@ -13,11 +13,11 @@ import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
  * Generate a randomized mood array for initial display
- * Each slot gets a random mood (0-3) representing the 4 mood categories
+ * Each element is a mood index (0-3) representing the 4 mood categories
  *
- * @param count - Number of slots to fill
- * @param fillRatio - Ratio of slots to fill with users (0-1), default 0.7
- * @returns Array of mood indices (-1 for empty slots)
+ * @param count - Number of users to generate
+ * @param fillRatio - Ratio of max slots to fill with users (0-1), default 0.7
+ * @returns Array of mood indices (only active moods, no -1 values)
  */
 function generateRandomMoodArray(count: number, fillRatio = 0.7): number[] {
   const filledCount = Math.floor(count * fillRatio);
@@ -26,11 +26,6 @@ function generateRandomMoodArray(count: number, fillRatio = 0.7): number[] {
   // Fill with random moods (0-3)
   for (let i = 0; i < filledCount; i++) {
     result.push(Math.floor(Math.random() * 4));
-  }
-
-  // Pad with empty slots
-  while (result.length < count) {
-    result.push(-1);
   }
 
   return result;
@@ -138,7 +133,6 @@ export function BreathingLevel({
 
             {showParticles && (
               <ParticleSwarm
-                count={harmony}
                 moodArray={moodArray}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}

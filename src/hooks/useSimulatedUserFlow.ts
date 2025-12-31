@@ -11,7 +11,6 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { EMPTY_SLOT } from '../entities/particle/useUserOrdering';
 
 export interface SimulatedUser {
   /** Unique user ID */
@@ -162,17 +161,13 @@ export function useSimulatedUserFlow(
   ]);
 
   // Convert users to mood array (in arrival order)
+  // Returns only active mood indices (no EMPTY_SLOT/-1 values)
   const moodArray = useCallback((): number[] => {
     // Sort users by join time (arrival order)
     const sortedUsers = [...users].sort((a, b) => a.joinedAt - b.joinedAt);
 
-    // Build mood array
-    const result: number[] = new Array(maxSlots).fill(EMPTY_SLOT);
-    for (let i = 0; i < Math.min(sortedUsers.length, maxSlots); i++) {
-      result[i] = sortedUsers[i].moodIndex;
-    }
-
-    return result;
+    // Build mood array with only active moods
+    return sortedUsers.slice(0, maxSlots).map((user) => user.moodIndex);
   }, [users, maxSlots]);
 
   const addUser = useCallback(
