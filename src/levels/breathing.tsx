@@ -1,5 +1,6 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
+import type { IntroPhase } from '../components/cinematic';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -28,6 +29,11 @@ const TUNING_DEFAULTS = {
   maxBlur: 3, // Maximum blur intensity
 };
 
+interface BreathingLevelExtendedProps extends Partial<BreathingLevelProps> {
+  /** Current cinematic intro phase */
+  introPhase?: IntroPhase;
+}
+
 /**
  * BreathingLevel - Core meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
@@ -38,7 +44,11 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-}: Partial<BreathingLevelProps> = {}) {
+  // Cinematic intro props
+  introPhase = 'complete',
+}: BreathingLevelExtendedProps = {}) {
+  // Determine if we should show UI (only after intro is complete or in CTA phase)
+  const showUI = introPhase === 'complete' || introPhase === 'cta';
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
     particleDensity === 'sparse'
@@ -112,33 +122,36 @@ export function BreathingLevel({
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
-        <Html fullscreen>
-          {/* Top-right control icons (audio + tune + settings) */}
-          <TopRightControls
-            onOpenTuneControls={() => setShowTuneControls(true)}
-            onOpenSettings={() => setShowSettings(true)}
-          />
+        {/* Only show UI after intro completes */}
+        {showUI && (
+          <Html fullscreen>
+            {/* Top-right control icons (audio + tune + settings) */}
+            <TopRightControls
+              onOpenTuneControls={() => setShowTuneControls(true)}
+              onOpenSettings={() => setShowSettings(true)}
+            />
 
-          {/* Main UI with breathing phase, inspirational text, and modals */}
-          <SimpleGaiaUI
-            harmony={harmony}
-            setHarmony={setHarmony}
-            ior={ior}
-            setIor={setIor}
-            glassDepth={glassDepth}
-            setGlassDepth={setGlassDepth}
-            orbitRadius={orbitRadius}
-            setOrbitRadius={setOrbitRadius}
-            shardSize={shardSize}
-            setShardSize={setShardSize}
-            atmosphereDensity={atmosphereDensity}
-            setAtmosphereDensity={setAtmosphereDensity}
-            showTuneControls={showTuneControls}
-            onShowTuneControlsChange={setShowTuneControls}
-            showSettings={showSettings}
-            onShowSettingsChange={setShowSettings}
-          />
-        </Html>
+            {/* Main UI with breathing phase, inspirational text, and modals */}
+            <SimpleGaiaUI
+              harmony={harmony}
+              setHarmony={setHarmony}
+              ior={ior}
+              setIor={setIor}
+              glassDepth={glassDepth}
+              setGlassDepth={setGlassDepth}
+              orbitRadius={orbitRadius}
+              setOrbitRadius={setOrbitRadius}
+              shardSize={shardSize}
+              setShardSize={setShardSize}
+              atmosphereDensity={atmosphereDensity}
+              setAtmosphereDensity={setAtmosphereDensity}
+              showTuneControls={showTuneControls}
+              onShowTuneControlsChange={setShowTuneControls}
+              showSettings={showSettings}
+              onShowSettingsChange={setShowSettings}
+            />
+          </Html>
+        )}
       </Suspense>
     </ErrorBoundary>
   );

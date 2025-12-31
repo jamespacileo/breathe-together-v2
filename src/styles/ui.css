@@ -218,3 +218,110 @@ button:focus-visible {
     transform: scale(0.85);
   }
 }
+
+/* =============================================================================
+   CINEMATIC INTRO ANIMATIONS
+   ============================================================================= */
+
+/**
+ * Cinematic Fade In
+ * Slow, elegant fade for title text
+ */
+@keyframes cinematicFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/**
+ * Cinematic Fade Out
+ * Graceful exit with slight upward movement
+ */
+@keyframes cinematicFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+/**
+ * Letterbox Retract
+ * Smooth bar retraction to reveal full viewport
+ */
+@keyframes letterboxRetract {
+  from {
+    height: 12%;
+  }
+  to {
+    height: 0%;
+  }
+}
+
+/**
+ * Glow Pulse
+ * Subtle pulsing for the center glow effect
+ */
+@keyframes glowPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+/**
+ * CTA Button Pulse
+ * Subtle attention-grabbing pulse for the join button
+ */
+@keyframes ctaPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.1),
+      0 0 0 0 rgba(255, 250, 240, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.1),
+      0 0 0 8px rgba(255, 250, 240, 0);
+  }
+}
+
+/**
+ * Title Breathe Animation
+ * Very subtle breathing effect on title text
+ */
+@keyframes titleBreathe {
+  0%,
+  100% {
+    opacity: 0.95;
+    letter-spacing: 0.25em;
+  }
+  50% {
+    opacity: 1;
+    letter-spacing: 0.27em;
+  }
+}
+
+/* Utility class for cinematic text */
+.cinematic-text {
+  animation: titleBreathe 8s ease-in-out infinite;
+}
+
+/* Utility class for CTA button */
+.cinematic-cta {
+  animation: ctaPulse 3s ease-in-out infinite;
+}

@@ -32,18 +32,34 @@ interface CameraRigProps {
    * Enable camera rotation with mouse drag.
    */
   enableRotation?: boolean;
+
+  /**
+   * Whether we're in cinematic intro mode (camera dolly from close to far).
+   */
+  introMode?: boolean;
+
+  /**
+   * Progress through intro (0-1), used for dolly animation.
+   */
+  introProgress?: number;
 }
 
 export function CameraRig({
   parallaxIntensity = 0.4,
   distance = 15,
   enableRotation = false,
+  introMode = false,
+  introProgress = 1,
 }: CameraRigProps = {}) {
   // Internal constants for smoothing and movement
   const swayIntensity = 0.05;
   const breathZoomIntensity = 1.5;
   const lerpSpeed = 1.5;
   const dampingFactor = 0.03; // Smoother damping
+
+  // Intro dolly settings
+  const introStartDistance = 6; // Start close
+  const introEndDistance = distance; // End at normal distance
 
   const { mouse } = useThree();
   const world = useWorld();
@@ -70,11 +86,22 @@ export function CameraRig({
 
       // 1. Procedural Sway (Organic "breathing" movement)
       // Subtle float + rotation that feels linked to the lungs expanding
-      const swayX = Math.sin(t * 0.5) * swayIntensity;
-      const swayY = Math.cos(t * 0.4) * swayIntensity;
+      // Reduced during intro for more cinematic feel
+      const introSwayMultiplier = introMode ? Math.min(introProgress * 2, 1) : 1;
+      const swayX = Math.sin(t * 0.5) * swayIntensity * introSwayMultiplier;
+      const swayY = Math.cos(t * 0.4) * swayIntensity * introSwayMultiplier;
 
-      // 2. Breathing Zoom (Camera pushes in/out with the breath)
-      const dynamicDistance = distance - phase * breathZoomIntensity;
+      // 2. Calculate base distance (intro dolly or normal)
+      // Use easeOutCubic for smooth dolly
+      const easeOutCubic = (x: number) => 1 - (1 - x) ** 3;
+      const baseDistance = introMode
+        ? THREE.MathUtils.lerp(introStartDistance, introEndDistance, easeOutCubic(introProgress))
+        : distance;
+
+      // 3. Breathing Zoom (Camera pushes in/out with the breath)
+      // Reduced during intro
+      const breathMultiplier = introMode ? Math.min(introProgress, 1) : 1;
+      const dynamicDistance = baseDistance - phase * breathZoomIntensity * breathMultiplier;
 
       // 3. Mouse Parallax (Gentle look-around)
       const mouseX = mouse.x * parallaxIntensity;
