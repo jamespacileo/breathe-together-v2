@@ -305,7 +305,15 @@ export function RefractionPipeline({
     dofScene.add(dofMesh);
 
     return { dofScene, dofMesh, dofMaterial };
-  }, [size.width, size.height, perspCamera.near, perspCamera.far, focusDistance, focalRange, maxBlur]);
+  }, [
+    size.width,
+    size.height,
+    perspCamera.near,
+    perspCamera.far,
+    focusDistance,
+    focalRange,
+    maxBlur,
+  ]);
 
   // Create materials
   const { backfaceMaterial, refractionMaterial } = useMemo(() => {
@@ -370,7 +378,16 @@ export function RefractionPipeline({
       (bgMesh.material as THREE.Material).dispose();
       dofMesh.geometry.dispose();
     };
-  }, [envFBO, backfaceFBO, compositeFBO, backfaceMaterial, refractionMaterial, dofMaterial, bgMesh, dofMesh]);
+  }, [
+    envFBO,
+    backfaceFBO,
+    compositeFBO,
+    backfaceMaterial,
+    refractionMaterial,
+    dofMaterial,
+    bgMesh,
+    dofMesh,
+  ]);
 
   // 4-pass rendering loop
   useFrame(() => {

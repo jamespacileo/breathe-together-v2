@@ -2,17 +2,7 @@ import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'r
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
-import {
-  ANIMATION,
-  BLUR,
-  BORDER_RADIUS,
-  MOOD_COLORS,
-  PHASE_NAMES,
-  SPACING,
-  TYPOGRAPHY,
-  UI_COLORS,
-  Z_INDEX,
-} from '../styles/designTokens';
+import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
 
@@ -181,6 +171,7 @@ export function SimpleGaiaUI({
     let animationId: number;
     let prevPhase = -1;
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: RAF animation loop updates multiple DOM refs in single tick - splitting would harm performance
     const updatePhase = () => {
       const now = Date.now() / 1000;
       const cycleTime = now % BREATH_TOTAL_CYCLE;
@@ -649,6 +640,7 @@ export function SimpleGaiaUI({
                 gap: isMobile ? '10px' : '12px',
               }}
             >
+              {/* biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Mood button render with conditional styles for responsive design - complexity from inline style conditionals */}
               {MOOD_IDS.map((moodId) => {
                 const metadata = MOOD_METADATA[moodId];
                 const color = getMoodColor(moodId);
