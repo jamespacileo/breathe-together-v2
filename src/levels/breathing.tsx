@@ -1,6 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ProgressCircleOverlay } from '../components/ProgressCircleOverlay';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -73,6 +74,17 @@ export function BreathingLevel({
             azimuth={[-Infinity, Infinity]}
           >
             {showGlobe && <EarthGlobe />}
+
+            {/* Progress circle overlay - renders in front of globe but behind particles */}
+            {showGlobe && (
+              <ProgressCircleOverlay
+                radius={2.0}
+                thickness={0.04}
+                userCount={harmony}
+                zOffset={0.5}
+                renderOrder={5}
+              />
+            )}
 
             {showParticles && (
               <ParticleSwarm
