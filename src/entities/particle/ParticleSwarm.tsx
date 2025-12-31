@@ -200,8 +200,8 @@ const ORBIT_SPEED_VARIATION = 0.01; // ±variation per shard
  * Small movement tangent to radial direction - adds organic "floating" feel
  * Distinct from orbital motion (faster frequency, smaller amplitude)
  */
-const PERPENDICULAR_AMPLITUDE = 0.06; // Maximum tangent offset
-const PERPENDICULAR_FREQUENCY = 0.5; // Oscillation speed (Hz)
+const PERPENDICULAR_AMPLITUDE = 0.03; // Maximum tangent offset (subtle)
+const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
 
 /**
  * Phase stagger for wave effect
@@ -299,12 +299,10 @@ export function ParticleSwarm({
       const scaleSeed = (i * goldenRatio + 0.5) % 1;
       const baseScaleOffset = 0.9 + scaleSeed * 0.2;
 
-      // Orbital drift speed variation - some shards orbit slightly faster
-      // Random direction (positive or negative) for visual variety
+      // Orbital drift speed variation - all shards orbit same direction to prevent overlap
+      // Small speed variation creates gentle relative drift between neighbors
       const orbitSeed = (i * 3.14159 + 0.1) % 1;
-      const orbitDirection = i % 2 === 0 ? 1 : -1; // Alternate directions
-      const orbitSpeed =
-        orbitDirection * (ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION);
+      const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
 
       // Wobble seed for perpendicular motion phase offset
       const wobbleSeed = i * 2.71828; // e-based offset for unique phases
