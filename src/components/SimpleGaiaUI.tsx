@@ -16,7 +16,7 @@ import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
 
 interface SimpleGaiaUIProps {
-  /** Particle count (harmony) */
+  /** Particle count (harmony) - now serves as visual reference, actual count from mood array */
   harmony: number;
   setHarmony: (v: number) => void;
   /** Index of Refraction - controls light bending through glass */
@@ -42,6 +42,10 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  /** Current user count from mood array (optional - shows dynamic count) */
+  userCount?: number;
+  /** Callback to set target user count (optional - syncs harmony with mood array) */
+  onSetUserCount?: (count: number) => void;
 }
 
 /**
@@ -80,6 +84,8 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  userCount,
+  onSetUserCount,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -237,20 +243,28 @@ export function SimpleGaiaUI({
     return () => cancelAnimationFrame(animationId);
   }, []);
 
-  // Presence count simulation - updates every 2 seconds with subtle variation
-  // Moved out of RAF loop to avoid 60 random number generations per second
+  // Presence count - use actual userCount if provided, otherwise simulate
   useEffect(() => {
-    const updatePresenceCount = () => {
+    if (userCount !== undefined) {
+      // Use actual user count from mood array
       if (presenceCountRef.current) {
-        const baseCount = 75;
-        const variation = Math.floor(Math.random() * 10) - 5;
-        presenceCountRef.current.textContent = `${baseCount + variation}`;
+        presenceCountRef.current.textContent = `${userCount}`;
       }
-    };
+    } else {
+      // Simulate presence count when userCount is not provided
+      const updatePresenceCount = () => {
+        if (presenceCountRef.current) {
+          const baseCount = 75;
+          const variation = Math.floor(Math.random() * 10) - 5;
+          presenceCountRef.current.textContent = `${baseCount + variation}`;
+        }
+      };
 
-    const intervalId = setInterval(updatePresenceCount, 2000);
-    return () => clearInterval(intervalId);
-  }, []);
+      updatePresenceCount();
+      const intervalId = setInterval(updatePresenceCount, 2000);
+      return () => clearInterval(intervalId);
+    }
+  }, [userCount]);
 
   // Keyboard shortcut: Press 'T' to toggle tuning controls
   useEffect(() => {
@@ -1002,13 +1016,18 @@ export function SimpleGaiaUI({
                   paddingBottom: '6px',
                 }}
               >
-                Particles
+                Particles {userCount !== undefined && `(${userCount} active)`}
               </div>
 
               <label style={{ marginBottom: '14px', display: 'block' }}>
                 <div style={labelStyle}>
                   <span>Harmony</span>
-                  <span style={{ fontWeight: 400 }}>{harmony}</span>
+                  <span style={{ fontWeight: 400 }}>
+                    {harmony}
+                    {userCount !== undefined && userCount !== harmony && (
+                      <span style={{ color: colors.accent, marginLeft: '4px' }}>→ {userCount}</span>
+                    )}
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -1016,7 +1035,14 @@ export function SimpleGaiaUI({
                   max="200"
                   step="1"
                   value={harmony}
-                  onChange={(e) => setHarmony(parseInt(e.target.value, 10))}
+                  onChange={(e) => {
+                    const newValue = parseInt(e.target.value, 10);
+                    setHarmony(newValue);
+                    // Sync with mood array if callback provided
+                    if (onSetUserCount) {
+                      onSetUserCount(newValue);
+                    }
+                  }}
                   style={inputStyle}
                 />
               </label>

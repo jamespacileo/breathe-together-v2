@@ -362,12 +362,10 @@ export function RefractionPipeline({
     dofMaterial.uniforms.resolution.value.set(size.width, size.height);
   }, [size.width, size.height, envFBO, backfaceFBO, compositeFBO, refractionMaterial, dofMaterial]);
 
-  // Store original materials for mesh swapping
+  // Store original materials for mesh swapping (cached, not rebuilt every frame)
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
-
-  // Cache refraction meshes to avoid scene.traverse() every frame
-  const refractionMeshesRef = useRef<THREE.Mesh[]>([]);
-  const sceneVersionRef = useRef<number>(0);
+  // Cached list of refraction meshes (validated each frame for hot reload)
+  const cachedMeshesRef = useRef<THREE.Mesh[]>([]);
 
   // Cleanup
   useEffect(() => {
@@ -381,6 +379,9 @@ export function RefractionPipeline({
       bgMesh.geometry.dispose();
       (bgMesh.material as THREE.Material).dispose();
       dofMesh.geometry.dispose();
+      // Clear cached mesh references to prevent stale refs on hot reload
+      cachedMeshesRef.current = [];
+      meshDataRef.current.clear();
     };
   }, [
     envFBO,
@@ -395,13 +396,12 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
-    // Validate cached meshes are still valid (in scene and have useRefraction flag)
-    // This handles cases where meshes are recreated with same scene.children.length
-    let needsRefresh = sceneVersionRef.current !== scene.children.length;
+    // Validate cached meshes are still valid (handles hot reload scenarios)
+    let needsRefresh = cachedMeshesRef.current.length === 0;
 
-    if (!needsRefresh && refractionMeshesRef.current.length > 0) {
+    if (!needsRefresh) {
       // Check if any cached mesh is stale (removed from scene or flag changed)
-      for (const mesh of refractionMeshesRef.current) {
+      for (const mesh of cachedMeshesRef.current) {
         if (!mesh.parent || !mesh.userData.useRefraction) {
           needsRefresh = true;
           break;
@@ -410,22 +410,21 @@ export function RefractionPipeline({
     }
 
     if (needsRefresh) {
-      sceneVersionRef.current = scene.children.length;
-      refractionMeshesRef.current = [];
+      cachedMeshesRef.current = [];
+      meshDataRef.current.clear();
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
-          refractionMeshesRef.current.push(obj);
+          cachedMeshesRef.current.push(obj);
+          // Cache original material once per mesh
+          meshDataRef.current.set(obj, obj.material);
         }
       });
     }
 
-    const meshes = refractionMeshesRef.current;
+    const meshes = cachedMeshesRef.current;
 
-    // Store original materials
-    meshDataRef.current.clear();
-    for (const mesh of meshes) {
-      meshDataRef.current.set(mesh, mesh.material);
-    }
+    // Skip rendering if no refraction meshes found yet
+    if (meshes.length === 0) return;
 
     // Pass 1: Render background to envFBO
     gl.setRenderTarget(envFBO);
