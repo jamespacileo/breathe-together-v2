@@ -31,9 +31,11 @@ void main() {
 }
 `;
 
-// Fragment shader - fresnel rim + breathing luminosity
+// Fragment shader - fresnel rim + breathing luminosity + phase cues
 const shardFragmentShader = `
 uniform float breathPhase;
+uniform float phaseType;    // 0=inhale, 1=hold-in, 2=exhale, 3=hold-out
+uniform float rawProgress;  // 0-1 progress within current phase
 uniform float time;
 
 varying vec3 vNormal;
@@ -43,26 +45,91 @@ varying vec3 vColor;
 void main() {
   vec3 viewDir = normalize(vViewPosition);
 
-  // Fresnel rim effect - soft edge glow
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+  // === PHASE-AWARE FRESNEL RIM ===
+  // Edge glow intensity varies by phase to help users identify current state:
+  // - Inhale: Sharp, defined edges (gathering energy)
+  // - Hold-in: Bright glow (full presence, peak luminosity)
+  // - Exhale: Soft, ethereal edges (releasing)
+  // - Hold-out: Minimal glow (calm, settled)
+  float baseFresnelPower = 2.5;
+  float fresnelIntensity = 0.25;
 
+  if (phaseType < 0.5) {
+    // Inhale: sharper edges, moderate glow
+    baseFresnelPower = 3.0;
+    fresnelIntensity = 0.30;
+  } else if (phaseType < 1.5) {
+    // Hold-in: soft edges, brightest glow
+    baseFresnelPower = 2.0;
+    fresnelIntensity = 0.40;
+  } else if (phaseType < 2.5) {
+    // Exhale: very soft, ethereal glow
+    baseFresnelPower = 2.2;
+    fresnelIntensity = 0.35;
+  } else {
+    // Hold-out: minimal glow
+    baseFresnelPower = 3.5;
+    fresnelIntensity = 0.15;
+  }
+
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), baseFresnelPower);
+
+  // === TRANSITION PULSE ===
+  // Brief brightness flash at phase start (first 15% of each phase)
+  // Helps users notice when phases change
+  float transitionPulse = 0.0;
+  if (rawProgress < 0.15) {
+    // Quick pulse: ramp up then down over 15% of phase
+    float pulseT = rawProgress / 0.15;
+    transitionPulse = sin(pulseT * 3.14159) * 0.15; // 15% brightness boost
+  }
+
+  // === COLOR TEMPERATURE SHIFT ===
+  // Subtle warm/cool shift by phase:
+  // - Inhale: Warm (gathering, energizing)
+  // - Hold-in: Neutral-warm (full, present)
+  // - Exhale: Cool (releasing, calming)
+  // - Hold-out: Neutral-cool (resting)
+  vec3 warmShift = vec3(0.04, 0.02, -0.02);  // Add red/yellow, reduce blue
+  vec3 coolShift = vec3(-0.02, 0.01, 0.04);  // Reduce red, add blue
+
+  vec3 temperatureShift = vec3(0.0);
+  if (phaseType < 0.5) {
+    // Inhale: gradually warm up
+    temperatureShift = warmShift * rawProgress;
+  } else if (phaseType < 1.5) {
+    // Hold-in: stay warm
+    temperatureShift = warmShift * 0.8;
+  } else if (phaseType < 2.5) {
+    // Exhale: transition warm to cool
+    temperatureShift = mix(warmShift * 0.5, coolShift, rawProgress);
+  } else {
+    // Hold-out: stay cool
+    temperatureShift = coolShift * 0.6;
+  }
+
+  // === BASE LUMINOSITY ===
   // Breathing luminosity pulse - subtle brightness shift
-  // Peak brightness during hold phases (phase 0.25-0.5 and 0.75-1.0)
-  float breathLuminosity = 1.0 + breathPhase * 0.12;
+  float breathLuminosity = 1.0 + breathPhase * 0.12 + transitionPulse;
 
   // Subtle saturation boost based on viewing angle
-  // Faces pointing toward camera are slightly more saturated
   float facingBoost = max(dot(vNormal, viewDir), 0.0) * 0.08;
 
-  // Apply mood color with luminosity and saturation
-  vec3 baseColor = vColor * breathLuminosity;
+  // Apply mood color with luminosity, temperature shift
+  vec3 baseColor = vColor * breathLuminosity + temperatureShift;
 
-  // Mix in a warm white rim glow (like the globe)
-  vec3 rimColor = vec3(0.98, 0.96, 0.94); // Soft warm white
-  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.25);
+  // === RIM GLOW ===
+  // Rim color also shifts with temperature
+  vec3 rimColor = vec3(0.98, 0.96, 0.94) + temperatureShift * 0.5;
+  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * fresnelIntensity);
 
-  // Subtle inner luminance - very gentle glow from within
-  float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
+  // Subtle inner luminance - varies by phase
+  float innerGlowBase = 0.05;
+  if (phaseType < 1.5) {
+    // Inhale/Hold-in: stronger inner glow
+    innerGlowBase = 0.07;
+  }
+  float innerGlow = (1.0 - fresnel) * innerGlowBase * (1.0 + breathPhase * 0.3);
   colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
 
   // Slight desaturation toward edges for atmospheric feel
@@ -111,6 +178,8 @@ export function createFrostedGlassMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       breathPhase: { value: 0 },
+      phaseType: { value: 0 },
+      rawProgress: { value: 0 },
       time: { value: 0 },
     },
     vertexShader: shardVertexShader,

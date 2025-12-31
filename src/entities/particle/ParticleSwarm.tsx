@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
-import { breathPhase, orbitRadius } from '../breath/traits';
+import { breathPhase, orbitRadius, phaseType, rawProgress } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
@@ -209,6 +209,17 @@ const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
  */
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 
+/**
+ * Rotation multipliers by phase type
+ *
+ * Provides visual cue for which phase the user is in:
+ * - Inhale (0): Forward rotation (gathering energy)
+ * - Hold-in (1): Slow rotation (stillness, presence)
+ * - Exhale (2): Reverse rotation (releasing)
+ * - Hold-out (3): Minimal rotation (calm)
+ */
+const PHASE_ROTATION_MULTIPLIERS = [1.0, 0.3, -0.8, 0.2] as const;
+
 export function ParticleSwarm({
   count = 48,
   users,
@@ -352,11 +363,15 @@ export function ParticleSwarm({
     // Get breathing state from ECS
     let targetRadius = baseRadius;
     let currentBreathPhase = 0;
+    let currentPhaseType = 0;
+    let currentRawProgress = 0;
     try {
       const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
         targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
         currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
+        currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
+        currentRawProgress = breathEntity.get(rawProgress)?.value ?? 0;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
@@ -366,6 +381,8 @@ export function ParticleSwarm({
     // (shared material means updating once affects all)
     if (material.uniforms) {
       material.uniforms.breathPhase.value = currentBreathPhase;
+      material.uniforms.phaseType.value = currentPhaseType;
+      material.uniforms.rawProgress.value = currentRawProgress;
       material.uniforms.time.value = time;
     }
 
@@ -444,9 +461,10 @@ export function ParticleSwarm({
         .addScaledVector(tangent2, wobble2)
         .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
 
-      // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
-      shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
-      shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
+      // Per-shard rotation with phase-based direction (see PHASE_ROTATION_MULTIPLIERS)
+      const rotationMultiplier = PHASE_ROTATION_MULTIPLIERS[currentPhaseType] ?? 1.0;
+      shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX * rotationMultiplier;
+      shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY * rotationMultiplier;
 
       // Subtle scale breathing - shards pulse slightly with breath (3-8% range)
       // Combined with base scale offset for depth variation
