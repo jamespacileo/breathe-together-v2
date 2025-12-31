@@ -117,8 +117,11 @@ interface ShardData {
 /**
  * Physics state for organic breathing animation
  *
- * Each shard has independent spring physics + ambient motion for natural feel:
- * - Spring physics: smooth transitions with settling on holds
+ * SIMPLIFIED (Dec 2024): Removed spring physics to eliminate bounce.
+ * Now uses exponential lerp for smooth following of ECS orbitRadius.
+ *
+ * Each shard has:
+ * - Exponential lerp: smooth approach to target with no overshoot
  * - Phase offset: subtle wave effect (particles don't move in perfect lockstep)
  * - Ambient seed: unique floating pattern per shard
  * - Rotation speeds: per-shard variation for organic feel
@@ -127,16 +130,12 @@ interface ShardData {
  * - Perpendicular: tangent wobble for organic floating feel
  */
 interface ShardPhysicsState {
-  /** Current interpolated radius (spring-smoothed) */
+  /** Current interpolated radius (lerp-smoothed, no spring physics) */
   currentRadius: number;
-  /** Radial velocity for spring physics */
-  velocity: number;
-  /** Phase offset for subtle wave effect (0-0.05 range) */
+  /** Phase offset for subtle wave effect (0-0.04 range, 4% max) */
   phaseOffset: number;
   /** Seed for ambient floating motion (unique per shard) */
   ambientSeed: number;
-  /** Previous frame's target radius (for detecting expansion) */
-  previousTarget: number;
   /** Per-shard rotation speed multiplier X axis (0.7-1.3 range) */
   rotationSpeedX: number;
   /** Per-shard rotation speed multiplier Y axis (0.7-1.3 range) */
@@ -154,42 +153,22 @@ interface ShardPhysicsState {
 /**
  * Spring physics constants for relaxed breathing feel
  *
- * Tuned for controlled relaxation breathing with snappy exhale response:
- * - Stiffness: 8 provides quick response while still feeling organic
- * - Damping: settles quickly on holds without oscillation
- * - Expansion boost: strong immediate response when exhale begins
+ * SIMPLIFIED (Dec 2024): Removed spring physics entirely to eliminate bounce.
+ * Now uses exponential lerp for all phases - smooth approach to target with
+ * no overshoot possible.
  */
-const SPRING_STIFFNESS = 8; // Increased from 6 for snappier response
-const SPRING_DAMPING = 5.0; // Slightly increased to match higher stiffness
 
 /**
- * Expansion velocity boost for immediate exhale response
+ * Lerp speed for breathing animation
  *
- * When target radius increases (exhale starts), inject outward velocity
- * proportional to target change. This overcomes spring lag and makes
- * the exhale expansion feel immediate rather than delayed.
+ * Controls how quickly particles follow the ECS target radius.
+ * Higher = faster response, lower = smoother/slower
  *
- * The boost is asymmetric - only applied during expansion (exhale),
- * not contraction (inhale), for a more natural "release" feel.
+ * The easing is already applied in breathCalc.ts (sin-based curves),
+ * so this just needs to be fast enough to follow without adding lag.
+ * 6.0 provides responsive following while staying smooth.
  */
-const EXPANSION_VELOCITY_BOOST = 4.0; // Per-frame boost (reduced, phase kick handles initial burst)
-
-/**
- * Exhale interpolation speed (exponential lerp)
- *
- * During exhale, we DON'T use spring physics (which causes oscillation).
- * Instead, we use exponential interpolation: smooth approach to target
- * with no overshoot possible.
- *
- * This models "softly letting go of a rubber band":
- * - Fast initial movement (rubber band snapping outward)
- * - Naturally slowing as it approaches rest position
- * - No bounce-back (exponential decay guarantees monotonic approach)
- *
- * Higher = faster approach, lower = slower/smoother
- * 4.0 gives visible movement in first 0.25s while staying smooth
- */
-const EXHALE_LERP_SPEED = 4.0;
+const BREATH_LERP_SPEED = 6.0;
 
 /**
  * Ambient floating motion constants
@@ -336,10 +315,8 @@ export function ParticleSwarm({
 
       physicsStates.push({
         currentRadius: baseRadius,
-        velocity: 0,
         phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
         ambientSeed: i * 137.508, // Golden angle in degrees for unique patterns
-        previousTarget: baseRadius,
         rotationSpeedX,
         rotationSpeedY,
         baseScaleOffset,
@@ -403,58 +380,25 @@ export function ParticleSwarm({
       material.uniforms.time.value = time;
     }
 
-    // Update each shard with spring physics + ambient motion
+    // Update each shard with exponential lerp (no spring physics = no bounce)
     for (let i = 0; i < currentShards.length; i++) {
       const shard = currentShards[i];
       const shardState = physics[i];
 
-      // Apply phase offset for wave effect
-      // This creates subtle stagger in breathing motion
-      const offsetBreathPhase = currentBreathPhase + shardState.phaseOffset;
+      // Use ECS orbitRadius directly as the target
+      // The easing is already applied in breathCalc.ts (sin-based curves)
+      // Phase offset creates subtle wave stagger (±4% of orbit range)
+      const phaseOffsetAmount = shardState.phaseOffset * (baseRadius - minOrbitRadius);
+      const targetWithOffset = targetRadius + phaseOffsetAmount;
 
-      // Calculate target radius with phase offset applied
-      // Map breath phase (0-1) to orbit radius range
-      // breathPhase 0 = exhaled (max radius), breathPhase 1 = inhaled (min radius)
-      const phaseTargetRadius =
-        targetRadius + (1 - offsetBreathPhase) * (baseRadius - targetRadius) * 0.15;
+      // Clamp to prevent penetrating globe (minOrbitRadius is the hard floor)
+      const clampedTarget = Math.max(targetWithOffset, minOrbitRadius);
 
-      // Clamp target to prevent penetrating globe
-      const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
-
-      // Use different physics based on phase:
-      // - Exhale (phase 2): Exponential lerp - "letting go of a rubber band"
-      // - Other phases: Spring physics - organic contraction/hold
-      const isExhalePhase = currentPhaseType === 2;
-
-      if (isExhalePhase) {
-        // EXHALE: Exponential interpolation (no spring physics)
-        // This models "releasing a rubber band":
-        // - Monotonic approach to target (no oscillation possible)
-        // - Fast initial movement, naturally slowing
-        // - Feels like tension releasing, not fighting against a spring
-        const lerpFactor = 1 - Math.exp(-EXHALE_LERP_SPEED * clampedDelta);
-        shardState.currentRadius += (clampedTarget - shardState.currentRadius) * lerpFactor;
-        // Reset velocity to prevent spring momentum carrying into next phase
-        shardState.velocity = 0;
-      } else {
-        // INHALE/HOLD: Spring physics for organic feel
-        // Contraction feels like being gently pulled inward
-        const targetDelta = clampedTarget - shardState.previousTarget;
-        if (targetDelta < -0.001) {
-          // Contracting inward (inhale) - boost for responsiveness
-          shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
-        }
-
-        // Spring physics: F = -k(x - target) - c*v
-        const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
-        const dampingForce = -shardState.velocity * SPRING_DAMPING;
-        const totalForce = springForce + dampingForce;
-
-        // Integrate velocity and position
-        shardState.velocity += totalForce * clampedDelta;
-        shardState.currentRadius += shardState.velocity * clampedDelta;
-      }
-      shardState.previousTarget = clampedTarget;
+      // Exponential lerp for ALL phases - smooth approach with no bounce
+      // The sin easing in breathCalc already provides the curve shape
+      // This just needs to follow quickly without adding its own dynamics
+      const lerpFactor = 1 - Math.exp(-BREATH_LERP_SPEED * clampedDelta);
+      shardState.currentRadius += (clampedTarget - shardState.currentRadius) * lerpFactor;
 
       // Update orbital drift angle
       shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
