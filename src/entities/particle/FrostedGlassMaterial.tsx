@@ -31,10 +31,11 @@ void main() {
 }
 `;
 
-// Fragment shader - fresnel rim + breathing luminosity
+// Fragment shader - fresnel rim + breathing luminosity + anticipation edge glint
 const shardFragmentShader = `
 uniform float breathPhase;
 uniform float time;
+uniform float anticipation; // 0-1, intensifies near phase transitions
 
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -64,6 +65,26 @@ void main() {
   // Subtle inner luminance - very gentle glow from within
   float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
   colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
+
+  // ANTICIPATION EFFECT: Edge glint
+  // A subtle "catching the light" shimmer on shard edges before transitions
+  // Like sunlight glancing off crystal facets - barely conscious but felt
+  if (anticipation > 0.0) {
+    // Edge highlight travels across the shard (time-based sweep)
+    float sweepAngle = time * 3.0; // Rotation speed of the highlight
+    vec3 lightDir = vec3(cos(sweepAngle), 0.5, sin(sweepAngle));
+    float edgeDot = max(dot(vNormal, lightDir), 0.0);
+
+    // Sharp falloff creates a "glint" rather than soft glow
+    float glint = pow(edgeDot, 8.0) * anticipation;
+
+    // Warm golden glint color - like morning sun on glass
+    vec3 glintColor = vec3(1.0, 0.95, 0.85);
+    colorWithRim += glintColor * glint * 0.35;
+
+    // Additional subtle overall brightness lift during anticipation
+    colorWithRim *= 1.0 + anticipation * 0.08;
+  }
 
   // Slight desaturation toward edges for atmospheric feel
   vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
@@ -106,12 +127,14 @@ export function FrostedGlassMaterial({ color = '#ffffff' }: FrostedGlassMaterial
  * - Fresnel rim glow (soft edge lighting)
  * - Breathing luminosity (synced brightness pulse)
  * - Per-vertex color support
+ * - Anticipation edge glint (subtle "catching light" before transitions)
  */
 export function createFrostedGlassMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       breathPhase: { value: 0 },
       time: { value: 0 },
+      anticipation: { value: 0 }, // 0-1, drives edge glint effect
     },
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,

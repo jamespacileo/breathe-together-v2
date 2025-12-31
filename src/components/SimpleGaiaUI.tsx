@@ -1,7 +1,7 @@
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
-import { calculatePhaseInfo } from '../lib/breathPhase';
+import { calculateAnticipation, calculatePhaseInfo } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
@@ -175,9 +175,12 @@ export function SimpleGaiaUI({
     const updatePhase = () => {
       const now = Date.now() / 1000;
       const cycleTime = now % BREATH_TOTAL_CYCLE;
-      const { phaseIndex, phaseProgress, accumulatedTime, phaseDuration } =
-        calculatePhaseInfo(cycleTime);
+      const phaseInfo = calculatePhaseInfo(cycleTime);
+      const { phaseIndex, phaseProgress, accumulatedTime, phaseDuration } = phaseInfo;
       const phaseTime = phaseProgress * phaseDuration;
+
+      // Calculate anticipation for tension glow effect
+      const anticipation = calculateAnticipation(phaseInfo);
 
       // Update phase name on transition
       if (phaseIndex !== prevPhase) {
@@ -199,12 +202,34 @@ export function SimpleGaiaUI({
         progressRef.current.style.width = `${cycleProgress * 100}%`;
       }
 
-      // Breathing-synchronized glow on progress container
+      // ANTICIPATION EFFECT: Progress bar tension glow
+      // Creates a "charging up" effect as we approach phase transitions
+      // Like a game's stamina bar about to unlock a special move
       if (progressContainerRef.current) {
-        // Intensity peaks during inhale (phase 0) and hold-in (phase 1)
-        const glowIntensity =
-          phaseIndex === 0 || phaseIndex === 1 ? 0.4 + phaseProgress * 0.3 : 0.2;
-        progressContainerRef.current.style.boxShadow = `0 0 ${8 + glowIntensity * 12}px rgba(201, 160, 108, ${glowIntensity})`;
+        // Base glow: peaks during inhale/hold-in
+        const baseGlow = phaseIndex === 0 || phaseIndex === 1 ? 0.4 + phaseProgress * 0.2 : 0.2;
+
+        // Anticipation tension: glow intensifies dramatically before transitions
+        // Uses eased anticipation for smooth buildup
+        const tensionGlow = anticipation.easedAnticipation * 0.5;
+
+        // Quick pulse oscillation during final second before transition
+        const tensionPulse =
+          anticipation.timeToTransition < 1.0
+            ? Math.sin(now * 12) * 0.1 * anticipation.easedAnticipation
+            : 0;
+
+        const totalGlow = baseGlow + tensionGlow + tensionPulse;
+
+        // Glow radius also expands during anticipation
+        const glowRadius = 8 + totalGlow * 12 + anticipation.easedAnticipation * 8;
+
+        // Color shifts warmer during anticipation (golden → amber)
+        const colorR = Math.floor(201 + anticipation.easedAnticipation * 30); // 201 → 231
+        const colorG = Math.floor(160 - anticipation.easedAnticipation * 20); // 160 → 140
+        const colorB = Math.floor(108 - anticipation.easedAnticipation * 30); // 108 → 78
+
+        progressContainerRef.current.style.boxShadow = `0 0 ${glowRadius}px rgba(${colorR}, ${colorG}, ${colorB}, ${totalGlow})`;
       }
 
       animationId = requestAnimationFrame(updatePhase);

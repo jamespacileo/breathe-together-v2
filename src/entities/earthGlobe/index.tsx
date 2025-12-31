@@ -22,6 +22,8 @@ import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
+import { BREATH_TOTAL_CYCLE } from '../../constants';
+import { calculateAnticipation, calculatePhaseInfo } from '../../lib/breathPhase';
 import { breathPhase } from '../breath/traits';
 
 // Vertex shader for textured globe with fresnel
@@ -104,7 +106,7 @@ void main() {
 }
 `;
 
-// Mist shader - subtle animated noise haze
+// Mist shader - subtle animated noise haze with anticipation quickening
 const mistVertexShader = `
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -122,6 +124,7 @@ void main() {
 const mistFragmentShader = `
 uniform float time;
 uniform float breathPhase;
+uniform float anticipation; // 0-1, intensifies near phase transitions
 uniform vec3 mistColor;
 
 varying vec3 vNormal;
@@ -148,15 +151,23 @@ void main() {
   vec3 viewDir = normalize(vViewPosition);
   float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 1.5);
 
-  // Animated noise for misty effect
-  vec2 uv = vUv * 4.0 + time * 0.02;
+  // ANTICIPATION EFFECT: Mist quickening
+  // Speed multiplier: 1x normal → 2.5x at peak anticipation
+  float speedMultiplier = 1.0 + anticipation * 1.5;
+
+  // Animated noise for misty effect - faster when anticipating
+  vec2 uv = vUv * 4.0 + time * 0.02 * speedMultiplier;
   float n = noise(uv) * 0.5 + noise(uv * 2.0) * 0.3 + noise(uv * 4.0) * 0.2;
 
   // Breathing modulation
   float breath = 0.6 + breathPhase * 0.4;
 
+  // ANTICIPATION EFFECT: Subtle intensity increase
+  // Mist "gathers" before transition - slightly more visible
+  float anticipationIntensity = 1.0 + anticipation * 0.25;
+
   // Combine fresnel edge with noise
-  float alpha = fresnel * n * 0.15 * breath;
+  float alpha = fresnel * n * 0.15 * breath * anticipationIntensity;
 
   gl_FragColor = vec4(mistColor, alpha);
 }
@@ -258,13 +269,14 @@ export function EarthGlobe({
     [],
   );
 
-  // Create mist material - animated noise haze
+  // Create mist material - animated noise haze with anticipation
   const mistMaterial = useMemo(
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
           time: { value: 0 },
           breathPhase: { value: 0 },
+          anticipation: { value: 0 }, // Anticipation intensity 0-1
           mistColor: { value: new THREE.Color('#f0ebe6') }, // Soft warm white
         },
         vertexShader: mistVertexShader,
@@ -287,39 +299,84 @@ export function EarthGlobe({
 
   /**
    * Update globe scale, rotation, and shader uniforms
+   * Includes anticipation effects for phase transition hints
    */
   useFrame((state) => {
     if (!groupRef.current) return;
 
     try {
+      // Calculate anticipation from UTC time (same source as breathing)
+      const now = Date.now() / 1000;
+      const cycleTime = now % BREATH_TOTAL_CYCLE;
+      const phaseInfo = calculatePhaseInfo(cycleTime);
+      const anticipation = calculateAnticipation(phaseInfo);
+
       // Get breath phase for animation
       const breathEntity = world?.queryFirst?.(breathPhase);
       if (breathEntity) {
         const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
+
         // Update shader uniforms
         material.uniforms.breathPhase.value = phase;
         glowMaterial.uniforms.breathPhase.value = phase;
         mistMaterial.uniforms.breathPhase.value = phase;
         mistMaterial.uniforms.time.value = state.clock.elapsedTime;
+        mistMaterial.uniforms.anticipation.value = anticipation.easedAnticipation;
 
         // Subtle pulse: 1.0 to 1.06 (6% scale change)
         const scale = 1.0 + phase * 0.06;
         groupRef.current.scale.set(scale, scale, scale);
 
-        // Animate atmosphere layers with slight phase offset for organic feel
+        // ANTICIPATION EFFECT: Atmosphere deepening
+        // Layers pulse/intensify slightly before transitions
         atmosphereRefs.current.forEach((mesh, i) => {
           if (mesh) {
             const phaseOffset = (i + 1) * 0.15; // Each layer slightly delayed
             const delayedPhase = Math.max(0, phase - phaseOffset);
-            const layerScale = ATMOSPHERE_LAYERS[i].scale + delayedPhase * 0.04;
+
+            // Anticipation makes layers slightly larger/more visible
+            const anticipationScale = anticipation.easedAnticipation * 0.015 * (i + 1);
+            const layerScale = ATMOSPHERE_LAYERS[i].scale + delayedPhase * 0.04 + anticipationScale;
             mesh.scale.set(layerScale, layerScale, layerScale);
+
+            // Also pulse opacity slightly
+            const baseMaterial = mesh.material as THREE.MeshBasicMaterial;
+            const baseOpacity = ATMOSPHERE_LAYERS[i].opacity;
+            baseMaterial.opacity = baseOpacity + anticipation.easedAnticipation * 0.03;
           }
         });
 
-        // Animate ring opacity with breathing
+        // ANTICIPATION EFFECT: Ring pulse sweep
+        // A soft glow "pulse" travels around the ring as transition approaches
         if (ringRef.current) {
           const ringMaterial = ringRef.current.material as THREE.MeshBasicMaterial;
-          ringMaterial.opacity = 0.12 + phase * 0.08; // 12% to 20%
+
+          // Base breathing opacity
+          const baseOpacity = 0.12 + phase * 0.08; // 12% to 20%
+
+          // Anticipation glow: intensifies as we approach transition
+          // Creates a "charging up" effect
+          const anticipationGlow = anticipation.easedAnticipation * 0.15;
+
+          // Subtle pulse effect during anticipation (quick oscillation)
+          const pulseOscillation = anticipation.isAnticipating
+            ? Math.sin(state.clock.elapsedTime * 8) * 0.03 * anticipation.easedAnticipation
+            : 0;
+
+          ringMaterial.opacity = baseOpacity + anticipationGlow + pulseOscillation;
+
+          // ANTICIPATION EFFECT: Color temperature shift
+          // Ring warms slightly before inhale, cools before exhale
+          if (anticipation.isAnticipating && anticipation.nextPhaseIndex === 0) {
+            // Before inhale: warm golden tint
+            ringMaterial.color.setHex(0xf0c8a8); // Warmer rose gold
+          } else if (anticipation.isAnticipating && anticipation.nextPhaseIndex === 2) {
+            // Before exhale: cool down slightly
+            ringMaterial.color.setHex(0xd8c4c8); // Cooler lavender-rose
+          } else {
+            // Default rose gold
+            ringMaterial.color.setHex(0xe8c4b8);
+          }
         }
       }
 

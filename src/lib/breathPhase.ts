@@ -61,3 +61,80 @@ export function calculatePhaseInfo(cycleTime: number): PhaseInfo {
 
   return { phaseIndex, phaseProgress, accumulatedTime, phaseDuration };
 }
+
+/**
+ * Anticipation signal information for visual hints before phase transitions
+ *
+ * Inspired by game design patterns (Sekiro, Elden Ring, God of War) where subtle
+ * visual "tells" prepare the player's nervous system before an event occurs.
+ * These signals are designed to be subliminal - not consciously noticed but
+ * subconsciously registered.
+ */
+export interface AnticipationInfo {
+  /** Seconds until next phase transition (0 = transition happening now) */
+  timeToTransition: number;
+  /** Whether we're in the anticipation window (final 2s of any phase) */
+  isAnticipating: boolean;
+  /** Anticipation intensity 0→1 (0 = not anticipating, 1 = transition imminent) */
+  anticipationProgress: number;
+  /** Index of the UPCOMING phase (what we're transitioning TO) */
+  nextPhaseIndex: number;
+  /** Smooth eased anticipation for organic visual effects (uses ease-in-cubic) */
+  easedAnticipation: number;
+}
+
+/** Duration of anticipation window in seconds */
+const ANTICIPATION_WINDOW = 2.0;
+
+/**
+ * Calculate anticipation signals for visual phase transition hints
+ *
+ * Returns information about how close we are to the next breathing phase
+ * transition, designed to drive subtle visual effects that prepare the
+ * user's nervous system for the upcoming change.
+ *
+ * The effect should be subliminal - the user doesn't consciously notice
+ * "oh, something is about to happen" but their body subtly prepares.
+ *
+ * @param phaseInfo - Current phase information from calculatePhaseInfo
+ * @returns Anticipation signal data for visual effects
+ *
+ * @example
+ * ```ts
+ * const phase = calculatePhaseInfo(cycleTime);
+ * const anticipation = calculateAnticipation(phase);
+ *
+ * if (anticipation.isAnticipating) {
+ *   // Apply subtle visual effects that intensify with anticipationProgress
+ *   glowIntensity = baseGlow + anticipation.easedAnticipation * 0.3;
+ * }
+ * ```
+ */
+export function calculateAnticipation(phaseInfo: PhaseInfo): AnticipationInfo {
+  const { phaseProgress, phaseDuration, phaseIndex } = phaseInfo;
+
+  // Time remaining in current phase
+  const timeInPhase = phaseProgress * phaseDuration;
+  const timeToTransition = phaseDuration - timeInPhase;
+
+  // Are we in the anticipation window?
+  const isAnticipating = timeToTransition <= ANTICIPATION_WINDOW;
+
+  // Linear anticipation progress (0 = start of window, 1 = transition)
+  const anticipationProgress = isAnticipating ? 1 - timeToTransition / ANTICIPATION_WINDOW : 0;
+
+  // Eased anticipation for smoother visual effects (ease-in-cubic)
+  // Starts slow, accelerates toward transition - mimics "gathering energy"
+  const easedAnticipation = anticipationProgress * anticipationProgress * anticipationProgress;
+
+  // What phase is coming next?
+  const nextPhaseIndex = (phaseIndex + 1) % 4;
+
+  return {
+    timeToTransition,
+    isAnticipating,
+    anticipationProgress,
+    nextPhaseIndex,
+    easedAnticipation,
+  };
+}
