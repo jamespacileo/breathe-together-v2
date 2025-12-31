@@ -1,13 +1,15 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
+import type { MoodId } from '../constants';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { useFirstBreathCycle } from '../hooks/useFirstBreathCycle';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -63,6 +65,31 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Onboarding state - controls when particles appear
+  // Stage 1: Globe is empty (before onboarding)
+  // Stage 2: User's particle appears (after onboarding, during first breath cycle)
+  // Stage 3: All particles appear (after first breath cycle completes)
+  const [userMood, setUserMood] = useState<MoodId | null>(null);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [allUsersVisible, setAllUsersVisible] = useState(false);
+
+  // Handle onboarding completion - user is ready to start breathing
+  const handleOnboardingComplete = useCallback((mood: MoodId) => {
+    setUserMood(mood);
+    setOnboardingComplete(true);
+  }, []);
+
+  // Detect when first breath cycle completes
+  useFirstBreathCycle({
+    enabled: onboardingComplete,
+    onComplete: () => {
+      // Small delay for visual breathing room before others appear
+      setTimeout(() => {
+        setAllUsersVisible(true);
+      }, 500);
+    },
+  });
+
   // Generate mock users with randomized order for visual variety
   const mockUsers = useMemo(() => {
     const presence = generateMockPresence(harmony);
@@ -94,6 +121,29 @@ export function BreathingLevel({
     return users;
   }, [harmony]);
 
+  // Control which users are visible based on onboarding stage
+  // Stage 1: Empty (no users) - before onboarding
+  // Stage 2: Just the user's particle - after onboarding, during first cycle
+  // Stage 3: All particles - after first cycle completes
+  const visibleUsers = useMemo(() => {
+    if (!onboardingComplete) {
+      // Stage 1: Globe is empty
+      return [];
+    }
+
+    if (!allUsersVisible && userMood) {
+      // Stage 2: Only show the user's particle (first in the list)
+      return [{ id: 'current-user', mood: userMood }];
+    }
+
+    // Stage 3: Show all users (including current user at position 0)
+    if (userMood) {
+      return [{ id: 'current-user', mood: userMood }, ...mockUsers];
+    }
+
+    return mockUsers;
+  }, [onboardingComplete, allUsersVisible, userMood, mockUsers]);
+
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
@@ -122,7 +172,11 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm users={mockUsers} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <ParticleSwarm
+                users={visibleUsers}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
+              />
             )}
 
             {showParticles && (
@@ -162,6 +216,7 @@ export function BreathingLevel({
             onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
+            onOnboardingComplete={handleOnboardingComplete}
           />
         </Html>
       </Suspense>

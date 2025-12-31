@@ -489,8 +489,21 @@ export function ParticleSwarm({
     const elapsedSeconds = Date.now() / 1000;
     const cycleIndex = getBreathingCycleIndex(elapsedSeconds, BREATH_TOTAL_CYCLE);
 
-    // Reconcile only on transition INTO hold phase, once per cycle
-    if (isInHold && !wasInHoldRef.current && slotManager.shouldReconcile(cycleIndex)) {
+    // Special case: Immediate reconciliation when first user(s) appear
+    // This ensures the user sees their particle immediately after onboarding
+    // rather than waiting for the next hold phase transition
+    const currentActiveCount = slotManager.stableCount;
+    const pendingCount = pendingUsersRef.current.length;
+    const isFirstUserAppearing = currentActiveCount === 0 && pendingCount > 0;
+
+    // Reconcile on:
+    // 1. Transition INTO hold phase (normal case, once per cycle)
+    // 2. First user appearing (immediate, for onboarding UX)
+    const shouldReconcileNow =
+      isFirstUserAppearing ||
+      (isInHold && !wasInHoldRef.current && slotManager.shouldReconcile(cycleIndex));
+
+    if (shouldReconcileNow) {
       // Ensure we have enough shards
       const requiredSlots = pendingUsersRef.current.length;
       ensureShardCapacity(requiredSlots);

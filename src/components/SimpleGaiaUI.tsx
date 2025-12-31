@@ -14,6 +14,7 @@ import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
+import { OnboardingSequence } from './OnboardingSequence';
 
 interface SimpleGaiaUIProps {
   /** Particle count (harmony) */
@@ -42,6 +43,8 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  /** Called when onboarding sequence completes (user ready to breathe) */
+  onOnboardingComplete?: (mood: MoodId) => void;
 }
 
 /**
@@ -80,6 +83,7 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  onOnboardingComplete,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -89,6 +93,11 @@ export function SimpleGaiaUI({
   const [internalShowSettings, setInternalShowSettings] = useState(false);
   const [showMoodSelect, setShowMoodSelect] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
+
+  // Onboarding sequence state
+  const [isOnboardingActive, setIsOnboardingActive] = useState(false);
+  const [onboardingTriggered, setOnboardingTriggered] = useState(false);
+  const [moodModalExiting, setMoodModalExiting] = useState(false);
 
   // React 19 useTransition for non-urgent updates (modals, animations)
   // Keeps UI responsive during modal opens/closes and mood selections
@@ -364,13 +373,37 @@ export function SimpleGaiaUI({
     startTransition(() => {
       setSelectedMood(mood);
     });
-    // Small delay before closing to show selection feedback
+
+    // Small delay to show selection feedback, then trigger onboarding sequence
     setTimeout(() => {
       startTransition(() => {
-        setShowMoodSelect(false);
+        setIsOnboardingActive(true);
+        setOnboardingTriggered(true);
       });
     }, 200);
   }, []);
+
+  // Handle onboarding sequence modal exit (hides the mood modal with animation)
+  const handleOnboardingModalExit = useCallback(() => {
+    setMoodModalExiting(true);
+    // Actually hide the modal after exit animation
+    setTimeout(() => {
+      startTransition(() => {
+        setShowMoodSelect(false);
+        setMoodModalExiting(false);
+      });
+    }, 600); // Match TIMING.MODAL_EXIT
+  }, []);
+
+  // Handle onboarding sequence completion
+  const handleOnboardingComplete = useCallback(() => {
+    setIsOnboardingActive(false);
+    setOnboardingTriggered(false);
+    // Notify parent that user is ready to breathe
+    if (selectedMood) {
+      onOnboardingComplete?.(selectedMood);
+    }
+  }, [selectedMood, onOnboardingComplete]);
 
   const handleBeginClick = useCallback(() => {
     startTransition(() => {
@@ -623,16 +656,20 @@ export function SimpleGaiaUI({
           style={{
             position: 'absolute',
             inset: 0,
-            background: moodSelectAnimated ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0)',
-            backdropFilter: 'blur(12px)',
+            background: moodModalExiting
+              ? 'rgba(0, 0, 0, 0)'
+              : moodSelectAnimated
+                ? 'rgba(0, 0, 0, 0.25)'
+                : 'rgba(0, 0, 0, 0)',
+            backdropFilter: moodModalExiting ? 'blur(0px)' : 'blur(12px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 300,
-            pointerEvents: 'auto',
-            transition: 'background 0.4s ease-out',
+            pointerEvents: moodModalExiting ? 'none' : 'auto',
+            transition: 'all 0.6s ease-out',
           }}
-          onClick={() => setShowMoodSelect(false)}
+          onClick={() => !moodModalExiting && setShowMoodSelect(false)}
           onPointerDown={stopPropagation}
         >
           {/* biome-ignore lint/a11y/noStaticElementInteractions: Content container stops event propagation to prevent backdrop dismissal; role="presentation" indicates non-interactive semantics */}
@@ -648,12 +685,16 @@ export function SimpleGaiaUI({
               padding: isMobile ? '28px 24px' : '40px 36px',
               maxWidth: isMobile ? '92%' : '420px',
               width: isMobile ? '92%' : '420px',
-              opacity: moodSelectAnimated ? 1 : 0,
-              transform: moodSelectAnimated
-                ? 'scale(1) translateY(0)'
-                : 'scale(0.97) translateY(16px)',
-              transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.12)',
+              opacity: moodModalExiting ? 0 : moodSelectAnimated ? 1 : 0,
+              transform: moodModalExiting
+                ? 'scale(0.95) translateY(-20px)'
+                : moodSelectAnimated
+                  ? 'scale(1) translateY(0)'
+                  : 'scale(0.97) translateY(16px)',
+              transition: moodModalExiting
+                ? 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)'
+                : 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              boxShadow: moodModalExiting ? 'none' : '0 25px 60px rgba(0, 0, 0, 0.12)',
             }}
           >
             {/* Header */}
@@ -1275,6 +1316,16 @@ export function SimpleGaiaUI({
           <span ref={presenceCountRef}>75</span> breathing together
         </div>
       </div>
+
+      {/* Onboarding Sequence - Cinematic reveal after mood selection */}
+      {isOnboardingActive && (
+        <OnboardingSequence
+          selectedMood={selectedMood}
+          isTriggered={onboardingTriggered}
+          onComplete={handleOnboardingComplete}
+          onModalExitStart={handleOnboardingModalExit}
+        />
+      )}
 
       {/* Styles moved to src/styles/ui.css - imported globally in index.tsx
           Includes: fadeInOut, slideUp animations, slider thumb styling,
