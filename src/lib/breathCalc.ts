@@ -2,14 +2,16 @@ import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
 
 /**
- * Asymmetric breathing easing functions
+ * Breathing easing functions with immediate visual feedback
  *
- * Uses piecewise sin/cos for natural, human-like breathing:
- * - Inhale: sin(t × π/2) - fast start, smooth landing
- * - Exhale: cos-based - controlled start, natural completion
+ * Both inhale and exhale use sin(t × π/2) for instant visible movement:
+ * - Fast start: High initial velocity syncs with UI phase transitions
+ * - Smooth landing: Natural deceleration at phase end
  * - Holds: Damped oscillation - subtle "alive" movement
  *
- * All functions guarantee exact positions at phase boundaries (0 and 1).
+ * The asymmetry comes from phase DURATIONS (4s inhale, 8s exhale),
+ * not from different easing shapes. This ensures animations visually
+ * sync with the UI the moment each phase begins.
  */
 
 /**
@@ -31,23 +33,22 @@ function easeInhale(t: number): number {
 }
 
 /**
- * Exhale easing: Controlled release with natural completion
+ * Exhale easing: Immediate release with smooth completion
  *
- * Uses cos(t × π/2) for relaxed exhale:
- * - Smooth start: Gentle beginning of release
- * - Accelerating finish: Natural completion as lungs empty
+ * Uses sin(t × π/2) - same curve shape as inhale:
+ * - Fast start: Immediate visible movement when exhale begins
+ * - Smooth landing: Gentle deceleration as exhale completes
  *
- * Returns 1→0 directly (not 0→1 like inhale), so used differently
- * in the phase calculation.
+ * Derivative at t=0: π/2 ≈ 1.57 (fast - syncs with UI phase change)
+ * Derivative at t=1: 0 (smooth stop)
  *
- * This matches the natural feeling of a relaxed exhale - controlled
- * start, natural acceleration as you let go.
+ * The "slow controlled exhale" feel comes from the longer duration
+ * (8s exhale vs 4s inhale), not from slow starting velocity.
+ * Using sin ensures particles move immediately when UI shows "EXHALE".
  */
 function easeExhale(t: number): number {
   const tClamped = Math.max(0, Math.min(1, t));
-  // cos goes 1→0, we need 0→1 for the easing function
-  // So return 1 - cos(t × π/2)
-  return 1 - Math.cos(tClamped * Math.PI * 0.5);
+  return Math.sin(tClamped * Math.PI * 0.5);
 }
 
 /**
