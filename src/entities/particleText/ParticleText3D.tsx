@@ -18,9 +18,10 @@
 
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { breathPhase, phaseType } from '../breath/traits';
+import { TextBackdrop } from './TextBackdrop';
 import { getTextAspectRatio, sampleTextToParticles } from './textSampler';
 
 // Constants for particle text appearance
@@ -143,6 +144,10 @@ function ParticleText3DComponent({
   const opacityRef = useRef(0);
   const targetOpacityRef = useRef(0);
 
+  // Backdrop opacity state (updated less frequently to avoid re-renders)
+  const [backdropOpacity, setBackdropOpacity] = useState(0);
+  const lastBackdropUpdateRef = useRef(0);
+
   // Shared geometry and material
   const geometry = useMemo(() => createParticleGeometry(), []);
   const material = useMemo(() => createParticleMaterial(particleColor), [particleColor]);
@@ -249,6 +254,12 @@ function ParticleText3DComponent({
     // Update material opacity
     material.opacity = opacity;
 
+    // Update backdrop opacity state (throttled to avoid excessive re-renders)
+    if (time - lastBackdropUpdateRef.current > 0.05) {
+      setBackdropOpacity(opacity);
+      lastBackdropUpdateRef.current = time;
+    }
+
     // Update particle positions with ambient motion and scatter effect
     const updateParticles = (lineRef: React.MutableRefObject<TextLineState>) => {
       const { instancedMesh, particlePositions, baseY, aspectRatio } = lineRef.current;
@@ -301,6 +312,24 @@ function ParticleText3DComponent({
 
   return (
     <group ref={groupRef} name="ParticleText3D">
+      {/* Soft glowing backdrops behind text for contrast */}
+      {topText && (
+        <TextBackdrop
+          y={TOP_TEXT_Y}
+          opacity={backdropOpacity}
+          position="top"
+          textZ={TEXT_Z_POSITION}
+        />
+      )}
+      {bottomText && (
+        <TextBackdrop
+          y={BOTTOM_TEXT_Y}
+          opacity={backdropOpacity}
+          position="bottom"
+          textZ={TEXT_Z_POSITION}
+        />
+      )}
+
       {debug && (
         <>
           {/* Debug: Show text bounding areas */}
