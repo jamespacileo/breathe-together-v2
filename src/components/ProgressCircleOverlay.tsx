@@ -301,25 +301,36 @@ export function ProgressCircleOverlay({
         {/* Phase markers and labels - positioned around the ring */}
         {PHASE_LABELS.map((label) => {
           const isActive = currentPhaseIndex === label.phaseIndex;
-          const markerRadius = radius + thickness;
           const labelRadius = radius + labelOffset;
 
-          // Calculate position on the ring
-          const markerX = Math.cos(label.angle) * markerRadius;
-          const markerY = Math.sin(label.angle) * markerRadius;
+          // Line marker dimensions
+          const lineLength = isActive ? thickness * 8 : thickness * 5;
+          const lineWidth = isActive ? thickness * 1.2 : thickness * 0.8;
+
+          // Position line marker centered on the ring edge
+          const markerX = Math.cos(label.angle) * radius;
+          const markerY = Math.sin(label.angle) * radius;
           const labelX = Math.cos(label.angle) * labelRadius;
           const labelY = Math.sin(label.angle) * labelRadius;
 
+          // Rotation to align line radially (perpendicular to ring)
+          const rotation = label.angle + Math.PI / 2;
+
           return (
             <group key={`phase-${label.phaseIndex}-${label.name}`}>
-              {/* Phase marker dot */}
-              <mesh position={[markerX, markerY, 0.01]} renderOrder={renderOrder + 2}>
-                <circleGeometry args={[isActive ? thickness * 3 : thickness * 1.5, 16]} />
+              {/* Phase marker line (radial tick mark) */}
+              <mesh
+                position={[markerX, markerY, 0.01]}
+                rotation={[0, 0, rotation]}
+                renderOrder={renderOrder + 2}
+              >
+                <planeGeometry args={[lineWidth, lineLength]} />
                 <meshBasicMaterial
                   color={isActive ? progressColor : '#a08c78'}
                   transparent
-                  opacity={isActive ? 0.95 : 0.4}
+                  opacity={isActive ? 0.95 : 0.5}
                   depthWrite={false}
+                  side={THREE.DoubleSide}
                 />
               </mesh>
 
