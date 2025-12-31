@@ -123,6 +123,8 @@ interface ShardData {
  * - Spring physics: smooth transitions with settling on holds
  * - Phase offset: subtle wave effect (particles don't move in perfect lockstep)
  * - Ambient seed: unique floating pattern per shard
+ * - Rotation speeds: per-shard variation for organic feel
+ * - Scale offset: subtle size variation for depth
  */
 interface ShardPhysicsState {
   /** Current interpolated radius (spring-smoothed) */
@@ -135,6 +137,12 @@ interface ShardPhysicsState {
   ambientSeed: number;
   /** Previous frame's target radius (for detecting expansion) */
   previousTarget: number;
+  /** Per-shard rotation speed multiplier X axis (0.7-1.3 range) */
+  rotationSpeedX: number;
+  /** Per-shard rotation speed multiplier Y axis (0.7-1.3 range) */
+  rotationSpeedY: number;
+  /** Base scale offset for depth variation (0.85-1.15 range) */
+  baseScaleOffset: number;
 }
 
 /**
@@ -253,12 +261,27 @@ export function ParticleSwarm({
       // Initialize physics state with staggered phase offsets
       // Use golden ratio distribution for even visual spread
       const goldenRatio = (1 + Math.sqrt(5)) / 2;
+
+      // Per-shard rotation speed variation (0.7-1.3 range)
+      // Uses different seeds for X and Y to avoid synchronized rotation
+      const rotSeedX = (i * 1.618 + 0.3) % 1; // Golden ratio offset
+      const rotSeedY = (i * 2.236 + 0.7) % 1; // sqrt(5) offset
+      const rotationSpeedX = 0.7 + rotSeedX * 0.6;
+      const rotationSpeedY = 0.7 + rotSeedY * 0.6;
+
+      // Base scale offset for depth (0.9-1.1 range) - subtle size variation
+      const scaleSeed = (i * goldenRatio + 0.5) % 1;
+      const baseScaleOffset = 0.9 + scaleSeed * 0.2;
+
       physicsStates.push({
         currentRadius: baseRadius,
         velocity: 0,
         phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
         ambientSeed: i * 137.508, // Golden angle in degrees for unique patterns
         previousTarget: baseRadius,
+        rotationSpeedX,
+        rotationSpeedY,
+        baseScaleOffset,
       });
     }
 
@@ -281,7 +304,7 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - spring physics + ambient motion
+  // Animation loop - spring physics + ambient motion + shader updates
   useFrame((state, delta) => {
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
@@ -304,14 +327,21 @@ export function ParticleSwarm({
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
+    // Update shader material uniforms for all shards
+    // (shared material means updating once affects all)
+    if (material.uniforms) {
+      material.uniforms.breathPhase.value = currentBreathPhase;
+      material.uniforms.time.value = time;
+    }
+
     // Update each shard with spring physics + ambient motion
     for (let i = 0; i < currentShards.length; i++) {
       const shard = currentShards[i];
-      const state = physics[i];
+      const shardState = physics[i];
 
       // Apply phase offset for wave effect
       // This creates subtle stagger in breathing motion
-      const offsetBreathPhase = currentBreathPhase + state.phaseOffset;
+      const offsetBreathPhase = currentBreathPhase + shardState.phaseOffset;
 
       // Calculate target radius with phase offset applied
       // Map breath phase (0-1) to orbit radius range
@@ -324,25 +354,25 @@ export function ParticleSwarm({
 
       // Detect expansion (exhale) and apply velocity boost for immediate response
       // This overcomes spring lag so exhale feels like an immediate "release"
-      const targetDelta = clampedTarget - state.previousTarget;
+      const targetDelta = clampedTarget - shardState.previousTarget;
       if (targetDelta > 0.001) {
         // Expanding outward (exhale starting) - inject outward velocity
-        state.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+        shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
       }
-      state.previousTarget = clampedTarget;
+      shardState.previousTarget = clampedTarget;
 
       // Spring physics: F = -k(x - target) - c*v
-      const springForce = (clampedTarget - state.currentRadius) * SPRING_STIFFNESS;
-      const dampingForce = -state.velocity * SPRING_DAMPING;
+      const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
+      const dampingForce = -shardState.velocity * SPRING_DAMPING;
       const totalForce = springForce + dampingForce;
 
       // Integrate velocity and position
-      state.velocity += totalForce * clampedDelta;
-      state.currentRadius += state.velocity * clampedDelta;
+      shardState.velocity += totalForce * clampedDelta;
+      shardState.currentRadius += shardState.velocity * clampedDelta;
 
       // Ambient floating motion (secondary layer)
       // Uses different frequencies per axis for organic feel
-      const seed = state.ambientSeed;
+      const seed = shardState.ambientSeed;
       const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE;
       const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
       const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
@@ -350,12 +380,18 @@ export function ParticleSwarm({
       // Compute final position: spring-smoothed radius + ambient offset
       shard.mesh.position
         .copy(shard.direction)
-        .multiplyScalar(state.currentRadius)
+        .multiplyScalar(shardState.currentRadius)
         .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
 
-      // Continuous rotation (matching reference: 0.002 X, 0.003 Y)
-      shard.mesh.rotation.x += 0.002;
-      shard.mesh.rotation.y += 0.003;
+      // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
+      shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
+      shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
+
+      // Subtle scale breathing - shards pulse slightly with breath (3-8% range)
+      // Combined with base scale offset for depth variation
+      const breathScale = 1.0 + currentBreathPhase * 0.05; // 0-5% breath pulse
+      const finalScale = shardState.baseScaleOffset * breathScale;
+      shard.mesh.scale.setScalar(finalScale);
     }
   });
 
