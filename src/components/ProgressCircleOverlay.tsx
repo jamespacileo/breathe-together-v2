@@ -20,14 +20,8 @@ import * as THREE from 'three';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
 import { breathPhase, phaseType, rawProgress } from '../entities/breath/traits';
 
-// Phase label configuration - positioned around the ring
-// Each phase starts at a specific angle (clockwise from top)
-const PHASE_LABELS = [
-  { name: 'Inhale', angle: -Math.PI / 2, phaseIndex: 0 }, // Top (0%)
-  { name: 'Hold', angle: 0, phaseIndex: 1 }, // Right (25%)
-  { name: 'Exhale', angle: Math.PI / 2, phaseIndex: 2 }, // Bottom (50%)
-  { name: 'Hold', angle: Math.PI, phaseIndex: 3 }, // Left (75%)
-] as const;
+// Phase configuration - names for each phase type
+const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'] as const;
 
 // Phase durations for progress calculation
 const PHASE_DURATIONS = [
@@ -44,6 +38,23 @@ const PHASE_START_TIMES = PHASE_DURATIONS.reduce<number[]>((acc, _duration, inde
   acc.push(lastStart + (PHASE_DURATIONS[index - 1] ?? 0));
   return acc;
 }, []);
+
+// Dynamically generate phase labels based on active phases (duration > 0)
+// Position each phase marker at its start position around the ring
+const PHASE_LABELS = PHASE_DURATIONS.map((duration, index) => {
+  const startTime = PHASE_START_TIMES[index] ?? 0;
+  // Convert time position to angle (clockwise from top)
+  // Top = -PI/2, progressing clockwise
+  const progressPosition = startTime / BREATH_TOTAL_CYCLE;
+  const angle = -Math.PI / 2 + progressPosition * Math.PI * 2;
+
+  return {
+    name: PHASE_NAMES[index] ?? 'Phase',
+    angle,
+    phaseIndex: index,
+    duration,
+  };
+}).filter((phase) => phase.duration > 0); // Only include active phases
 
 /**
  * ProgressCircleOverlay component props
