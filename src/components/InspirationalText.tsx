@@ -15,6 +15,11 @@ import { TYPOGRAPHY, UI_COLORS, Z_INDEX } from '../styles/designTokens';
  * Text appears as user inhales, stays during hold, fades as they exhale.
  * Uses the same controlled breathing curve as the visual elements so the
  * text feels like it's being breathed in and out with the user.
+ *
+ * Master Craftsman Details:
+ * - Letter-spacing breathes (expands on inhale, contracts on exhale)
+ * - Whisper variation: timing jitter prevents mechanical feel
+ * - Each cycle feels subtly different without users noticing why
  */
 
 /**
@@ -115,6 +120,30 @@ function calculateOpacity(phaseIndex: number, phaseProgress: number): number {
 }
 
 /**
+ * Whisper variation: Adds subtle timing jitter to text appearance
+ * Uses golden ratio to create seemingly random but consistent variation
+ * Each cycle feels subtly different (±5% timing shift)
+ */
+function calculateWhisperJitter(cycleCount: number): number {
+  const goldenRatio = 1.618033988749;
+  return Math.sin(cycleCount * goldenRatio) * 0.05;
+}
+
+/**
+ * Breathing letter-spacing: Text expands on inhale, contracts on exhale
+ * Desktop: 0.20em → 0.24em (4% expansion)
+ * Mobile: kept tighter for readability
+ */
+function calculateLetterSpacing(opacity: number, isMobile: boolean): string {
+  if (isMobile) {
+    // Mobile: subtle expansion 0.06em → 0.08em
+    return `${0.06 + opacity * 0.02}em`;
+  }
+  // Desktop: noticeable but subtle 0.20em → 0.24em
+  return `${0.2 + opacity * 0.04}em`;
+}
+
+/**
  * InspirationalText - Above & Beyond style inspirational messages
  *
  * Displays centered text above and below the breathing globe that
@@ -131,7 +160,10 @@ function calculateOpacity(phaseIndex: number, phaseProgress: number): number {
 export function InspirationalText() {
   const topWrapperRef = useRef<HTMLDivElement>(null);
   const bottomWrapperRef = useRef<HTMLDivElement>(null);
+  const topTextRef = useRef<HTMLDivElement>(null);
+  const bottomTextRef = useRef<HTMLDivElement>(null);
   const prevPhaseRef = useRef(-1);
+  const cycleCountRef = useRef(0);
   const { isMobile, isTablet } = useViewport();
 
   // Get store state and actions
@@ -163,8 +195,20 @@ export function InspirationalText() {
       const cycleTime = now % BREATH_TOTAL_CYCLE;
       const { phaseIndex, phaseProgress } = calculatePhaseInfo(cycleTime);
 
-      // Calculate opacity based on breathing phase
-      const opacity = calculateOpacity(phaseIndex, phaseProgress);
+      // Track cycle completion and advance queue
+      if (phaseIndex === 0 && prevPhaseRef.current === 3) {
+        advanceCycle();
+        cycleCountRef.current += 1;
+      }
+      prevPhaseRef.current = phaseIndex;
+
+      // Whisper variation: Add subtle timing jitter (±5%)
+      // Makes each cycle feel subtly different
+      const whisperJitter = calculateWhisperJitter(cycleCountRef.current);
+      const jitteredProgress = Math.max(0, Math.min(1, phaseProgress + whisperJitter));
+
+      // Calculate opacity with jittered progress
+      const opacity = calculateOpacity(phaseIndex, jitteredProgress);
 
       // Subtle scale animation for depth
       const scale = 0.96 + opacity * 0.04;
@@ -183,18 +227,21 @@ export function InspirationalText() {
         bottomWrapperRef.current.style.transform = transform;
       }
 
-      // Track cycle completion and advance queue
-      if (phaseIndex === 0 && prevPhaseRef.current === 3) {
-        advanceCycle();
+      // Breathing letter-spacing: Text expands on inhale, contracts on exhale
+      const letterSpacing = calculateLetterSpacing(opacity, isMobile);
+      if (topTextRef.current) {
+        topTextRef.current.style.letterSpacing = letterSpacing;
       }
-      prevPhaseRef.current = phaseIndex;
+      if (bottomTextRef.current) {
+        bottomTextRef.current.style.letterSpacing = letterSpacing;
+      }
 
       animationId = requestAnimationFrame(updateText);
     };
 
     updateText();
     return () => cancelAnimationFrame(animationId);
-  }, [advanceCycle]);
+  }, [advanceCycle, isMobile]);
 
   // Get current message from store
   // Note: Re-renders when currentSequence or ambientIndex changes (subscribed above)
@@ -292,7 +339,9 @@ export function InspirationalText() {
           marginTop: isMobile ? '-2vh' : '-3vh', // Less offset on mobile
         }}
       >
-        <div style={textStyle}>{quote.top}</div>
+        <div ref={topTextRef} style={textStyle}>
+          {quote.top}
+        </div>
       </div>
 
       {/* Bottom text - below the globe */}
@@ -303,7 +352,9 @@ export function InspirationalText() {
           marginBottom: isMobile ? '-2vh' : '-3vh', // Less offset on mobile
         }}
       >
-        <div style={textStyle}>{quote.bottom}</div>
+        <div ref={bottomTextRef} style={textStyle}>
+          {quote.bottom}
+        </div>
       </div>
     </div>
   );

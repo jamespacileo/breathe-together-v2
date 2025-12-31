@@ -40,6 +40,7 @@ void main() {
 `;
 
 // Fragment shader - texture with fresnel rim glow
+// Master Craftsman: Chromatic temperature shift - warms on inhale, cools on exhale
 const globeFragmentShader = `
 uniform sampler2D earthTexture;
 uniform float breathPhase;
@@ -60,6 +61,13 @@ void main() {
   // Breathing modulation - subtle brightness shift
   float breathMod = 1.0 + breathPhase * 0.06;
   texColor *= breathMod;
+
+  // Chromatic temperature shift: warm on inhale (energy gathering), cool on exhale (release)
+  // Mimics how skin flushes with breath - users feel warmth without consciously seeing it
+  float warmth = breathPhase * 0.025; // 2.5% subtle shift
+  texColor.r += warmth * 0.6;  // Add red warmth
+  texColor.g += warmth * 0.2;  // Slight green to avoid magenta
+  texColor.b -= warmth * 0.4;  // Remove blue for warmth
 
   // Blend texture with fresnel rim - very subtle
   vec3 finalColor = mix(texColor, rimColor, fresnel * 0.18);

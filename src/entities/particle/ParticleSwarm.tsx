@@ -12,7 +12,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
-import { breathPhase, orbitRadius } from '../breath/traits';
+import { getSessionOrbitSpeed } from '../../lib/sessionSeed';
+import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
@@ -125,6 +126,10 @@ interface ShardData {
  * - Scale offset: subtle size variation for depth
  * - Orbit: slow orbital drift around center
  * - Perpendicular: tangent wobble for organic floating feel
+ *
+ * Master Craftsman additions:
+ * - Velocity history: momentum memory for more physical feel
+ * - Gravitational settling: shards "relax" into position during holds
  */
 interface ShardPhysicsState {
   /** Current interpolated radius (spring-smoothed) */
@@ -149,6 +154,8 @@ interface ShardPhysicsState {
   orbitSpeed: number;
   /** Seed for perpendicular wobble phase */
   wobbleSeed: number;
+  /** Velocity history for momentum memory (last 3 frames) */
+  velocityHistory: number[];
 }
 
 /**
@@ -208,6 +215,23 @@ const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
  * Kept small (3-5%) to maintain "breathing together" feel
  */
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
+
+/**
+ * Master Craftsman: Gravitational settling during holds
+ *
+ * During hold phases (1 and 3), add subtle gravity pulling shards
+ * toward their equilibrium position. Mimics how the user's body settles.
+ */
+const HOLD_SETTLE_STRENGTH = 0.015; // Very subtle settling force
+
+/**
+ * Master Craftsman: Velocity memory smoothing
+ *
+ * Blend current velocity with historical average for more "physical" motion.
+ * Creates sense of mass and momentum without disrupting responsiveness.
+ */
+const VELOCITY_SMOOTHING = 0.85; // 85% current, 15% historical
+const VELOCITY_HISTORY_LENGTH = 3; // Frames of history to track
 
 export function ParticleSwarm({
   count = 48,
@@ -299,8 +323,10 @@ export function ParticleSwarm({
 
       // Orbital drift speed variation - all shards orbit same direction to prevent overlap
       // Small speed variation creates gentle relative drift between neighbors
+      // Master Craftsman: Session seed adds unique variation per session
       const orbitSeed = (i * 3.14159 + 0.1) % 1;
-      const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
+      const baseOrbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
+      const orbitSpeed = getSessionOrbitSpeed(baseOrbitSpeed, i);
 
       // Wobble seed for perpendicular motion phase offset
       const wobbleSeed = i * 2.71828; // e-based offset for unique phases
@@ -317,6 +343,7 @@ export function ParticleSwarm({
         orbitAngle: 0,
         orbitSpeed,
         wobbleSeed,
+        velocityHistory: [0, 0, 0], // Initialize velocity history
       });
     }
 
@@ -352,15 +379,20 @@ export function ParticleSwarm({
     // Get breathing state from ECS
     let targetRadius = baseRadius;
     let currentBreathPhase = 0;
+    let currentPhaseType = 0;
     try {
       const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
         targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
         currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
+        currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
     }
+
+    // Master Craftsman: Check if we're in a hold phase (1 = hold-in, 3 = hold-out)
+    const isHoldPhase = currentPhaseType === 1 || currentPhaseType === 3;
 
     // Update shader material uniforms for all shards
     // (shared material means updating once affects all)
@@ -399,11 +431,33 @@ export function ParticleSwarm({
       // Spring physics: F = -k(x - target) - c*v
       const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
       const dampingForce = -shardState.velocity * SPRING_DAMPING;
-      const totalForce = springForce + dampingForce;
+      let totalForce = springForce + dampingForce;
 
-      // Integrate velocity and position
+      // Master Craftsman: Gravitational settling during hold phases
+      // Shards "relax" into their rest position, mirroring user's body settling
+      if (isHoldPhase) {
+        const settleForce = (clampedTarget - shardState.currentRadius) * HOLD_SETTLE_STRENGTH;
+        totalForce += settleForce;
+      }
+
+      // Integrate velocity
       shardState.velocity += totalForce * clampedDelta;
-      shardState.currentRadius += shardState.velocity * clampedDelta;
+
+      // Master Craftsman: Velocity memory - blend with historical velocity for mass/momentum feel
+      // Update velocity history (circular buffer style)
+      shardState.velocityHistory.push(shardState.velocity);
+      if (shardState.velocityHistory.length > VELOCITY_HISTORY_LENGTH) {
+        shardState.velocityHistory.shift();
+      }
+
+      // Calculate smoothed velocity from history
+      const historicalVelocity =
+        shardState.velocityHistory.reduce((a, b) => a + b, 0) / shardState.velocityHistory.length;
+      const smoothedVelocity =
+        shardState.velocity * VELOCITY_SMOOTHING + historicalVelocity * (1 - VELOCITY_SMOOTHING);
+
+      // Integrate position with smoothed velocity
+      shardState.currentRadius += smoothedVelocity * clampedDelta;
 
       // Update orbital drift angle
       shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;

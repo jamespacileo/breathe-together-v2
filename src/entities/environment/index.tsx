@@ -1,8 +1,66 @@
 import { Cloud, Clouds, Stars } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { BackgroundGradient } from './BackgroundGradient';
+
+/**
+ * Master Craftsman: Equinox awareness - time-of-day color grading
+ *
+ * Scene color temperature shifts based on UTC hour:
+ * - Dawn (5-8): Peachy pink warmth
+ * - Day (9-16): Neutral warm white
+ * - Dusk (17-20): Golden orange
+ * - Night (21-4): Cool lavender
+ *
+ * Users never consciously see this, but morning sessions "feel" like morning.
+ */
+function getTimeOfDayColorGrade(): { warmth: number; tint: THREE.Color } {
+  const hour = new Date().getUTCHours();
+
+  // Smooth transitions using sine wave
+  if (hour >= 5 && hour < 8) {
+    // Dawn: peachy pink
+    const progress = (hour - 5) / 3;
+    return {
+      warmth: 0.02 + Math.sin(progress * Math.PI) * 0.015,
+      tint: new THREE.Color('#fff0e6'),
+    };
+  }
+  if (hour >= 17 && hour < 20) {
+    // Dusk: golden orange
+    const progress = (hour - 17) / 3;
+    return {
+      warmth: 0.02 + Math.sin(progress * Math.PI) * 0.02,
+      tint: new THREE.Color('#ffe8d0'),
+    };
+  }
+  if (hour >= 21 || hour < 5) {
+    // Night: cool lavender
+    return {
+      warmth: -0.01, // Slightly cooler
+      tint: new THREE.Color('#f0e8ff'),
+    };
+  }
+  // Day: neutral warm
+  return {
+    warmth: 0.01,
+    tint: new THREE.Color('#fff8f0'),
+  };
+}
+
+/**
+ * Master Craftsman: Presence warmth
+ *
+ * When more users are breathing together, the scene feels warmer.
+ * Like a crowded room vs empty space.
+ */
+function calculatePresenceWarmth(userCount: number): number {
+  // Normalize to 0-1 range (100+ users = max warmth)
+  const normalizedCount = Math.min(userCount / 100, 1);
+  // Subtle warmth addition: 0-2% extra warmth
+  return normalizedCount * 0.02;
+}
 
 interface EnvironmentProps {
   enabled?: boolean;
@@ -14,6 +72,8 @@ interface EnvironmentProps {
   cloudOpacity?: number;
   /** Cloud speed multiplier @default 0.3 */
   cloudSpeed?: number;
+  /** Current user count for presence warmth @default 0 */
+  userCount?: number;
 }
 
 /**
@@ -25,6 +85,11 @@ interface EnvironmentProps {
  * - Warm three-point lighting for soft shadows
  * - Subtle fog for depth
  * - Optional distant stars
+ *
+ * Master Craftsman additions:
+ * - Presence warmth: Scene warms when more users are breathing together
+ * - Equinox awareness: Time-of-day color grading (dawn/day/dusk/night)
+ * - Atmospheric parallax: Clouds respond to subtle camera drift for depth
  */
 export function Environment({
   enabled = true,
@@ -32,9 +97,19 @@ export function Environment({
   showStars = true,
   cloudOpacity = 0.4,
   cloudSpeed = 0.3,
+  userCount = 0,
 }: EnvironmentProps = {}) {
   const { scene } = useThree();
   const cloudsRef = useRef<THREE.Group>(null);
+  const ambientLightRef = useRef<THREE.AmbientLight>(null);
+  const keyLightRef = useRef<THREE.DirectionalLight>(null);
+
+  // Master Craftsman: Calculate time-of-day and presence-based color grading
+  const timeGrade = useMemo(() => getTimeOfDayColorGrade(), []);
+  const presenceWarmth = useMemo(() => calculatePresenceWarmth(userCount), [userCount]);
+
+  // Combined warmth effect
+  const totalWarmth = timeGrade.warmth + presenceWarmth;
 
   // Clear any scene background - let BackgroundGradient handle it
   useEffect(() => {
@@ -47,10 +122,38 @@ export function Environment({
     };
   }, [scene]);
 
-  // Animate cloud drift
+  // Animate cloud drift + atmospheric parallax + presence warmth
   useFrame((state) => {
+    const time = state.clock.elapsedTime;
+
+    // Cloud rotation (existing)
     if (cloudsRef.current) {
-      cloudsRef.current.rotation.y = state.clock.elapsedTime * 0.01 * cloudSpeed;
+      cloudsRef.current.rotation.y = time * 0.01 * cloudSpeed;
+
+      // Master Craftsman: Atmospheric parallax
+      // Subtle camera drift creates different parallax for each cloud layer
+      const parallaxX = Math.sin(time * 0.05) * 0.3;
+      const parallaxY = Math.cos(time * 0.07) * 0.15;
+
+      // Apply parallax to cloud group (affects all children)
+      cloudsRef.current.position.x = parallaxX;
+      cloudsRef.current.position.y = parallaxY;
+    }
+
+    // Master Craftsman: Update ambient light with presence warmth
+    if (ambientLightRef.current) {
+      // Base warm color + presence warmth shift
+      const baseColor = new THREE.Color('#fff5eb');
+      baseColor.r = Math.min(1, baseColor.r + totalWarmth);
+      baseColor.g = Math.min(1, baseColor.g + totalWarmth * 0.3);
+      ambientLightRef.current.color.copy(baseColor);
+    }
+
+    // Master Craftsman: Update key light with time-of-day tint
+    if (keyLightRef.current) {
+      const baseKeyColor = new THREE.Color('#ffe4c4');
+      baseKeyColor.lerp(timeGrade.tint, 0.15); // Subtle blend with time tint
+      keyLightRef.current.color.copy(baseKeyColor);
     }
   });
 
@@ -128,10 +231,18 @@ export function Environment({
       )}
 
       {/* Warm ambient light - fills shadows softly */}
-      <ambientLight intensity={0.5} color="#fff5eb" />
+      {/* Master Craftsman: ref for presence warmth updates */}
+      <ambientLight ref={ambientLightRef} intensity={0.5} color="#fff5eb" />
 
       {/* Key light - warm golden from upper right (sunrise/sunset feel) */}
-      <directionalLight position={[10, 15, 5]} intensity={0.8} color="#ffe4c4" castShadow={false} />
+      {/* Master Craftsman: ref for time-of-day color grading */}
+      <directionalLight
+        ref={keyLightRef}
+        position={[10, 15, 5]}
+        intensity={0.8}
+        color="#ffe4c4"
+        castShadow={false}
+      />
 
       {/* Fill light - cooler tone from left (sky bounce) */}
       <directionalLight position={[-8, 10, 3]} intensity={0.3} color="#e8f0ff" />
