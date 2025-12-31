@@ -241,7 +241,7 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
           </PresentationControls>
         </RefractionPipeline>
 
-        {/* Tutorial UI overlay with Driver.js targets */}
+        {/* Tutorial UI overlay */}
         <Html fullscreen>
           <div
             style={{
@@ -252,36 +252,6 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
               transition: 'opacity 0.6s ease-out',
             }}
           >
-            {/* Globe target for Driver.js highlighting */}
-            <div
-              id="tutorial-globe-target"
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '280px',
-                height: '280px',
-                borderRadius: '50%',
-                pointerEvents: 'none',
-              }}
-            />
-
-            {/* Breathing target for Driver.js highlighting */}
-            <div
-              id="tutorial-breathing-target"
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '340px',
-                height: '340px',
-                borderRadius: '50%',
-                pointerEvents: 'none',
-              }}
-            />
-
             {/* Centered content area */}
             <div
               style={{

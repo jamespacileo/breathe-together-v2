@@ -86,25 +86,28 @@ export function useTutorialTour(callbacks: TutorialTourCallbacks = {}) {
         },
       },
       {
-        element: '#tutorial-globe-target',
+        // No element highlight - shard orbits dynamically around globe
         popover: {
           title: 'This is You',
           description: `
             <div style="text-align: center; padding: 8px 0;">
-              <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #5a4a3a;">
-                The glowing shard orbiting the sphere represents your presence.
+              <p style="margin: 0 0 12px 0; font-size: 15px; line-height: 1.6; color: #5a4a3a;">
+                See the glowing shard orbiting Earth?
+              </p>
+              <p style="margin: 0; font-size: 14px; color: #5a4a3a;">
+                That's <strong>you</strong> — your presence in this moment.
               </p>
             </div>
           `,
           align: 'center',
-          side: 'bottom',
+          side: 'over',
         },
         onHighlightStarted: () => {
           callbacksRef.current.onWelcomeComplete?.();
         },
       },
       {
-        element: '#tutorial-breathing-target',
+        // No element highlight - breathing UI appears after tour
         popover: {
           title: "Let's Practice",
           description: `
@@ -113,12 +116,12 @@ export function useTutorialTour(callbacks: TutorialTourCallbacks = {}) {
                 Follow the breathing prompts for one complete cycle.
               </p>
               <p style="margin: 0; font-size: 13px; color: #8a7a6a;">
-                The progress ring shows your position in each phase.
+                A progress ring will guide you through each phase.
               </p>
             </div>
           `,
           align: 'center',
-          side: 'bottom',
+          side: 'over',
         },
         onHighlightStarted: () => {
           callbacksRef.current.onBreathingStart?.();
