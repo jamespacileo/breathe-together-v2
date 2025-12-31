@@ -35,6 +35,7 @@ type ShapeStatus = 'idle' | 'entering' | 'active' | 'exiting';
 
 /**
  * Visual state for each shape in the pool
+ * Simplified: direct lerping, no progress tracking, no stagger delay
  */
 interface ShapeVisualState {
   /** Pool slot index (0 to MAX_POOL_SIZE-1) */
@@ -44,38 +45,25 @@ interface ShapeVisualState {
   /** Mood index (0-3) or -1 if idle/exiting */
   moodIndex: number;
 
-  // Position animation (store start for proper easing)
+  // Position - direct lerp (no start/progress tracking)
   targetDirection: THREE.Vector3;
-  startDirection: THREE.Vector3;
   currentDirection: THREE.Vector3;
-  positionLerpProgress: number;
 
-  // Color animation (store start for proper easing)
-  startColor: THREE.Color;
+  // Color - direct lerp (no start/progress tracking)
   currentColor: THREE.Color;
   targetColor: THREE.Color;
-  colorLerpProgress: number;
 
-  // Scale animation (enter/exit) with stagger delay
+  // Scale - simple linear animation
   scale: number;
   targetScale: number;
-  /** Stagger delay in seconds before animation starts */
-  animationDelay: number;
 
-  // Physics state
+  // Physics state (simplified)
   currentRadius: number;
-  velocity: number;
-  previousTarget: number;
   orbitAngle: number;
 
-  // Per-shape variation seeds
-  phaseOffset: number;
-  ambientSeed: number;
-  rotationSpeedX: number;
-  rotationSpeedY: number;
+  // Per-shape variation (single seed derives all)
+  seed: number;
   baseScaleOffset: number;
-  orbitSpeed: number;
-  wobbleSeed: number;
 }
 
 interface ShardData {
@@ -83,39 +71,18 @@ interface ShardData {
   geometry: THREE.IcosahedronGeometry;
 }
 
-// Physics constants
-const SPRING_STIFFNESS = 6;
-const SPRING_DAMPING = 4.5;
-const EXPANSION_VELOCITY_BOOST = 2.5;
+// Animation lerp speeds (per second) - direct lerping, no progress tracking
+const SCALE_LERP_SPEED = 8; // Fast scale in/out
+const COLOR_LERP_SPEED = 6; // Color transitions
+const POSITION_LERP_SPEED = 5; // Position redistribution
+
+// Physics constants (simplified - no spring, just orbit)
+const RADIUS_LERP_SPEED = 4;
 const AMBIENT_SCALE = 0.08;
 const AMBIENT_Y_SCALE = 0.04;
 const ORBIT_BASE_SPEED = 0.015;
-const ORBIT_SPEED_VARIATION = 0.01;
 const PERPENDICULAR_AMPLITUDE = 0.03;
 const PERPENDICULAR_FREQUENCY = 0.35;
-const MAX_PHASE_OFFSET = 0.04;
-
-// Animation speeds
-const ENTER_DURATION = 0.4; // seconds
-const EXIT_DURATION = 0.3;
-const COLOR_DURATION = 0.5;
-const POSITION_DURATION = 0.6; // for redistribution
-const STAGGER_DELAY = 0.06; // seconds between each shape in batch
-const POSITION_THRESHOLD = 0.1; // minimum direction change to trigger animation
-
-function easeOutQuad(t: number): number {
-  return 1 - (1 - t) * (1 - t);
-}
-
-function easeOutBack(t: number): number {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
-}
-
-function easeInOutQuad(t: number): number {
-  return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-}
 
 /**
  * Calculate Fibonacci sphere direction for given index and total count
@@ -163,43 +130,36 @@ function updateVertexColors(geometry: THREE.BufferGeometry, color: THREE.Color):
 
 /**
  * Initialize visual state for a pool slot
+ * Simplified: single seed derives all variation, no progress tracking
  */
 function createInitialState(poolIndex: number): ShapeVisualState {
   const goldenRatio = (1 + Math.sqrt(5)) / 2;
-  const i = poolIndex;
-  const fallbackColor = getSlotFallbackColor(i);
+  const fallbackColor = getSlotFallbackColor(poolIndex);
 
   return {
     poolIndex,
     status: 'idle',
     moodIndex: -1,
 
+    // Position - direct lerp
     targetDirection: new THREE.Vector3(0, 1, 0),
-    startDirection: new THREE.Vector3(0, 1, 0),
     currentDirection: new THREE.Vector3(0, 1, 0),
-    positionLerpProgress: 1,
 
-    startColor: fallbackColor.clone(),
+    // Color - direct lerp
     currentColor: fallbackColor.clone(),
     targetColor: fallbackColor.clone(),
-    colorLerpProgress: 1,
 
+    // Scale
     scale: 0,
     targetScale: 0,
-    animationDelay: 0,
 
+    // Physics
     currentRadius: 4.5,
-    velocity: 0,
-    previousTarget: 4.5,
     orbitAngle: 0,
 
-    phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
-    ambientSeed: i * 137.508,
-    rotationSpeedX: 0.7 + ((i * 1.618 + 0.3) % 1) * 0.6,
-    rotationSpeedY: 0.7 + ((i * 2.236 + 0.7) % 1) * 0.6,
-    baseScaleOffset: 0.9 + ((i * goldenRatio + 0.5) % 1) * 0.2,
-    orbitSpeed: ORBIT_BASE_SPEED + (((i * Math.PI + 0.1) % 1) - 0.5) * 2 * ORBIT_SPEED_VARIATION,
-    wobbleSeed: i * Math.E,
+    // Single seed derives all per-shape variation
+    seed: poolIndex * goldenRatio,
+    baseScaleOffset: 0.9 + ((poolIndex * goldenRatio + 0.5) % 1) * 0.2,
   };
 }
 
@@ -289,6 +249,7 @@ export function ParticleSwarm({
   }, [material]);
 
   // Handle mood array changes - simple index-based identity (array[i] = slot[i])
+  // Simplified: no stagger, no progress tracking - direct lerping handles smoothness
   useEffect(() => {
     const states = statesRef.current;
     const prevArray = prevMoodArrayRef.current;
@@ -304,79 +265,54 @@ export function ParticleSwarm({
     for (let i = 0; i < persistCount; i++) {
       const state = states[i];
 
-      // Update color if mood changed (store start for proper lerping)
+      // Update target color if mood changed (lerp handles smooth transition)
       if (prevArray[i] !== newArray[i]) {
-        state.startColor.copy(state.currentColor);
         state.targetColor = getMoodColor(newArray[i]);
-        state.colorLerpProgress = 0;
         state.moodIndex = newArray[i];
       }
 
-      // Only animate position if movement exceeds threshold
-      fibonacciDirection(i, newCount, _tempVec3);
-      const distance = state.currentDirection.distanceTo(_tempVec3);
-      if (distance > POSITION_THRESHOLD) {
-        state.startDirection.copy(state.currentDirection);
-        state.targetDirection.copy(_tempVec3);
-        state.positionLerpProgress = 0;
-      } else {
-        // Small movement - just snap
-        state.targetDirection.copy(_tempVec3);
-        state.currentDirection.copy(_tempVec3);
-        state.positionLerpProgress = 1;
-      }
+      // Update target position (lerp handles smooth transition)
+      fibonacciDirection(i, newCount, state.targetDirection);
     }
 
-    // Shrinking: mark excess slots as exiting with stagger
+    // Shrinking: mark excess slots as exiting (no stagger - lerp is smooth enough)
     for (let i = newCount; i < prevCount && i < MAX_POOL_SIZE; i++) {
       const state = states[i];
       if (state.status === 'active' || state.status === 'entering') {
         state.status = 'exiting';
         state.targetScale = 0;
-        // Stagger: shapes at higher indices exit later
-        state.animationDelay = (i - newCount) * STAGGER_DELAY;
       }
     }
 
-    // Growing: mark new slots as entering with stagger
+    // Growing: mark new slots as entering (no stagger - instant position, lerp scale)
     for (let i = prevCount; i < newCount && i < MAX_POOL_SIZE; i++) {
       const state = states[i];
       state.status = 'entering';
       state.moodIndex = newArray[i];
+      // New shapes start at their final position (no position lerp needed)
       fibonacciDirection(i, newCount, state.targetDirection);
       state.currentDirection.copy(state.targetDirection);
-      state.startDirection.copy(state.targetDirection);
-      state.positionLerpProgress = 1;
+      // Set color immediately (no lerp needed for new shapes)
       state.targetColor = getMoodColor(newArray[i]);
       state.currentColor.copy(state.targetColor);
-      state.startColor.copy(state.targetColor);
-      state.colorLerpProgress = 1;
+      // Scale animates from 0
       state.scale = 0;
       state.targetScale = 1;
-      // Stagger: shapes at higher indices enter later
-      state.animationDelay = (i - prevCount) * STAGGER_DELAY;
     }
 
     prevMoodArrayRef.current = [...newArray];
   }, [moodArray]);
 
-  // Animation loop
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics + animations require interleaved calculations
+  // Animation loop - simplified with direct lerping (no progress tracking)
   useFrame((frameState, delta) => {
     const pool = poolRef.current;
     const states = statesRef.current;
     if (pool.length === 0) return;
 
-    const clampedDelta = Math.min(delta, 0.1);
+    const dt = Math.min(delta, 0.1);
     const time = frameState.clock.elapsedTime;
 
-    // Animation speeds
-    const enterSpeed = 1 / ENTER_DURATION;
-    const exitSpeed = 1 / EXIT_DURATION;
-    const colorSpeed = 1 / COLOR_DURATION;
-    const positionSpeed = 1 / POSITION_DURATION;
-
-    // Get breathing state
+    // Get breathing state from ECS
     let targetRadius = baseRadius;
     let currentBreathPhase = 0;
     try {
@@ -386,7 +322,7 @@ export function ParticleSwarm({
         currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
       }
     } catch {
-      // Ignore ECS errors
+      // Ignore ECS errors during hot reload
     }
 
     // Update material uniforms
@@ -395,95 +331,69 @@ export function ParticleSwarm({
       material.uniforms.time.value = time;
     }
 
-    // Update each shape
+    // Update each shape with direct lerping
     for (let i = 0; i < MAX_POOL_SIZE; i++) {
       const shard = pool[i];
       const state = states[i];
 
+      // Skip idle shapes
       if (state.status === 'idle') {
         shard.mesh.scale.setScalar(0);
         continue;
       }
 
-      // === STAGGER DELAY (countdown before animation starts) ===
-      if (state.animationDelay > 0) {
-        state.animationDelay = Math.max(0, state.animationDelay - clampedDelta);
+      // === SCALE (direct lerp toward target) ===
+      const scaleDiff = state.targetScale - state.scale;
+      if (Math.abs(scaleDiff) > 0.001) {
+        state.scale += scaleDiff * Math.min(1, dt * SCALE_LERP_SPEED);
+      } else {
+        state.scale = state.targetScale;
       }
 
-      // === SCALE ANIMATION (respects stagger delay) ===
-      if (state.status === 'entering') {
-        if (state.animationDelay <= 0) {
-          state.scale = Math.min(1, state.scale + clampedDelta * enterSpeed);
-          if (state.scale >= 1) {
-            state.scale = 1;
-            state.status = 'active';
-          }
-        }
-      } else if (state.status === 'exiting') {
-        if (state.animationDelay <= 0) {
-          state.scale = Math.max(0, state.scale - clampedDelta * exitSpeed);
-          if (state.scale <= 0) {
-            state.scale = 0;
-            state.status = 'idle';
-            state.moodIndex = -1;
-          }
-        }
+      // Transition states when scale animation completes
+      if (state.status === 'entering' && state.scale >= 0.99) {
+        state.scale = 1;
+        state.status = 'active';
+      } else if (state.status === 'exiting' && state.scale <= 0.01) {
+        state.scale = 0;
+        state.status = 'idle';
+        state.moodIndex = -1;
       }
 
-      // === COLOR ANIMATION (proper start→target lerp with easing) ===
-      if (state.colorLerpProgress < 1) {
-        state.colorLerpProgress = Math.min(1, state.colorLerpProgress + clampedDelta * colorSpeed);
-        const t = easeOutQuad(state.colorLerpProgress);
-        state.currentColor.lerpColors(state.startColor, state.targetColor, t);
-        updateVertexColors(shard.geometry, state.currentColor);
-      }
+      // === COLOR (direct lerp toward target) ===
+      state.currentColor.lerp(state.targetColor, Math.min(1, dt * COLOR_LERP_SPEED));
+      updateVertexColors(shard.geometry, state.currentColor);
 
-      // === POSITION ANIMATION (proper start→target lerp with easing) ===
-      if (state.positionLerpProgress < 1) {
-        state.positionLerpProgress = Math.min(
-          1,
-          state.positionLerpProgress + clampedDelta * positionSpeed,
-        );
-        const t = easeInOutQuad(state.positionLerpProgress);
-        state.currentDirection.lerpVectors(state.startDirection, state.targetDirection, t);
-      }
+      // === POSITION (direct lerp toward target) ===
+      state.currentDirection.lerp(state.targetDirection, Math.min(1, dt * POSITION_LERP_SPEED));
 
-      // === PHYSICS ===
-      const offsetBreathPhase = currentBreathPhase + state.phaseOffset;
-      const phaseTargetRadius =
-        targetRadius + (1 - offsetBreathPhase) * (baseRadius - targetRadius) * 0.15;
-      const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
+      // === RADIUS (direct lerp toward breathing-modulated target) ===
+      const phaseOffset = (state.seed * 0.04) % 0.04; // Derive from single seed
+      const modulatedRadius = targetRadius + (1 - currentBreathPhase - phaseOffset) * 0.15;
+      const clampedTarget = Math.max(modulatedRadius, minOrbitRadius);
+      state.currentRadius +=
+        (clampedTarget - state.currentRadius) * Math.min(1, dt * RADIUS_LERP_SPEED);
 
-      const targetDelta = clampedTarget - state.previousTarget;
-      if (targetDelta > 0.001) {
-        state.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
-      }
-      state.previousTarget = clampedTarget;
-
-      const springForce = (clampedTarget - state.currentRadius) * SPRING_STIFFNESS;
-      const dampingForce = -state.velocity * SPRING_DAMPING;
-      state.velocity += (springForce + dampingForce) * clampedDelta;
-      state.currentRadius += state.velocity * clampedDelta;
-
-      // Orbital drift (reuse temp vectors to avoid allocation)
-      state.orbitAngle += state.orbitSpeed * clampedDelta;
+      // === ORBITAL MOTION (derive speeds from single seed) ===
+      const orbitSpeed = ORBIT_BASE_SPEED + (((state.seed * 0.1) % 0.01) - 0.005);
+      state.orbitAngle += orbitSpeed * dt;
       _tempVec3.copy(state.currentDirection).applyAxisAngle(_orbitAxis, state.orbitAngle);
 
-      // Perpendicular wobble (reuse temp tangent vectors)
+      // Perpendicular wobble
       _tangent1.copy(_tempVec3).cross(_upVector).normalize();
       if (_tangent1.lengthSq() < 0.001) _tangent1.set(1, 0, 0);
       _tangent2.copy(_tempVec3).cross(_tangent1).normalize();
 
-      const wobblePhase = time * PERPENDICULAR_FREQUENCY * Math.PI * 2 + state.wobbleSeed;
+      const wobblePhase = time * PERPENDICULAR_FREQUENCY * Math.PI * 2 + state.seed;
       const wobble1 = Math.sin(wobblePhase) * PERPENDICULAR_AMPLITUDE;
       const wobble2 = Math.cos(wobblePhase * 0.7) * PERPENDICULAR_AMPLITUDE * 0.6;
 
-      // Ambient floating (reuse temp vector)
-      const seed = state.ambientSeed;
+      // Ambient floating (derive from single seed)
+      const ambientSeed = state.seed * 137.508;
       _ambientOffset.set(
-        Math.sin(time * 0.4 + seed) * AMBIENT_SCALE,
-        Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE,
-        Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE,
+        Math.sin(time * 0.4 + ambientSeed) * AMBIENT_SCALE,
+        Math.sin(time * 0.3 + ambientSeed * 0.7) * AMBIENT_Y_SCALE,
+        Math.cos(time * 0.35 + ambientSeed * 1.3) * AMBIENT_SCALE,
       );
 
       // Final position
@@ -494,16 +404,16 @@ export function ParticleSwarm({
         .addScaledVector(_tangent2, wobble2)
         .add(_ambientOffset);
 
-      // Rotation
-      shard.mesh.rotation.x += 0.002 * state.rotationSpeedX;
-      shard.mesh.rotation.y += 0.003 * state.rotationSpeedY;
+      // Rotation (derive speeds from single seed)
+      const rotX = 0.7 + ((state.seed * 1.618 + 0.3) % 1) * 0.6;
+      const rotY = 0.7 + ((state.seed * 2.236 + 0.7) % 1) * 0.6;
+      shard.mesh.rotation.x += 0.002 * rotX;
+      shard.mesh.rotation.y += 0.003 * rotY;
 
-      // Final scale with breathing, enter/exit, and dynamic shard size
+      // Final scale = base variation × breathing pulse × enter/exit × dynamic shard size
       const breathScale = 1.0 + currentBreathPhase * 0.05;
-      const enterExitScale =
-        state.status === 'entering' ? easeOutBack(state.scale) : easeOutQuad(state.scale);
       const finalScale =
-        state.baseScaleOffset * breathScale * enterExitScale * shardScaleFactorRef.current;
+        state.baseScaleOffset * breathScale * state.scale * shardScaleFactorRef.current;
       shard.mesh.scale.setScalar(finalScale);
     }
   });
