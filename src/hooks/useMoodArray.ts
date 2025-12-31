@@ -6,9 +6,14 @@
  * - ParticleSwarm handles positions via Fibonacci sphere
  * - Gentle opacity fade in/out, no complex animations
  * - NO RE-RENDERS during animation ticks (uses refs for opacity)
+ *
+ * React 19 optimizations:
+ * - Uses useTransition for non-blocking mood updates
+ * - Single state update per operation (removed double update pattern)
+ * - Deferred forceUpdate during animation completion
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useTransition } from 'react';
 import { MOOD_IDS, type MoodId } from '../constants';
 
 /**
@@ -76,6 +81,9 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
   const { animationDuration = 0.4, initialMoods = [] } = config;
 
   const [moods, setMoodsState] = useState<MoodId[]>(initialMoods);
+  // React 19: Use transition to mark mood updates as non-blocking
+  // This prevents UI stuttering when mood changes happen during animations
+  const [, startTransition] = useTransition();
 
   // Animation data in refs (no re-renders during tick)
   const shardsRef = useRef<ShardRef[]>(
@@ -98,65 +106,77 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
   );
 
   const durationRef = useRef(animationDuration);
+  // Version counter for structural changes only (when items are removed from shardsRef)
   const [, forceUpdate] = useState(0);
 
   /**
    * Update the mood array with gentle fade transitions
+   * React 19: Uses startTransition for non-blocking updates
    */
-  const setMoods = useCallback((newMoods: MoodId[]) => {
-    setMoodsState(newMoods);
+  const setMoods = useCallback(
+    (newMoods: MoodId[]) => {
+      const now = performance.now() / 1000;
+      const prev = shardsRef.current;
+      const next: ShardRef[] = [];
 
-    const now = performance.now() / 1000;
-    const prev = shardsRef.current;
-    const next: ShardRef[] = [];
+      // Keep active (non-exiting) shards
+      const active = prev.filter((s) => s.state !== 'exiting');
+      const oldLen = active.length;
+      const newLen = newMoods.length;
 
-    // Keep active (non-exiting) shards
-    const active = prev.filter((s) => s.state !== 'exiting');
-    const oldLen = active.length;
-    const newLen = newMoods.length;
+      // Process new moods
+      for (let i = 0; i < newLen; i++) {
+        if (i < oldLen) {
+          // Update existing
+          next.push({ ...active[i], mood: newMoods[i] });
+        } else {
+          // New shard - fade in
+          next.push({
+            mood: newMoods[i],
+            state: 'entering',
+            opacity: 0,
+            startTime: now,
+            id: nextShardId++,
+          });
+        }
+      }
 
-    // Process new moods
-    for (let i = 0; i < newLen; i++) {
-      if (i < oldLen) {
-        // Update existing
-        next.push({ ...active[i], mood: newMoods[i] });
-      } else {
-        // New shard - fade in
+      // Mark removed as exiting
+      for (let i = newLen; i < oldLen; i++) {
         next.push({
-          mood: newMoods[i],
-          state: 'entering',
-          opacity: 0,
+          ...active[i],
+          state: 'exiting',
           startTime: now,
-          id: nextShardId++,
         });
       }
-    }
 
-    // Mark removed as exiting
-    for (let i = newLen; i < oldLen; i++) {
-      next.push({
-        ...active[i],
-        state: 'exiting',
-        startTime: now,
-      });
-    }
-
-    // Keep already exiting
-    for (const s of prev) {
-      if (s.state === 'exiting' && !next.some((n) => n.id === s.id)) {
-        next.push(s);
+      // Keep already exiting
+      for (const s of prev) {
+        if (s.state === 'exiting' && !next.some((n) => n.id === s.id)) {
+          next.push(s);
+        }
       }
-    }
 
-    shardsRef.current = next;
-    forceUpdate((n) => n + 1);
-  }, []);
+      // Update ref FIRST, then trigger single state update
+      shardsRef.current = next;
 
-  const addUser = useCallback((mood: MoodId) => {
-    setMoodsState((prev) => {
+      // Use startTransition for non-blocking update
+      startTransition(() => {
+        setMoodsState(newMoods);
+      });
+    },
+    [], // startTransition is stable, no deps needed
+  );
+
+  /**
+   * Add a single user - uses startTransition for non-blocking update
+   */
+  const addUser = useCallback(
+    (mood: MoodId) => {
       const now = performance.now() / 1000;
       const shards = shardsRef.current;
 
+      // Update ref synchronously (needed for next frame's render)
       shardsRef.current = [
         ...shards.filter((s) => s.state !== 'exiting'),
         {
@@ -169,14 +189,22 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
         ...shards.filter((s) => s.state === 'exiting'),
       ];
 
-      forceUpdate((n) => n + 1);
-      return [...prev, mood];
-    });
-  }, []);
+      // Non-blocking state update - won't stutter animations
+      startTransition(() => {
+        setMoodsState((prev) => [...prev, mood]);
+      });
+    },
+    [], // startTransition is stable, no deps needed
+  );
 
-  const removeUser = useCallback((index: number) => {
-    setMoodsState((prev) => {
-      if (index < 0 || index >= prev.length) return prev;
+  /**
+   * Remove user at index - uses startTransition for non-blocking update
+   */
+  const removeUser = useCallback(
+    (index: number) => {
+      // Early validation
+      const currentMoods = shardsRef.current.filter((s) => s.state !== 'exiting');
+      if (index < 0 || index >= currentMoods.length) return;
 
       const now = performance.now() / 1000;
       const shards = shardsRef.current;
@@ -198,14 +226,21 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
         }
       }
 
+      // Update ref synchronously
       shardsRef.current = next;
-      forceUpdate((n) => n + 1);
 
-      const newMoods = [...prev];
-      newMoods.splice(index, 1);
-      return newMoods;
-    });
-  }, []);
+      // Non-blocking state update
+      startTransition(() => {
+        setMoodsState((prev) => {
+          if (index < 0 || index >= prev.length) return prev;
+          const newMoods = [...prev];
+          newMoods.splice(index, 1);
+          return newMoods;
+        });
+      });
+    },
+    [], // startTransition is stable, no deps needed
+  );
 
   /**
    * Tick - update opacity in-place, avoid array allocations
@@ -280,8 +315,13 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
       }
     }
 
-    if (structureChanged) forceUpdate((n) => n + 1);
-  }, []);
+    // Use startTransition for structural changes to avoid blocking animations
+    if (structureChanged) {
+      startTransition(() => {
+        forceUpdate((n) => n + 1);
+      });
+    }
+  }, []); // startTransition is stable, no deps needed
 
   return {
     shardStates: statesRef.current,
