@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { CYCLES_PER_MESSAGE, MESSAGES } from '../config/inspirationalMessages';
+import { useEffect, useRef } from 'react';
+import { AMBIENT_MESSAGES, WELCOME_INTRO } from '../config/inspirationalSequences';
 import { BREATH_TOTAL_CYCLE } from '../constants';
 import { useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
+import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
 
 /**
  * Breathing Phase Timeline:
@@ -52,10 +53,28 @@ function easeInQuad(t: number): number {
 export function InspirationalText() {
   const topWrapperRef = useRef<HTMLDivElement>(null);
   const bottomWrapperRef = useRef<HTMLDivElement>(null);
-  const [quoteIndex, setQuoteIndex] = useState(0);
-  const cycleCountRef = useRef(0);
   const prevPhaseRef = useRef(-1);
   const { isMobile, isTablet } = useViewport();
+
+  // Get store state and actions
+  const getCurrentMessage = useInspirationalTextStore((state) => state.getCurrentMessage);
+  const advanceCycle = useInspirationalTextStore((state) => state.advanceCycle);
+  const setAmbientPool = useInspirationalTextStore((state) => state.setAmbientPool);
+  const enqueue = useInspirationalTextStore((state) => state.enqueue);
+  const ambientPool = useInspirationalTextStore((state) => state.ambientPool);
+  // Subscribe to both currentSequence AND ambientIndex to trigger re-renders
+  const currentSequence = useInspirationalTextStore((state) => state.currentSequence);
+  const ambientIndex = useInspirationalTextStore((state) => state.ambientIndex);
+
+  // Initialize store on mount - set ambient pool and queue intro if first visit
+  useEffect(() => {
+    // Only initialize if ambient pool is empty (first mount)
+    if (ambientPool.length === 0) {
+      setAmbientPool(AMBIENT_MESSAGES);
+      // Queue welcome intro - store handles playOnce logic
+      enqueue(WELCOME_INTRO);
+    }
+  }, [ambientPool.length, setAmbientPool, enqueue]);
 
   // RAF loop for smooth opacity animation synchronized to breathing
   useEffect(() => {
@@ -86,13 +105,9 @@ export function InspirationalText() {
         bottomWrapperRef.current.style.transform = transform;
       }
 
-      // Track cycle completion and rotate quotes
+      // Track cycle completion and advance queue
       if (phaseIndex === 0 && prevPhaseRef.current === 3) {
-        cycleCountRef.current += 1;
-        if (cycleCountRef.current >= CYCLES_PER_MESSAGE) {
-          cycleCountRef.current = 0;
-          setQuoteIndex((prev) => (prev + 1) % MESSAGES.length);
-        }
+        advanceCycle();
       }
       prevPhaseRef.current = phaseIndex;
 
@@ -101,9 +116,15 @@ export function InspirationalText() {
 
     updateText();
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [advanceCycle]);
 
-  const quote = MESSAGES[quoteIndex] ?? MESSAGES[0];
+  // Get current message from store
+  // Note: Re-renders when currentSequence or ambientIndex changes (subscribed above)
+  const quote = getCurrentMessage() ?? { top: '', bottom: '' };
+
+  // Suppress unused variable warnings - these subscriptions trigger re-renders
+  void currentSequence;
+  void ambientIndex;
 
   // Design tokens matching GaiaUI warm palette
   const colors = {
@@ -144,27 +165,23 @@ export function InspirationalText() {
 
   const textStyle: React.CSSProperties = {
     fontFamily: "'Cormorant Garamond', Georgia, serif",
-    // Mobile: Dynamic viewport-based sizing to fill available width - increased max size
+    // Mobile: Dynamic viewport-based sizing to fill available width
     fontSize: isMobile
-      ? 'clamp(1.4rem, 7.5vw, 2.5rem)' // Mobile: Larger max 2.5rem (was 2.2rem), 7.5vw (was 7vw)
+      ? 'clamp(1.5rem, 8vw, 2.6rem)' // Mobile: Slightly larger for impact
       : isTablet
-        ? 'clamp(1.5rem, 5vw, 2.4rem)' // Tablet: Slightly larger (was 2.2rem max)
-        : 'clamp(1.6rem, 3.5vw, 2.8rem)', // Desktop: Original large size
-    fontWeight: 300,
-    letterSpacing: isMobile ? '0.12em' : '0.22em', // Tighter spacing for better fit
+        ? 'clamp(1.5rem, 5vw, 2.4rem)'
+        : 'clamp(1.6rem, 3.5vw, 2.8rem)',
+    fontWeight: isMobile ? 400 : 300, // Slightly bolder on mobile for readability
+    letterSpacing: isMobile ? '0.06em' : '0.22em', // Much tighter on mobile
     textTransform: 'uppercase',
     color: colors.text,
-    textShadow: `
-      0 0 30px ${colors.subtleGlow},
-      0 0 60px ${colors.textGlow},
-      0 2px 8px rgba(0, 0, 0, 0.15)
-    `, // Stronger shadows for better contrast
+    textShadow: isMobile
+      ? `0 0 24px ${colors.subtleGlow}, 0 1px 3px rgba(0, 0, 0, 0.2)` // Tighter shadow on mobile
+      : `0 0 30px ${colors.subtleGlow}, 0 0 60px ${colors.textGlow}, 0 2px 8px rgba(0, 0, 0, 0.15)`,
     textAlign: 'center',
-    lineHeight: isMobile ? 1.1 : 1.2, // Tighter line height on mobile
+    lineHeight: isMobile ? 1.1 : 1.2,
     userSelect: 'none',
-    // Prevent text wrapping - let it scale instead
     whiteSpace: isMobile ? 'nowrap' : 'normal',
-    // Scale to fit container width on mobile
     width: isMobile ? '100%' : 'auto',
   };
 
