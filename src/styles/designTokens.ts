@@ -72,12 +72,18 @@ export const UI_COLORS = {
 /**
  * Monument Valley Mood Palette
  * Used for mood selection and particle colors
+ *
+ * Simplified 4-category system with positive framing:
+ * - gratitude: Appreciating this moment
+ * - stillness: Finding center
+ * - release: Letting go
+ * - connection: Here with others
  */
 export const MOOD_COLORS = {
-  joy: '#ffbe0b', // Warm yellow - energetic, celebratory
-  peace: '#06d6a0', // Teal/mint - present, grounded
-  solitude: '#118ab2', // Deep blue - introspective, reflective
-  love: '#ef476f', // Warm rose - connecting, readying
+  gratitude: '#ffbe0b', // Warm Gold - appreciation, thankfulness
+  stillness: '#06d6a0', // Teal/Mint - calm, centered, grounded
+  release: '#118ab2', // Deep Blue - letting go, processing
+  connection: '#ef476f', // Warm Rose - love, community, togetherness
 } as const;
 
 /**

@@ -4,19 +4,39 @@
  */
 
 /**
- * Mood IDs - all valid moods in the application
+ * Mood IDs - simplified 4-category system with positive framing
+ *
+ * Each mood maps to a distinct color in the Monument Valley palette:
+ * - gratitude (gold) - Appreciating this moment
+ * - stillness (teal) - Finding center
+ * - release (blue) - Letting go
+ * - connection (rose) - Here with others
  */
-export const MOOD_IDS = [
-  'moment',
-  'anxious',
-  'processing',
-  'preparing',
-  'grateful',
-  'celebrating',
-  'here',
-] as const;
+export const MOOD_IDS = ['gratitude', 'stillness', 'release', 'connection'] as const;
 
 export type MoodId = (typeof MOOD_IDS)[number];
+
+/**
+ * Mood metadata for UI display
+ */
+export const MOOD_METADATA: Record<MoodId, { label: string; description: string }> = {
+  gratitude: {
+    label: 'Gratitude',
+    description: 'Appreciating this moment',
+  },
+  stillness: {
+    label: 'Stillness',
+    description: 'Finding center',
+  },
+  release: {
+    label: 'Release',
+    description: 'Letting go',
+  },
+  connection: {
+    label: 'Connection',
+    description: 'Here with others',
+  },
+};
 
 /**
  * Breathing Cycle Configuration

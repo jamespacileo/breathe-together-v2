@@ -17,20 +17,18 @@ import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
 const MOOD_COLORS = [
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.stillness),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
 ];
 
+// Direct 1:1 mapping - each mood has exactly one color
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
-  grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+  gratitude: new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
+  stillness: new THREE.Color(MONUMENT_VALLEY_PALETTE.stillness),
+  release: new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
+  connection: new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
 };
 
 /**
