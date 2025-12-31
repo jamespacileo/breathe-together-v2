@@ -175,16 +175,21 @@ const SPRING_DAMPING = 5.0; // Slightly increased to match higher stiffness
 const EXPANSION_VELOCITY_BOOST = 4.0; // Per-frame boost (reduced, phase kick handles initial burst)
 
 /**
- * One-time velocity kick at exhale phase start
+ * Exhale interpolation speed (exponential lerp)
  *
- * When phase transitions from hold-in (1) to exhale (2), inject a large
- * instant velocity to ALL particles. This syncs visual movement with the
- * UI text change, overcoming spring damping lag.
+ * During exhale, we DON'T use spring physics (which causes oscillation).
+ * Instead, we use exponential interpolation: smooth approach to target
+ * with no overshoot possible.
  *
- * This is the key fix for the "UI shows Exhale but particles don't move" issue.
- * The kick needs to be large enough to overcome damping (SPRING_DAMPING = 5.0).
+ * This models "softly letting go of a rubber band":
+ * - Fast initial movement (rubber band snapping outward)
+ * - Naturally slowing as it approaches rest position
+ * - No bounce-back (exponential decay guarantees monotonic approach)
+ *
+ * Higher = faster approach, lower = slower/smoother
+ * 4.0 gives visible movement in first 0.25s while staying smooth
  */
-const EXHALE_PHASE_KICK = 3.0; // One-time velocity injection at exhale start
+const EXHALE_LERP_SPEED = 4.0;
 
 /**
  * Ambient floating motion constants
@@ -377,10 +382,7 @@ export function ParticleSwarm({
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
-    // Detect phase transition: hold-in (1) → exhale (2)
-    // When this happens, inject a large one-time velocity kick to all particles
-    // This syncs particle movement with the UI text change
-    const exhaleJustStarted = prevPhaseTypeRef.current === 1 && currentPhaseType === 2;
+    // Track phase type for potential future use
     prevPhaseTypeRef.current = currentPhaseType;
 
     // Update shader material uniforms for all shards
@@ -408,29 +410,40 @@ export function ParticleSwarm({
       // Clamp target to prevent penetrating globe
       const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
 
-      // Apply one-time velocity kick when exhale phase starts
-      // This syncs particle movement with UI text change (critical for UX)
-      if (exhaleJustStarted) {
-        shardState.velocity += EXHALE_PHASE_KICK;
-      }
+      // Use different physics based on phase:
+      // - Exhale (phase 2): Exponential lerp - "letting go of a rubber band"
+      // - Other phases: Spring physics - organic contraction/hold
+      const isExhalePhase = currentPhaseType === 2;
 
-      // Detect expansion (exhale) and apply per-frame velocity boost
-      // This maintains momentum through the exhale phase
-      const targetDelta = clampedTarget - shardState.previousTarget;
-      if (targetDelta > 0.001) {
-        // Expanding outward - inject outward velocity
-        shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+      if (isExhalePhase) {
+        // EXHALE: Exponential interpolation (no spring physics)
+        // This models "releasing a rubber band":
+        // - Monotonic approach to target (no oscillation possible)
+        // - Fast initial movement, naturally slowing
+        // - Feels like tension releasing, not fighting against a spring
+        const lerpFactor = 1 - Math.exp(-EXHALE_LERP_SPEED * clampedDelta);
+        shardState.currentRadius += (clampedTarget - shardState.currentRadius) * lerpFactor;
+        // Reset velocity to prevent spring momentum carrying into next phase
+        shardState.velocity = 0;
+      } else {
+        // INHALE/HOLD: Spring physics for organic feel
+        // Contraction feels like being gently pulled inward
+        const targetDelta = clampedTarget - shardState.previousTarget;
+        if (targetDelta < -0.001) {
+          // Contracting inward (inhale) - boost for responsiveness
+          shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+        }
+
+        // Spring physics: F = -k(x - target) - c*v
+        const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
+        const dampingForce = -shardState.velocity * SPRING_DAMPING;
+        const totalForce = springForce + dampingForce;
+
+        // Integrate velocity and position
+        shardState.velocity += totalForce * clampedDelta;
+        shardState.currentRadius += shardState.velocity * clampedDelta;
       }
       shardState.previousTarget = clampedTarget;
-
-      // Spring physics: F = -k(x - target) - c*v
-      const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
-      const dampingForce = -shardState.velocity * SPRING_DAMPING;
-      const totalForce = springForce + dampingForce;
-
-      // Integrate velocity and position
-      shardState.velocity += totalForce * clampedDelta;
-      shardState.currentRadius += shardState.velocity * clampedDelta;
 
       // Update orbital drift angle
       shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
