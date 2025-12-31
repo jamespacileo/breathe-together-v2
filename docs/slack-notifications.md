@@ -5,15 +5,17 @@ This guide explains how to set up Slack notifications for preview deployments in
 ## What You Get
 
 ### Success Notification
-When a PR preview deploys successfully, you'll receive a Slack message with:
-- PR number, title, and link
+When a PR preview deploys successfully, you'll receive a **single consolidated message** with:
+- PR number, title, and link (with **Open Preview** button)
 - Author and branch name
-- Commit SHA
-- Clickable buttons: **Open Preview** | **View PR** | **Workflow Run**
+- **PR description** (truncated to 500 chars if needed)
+- Status summary: Biome ✓ • TypeCheck ✓ • Build ✓ • Deploy ✓
+- Quick links to PR and workflow logs
 
 ### Failure Notification
-When a build or deploy fails:
-- Same PR info as above
+When validation or deployment fails:
+- PR info (number, title, author, branch)
+- Status of each check (Validation/Deployment)
 - **View Logs** button (links directly to failed workflow)
 - **View PR** button
 
@@ -33,7 +35,7 @@ When a build or deploy fails:
 1. In your app settings, go to **Incoming Webhooks** (left sidebar)
 2. Toggle **Activate Incoming Webhooks** to **On**
 3. Click **Add New Webhook to Workspace**
-4. Select the channel where you want notifications (e.g., `#deployments`)
+4. Select the channel where you want notifications (e.g., `#preview-deploys`)
 5. Click **Allow**
 6. Copy the **Webhook URL** (looks like `https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX`)
 
@@ -43,9 +45,11 @@ When a build or deploy fails:
 2. Navigate to **Settings** → **Secrets and variables** → **Actions**
 3. Click **New repository secret**
 4. Configure the secret:
-   - **Name:** `SLACK_WEBHOOK_URL`
+   - **Name:** `SLACK_PREVIEW_WEBHOOK_URL` (recommended for dedicated channel)
    - **Value:** Paste the webhook URL from Step 2
 5. Click **Add secret**
+
+> **Note:** The workflow checks for `SLACK_PREVIEW_WEBHOOK_URL` first, then falls back to `SLACK_WEBHOOK_URL`. This allows you to use a dedicated channel for previews while keeping a general webhook for other notifications.
 
 ## Testing
 
@@ -53,26 +57,37 @@ When a build or deploy fails:
 2. Wait for the preview deployment workflow to complete
 3. Check your Slack channel for the notification
 
-## Customization
+## Configuration Options
 
-### Change Notification Channel
+### Dedicated Preview Channel (Recommended)
 
-To send notifications to a different channel, create a new webhook URL for that channel and update the `SLACK_WEBHOOK_URL` secret.
+For less noisy notifications, create a dedicated `#preview-deploys` channel:
+
+1. Create the channel in Slack
+2. Create a webhook for that channel (Step 2 above)
+3. Add it as `SLACK_PREVIEW_WEBHOOK_URL` in GitHub Secrets
+4. Preview notifications go to `#preview-deploys`, other notifications use `SLACK_WEBHOOK_URL`
+
+### Shared Channel
+
+If you prefer all notifications in one channel:
+- Only set `SLACK_WEBHOOK_URL` (don't set `SLACK_PREVIEW_WEBHOOK_URL`)
+- All notifications will go to that channel
 
 ### Modify Message Format
 
 Edit `.github/workflows/preview.yml` to customize the Slack Block Kit payload. The notification uses [Slack Block Kit](https://api.slack.com/block-kit) format.
 
-Key sections:
-- `header` - The title message
-- `section.fields` - PR info (author, branch, commit)
-- `actions.elements` - Clickable buttons
-- `context` - Footer text
+Key sections in the success notification:
+- `header` - "✅ Preview Ready"
+- `section` (first) - PR link with **Open Preview** button
+- `section` (second) - PR description (truncated, from PR body)
+- `context` - Check status and quick links
 
 ### Disable Notifications
 
 To disable notifications without removing the code:
-1. Delete or rename the `SLACK_WEBHOOK_URL` secret
+1. Delete both `SLACK_WEBHOOK_URL` and `SLACK_PREVIEW_WEBHOOK_URL` secrets
 2. The workflow step will fail silently (won't block deployment)
 
 ## Troubleshooting
