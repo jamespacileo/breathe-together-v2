@@ -2,121 +2,52 @@ import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
 
 /**
- * Controlled breathing easing functions for organic, relaxation-focused animation
+ * Asymmetric breathing easing functions
  *
- * Uses raised cosine ramps with linear plateau for natural motion:
- * - Inhale/Exhale: Soft start, steady middle, soft end
+ * Uses piecewise sin/cos for natural, human-like breathing:
+ * - Inhale: sin(t × π/2) - fast start, smooth landing
+ * - Exhale: cos-based - controlled start, natural completion
  * - Holds: Damped oscillation - subtle "alive" movement
  *
- * All functions guarantee exact positions at phase boundaries (0 and 1)
- * while providing the organic feel of controlled breathing.
+ * All functions guarantee exact positions at phase boundaries (0 and 1).
  */
 
 /**
- * Controlled breath curve with soft start/end and steady middle
+ * Inhale easing: Fast intake with smooth landing
  *
- * Creates organic controlled breathing feel with three sections:
- * 1. Soft start: Raised cosine ramp (velocity 0 → steady)
- * 2. Steady middle: Linear/constant velocity (controlled, even flow)
- * 3. Soft end: Raised cosine ramp (velocity steady → 0)
+ * Uses sin(t × π/2) for natural breath intake:
+ * - Fast start: High initial velocity (lungs hungry for air)
+ * - Smooth landing: Decelerates naturally as lungs fill
  *
- * The raised cosine provides C1-continuous transitions (smooth velocity)
- * while the linear middle creates the "steady controlled" breathing feel.
+ * Derivative at t=0: π/2 ≈ 1.57 (fast)
+ * Derivative at t=1: 0 (smooth stop)
  *
- * @param t Progress 0-1
- * @param startRamp Fraction of time for start ramp (0.2-0.35)
- * @param endRamp Fraction of time for end ramp (0.2-0.35)
- */
-function controlledBreathCurve(t: number, startRamp: number, endRamp: number): number {
-  // Clamp input
-  t = Math.max(0, Math.min(1, t));
-
-  // Middle section starts after startRamp and ends before endRamp
-  const middleEnd = 1 - endRamp;
-
-  // Calculate steady velocity needed to cover remaining distance
-  // Total distance = 1, ramps each cover (ramp * velocity / 2)
-  // So: startRamp*v/2 + middleDuration*v + endRamp*v/2 = 1
-  // v * (startRamp/2 + middleDuration + endRamp/2) = 1
-  // v = 1 / (1 - startRamp/2 - endRamp/2)
-  const middleVelocity = 1 / (1 - startRamp / 2 - endRamp / 2);
-
-  // Height reached at end of start ramp
-  const startRampHeight = (middleVelocity * startRamp) / 2;
-  // Height at start of end ramp
-  const endRampStart = 1 - (middleVelocity * endRamp) / 2;
-
-  if (t <= startRamp) {
-    // Raised cosine ramp-up: smooth acceleration from 0 to middleVelocity
-    // Integral of (1 - cos(πx))/2 from 0 to x = x/2 - sin(πx)/(2π)
-    const normalized = t / startRamp;
-    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
-    return middleVelocity * startRamp * integral;
-  }
-  if (t >= middleEnd) {
-    // Raised cosine ramp-down: smooth deceleration from middleVelocity to 0
-    const normalized = (t - middleEnd) / endRamp;
-    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
-    return endRampStart + middleVelocity * endRamp * integral;
-  }
-  // Linear middle: constant velocity for steady, controlled feel
-  return startRampHeight + middleVelocity * (t - startRamp);
-}
-
-/**
- * Inhale easing: Controlled, organic breath intake
- *
- * Uses raised cosine ramps with linear plateau:
- * - Soft start (25%): Gentle acceleration, overcoming initial resistance
- * - Steady middle (50%): Constant velocity, controlled even intake
- * - Soft end (25%): Gentle deceleration, lungs filling naturally
+ * This matches the natural feeling of taking a breath - eager start,
+ * gentle completion as you reach full capacity.
  */
 function easeInhale(t: number): number {
-  return controlledBreathCurve(t, 0.25, 0.25);
+  const tClamped = Math.max(0, Math.min(1, t));
+  return Math.sin(tClamped * Math.PI * 0.5);
 }
 
 /**
- * Exhale easing: Fast-slow-fast pattern for controlled release
+ * Exhale easing: Controlled release with natural completion
  *
- * Three-phase curve matching natural exhale mechanics:
- * - Fast start (0-20%): Immediate visible release, ~35% of movement
- * - Slow middle (20-80%): Controlled sustained exhale, ~30% of movement
- * - Fast finish (80-100%): Complete the exhale, ~35% of movement
+ * Uses cos(t × π/2) for relaxed exhale:
+ * - Smooth start: Gentle beginning of release
+ * - Accelerating finish: Natural completion as lungs empty
  *
- * This creates natural breathing feel:
- * - Instant visible pop when exhale begins (matches UI)
- * - Sustained controlled middle (relaxation zone)
- * - Natural completion at end
+ * Returns 1→0 directly (not 0→1 like inhale), so used differently
+ * in the phase calculation.
+ *
+ * This matches the natural feeling of a relaxed exhale - controlled
+ * start, natural acceleration as you let go.
  */
 function easeExhale(t: number): number {
   const tClamped = Math.max(0, Math.min(1, t));
-
-  // Phase boundaries
-  const startEnd = 0.2; // First 20% = fast start
-  const middleEnd = 0.8; // 20-80% = slow middle
-
-  // Movement distribution
-  const startMovement = 0.35; // 35% of total movement in first 20%
-  const middleMovement = 0.3; // 30% of total movement in middle 60%
-  // endMovement = 0.35 (remaining 35% in last 20%)
-
-  if (tClamped <= startEnd) {
-    // Fast start: ease-out curve (decelerating from high velocity)
-    const localT = tClamped / startEnd;
-    const easeOut = 1 - (1 - localT) ** 2; // Quadratic ease-out
-    return easeOut * startMovement;
-  }
-
-  if (tClamped <= middleEnd) {
-    // Slow middle: linear interpolation (low constant velocity)
-    const localT = (tClamped - startEnd) / (middleEnd - startEnd);
-    return startMovement + localT * middleMovement;
-  }
-
-  // Fast finish: ease-in curve (accelerating to complete)
-  const localT = (tClamped - middleEnd) / (1 - middleEnd);
-  const easeIn = localT ** 2; // Quadratic ease-in
-  return startMovement + middleMovement + easeIn * (1 - startMovement - middleMovement);
+  // cos goes 1→0, we need 0→1 for the easing function
+  // So return 1 - cos(t × π/2)
+  return 1 - Math.cos(tClamped * Math.PI * 0.5);
 }
 
 /**
