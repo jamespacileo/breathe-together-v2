@@ -110,10 +110,10 @@ export function BreathingLevel({
               />
             )}
           </PresentationControls>
-        </RefractionPipeline>
 
-        {/* Holographic UI ring - OUTSIDE pipeline to avoid DOF blur */}
-        <HolographicBreathUI innerRadius={2.2} outerRadius={2.5} yOffset={0} />
+          {/* Holographic UI ring - inside pipeline but outside PresentationControls (fixed position) */}
+          <HolographicBreathUI innerRadius={2.2} outerRadius={2.5} yOffset={0} />
+        </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
