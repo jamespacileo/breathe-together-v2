@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { BREATH_TOTAL_CYCLE } from '../constants';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { UI_COLORS } from '../styles/designTokens';
@@ -22,7 +22,7 @@ import { UI_COLORS } from '../styles/designTokens';
  * - 7 = Hold (phaseIndex 1) - 7 seconds
  * - 8 = Exhale (phaseIndex 2) - 8 seconds
  */
-export function BreathCycleIndicator() {
+function BreathCycleIndicatorComponent() {
   const containerRef = useRef<HTMLDivElement>(null);
   const number4Ref = useRef<HTMLSpanElement>(null);
   const number7Ref = useRef<HTMLSpanElement>(null);
@@ -36,11 +36,9 @@ export function BreathCycleIndicator() {
   const inactiveColor = UI_COLORS.text.dim;
   const glowColor = UI_COLORS.accent.goldGlow;
 
-  useEffect(() => {
-    let animationId: number;
-
-    // Helper to update a single number element
-    const updateNumber = (el: HTMLSpanElement, isActive: boolean, phaseProgress: number) => {
+  // Memoize helper functions to prevent recreation on each render
+  const updateNumber = useCallback(
+    (el: HTMLSpanElement, isActive: boolean, phaseProgress: number) => {
       if (isActive) {
         el.style.color = activeColor;
         el.style.textShadow = `0 0 12px ${glowColor}, 0 0 24px ${glowColor}`;
@@ -55,13 +53,21 @@ export function BreathCycleIndicator() {
         el.style.opacity = '0.55';
         el.style.transform = 'scale(1)';
       }
-    };
+    },
+    [activeColor, inactiveColor, glowColor],
+  );
 
-    // Helper to update a dot separator element
-    const updateDot = (el: HTMLSpanElement, isTransitioning: boolean) => {
+  // Memoize dot update helper
+  const updateDot = useCallback(
+    (el: HTMLSpanElement, isTransitioning: boolean) => {
       el.style.color = isTransitioning ? activeColor : inactiveColor;
       el.style.opacity = isTransitioning ? '0.8' : '0.35';
-    };
+    },
+    [activeColor, inactiveColor],
+  );
+
+  useEffect(() => {
+    let animationId: number;
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: RAF animation loop requires multiple DOM ref updates per frame - refactoring would reduce readability
     const updateIndicator = () => {
@@ -92,7 +98,7 @@ export function BreathCycleIndicator() {
 
     updateIndicator();
     return () => cancelAnimationFrame(animationId);
-  }, [activeColor, inactiveColor, glowColor]);
+  }, [updateNumber, updateDot]);
 
   // Base styles for numbers
   const numberStyle: React.CSSProperties = {
@@ -154,3 +160,6 @@ export function BreathCycleIndicator() {
     </div>
   );
 }
+
+// Wrap with React.memo to prevent unnecessary re-renders
+export const BreathCycleIndicator = memo(BreathCycleIndicatorComponent);

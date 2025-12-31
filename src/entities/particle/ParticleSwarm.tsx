@@ -1,27 +1,33 @@
 /**
  * ParticleSwarm - Monument Valley inspired icosahedral shards
  *
- * Uses separate Mesh objects (not InstancedMesh) to match reference exactly.
- * Each mesh has per-vertex color attribute for mood coloring.
+ * Uses slot-based user ordering for visual stability:
+ * - Users maintain their slot when others join/leave
+ * - Fibonacci positions dynamically redistribute based on active count
+ * - Smooth scale animations (0→1 on enter, 1→0 on exit)
+ * - Smooth position animations when distribution changes
+ * - Diff-based reconciliation for minimal disruption
+ * - Updates only during hold phase, once per breathing cycle
+ *
+ * Rendering: Separate Mesh objects (not InstancedMesh) with per-vertex colors.
  * Rendered via RefractionPipeline 3-pass FBO system.
  */
 
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { MoodId } from '../../constants';
+import { BREATH_TOTAL_CYCLE, type MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
-import { breathPhase, orbitRadius } from '../breath/traits';
+import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
-
-// Convert palette to THREE.Color array for random selection
-const MOOD_COLORS = [
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.presence),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
-];
+import {
+  getBreathingCycleIndex,
+  isHoldPhase,
+  moodCountsToUsers,
+  SlotManager,
+  type User,
+} from './SlotManager';
 
 // Direct 1:1 mapping - each mood has exactly one color
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
@@ -31,51 +37,14 @@ const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
   connection: new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
 };
 
-/**
- * Build color distribution array from presence data
- *
- * Converts mood counts into an array of Three.js Color instances, where each
- * user is represented by their mood color. This array is used for distributing
- * colors across particle shards.
- *
- * **Example:**
- * ```ts
- * const users = { calm: 3, energized: 2 };
- * // Returns: [calmColor, calmColor, calmColor, energizedColor, energizedColor]
- * ```
- *
- * **Performance:** Linear time O(n) where n is total user count. Called once
- * per presence update (typically ~1-5 times per minute).
- *
- * @param users - Mood distribution from presence data (e.g., { calm: 5, energized: 3 })
- * @returns Array of colors, one per user. Empty array if no users.
- */
-function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefined): THREE.Color[] {
-  if (!users) return [];
-
-  const colorDistribution: THREE.Color[] = [];
-  for (const [moodId, moodCount] of Object.entries(users)) {
-    const color = MOOD_TO_COLOR[moodId as MoodId];
-    if (color) {
-      for (let i = 0; i < (moodCount ?? 0); i++) {
-        colorDistribution.push(color);
-      }
-    }
-  }
-  return colorDistribution;
-}
+// Default color for empty slots (won't be visible due to scale=0)
+const DEFAULT_COLOR = new THREE.Color(MONUMENT_VALLEY_PALETTE.presence);
 
 /**
  * Apply per-vertex color to icosahedron geometry
  *
  * Sets vertex colors for all vertices in the geometry to the specified color.
  * Required for THREE.InstancedMesh with vertexColors enabled.
- *
- * **Implementation:** Creates Float32Array with RGB triplets for each vertex.
- * Icosahedron geometry has 12 vertices by default (detail level 0).
- *
- * **Performance:** Called once per unique shard geometry during initialization.
- * O(v) where v is vertex count.
  *
  * @param geometry - Icosahedron geometry to modify
  * @param color - Three.js color to apply to all vertices
@@ -91,11 +60,66 @@ function applyVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Col
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 }
 
+/**
+ * Update vertex colors on existing geometry (avoids full geometry recreation)
+ *
+ * @param geometry - Geometry with existing color attribute
+ * @param color - New color to apply
+ */
+function updateVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Color): void {
+  const colorAttr = geometry.attributes.color;
+  if (!colorAttr) return;
+
+  const colors = colorAttr.array as Float32Array;
+  for (let c = 0; c < colors.length; c += 3) {
+    colors[c] = color.r;
+    colors[c + 1] = color.g;
+    colors[c + 2] = color.b;
+  }
+  colorAttr.needsUpdate = true;
+}
+
+/**
+ * Calculate Fibonacci sphere point for even distribution
+ *
+ * Uses golden angle distribution for uniform coverage regardless of count.
+ * Each point is evenly spaced on the sphere surface.
+ *
+ * @param index - Point index (0 to total-1)
+ * @param total - Total number of points to distribute
+ * @returns Normalized direction vector on unit sphere
+ */
+function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
+  if (total <= 1) {
+    // Single point goes to top of sphere
+    return new THREE.Vector3(0, 1, 0);
+  }
+
+  // Golden angle in radians (137.5077... degrees)
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+  // Y goes from 1 to -1 (top to bottom of sphere)
+  const y = 1 - (index / (total - 1)) * 2;
+  const radiusAtY = Math.sqrt(1 - y * y);
+
+  const theta = goldenAngle * index;
+
+  const x = Math.cos(theta) * radiusAtY;
+  const z = Math.sin(theta) * radiusAtY;
+
+  return new THREE.Vector3(x, y, z);
+}
+
 export interface ParticleSwarmProps {
-  /** Number of shards (default 48 matches reference) */
-  count?: number;
-  /** Users by mood for color distribution */
-  users?: Partial<Record<MoodId, number>>;
+  /**
+   * Users to display as shards
+   * Can be either:
+   * - User[]: Individual users with id and mood
+   * - Partial<Record<MoodId, number>>: Aggregate mood counts (legacy, converted internally)
+   *
+   * The number of shards dynamically matches the number of users.
+   */
+  users?: User[] | Partial<Record<MoodId, number>>;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
   /** Base size for shards @default 4.0 */
@@ -106,19 +130,31 @@ export interface ParticleSwarmProps {
   buffer?: number;
   /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
   maxShardSize?: number;
+  /** Minimum shard size (prevents tiny shards at high counts) @default 0.15 */
+  minShardSize?: number;
+  /**
+   * Performance safety cap - maximum shards to render
+   * Only kicks in at very high user counts to prevent GPU overload.
+   * @default 1000
+   */
+  performanceCap?: number;
 }
 
 interface ShardData {
   mesh: THREE.Mesh;
+  /** Current direction (interpolated toward targetDirection) */
   direction: THREE.Vector3;
+  /** Target direction from Fibonacci redistribution */
+  targetDirection: THREE.Vector3;
   geometry: THREE.IcosahedronGeometry;
+  currentMood: MoodId | null;
 }
 
 /**
  * Physics state for organic breathing animation
  *
- * Each shard has independent spring physics + ambient motion for natural feel:
- * - Spring physics: smooth transitions with settling on holds
+ * Each shard has:
+ * - Exponential lerp: smooth approach to target with no overshoot
  * - Phase offset: subtle wave effect (particles don't move in perfect lockstep)
  * - Ambient seed: unique floating pattern per shard
  * - Rotation speeds: per-shard variation for organic feel
@@ -127,16 +163,12 @@ interface ShardData {
  * - Perpendicular: tangent wobble for organic floating feel
  */
 interface ShardPhysicsState {
-  /** Current interpolated radius (spring-smoothed) */
+  /** Current interpolated radius (lerp-smoothed, no spring physics) */
   currentRadius: number;
-  /** Radial velocity for spring physics */
-  velocity: number;
-  /** Phase offset for subtle wave effect (0-0.05 range) */
+  /** Phase offset for subtle wave effect (0-0.04 range, 4% max) */
   phaseOffset: number;
   /** Seed for ambient floating motion (unique per shard) */
   ambientSeed: number;
-  /** Previous frame's target radius (for detecting expansion) */
-  previousTarget: number;
   /** Per-shard rotation speed multiplier X axis (0.7-1.3 range) */
   rotationSpeedX: number;
   /** Per-shard rotation speed multiplier Y axis (0.7-1.3 range) */
@@ -152,121 +184,231 @@ interface ShardPhysicsState {
 }
 
 /**
- * Spring physics constants for relaxed breathing feel
- *
- * Tuned for controlled relaxation breathing:
- * - Stiffness: responsive but not instant (follows breath naturally)
- * - Damping: settles quickly on holds without oscillation
- * - Expansion boost: immediate response when exhale begins
+ * Lerp speed for breathing animation
+ * Controls how quickly particles follow the ECS target radius.
  */
-const SPRING_STIFFNESS = 6; // Lower = more lag, higher = snappier
-const SPRING_DAMPING = 4.5; // Lower = oscillates, higher = settles faster
+const BREATH_LERP_SPEED = 6.0;
 
 /**
- * Expansion velocity boost for immediate exhale response
- *
- * When target radius increases (exhale starts), inject outward velocity
- * proportional to target change. This overcomes spring lag and makes
- * the exhale expansion feel immediate rather than delayed.
- *
- * The boost is asymmetric - only applied during expansion (exhale),
- * not contraction (inhale), for a more natural "release" feel.
+ * Lerp speed for position redistribution
+ * How quickly shards move to new Fibonacci positions when count changes.
+ * Lower = smoother but slower transitions.
  */
-const EXPANSION_VELOCITY_BOOST = 2.5; // Multiplier for expansion velocity injection
+const POSITION_LERP_SPEED = 3.0;
 
 /**
  * Ambient floating motion constants
- *
- * Secondary motion layer - particles "float" even during holds
- * Creates alive, breathing atmosphere without disrupting synchronization
  */
-const AMBIENT_SCALE = 0.08; // Maximum ambient offset
-const AMBIENT_Y_SCALE = 0.04; // Vertical motion is more subtle
+const AMBIENT_SCALE = 0.08;
+const AMBIENT_Y_SCALE = 0.04;
 
 /**
  * Orbital drift constants
- *
- * Very slow rotation around center - shards gradually orbit the globe
- * Kept subtle (0.01-0.03 rad/s) to avoid dizziness
  */
-const ORBIT_BASE_SPEED = 0.015; // Base orbit speed (radians/second)
-const ORBIT_SPEED_VARIATION = 0.01; // ±variation per shard
+const ORBIT_BASE_SPEED = 0.015;
+const ORBIT_SPEED_VARIATION = 0.01;
 
 /**
  * Perpendicular wobble constants
- *
- * Small movement tangent to radial direction - adds organic "floating" feel
- * Distinct from orbital motion (faster frequency, smaller amplitude)
  */
-const PERPENDICULAR_AMPLITUDE = 0.03; // Maximum tangent offset (subtle)
-const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
+const PERPENDICULAR_AMPLITUDE = 0.03;
+const PERPENDICULAR_FREQUENCY = 0.35;
 
 /**
- * Phase stagger for wave effect
- *
- * Small offset per particle creates flowing wave during breath transitions
- * Kept small (3-5%) to maintain "breathing together" feel
+ * Phase stagger for wave effect (4% of breath cycle)
  */
-const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
+const MAX_PHASE_OFFSET = 0.04;
+
+/**
+ * Reusable Vector3 objects for animation loop
+ * Pre-allocated to avoid garbage collection pressure
+ */
+const _tempOrbitedDir = new THREE.Vector3();
+const _tempTangent1 = new THREE.Vector3();
+const _tempTangent2 = new THREE.Vector3();
+const _tempAmbient = new THREE.Vector3();
+const _yAxis = new THREE.Vector3(0, 1, 0);
+const _tempLerpDir = new THREE.Vector3();
+
+/**
+ * Normalize users input to User[] format
+ * Handles both new format (User[]) and legacy format (mood counts)
+ */
+function normalizeUsers(users: User[] | Partial<Record<MoodId, number>> | undefined): User[] {
+  if (!users) return [];
+
+  // Check if it's an array (new format)
+  if (Array.isArray(users)) {
+    return users;
+  }
+
+  // Legacy format: convert mood counts to users
+  return moodCountsToUsers(users);
+}
 
 export function ParticleSwarm({
-  count = 48,
   users,
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
   buffer = 0.3,
   maxShardSize = 0.6,
+  minShardSize = 0.15,
+  performanceCap = 1000,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
 
-  // Calculate shard size (capped to prevent oversized shards at low counts)
-  const shardSize = useMemo(
-    () => Math.min(baseShardSize / Math.sqrt(count), maxShardSize),
-    [baseShardSize, count, maxShardSize],
+  // Slot manager for stable user ordering
+  const slotManagerRef = useRef<SlotManager | null>(null);
+  if (!slotManagerRef.current) {
+    slotManagerRef.current = new SlotManager();
+  }
+
+  // Pending users buffer (updated on prop change, reconciled during hold)
+  const pendingUsersRef = useRef<User[]>([]);
+
+  // Track previous hold phase to detect transitions
+  const wasInHoldRef = useRef(false);
+
+  // Track previous active count for position redistribution
+  const prevActiveCountRef = useRef(0);
+
+  // Normalize users input
+  const normalizedUsers = useMemo(() => normalizeUsers(users), [users]);
+
+  // Update pending users when props change
+  useEffect(() => {
+    pendingUsersRef.current = normalizedUsers;
+  }, [normalizedUsers]);
+
+  // Calculate shard size based on current user count
+  // (dynamically adjusts, but clamped to min/max)
+  const calculateShardSize = useCallback(
+    (count: number) => {
+      if (count === 0) return maxShardSize;
+      const calculated = baseShardSize / Math.sqrt(count);
+      return Math.min(Math.max(calculated, minShardSize), maxShardSize);
+    },
+    [baseShardSize, maxShardSize, minShardSize],
   );
+
   const minOrbitRadius = useMemo(
-    () => globeRadius + shardSize + buffer,
-    [globeRadius, shardSize, buffer],
+    () => globeRadius + maxShardSize + buffer,
+    [globeRadius, maxShardSize, buffer],
   );
 
   // Create shared material (will be swapped by RefractionPipeline)
   const material = useMemo(() => createFrostedGlassMaterial(), []);
 
-  // Create shards with per-vertex colors
-  const shards = useMemo(() => {
-    const result: ShardData[] = [];
-    const colorDistribution = buildColorDistribution(users);
-
-    for (let i = 0; i < count; i++) {
+  // Create a shard at a specific index
+  const createShardAtIndex = useCallback(
+    (index: number, shardSize: number, totalForDistribution: number) => {
       const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
+      applyVertexColors(geometry, DEFAULT_COLOR);
 
-      // Apply per-vertex color from distribution or random fallback
-      const mood =
-        colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
-      applyVertexColors(geometry, mood);
-
-      // Fibonacci sphere distribution
-      const phi = Math.acos(-1 + (2 * i) / count);
-      const theta = Math.sqrt(count * Math.PI) * phi;
-      const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
-
+      // Use actual total for Fibonacci distribution
+      const direction = getFibonacciSpherePoint(index, totalForDistribution);
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.userData.useRefraction = true; // Mark for RefractionPipeline
+      mesh.userData.useRefraction = true;
       mesh.position.copy(direction).multiplyScalar(baseRadius);
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
 
-      result.push({ mesh, direction, geometry });
+      // Initialize physics state
+      const goldenRatio = (1 + Math.sqrt(5)) / 2;
+      const rotSeedX = (index * 1.618 + 0.3) % 1;
+      const rotSeedY = (index * 2.236 + 0.7) % 1;
+      const scaleSeed = (index * goldenRatio + 0.5) % 1;
+      const orbitSeed = (index * Math.PI + 0.1) % 1;
+
+      const shard: ShardData = {
+        mesh,
+        direction: direction.clone(),
+        targetDirection: direction.clone(),
+        geometry,
+        currentMood: null,
+      };
+
+      const physics: ShardPhysicsState = {
+        currentRadius: baseRadius,
+        phaseOffset: ((index * goldenRatio) % 1) * MAX_PHASE_OFFSET,
+        ambientSeed: index * 137.508,
+        rotationSpeedX: 0.7 + rotSeedX * 0.6,
+        rotationSpeedY: 0.7 + rotSeedY * 0.6,
+        baseScaleOffset: 0.9 + scaleSeed * 0.2,
+        orbitAngle: 0,
+        orbitSpeed: ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION,
+        wobbleSeed: index * Math.E,
+      };
+
+      return { shard, physics };
+    },
+    [material, baseRadius],
+  );
+
+  // Ensure we have enough shards for all users (grows dynamically)
+  const ensureShardCapacity = useCallback(
+    (requiredCount: number) => {
+      const group = groupRef.current;
+      const shards = shardsRef.current;
+      const physics = physicsRef.current;
+      if (!group || requiredCount <= shards.length) return;
+
+      // Apply performance cap only at very high counts
+      const cappedCount = Math.min(requiredCount, performanceCap);
+      const shardSize = calculateShardSize(cappedCount);
+
+      for (let i = shards.length; i < cappedCount; i++) {
+        // New shards use current active count for initial distribution
+        const { shard, physics: physicsState } = createShardAtIndex(i, shardSize, cappedCount);
+        group.add(shard.mesh);
+        shard.mesh.scale.setScalar(0); // Start invisible
+        shards.push(shard);
+        physics.push(physicsState);
+      }
+    },
+    [calculateShardSize, createShardAtIndex, performanceCap],
+  );
+
+  /**
+   * Redistribute Fibonacci positions for stable slots (entering + active)
+   * Called when count changes to maintain uniform sphere coverage
+   * Exiting slots keep their position while fading out
+   */
+  const redistributePositions = useCallback((stableCount: number) => {
+    const shards = shardsRef.current;
+    if (stableCount === 0) return;
+
+    // Update target directions for stable shards (not exiting)
+    // Each stable slot gets a Fibonacci position based on its rank
+    let stableIndex = 0;
+    const slotManager = slotManagerRef.current;
+    if (!slotManager) return;
+
+    const slots = slotManager.slots;
+    for (let i = 0; i < slots.length && i < shards.length; i++) {
+      const slot = slots[i];
+      const shard = shards[i];
+
+      if (slot.state === 'entering' || slot.state === 'active') {
+        // Stable slot - assign Fibonacci position based on rank among stable slots
+        const newDirection = getFibonacciSpherePoint(stableIndex, stableCount);
+        shard.targetDirection.copy(newDirection);
+        stableIndex++;
+      } else if (slot.state === 'exiting') {
+        // Exiting slot - keep current position while fading out
+        // Don't update targetDirection so it stays in place
+      } else {
+        // Empty slots keep their current direction (won't be visible anyway)
+        shard.targetDirection.copy(shard.direction);
+      }
     }
+  }, []);
 
-    return result;
-  }, [count, users, baseRadius, shardSize, material]);
-
-  // Add meshes to group and initialize physics state
+  // Initialize - no pre-allocation, shards created dynamically based on user count
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
@@ -276,61 +418,41 @@ export function ParticleSwarm({
       group.remove(group.children[0]);
     }
 
-    // Add new shards and initialize physics state
-    const physicsStates: ShardPhysicsState[] = [];
-    for (let i = 0; i < shards.length; i++) {
-      const shard = shards[i];
-      group.add(shard.mesh);
+    // Start with empty arrays - shards created on demand
+    shardsRef.current = [];
+    physicsRef.current = [];
 
-      // Initialize physics state with staggered phase offsets
-      // Use golden ratio distribution for even visual spread
-      const goldenRatio = (1 + Math.sqrt(5)) / 2;
+    // Initial reconciliation with current users
+    const slotManager = slotManagerRef.current;
+    if (slotManager) {
+      const userCount = pendingUsersRef.current.length;
 
-      // Per-shard rotation speed variation (0.7-1.3 range)
-      // Uses different seeds for X and Y to avoid synchronized rotation
-      const rotSeedX = (i * 1.618 + 0.3) % 1; // Golden ratio offset
-      const rotSeedY = (i * 2.236 + 0.7) % 1; // sqrt(5) offset
-      const rotationSpeedX = 0.7 + rotSeedX * 0.6;
-      const rotationSpeedY = 0.7 + rotSeedY * 0.6;
+      // Create shards for initial users
+      if (userCount > 0) {
+        ensureShardCapacity(userCount);
+      }
 
-      // Base scale offset for depth (0.9-1.1 range) - subtle size variation
-      const scaleSeed = (i * goldenRatio + 0.5) % 1;
-      const baseScaleOffset = 0.9 + scaleSeed * 0.2;
+      slotManager.reconcile(pendingUsersRef.current);
 
-      // Orbital drift speed variation - all shards orbit same direction to prevent overlap
-      // Small speed variation creates gentle relative drift between neighbors
-      const orbitSeed = (i * Math.PI + 0.1) % 1;
-      const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
-
-      // Wobble seed for perpendicular motion phase offset
-      const wobbleSeed = i * Math.E; // e-based offset for unique phases
-
-      physicsStates.push({
-        currentRadius: baseRadius,
-        velocity: 0,
-        phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
-        ambientSeed: i * 137.508, // Golden angle in degrees for unique patterns
-        previousTarget: baseRadius,
-        rotationSpeedX,
-        rotationSpeedY,
-        baseScaleOffset,
-        orbitAngle: 0,
-        orbitSpeed,
-        wobbleSeed,
-      });
+      // Set initial stable count and redistribute
+      const stableCount = slotManager.stableCount;
+      prevActiveCountRef.current = stableCount;
+      if (stableCount > 0) {
+        redistributePositions(stableCount);
+        // Snap to target positions immediately on init
+        for (const shard of shardsRef.current) {
+          shard.direction.copy(shard.targetDirection);
+        }
+      }
     }
 
-    shardsRef.current = shards;
-    physicsRef.current = physicsStates;
-
-    // Cleanup on unmount
     return () => {
-      for (const shard of shards) {
+      for (const shard of shardsRef.current) {
         shard.geometry.dispose();
         group.remove(shard.mesh);
       }
     };
-  }, [shards, baseRadius]);
+  }, [ensureShardCapacity, redistributePositions]);
 
   // Cleanup material on unmount
   useEffect(() => {
@@ -339,119 +461,146 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - spring physics + ambient motion + shader updates
+  // Animation loop
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Particle physics simulation requires multiple force calculations (spring, wind, jitter, orbit) and slot lifecycle management - refactoring would reduce readability
   useFrame((state, delta) => {
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
-    if (currentShards.length === 0 || physics.length === 0) return;
+    const slotManager = slotManagerRef.current;
+    if (!slotManager || currentShards.length === 0) return;
 
-    // Cap delta to prevent physics explosion on tab switch
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
 
     // Get breathing state from ECS
     let targetRadius = baseRadius;
     let currentBreathPhase = 0;
+    let currentPhaseType = 0;
     try {
       const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
         targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
         currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
+        currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
-    // Update shader material uniforms for all shards
-    // (shared material means updating once affects all)
+    // Check if we should reconcile (during hold phase transition)
+    const isInHold = isHoldPhase(currentPhaseType);
+    const elapsedSeconds = Date.now() / 1000;
+    const cycleIndex = getBreathingCycleIndex(elapsedSeconds, BREATH_TOTAL_CYCLE);
+
+    // Reconcile only on transition INTO hold phase, once per cycle
+    if (isInHold && !wasInHoldRef.current && slotManager.shouldReconcile(cycleIndex)) {
+      // Ensure we have enough shards
+      const requiredSlots = pendingUsersRef.current.length;
+      ensureShardCapacity(requiredSlots);
+
+      // Perform reconciliation
+      slotManager.reconcile(pendingUsersRef.current);
+      slotManager.markReconciled(cycleIndex);
+
+      // Check if stable count changed - redistribute positions
+      // Use stableCount (entering + active) so remaining shards move immediately
+      // when a user leaves, rather than waiting for exit animation to complete
+      const newStableCount = slotManager.stableCount;
+      if (newStableCount !== prevActiveCountRef.current) {
+        redistributePositions(newStableCount);
+        prevActiveCountRef.current = newStableCount;
+      }
+
+      // Update shard colors based on slot moods
+      const slots = slotManager.slots;
+      for (let i = 0; i < slots.length && i < currentShards.length; i++) {
+        const slot = slots[i];
+        const shard = currentShards[i];
+
+        if (slot.mood && slot.mood !== shard.currentMood) {
+          const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
+          updateVertexColors(shard.geometry, color);
+          shard.currentMood = slot.mood;
+        }
+      }
+    }
+    wasInHoldRef.current = isInHold;
+
+    // Update slot animations
+    slotManager.updateAnimations(clampedDelta);
+
+    // Update shader uniforms
     if (material.uniforms) {
       material.uniforms.breathPhase.value = currentBreathPhase;
       material.uniforms.time.value = time;
     }
 
-    // Update each shard with spring physics + ambient motion
+    // Position lerp factor for smooth redistribution
+    const positionLerpFactor = 1 - Math.exp(-POSITION_LERP_SPEED * clampedDelta);
+
+    // Update each shard with physics and slot scale
+    const slots = slotManager.slots;
     for (let i = 0; i < currentShards.length; i++) {
       const shard = currentShards[i];
       const shardState = physics[i];
+      const slot = i < slots.length ? slots[i] : null;
 
-      // Apply phase offset for wave effect
-      // This creates subtle stagger in breathing motion
-      const offsetBreathPhase = currentBreathPhase + shardState.phaseOffset;
+      // Get slot scale (0 if no slot or empty)
+      const slotScale = slot && slot.state !== 'empty' ? slot.scale : 0;
 
-      // Calculate target radius with phase offset applied
-      // Map breath phase (0-1) to orbit radius range
-      // breathPhase 0 = exhaled (max radius), breathPhase 1 = inhaled (min radius)
-      const phaseTargetRadius =
-        targetRadius + (1 - offsetBreathPhase) * (baseRadius - targetRadius) * 0.15;
-
-      // Clamp target to prevent penetrating globe
-      const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
-
-      // Detect expansion (exhale) and apply velocity boost for immediate response
-      // This overcomes spring lag so exhale feels like an immediate "release"
-      const targetDelta = clampedTarget - shardState.previousTarget;
-      if (targetDelta > 0.001) {
-        // Expanding outward (exhale starting) - inject outward velocity
-        shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+      // Skip physics if slot is empty and scale is 0
+      if (slotScale === 0 && shard.mesh.scale.x === 0) {
+        continue;
       }
-      shardState.previousTarget = clampedTarget;
 
-      // Spring physics: F = -k(x - target) - c*v
-      const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
-      const dampingForce = -shardState.velocity * SPRING_DAMPING;
-      const totalForce = springForce + dampingForce;
+      // Lerp direction toward target (smooth position redistribution)
+      _tempLerpDir.copy(shard.targetDirection).sub(shard.direction);
+      if (_tempLerpDir.lengthSq() > 0.0001) {
+        shard.direction.addScaledVector(_tempLerpDir, positionLerpFactor);
+        shard.direction.normalize(); // Keep on unit sphere
+      }
 
-      // Integrate velocity and position
-      shardState.velocity += totalForce * clampedDelta;
-      shardState.currentRadius += shardState.velocity * clampedDelta;
+      // Physics calculations (same as before)
+      const phaseOffsetAmount = shardState.phaseOffset * (baseRadius - minOrbitRadius);
+      const targetWithOffset = targetRadius + phaseOffsetAmount;
+      const clampedTarget = Math.max(targetWithOffset, minOrbitRadius);
 
-      // Update orbital drift angle
+      const lerpFactor = 1 - Math.exp(-BREATH_LERP_SPEED * clampedDelta);
+      shardState.currentRadius += (clampedTarget - shardState.currentRadius) * lerpFactor;
+
       shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
+      _tempOrbitedDir.copy(shard.direction).applyAxisAngle(_yAxis, shardState.orbitAngle);
 
-      // Apply orbital rotation to direction vector (rotate around Y axis)
-      // This creates a slow drift around the center globe
-      const orbitedDirection = shard.direction
-        .clone()
-        .applyAxisAngle(new THREE.Vector3(0, 1, 0), shardState.orbitAngle);
-
-      // Compute perpendicular wobble (tangent to radial direction)
-      // Get two perpendicular vectors using cross products
-      const up = new THREE.Vector3(0, 1, 0);
-      const tangent1 = orbitedDirection.clone().cross(up).normalize();
-      // Handle edge case when direction is parallel to up
-      if (tangent1.lengthSq() < 0.001) {
-        tangent1.set(1, 0, 0);
+      _tempTangent1.copy(_tempOrbitedDir).cross(_yAxis).normalize();
+      if (_tempTangent1.lengthSq() < 0.001) {
+        _tempTangent1.set(1, 0, 0);
       }
-      const tangent2 = orbitedDirection.clone().cross(tangent1).normalize();
+      _tempTangent2.copy(_tempOrbitedDir).cross(_tempTangent1).normalize();
 
-      // Perpendicular wobble with unique phase per shard
       const wobblePhase = time * PERPENDICULAR_FREQUENCY * Math.PI * 2 + shardState.wobbleSeed;
       const wobble1 = Math.sin(wobblePhase) * PERPENDICULAR_AMPLITUDE;
       const wobble2 = Math.cos(wobblePhase * 0.7) * PERPENDICULAR_AMPLITUDE * 0.6;
 
-      // Ambient floating motion (secondary layer)
-      // Uses different frequencies per axis for organic feel
       const seed = shardState.ambientSeed;
-      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE;
-      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
-      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
+      _tempAmbient.set(
+        Math.sin(time * 0.4 + seed) * AMBIENT_SCALE,
+        Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE,
+        Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE,
+      );
 
-      // Compute final position: orbited direction + spring radius + tangent wobble + ambient
       shard.mesh.position
-        .copy(orbitedDirection)
+        .copy(_tempOrbitedDir)
         .multiplyScalar(shardState.currentRadius)
-        .addScaledVector(tangent1, wobble1)
-        .addScaledVector(tangent2, wobble2)
-        .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+        .addScaledVector(_tempTangent1, wobble1)
+        .addScaledVector(_tempTangent2, wobble2)
+        .add(_tempAmbient);
 
-      // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
       shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
       shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
 
-      // Subtle scale breathing - shards pulse slightly with breath (3-8% range)
-      // Combined with base scale offset for depth variation
-      const breathScale = 1.0 + currentBreathPhase * 0.05; // 0-5% breath pulse
-      const finalScale = shardState.baseScaleOffset * breathScale;
+      // Final scale: slot scale × breath scale × base offset
+      const breathScale = 1.0 + currentBreathPhase * 0.05;
+      const finalScale = slotScale * shardState.baseScaleOffset * breathScale;
       shard.mesh.scale.setScalar(finalScale);
     }
   });

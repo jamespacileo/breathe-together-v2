@@ -4,13 +4,19 @@
  * All colors, typography, spacing, and animation values should be imported from here.
  * This ensures consistency across all UI components.
  *
+ * Note: MOOD_COLORS is exported from src/lib/colors.ts (single source of truth)
+ * Re-exported here for convenience.
+ *
  * Usage:
  * ```tsx
- * import { UI_COLORS, TYPOGRAPHY, SPACING, ANIMATION } from '../styles/designTokens';
+ * import { UI_COLORS, TYPOGRAPHY, SPACING, ANIMATION, MOOD_COLORS } from '../styles/designTokens';
  *
  * <div style={{ color: UI_COLORS.text, fontFamily: TYPOGRAPHY.fontFamily.serif }}>
  * ```
  */
+
+// Re-export MOOD_COLORS from canonical source for convenience
+export { MOOD_COLORS } from '../lib/colors';
 
 /**
  * UI Color Palette - Warm, earthy tones inspired by Monument Valley
@@ -78,13 +84,10 @@ export const UI_COLORS = {
  * - presence: Simply being here (covers calm, curiosity, rest)
  * - release: Letting go
  * - connection: Here with others
+ *
+ * NOTE: MOOD_COLORS is re-exported from src/lib/colors.ts at the top of this file
+ * (single source of truth to avoid duplication)
  */
-export const MOOD_COLORS = {
-  gratitude: '#ffbe0b', // Warm Gold - appreciation, thankfulness
-  presence: '#06d6a0', // Teal/Mint - being here, calm, curiosity, rest
-  release: '#118ab2', // Deep Blue - letting go, processing
-  connection: '#ef476f', // Warm Rose - love, community, togetherness
-} as const;
 
 /**
  * Typography system

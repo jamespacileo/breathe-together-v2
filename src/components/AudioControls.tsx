@@ -5,7 +5,7 @@
  * and provides access to audio settings.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { getNatureSoundIds, useAudio } from '../audio';
 
 interface AudioControlsProps {
@@ -45,9 +45,14 @@ export function AudioControls({
 
   const natureSounds = getNatureSoundIds();
 
-  // Count loaded sounds
-  const loadedCount = Object.values(state.loadingStates).filter((s) => s.loaded).length;
-  const totalCount = Object.keys(state.loadingStates).length;
+  // Count loaded sounds - memoized to avoid recalculating on every render
+  const { loadedCount, totalCount } = useMemo(
+    () => ({
+      loadedCount: Object.values(state.loadingStates).filter((s) => s.loaded).length,
+      totalCount: Object.keys(state.loadingStates).length,
+    }),
+    [state.loadingStates],
+  );
 
   return (
     <div>

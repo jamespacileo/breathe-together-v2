@@ -66,12 +66,18 @@ export const BREATH_TOTAL_CYCLE =
 /**
  * Visual Constants - Breathing animation parameters
  *
- * Simplified (Dec 2024): Removed SPHERE_SCALE_* (sphereScale trait was never used)
- * Only orbit radius values remain (used by ParticleSwarm).
+ * IMPORTANT: PARTICLE_ORBIT_MIN must be >= minOrbitRadius in ParticleSwarm
+ * (globeRadius + shardSize + buffer ≈ 1.5 + 0.6 + 0.3 = 2.4)
+ * Otherwise, particles hit the clamp early and animation appears to stop.
+ *
+ * The full orbit range is used by the sin easing curve - if min is too low,
+ * particles will reach their physical limit before the easing completes,
+ * causing the animation to appear shorter than the phase duration.
  */
 export const VISUALS = {
-  /** Min orbit radius (inhale - particles closest to globe) */
-  PARTICLE_ORBIT_MIN: 0.75,
+  /** Min orbit radius (inhale - particles closest to globe)
+   * Must be >= globeRadius + maxShardSize + buffer to avoid early clamp */
+  PARTICLE_ORBIT_MIN: 2.5,
   /** Max orbit radius (exhale - particles farthest from globe) */
   PARTICLE_ORBIT_MAX: 6.0,
 } as const;

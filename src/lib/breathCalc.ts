@@ -1,94 +1,13 @@
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE, VISUALS } from '../constants';
 import type { BreathState } from '../types';
+import { easeExhale, easeInhale } from './easing';
 
 /**
- * Controlled breathing easing functions for organic, relaxation-focused animation
+ * Breathing state calculation using shared easing functions.
  *
- * Uses raised cosine ramps with linear plateau for natural motion:
- * - Inhale/Exhale: Soft start, steady middle, soft end
- * - Holds: Damped oscillation - subtle "alive" movement
- *
- * All functions guarantee exact positions at phase boundaries (0 and 1)
- * while providing the organic feel of controlled breathing.
+ * Easing functions are imported from src/lib/easing.ts (single source of truth)
+ * See that file for detailed documentation on the easing curves.
  */
-
-/**
- * Controlled breath curve with soft start/end and steady middle
- *
- * Creates organic controlled breathing feel with three sections:
- * 1. Soft start: Raised cosine ramp (velocity 0 → steady)
- * 2. Steady middle: Linear/constant velocity (controlled, even flow)
- * 3. Soft end: Raised cosine ramp (velocity steady → 0)
- *
- * The raised cosine provides C1-continuous transitions (smooth velocity)
- * while the linear middle creates the "steady controlled" breathing feel.
- *
- * @param t Progress 0-1
- * @param startRamp Fraction of time for start ramp (0.2-0.35)
- * @param endRamp Fraction of time for end ramp (0.2-0.35)
- */
-function controlledBreathCurve(t: number, startRamp: number, endRamp: number): number {
-  // Clamp input
-  t = Math.max(0, Math.min(1, t));
-
-  // Middle section starts after startRamp and ends before endRamp
-  const middleEnd = 1 - endRamp;
-
-  // Calculate steady velocity needed to cover remaining distance
-  // Total distance = 1, ramps each cover (ramp * velocity / 2)
-  // So: startRamp*v/2 + middleDuration*v + endRamp*v/2 = 1
-  // v * (startRamp/2 + middleDuration + endRamp/2) = 1
-  // v = 1 / (1 - startRamp/2 - endRamp/2)
-  const middleVelocity = 1 / (1 - startRamp / 2 - endRamp / 2);
-
-  // Height reached at end of start ramp
-  const startRampHeight = (middleVelocity * startRamp) / 2;
-  // Height at start of end ramp
-  const endRampStart = 1 - (middleVelocity * endRamp) / 2;
-
-  if (t <= startRamp) {
-    // Raised cosine ramp-up: smooth acceleration from 0 to middleVelocity
-    // Integral of (1 - cos(πx))/2 from 0 to x = x/2 - sin(πx)/(2π)
-    const normalized = t / startRamp;
-    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
-    return middleVelocity * startRamp * integral;
-  }
-  if (t >= middleEnd) {
-    // Raised cosine ramp-down: smooth deceleration from middleVelocity to 0
-    const normalized = (t - middleEnd) / endRamp;
-    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
-    return endRampStart + middleVelocity * endRamp * integral;
-  }
-  // Linear middle: constant velocity for steady, controlled feel
-  return startRampHeight + middleVelocity * (t - startRamp);
-}
-
-/**
- * Inhale easing: Controlled, organic breath intake
- *
- * Uses raised cosine ramps with linear plateau:
- * - Soft start (25%): Gentle acceleration, overcoming initial resistance
- * - Steady middle (50%): Constant velocity, controlled even intake
- * - Soft end (25%): Gentle deceleration, lungs filling naturally
- */
-function easeInhale(t: number): number {
-  return controlledBreathCurve(t, 0.25, 0.25);
-}
-
-/**
- * Exhale easing: Controlled, relaxing breath release
- *
- * Uses asymmetric ramps for relaxation breathing:
- * - Soft start (20%): Gentle release begins
- * - Steady middle (50%): Constant velocity, controlled even exhale
- * - Extended soft end (30%): Extra gentle landing for relaxation
- *
- * The longer end ramp creates the "letting go" feel essential for relaxation.
- */
-function easeExhale(t: number): number {
-  // Asymmetric: shorter start ramp, longer end ramp for relaxed finish
-  return controlledBreathCurve(t, 0.2, 0.3);
-}
 
 /**
  * Damped oscillation parameters for hold phases
@@ -96,13 +15,14 @@ function easeExhale(t: number): number {
  * Physics: Underdamped harmonic oscillator creates subtle "breathing"
  * even during holds - nothing in nature is perfectly still.
  *
- * amplitude: 1.2% keeps it subtle but perceptible
+ * amplitude: 0.4% very subtle micro-movement (reduced from 1.2% to avoid
+ *            appearing as a "bounce" before exhale begins)
  * damping: Reduces amplitude over the hold phase
- * frequency: ~1.5 cycles per hold for gentle rhythm
+ * frequency: ~1.0 cycles per hold for gentler rhythm (reduced from 1.5)
  */
-const HOLD_AMPLITUDE = 0.012;
-const HOLD_DAMPING = 0.5; // How much oscillation decreases over hold
-const HOLD_FREQUENCY = 1.5; // Oscillation cycles per hold phase
+const HOLD_AMPLITUDE = 0.004; // Reduced from 0.012 to avoid visible bounce
+const HOLD_DAMPING = 0.6; // Slightly increased to settle faster
+const HOLD_FREQUENCY = 1.0; // Reduced from 1.5 for gentler rhythm
 
 /**
  * Breath Phase Convention:
