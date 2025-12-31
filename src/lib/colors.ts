@@ -11,16 +11,16 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Monument Valley Palette - warm gem tones harmonized with globe aesthetic
- * Colors chosen to complement the globe's peachy-coral land and soft teal water
+ * Monument Valley Palette - vibrant gem colors for icosahedral shards
+ * These colors are processed through the gem shader for the illustrative look
  *
  * Each color maps directly to one mood category (1:1 mapping)
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  gratitude: '#e9a855', // Warm Amber - like sunlit terracotta, appreciation
-  presence: '#5ec4a8', // Soft Seafoam - matches globe's water, calm presence
-  release: '#7a9dba', // Slate Blue - dusty sky blue, letting go
-  connection: '#de7b6b', // Soft Coral - matches globe's land tones, togetherness
+  gratitude: '#ffbe0b', // Warm Gold - appreciation, thankfulness
+  presence: '#06d6a0', // Teal/Mint - being here, calm, curiosity, rest
+  release: '#118ab2', // Deep Blue - letting go, processing
+  connection: '#ef476f', // Warm Rose - love, community, togetherness
 } as const;
 
 /**
