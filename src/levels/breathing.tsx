@@ -76,9 +76,11 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {/* Progress circle overlay - renders in front of globe but behind particles */}
+            {/* Expands organically with breathing: contracts to radius on exhale, expands to expandedRadius on inhale */}
             {showGlobe && (
               <ProgressCircleOverlay
                 radius={2.0}
+                expandedRadius={3.5}
                 thickness={0.04}
                 userCount={harmony}
                 zOffset={0.5}

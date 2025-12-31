@@ -18,7 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
-import { phaseType, rawProgress } from '../entities/breath/traits';
+import { breathPhase, phaseType, rawProgress } from '../entities/breath/traits';
 
 // Phase names for display
 const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'] as const;
@@ -43,8 +43,10 @@ const PHASE_START_TIMES = PHASE_DURATIONS.reduce<number[]>((acc, _duration, inde
  * ProgressCircleOverlay component props
  */
 interface ProgressCircleOverlayProps {
-  /** Radius of the progress ring (should be slightly larger than globe) @default 2.0 */
+  /** Radius of the progress ring when exhaled (contracted) @default 2.0 */
   radius?: number;
+  /** Radius of the progress ring when inhaled (expanded) @default 3.2 */
+  expandedRadius?: number;
   /** Ring thickness @default 0.03 */
   thickness?: number;
   /** Ring color @default '#c9a06c' */
@@ -90,6 +92,7 @@ function createArcGeometry(
  */
 export function ProgressCircleOverlay({
   radius = 2.0,
+  expandedRadius = 3.2,
   thickness = 0.03,
   ringColor = 'rgba(160, 140, 120, 0.2)',
   progressColor = '#c9a06c',
@@ -100,12 +103,17 @@ export function ProgressCircleOverlay({
   renderOrder = 10,
 }: ProgressCircleOverlayProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const ringGroupRef = useRef<THREE.Group>(null);
   const progressMeshRef = useRef<THREE.Mesh>(null);
   const indicatorRef = useRef<THREE.Mesh>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
   const world = useWorld();
 
   // Phase name state (updates on phase transitions only - 4 times per 16s cycle)
   const [phaseName, setPhaseName] = useState<string>('Hold');
+
+  // Current animated radius (smoothly interpolates between radius and expandedRadius)
+  const currentRadiusRef = useRef<number>(radius);
 
   // Create progress arc geometry (will be updated each frame)
   const progressGeometryRef = useRef<THREE.BufferGeometry | null>(null);
@@ -150,20 +158,24 @@ export function ProgressCircleOverlay({
   const prevProgressRef = useRef<number>(-1);
 
   /**
-   * Update progress arc and text each frame
+   * Update progress arc, breathing scale, and text each frame
    */
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!groupRef.current || !progressMeshRef.current) return;
 
     try {
       // Get breath state from ECS
-      const breathEntity = world?.queryFirst?.(phaseType, rawProgress);
+      const breathEntity = world?.queryFirst?.(phaseType, rawProgress, breathPhase);
       if (!breathEntity) return;
 
       const currentPhaseType = breathEntity.get?.(phaseType)?.value ?? 0;
       const currentRawProgress = Math.min(
         1,
         Math.max(0, breathEntity.get?.(rawProgress)?.value ?? 0),
+      );
+      const currentBreathPhase = Math.min(
+        1,
+        Math.max(0, breathEntity.get?.(breathPhase)?.value ?? 0),
       );
 
       // Calculate overall cycle progress (0-1)
@@ -179,6 +191,23 @@ export function ProgressCircleOverlay({
         setPhaseName(newPhaseName);
       }
 
+      // ========== BREATHING RADIUS ANIMATION ==========
+      // Calculate target radius based on breath phase (0=exhaled/small, 1=inhaled/large)
+      const targetRadius = radius + (expandedRadius - radius) * currentBreathPhase;
+
+      // Smooth interpolation for organic feel (lerp with damping)
+      const lerpSpeed = 4.0; // Higher = faster response
+      currentRadiusRef.current +=
+        (targetRadius - currentRadiusRef.current) * Math.min(1, delta * lerpSpeed);
+
+      const animatedRadius = currentRadiusRef.current;
+
+      // Apply scale to ring group (ring + progress arc + indicator)
+      if (ringGroupRef.current) {
+        const scale = animatedRadius / radius;
+        ringGroupRef.current.scale.set(scale, scale, 1);
+      }
+
       // Update progress arc geometry (throttle to every 2% change)
       const progressThreshold = 0.02;
       if (Math.abs(cycleProgress - prevProgressRef.current) > progressThreshold) {
@@ -187,7 +216,7 @@ export function ProgressCircleOverlay({
         // Dispose old geometry
         progressGeometryRef.current?.dispose();
 
-        // Create new arc geometry
+        // Create new arc geometry (use base radius, scale handles size)
         // Start at top (-PI/2), progress clockwise
         const startAngle = -Math.PI / 2;
         const endAngle = startAngle + cycleProgress * Math.PI * 2;
@@ -201,7 +230,7 @@ export function ProgressCircleOverlay({
         progressMeshRef.current.geometry = newGeometry;
       }
 
-      // Update indicator dot position along the arc
+      // Update indicator dot position along the arc (use base radius, scale handles size)
       if (indicatorRef.current) {
         const angle = -Math.PI / 2 + cycleProgress * Math.PI * 2;
         indicatorRef.current.position.x = Math.cos(angle) * radius;
@@ -209,8 +238,9 @@ export function ProgressCircleOverlay({
       }
 
       // Subtle breathing pulse on the ring opacity
-      const breathPulse = 0.6 + currentRawProgress * 0.3;
-      progressMaterial.opacity = breathPulse * 0.8;
+      const breathPulse = 0.5 + currentBreathPhase * 0.4;
+      progressMaterial.opacity = breathPulse * 0.85;
+      ringMaterial.opacity = 0.1 + currentBreathPhase * 0.1;
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
     }
@@ -231,28 +261,33 @@ export function ProgressCircleOverlay({
 
   return (
     <group ref={groupRef} position={[0, 0, zOffset]} renderOrder={renderOrder}>
-      {/* Background ring (full circle track) */}
-      <Ring
-        args={[radius - thickness / 2, radius + thickness / 2, 64]}
-        rotation={[0, 0, 0]}
-        material={ringMaterial}
-        renderOrder={renderOrder}
-      />
+      {/* Ring group - scales with breathing (expands on inhale, contracts on exhale) */}
+      <group ref={ringGroupRef}>
+        {/* Background ring (full circle track) */}
+        <Ring
+          ref={ringRef}
+          args={[radius - thickness / 2, radius + thickness / 2, 64]}
+          rotation={[0, 0, 0]}
+          material={ringMaterial}
+          renderOrder={renderOrder}
+        />
 
-      {/* Progress arc */}
-      <mesh
-        ref={progressMeshRef}
-        material={progressMaterial}
-        renderOrder={renderOrder + 1}
-        geometry={progressGeometryRef.current ?? undefined}
-      />
+        {/* Progress arc */}
+        <mesh
+          ref={progressMeshRef}
+          material={progressMaterial}
+          renderOrder={renderOrder + 1}
+          geometry={progressGeometryRef.current ?? undefined}
+        />
 
-      {/* Small progress indicator dot at current position */}
-      <mesh ref={indicatorRef} position={[0, radius, 0]} renderOrder={renderOrder + 2}>
-        <circleGeometry args={[thickness * 2.5, 16]} />
-        <meshBasicMaterial color={progressColor} transparent opacity={0.95} depthWrite={false} />
-      </mesh>
+        {/* Small progress indicator dot at current position */}
+        <mesh ref={indicatorRef} position={[0, radius, 0]} renderOrder={renderOrder + 2}>
+          <circleGeometry args={[thickness * 2.5, 16]} />
+          <meshBasicMaterial color={progressColor} transparent opacity={0.95} depthWrite={false} />
+        </mesh>
+      </group>
 
+      {/* Text stays fixed size (outside ring group) */}
       {/* Phase text (centered) - displays current breathing phase */}
       <Text
         position={[0, 0.1, 0.01]}
