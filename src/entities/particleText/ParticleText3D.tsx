@@ -35,7 +35,7 @@ const BOTTOM_TEXT_Y = -2.5; // Y position for bottom text (below scene)
 // Sampling options for text-to-particle conversion
 const SAMPLE_OPTIONS = {
   fontSize: 72,
-  fontFamily: "'Crimson Pro', serif",
+  fontFamily: "'Cormorant Garamond', Georgia, serif", // Matches loaded Google Font
   fontWeight: '400',
   sampleSpacing: 2,
   maxParticles: 1500,
