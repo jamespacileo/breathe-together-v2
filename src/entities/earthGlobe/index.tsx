@@ -331,9 +331,9 @@ export function EarthGlobe({
 
     try {
       // Get breath phase for animation
-      const breathEntity = world?.queryFirst?.(breathPhase);
+      const breathEntity = world.queryFirst(breathPhase);
       if (breathEntity) {
-        const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
+        const phase = breathEntity.get(breathPhase)?.value ?? 0;
         // Update shader uniforms
         material.uniforms.breathPhase.value = phase;
         glowMaterial.uniforms.breathPhase.value = phase;

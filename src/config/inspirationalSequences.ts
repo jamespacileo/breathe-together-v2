@@ -318,17 +318,6 @@ export const AMBIENT_MESSAGES: InspirationalMessage[] = [
 // EXPORTS
 // ============================================================================
 
-/** All intro sequences */
-export const INTRO_SEQUENCES = [WELCOME_INTRO, WELCOME_BACK];
-
-/** All story sequences */
-export const STORY_SEQUENCES = [
-  CONNECTION_STORY,
-  GRATITUDE_STORY,
-  RELEASE_STORY,
-  PRESENCE_STORY,
-  EVENING_STORY,
-];
-
-/** All sequences combined */
-export const ALL_SEQUENCES: MessageSequence[] = [...INTRO_SEQUENCES, ...STORY_SEQUENCES];
+// NOTE: Individual sequences (WELCOME_BACK, CONNECTION_STORY, etc.) are exported
+// for future implementation of the story/milestone queue system.
+// Currently only WELCOME_INTRO and AMBIENT_MESSAGES are actively used.
