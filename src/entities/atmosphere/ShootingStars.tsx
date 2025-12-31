@@ -1,16 +1,16 @@
 /**
- * ShootingStars - Occasional streaking stars across the background
+ * ShootingStars - Subtle, slow-drifting stars across the background
  *
- * Creates magical moments with rare shooting stars that streak across
- * the distant background. Delightful and unexpected.
+ * Creates gentle magical moments with rare shooting stars that drift
+ * slowly across the distant background. Subtle and meditative.
  *
  * Features:
  * - Random spawn timing (configurable frequency)
- * - Fast streak motion with fading trail
+ * - Slow, graceful drift with delicate fading trail
  * - Multiple streak directions for variety
  * - Uses drei Line for efficient trail rendering
  *
- * Performance: Very lightweight - only 1-2 active at any time
+ * Performance: Very lightweight - only 1 active at a time by default
  */
 
 import { Line } from '@react-three/drei';
@@ -75,9 +75,9 @@ function ShootingStarTrail({ star }: ShootingStarTrailProps) {
   ];
 
   // Opacity based on progress (fade in at start, fade out at end)
-  const fadeIn = Math.min(star.progress * 4, 1);
-  const fadeOut = Math.max(1 - (star.progress - 0.7) * 3.33, 0);
-  const opacity = fadeIn * fadeOut * 0.8;
+  const fadeIn = Math.min(star.progress * 3, 1);
+  const fadeOut = Math.max(1 - (star.progress - 0.6) * 2.5, 0);
+  const opacity = fadeIn * fadeOut * 0.35; // Much more subtle
 
   if (opacity <= 0.01) return null;
 
@@ -85,12 +85,12 @@ function ShootingStarTrail({ star }: ShootingStarTrailProps) {
     <Line
       points={points}
       color={star.color}
-      lineWidth={1.5}
+      lineWidth={1}
       transparent
       opacity={opacity}
       // Gradient from tail (dim) to head (bright)
       vertexColors={[
-        new THREE.Color(star.color).multiplyScalar(0.2).toArray() as [number, number, number],
+        new THREE.Color(star.color).multiplyScalar(0.15).toArray() as [number, number, number],
         new THREE.Color(star.color).toArray() as [number, number, number],
       ]}
     />
@@ -100,15 +100,15 @@ function ShootingStarTrail({ star }: ShootingStarTrailProps) {
 export interface ShootingStarsProps {
   /**
    * Average interval between shooting stars (seconds)
-   * @default 8
-   * @min 3
-   * @max 30
+   * @default 15
+   * @min 5
+   * @max 60
    */
   interval?: number;
 
   /**
    * Randomness factor for interval (0 = exact, 1 = fully random)
-   * @default 0.5
+   * @default 0.6
    * @min 0
    * @max 1
    */
@@ -116,9 +116,9 @@ export interface ShootingStarsProps {
 
   /**
    * Maximum number of concurrent shooting stars
-   * @default 2
+   * @default 1
    * @min 1
-   * @max 4
+   * @max 3
    */
   maxConcurrent?: number;
 
@@ -133,9 +133,9 @@ export interface ShootingStarsProps {
  * ShootingStars - Manages spawning and rendering of shooting stars
  */
 export function ShootingStars({
-  interval = 8,
-  intervalVariance = 0.5,
-  maxConcurrent = 2,
+  interval = 15,
+  intervalVariance = 0.6,
+  maxConcurrent = 1,
   enabled = true,
 }: ShootingStarsProps) {
   const [stars, setStars] = useState<ShootingStar[]>([]);
@@ -161,10 +161,10 @@ export function ShootingStars({
       id: idCounter,
       start: new THREE.Vector3(...preset.start).add(startOffset),
       direction: new THREE.Vector3(...preset.dir).normalize(),
-      speed: 0.8 + Math.random() * 0.4, // 0.8-1.2 progress per second
-      trailLength: 3 + Math.random() * 4, // 3-7 units
+      speed: 0.25 + Math.random() * 0.15, // 0.25-0.4 progress per second (much slower)
+      trailLength: 2 + Math.random() * 2, // 2-4 units (shorter, more delicate)
       progress: 0,
-      lifetime: 1.2 + Math.random() * 0.4, // 1.2-1.6 seconds
+      lifetime: 4 + Math.random() * 2, // 4-6 seconds (leisurely drift)
       color,
     };
 

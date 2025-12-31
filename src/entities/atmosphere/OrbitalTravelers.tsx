@@ -1,14 +1,19 @@
 /**
  * OrbitalTravelers - Small glowing particles with trails orbiting the globe
  *
- * Creates ethereal "satellites" or "planes" that circle the Earth with
- * soft trailing ribbons. Evokes a sense of global connection and movement.
+ * Creates ethereal "satellites" that circle the Earth with soft trailing
+ * ribbons in a harmonious orbital pattern.
+ *
+ * Pattern Design:
+ * - Inner Ring (3): Same orbit plane, 120° apart - creates stable "necklace"
+ * - Cross Ring (2): Perpendicular orbit, opposite phases - elegant crossing
+ * - Outer Ring (3): Golden-angle tilted orbits - organic variety
  *
  * Features:
- * - 3-5 small glowing spheres orbiting at different altitudes/angles
+ * - 8 glowing spheres in harmonious orbital arrangement
  * - drei Trail component for smooth ribbon trails
  * - Breathing-synchronized trail intensity
- * - Varied orbital speeds and tilts for organic feel
+ * - Harmonic speed ratios for satisfying visual rhythm
  *
  * Performance: Very lightweight - just a few meshes with trail geometry
  */
@@ -20,7 +25,12 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { breathPhase } from '../breath/traits';
 
+// Golden angle in radians (137.508°) - creates naturally pleasing spacing
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
 interface TravelerConfig {
+  /** Unique identifier */
+  id: string;
   /** Orbit radius from center */
   radius: number;
   /** Orbit speed (radians per second) */
@@ -37,43 +47,95 @@ interface TravelerConfig {
   size: number;
 }
 
-// Configuration for each orbital traveler - like satellites at different orbits
+// Orbital configuration for satisfying visual pattern
+// Organized in three groups for visual harmony
 const TRAVELERS: TravelerConfig[] = [
+  // === INNER RING: "Necklace" - 3 travelers, same plane, 120° apart ===
+  // Creates a stable, synchronized ring like pearls on a string
   {
-    radius: 3.2,
-    speed: 0.15,
-    tiltX: 0.3,
+    id: 'inner-1',
+    radius: 2.8,
+    speed: 0.12, // All same speed for synchronized motion
+    tiltX: 0.25, // Slight tilt for visual interest
     tiltZ: 0.1,
     startAngle: 0,
     color: '#f8d0a8', // Warm peach
-    size: 0.06,
-  },
-  {
-    radius: 3.8,
-    speed: -0.12,
-    tiltX: -0.2,
-    tiltZ: 0.4,
-    startAngle: Math.PI * 0.7,
-    color: '#b8e8d4', // Soft teal
     size: 0.05,
   },
   {
-    radius: 4.2,
-    speed: 0.08,
-    tiltX: 0.5,
-    tiltZ: -0.15,
-    startAngle: Math.PI * 1.3,
-    color: '#c4b8e8', // Pale lavender
+    id: 'inner-2',
+    radius: 2.8,
+    speed: 0.12,
+    tiltX: 0.25,
+    tiltZ: 0.1,
+    startAngle: (Math.PI * 2) / 3, // 120°
+    color: '#f8d0a8',
+    size: 0.05,
+  },
+  {
+    id: 'inner-3',
+    radius: 2.8,
+    speed: 0.12,
+    tiltX: 0.25,
+    tiltZ: 0.1,
+    startAngle: (Math.PI * 4) / 3, // 240°
+    color: '#f8d0a8',
+    size: 0.05,
+  },
+
+  // === CROSS RING: 2 travelers, perpendicular orbit, creates elegant X ===
+  {
+    id: 'cross-1',
+    radius: 3.5,
+    speed: -0.08, // Counter-rotation for visual interest
+    tiltX: Math.PI / 2 - 0.2, // Nearly perpendicular to inner ring
+    tiltZ: 0.15,
+    startAngle: 0,
+    color: '#b8e8d4', // Soft teal
     size: 0.045,
   },
   {
-    radius: 2.8,
-    speed: -0.18,
-    tiltX: -0.4,
-    tiltZ: 0.25,
-    startAngle: Math.PI * 0.4,
+    id: 'cross-2',
+    radius: 3.5,
+    speed: -0.08,
+    tiltX: Math.PI / 2 - 0.2,
+    tiltZ: 0.15,
+    startAngle: Math.PI, // Opposite side
+    color: '#b8e8d4',
+    size: 0.045,
+  },
+
+  // === OUTER RING: 3 travelers, golden-angle tilts, varied speeds ===
+  // Creates organic, nature-inspired variety
+  {
+    id: 'outer-1',
+    radius: 4.2,
+    speed: 0.06,
+    tiltX: GOLDEN_ANGLE * 0.3,
+    tiltZ: GOLDEN_ANGLE * 0.2,
+    startAngle: 0,
+    color: '#c4b8e8', // Pale lavender
+    size: 0.04,
+  },
+  {
+    id: 'outer-2',
+    radius: 4.4,
+    speed: -0.05, // Slight speed variation
+    tiltX: GOLDEN_ANGLE * 0.6,
+    tiltZ: -GOLDEN_ANGLE * 0.3,
+    startAngle: GOLDEN_ANGLE,
     color: '#e8c4b8', // Rose gold
-    size: 0.055,
+    size: 0.04,
+  },
+  {
+    id: 'outer-3',
+    radius: 4.0,
+    speed: 0.07,
+    tiltX: -GOLDEN_ANGLE * 0.4,
+    tiltZ: GOLDEN_ANGLE * 0.5,
+    startAngle: GOLDEN_ANGLE * 2,
+    color: '#d4e8c4', // Soft sage
+    size: 0.04,
   },
 ];
 
@@ -134,10 +196,13 @@ function OrbitalTraveler({ config, breathValue }: OrbitalTravelerProps) {
 
 export interface OrbitalTravelersProps {
   /**
-   * Number of travelers to show (1-4)
-   * @default 4
+   * Number of travelers to show (1-8)
+   * - 3: Inner ring only (synchronized necklace)
+   * - 5: Inner + cross rings
+   * - 8: All rings (full pattern)
+   * @default 8
    * @min 1
-   * @max 4
+   * @max 8
    */
   count?: number;
 
@@ -149,9 +214,9 @@ export interface OrbitalTravelersProps {
 }
 
 /**
- * OrbitalTravelers - Renders multiple satellites orbiting the globe with trails
+ * OrbitalTravelers - Renders satellites orbiting the globe in harmonious pattern
  */
-export function OrbitalTravelers({ count = 4, enabled = true }: OrbitalTravelersProps) {
+export function OrbitalTravelers({ count = 8, enabled = true }: OrbitalTravelersProps) {
   const world = useWorld();
   const breathValueRef = useRef(0);
 
@@ -174,12 +239,8 @@ export function OrbitalTravelers({ count = 4, enabled = true }: OrbitalTravelers
 
   return (
     <group name="Orbital Travelers">
-      {visibleTravelers.map((config, i) => (
-        <OrbitalTraveler
-          key={`traveler-${config.color}-${i}`}
-          config={config}
-          breathValue={breathValueRef.current}
-        />
+      {visibleTravelers.map((config) => (
+        <OrbitalTraveler key={config.id} config={config} breathValue={breathValueRef.current} />
       ))}
     </group>
   );

@@ -113,8 +113,8 @@ export function BreathingLevel({
             {/* Atmospheric additions for life and movement */}
             {showParticles && (
               <>
-                {/* Satellites orbiting the globe with trails */}
-                <OrbitalTravelers count={4} />
+                {/* Satellites orbiting the globe with trails - harmonious 3-ring pattern */}
+                <OrbitalTravelers />
 
                 {/* Lazy drifting dust motes */}
                 <WanderingMotes count={15} radius={7} opacity={0.5} />
@@ -123,7 +123,7 @@ export function BreathingLevel({
           </PresentationControls>
 
           {/* Shooting stars in the background (outside rotation controls) */}
-          {showEnvironment && <ShootingStars interval={10} />}
+          {showEnvironment && <ShootingStars />}
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
