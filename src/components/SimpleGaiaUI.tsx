@@ -43,6 +43,8 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  /** Called when onboarding sequence completes (user ready to breathe) */
+  onOnboardingComplete?: (mood: MoodId) => void;
 }
 
 /**
@@ -81,6 +83,7 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  onOnboardingComplete,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -396,7 +399,11 @@ export function SimpleGaiaUI({
   const handleOnboardingComplete = useCallback(() => {
     setIsOnboardingActive(false);
     setOnboardingTriggered(false);
-  }, []);
+    // Notify parent that user is ready to breathe
+    if (selectedMood) {
+      onOnboardingComplete?.(selectedMood);
+    }
+  }, [selectedMood, onOnboardingComplete]);
 
   const handleBeginClick = useCallback(() => {
     startTransition(() => {
