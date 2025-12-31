@@ -1,13 +1,16 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { UserSlotDemoControls } from '../components/ParticleSwarmWithSlots';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
+import type { MoodId } from '../constants';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { useMoodSlots } from '../hooks/useMoodSlots';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -26,6 +29,10 @@ const TUNING_DEFAULTS = {
 /**
  * BreathingLevel - Core meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * **User Ordering (Dec 2024):**
+ * Now uses slot-based user ordering for smooth enter/exit animations.
+ * Press 'D' to toggle demo controls for testing user join/leave.
  */
 export function BreathingLevel({
   particleDensity,
@@ -52,7 +59,46 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Demo controls state
+  const [showDemoControls, setShowDemoControls] = useState(false);
+
+  // Slot-based user ordering system
+  const { slotStates, addUser, removeUser, syncFromMoodCounts, tickAnimations, slots } =
+    useMoodSlots({ slotCount: harmony, animationDuration: 0.6 });
+
+  // Generate initial moods and sync to slots
   const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
+
+  // Sync moods to slots when they change
+  useEffect(() => {
+    syncFromMoodCounts(moods);
+  }, [moods, syncFromMoodCounts]);
+
+  // Keyboard shortcut: Press 'D' to toggle demo controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'd' || e.key === 'D') {
+        setShowDemoControls((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Callbacks for demo controls
+  const handleAddUser = useCallback(
+    (mood: MoodId) => {
+      addUser(mood);
+    },
+    [addUser],
+  );
+
+  const handleRemoveUser = useCallback(
+    (slotIndex: number) => {
+      removeUser(slotIndex);
+    },
+    [removeUser],
+  );
 
   return (
     <ErrorBoundary>
@@ -77,7 +123,8 @@ export function BreathingLevel({
             {showParticles && (
               <ParticleSwarm
                 count={harmony}
-                users={moods}
+                slotStates={slotStates}
+                onTickAnimations={tickAnimations}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
               />
@@ -121,6 +168,26 @@ export function BreathingLevel({
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
           />
+
+          {/* User Ordering Demo Controls - Press 'D' to toggle */}
+          {showDemoControls && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '16px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000,
+              }}
+            >
+              <UserSlotDemoControls
+                onAddUser={handleAddUser}
+                onRemoveUser={handleRemoveUser}
+                slots={slots}
+                slotCount={harmony}
+              />
+            </div>
+          )}
         </Html>
       </Suspense>
     </ErrorBoundary>

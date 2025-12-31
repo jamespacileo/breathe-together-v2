@@ -4,6 +4,10 @@
  * Uses separate Mesh objects (not InstancedMesh) to match reference exactly.
  * Each mesh has per-vertex color attribute for mood coloring.
  * Rendered via RefractionPipeline 3-pass FBO system.
+ *
+ * **User Ordering (Dec 2024):**
+ * Supports slot-based user ordering via `slotStates` prop for smooth
+ * enter/exit animations. Falls back to legacy `users` prop if not provided.
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -11,6 +15,7 @@ import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
+import type { SlotState } from '../../hooks/useMoodSlots';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -68,6 +73,24 @@ function buildColorDistribution(users: Partial<Record<MoodId, number>> | undefin
 }
 
 /**
+ * Build color array from slot states (slot-based ordering)
+ *
+ * Each slot index maps directly to a shard. Returns color or null for empty slots.
+ * Maintains stable shard→color mapping regardless of user count changes.
+ *
+ * @param slotStates - Slot states from useMoodSlots hook
+ * @returns Array of colors (null for empty slots)
+ */
+function buildColorFromSlots(slotStates: SlotState[]): (THREE.Color | null)[] {
+  return slotStates.map((slot) => {
+    // Use mood or previousMood (for exit animation)
+    const moodId = slot.mood ?? slot.previousMood;
+    if (!moodId) return null;
+    return MOOD_TO_COLOR[moodId] ?? null;
+  });
+}
+
+/**
  * Apply per-vertex color to icosahedron geometry
  *
  * Sets vertex colors for all vertices in the geometry to the specified color.
@@ -96,8 +119,22 @@ function applyVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Col
 export interface ParticleSwarmProps {
   /** Number of shards (default 48 matches reference) */
   count?: number;
-  /** Users by mood for color distribution */
+  /**
+   * Users by mood for color distribution (legacy mode)
+   * @deprecated Use slotStates for smooth enter/exit animations
+   */
   users?: Partial<Record<MoodId, number>>;
+  /**
+   * Slot-based user states with animation info (preferred)
+   * Each slot maps 1:1 to a shard with smooth enter/exit transitions.
+   * When provided, takes precedence over `users` prop.
+   */
+  slotStates?: SlotState[];
+  /**
+   * Callback to tick slot animations each frame.
+   * Required when using slotStates for animation timing.
+   */
+  onTickAnimations?: (elapsedTime: number) => void;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
   /** Base size for shards @default 4.0 */
@@ -214,6 +251,8 @@ const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 export function ParticleSwarm({
   count = 48,
   users,
+  slotStates,
+  onTickAnimations,
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
@@ -224,6 +263,17 @@ export function ParticleSwarm({
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+
+  // Track slot states for enter/exit animations
+  const slotAnimationsRef = useRef<{
+    visible: boolean[];
+    scale: number[];
+    opacity: number[];
+  }>({
+    visible: new Array(count).fill(true),
+    scale: new Array(count).fill(1),
+    opacity: new Array(count).fill(1),
+  });
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -238,18 +288,18 @@ export function ParticleSwarm({
   // Create shared material (will be swapped by RefractionPipeline)
   const material = useMemo(() => createFrostedGlassMaterial(), []);
 
-  // Create shards with per-vertex colors
+  // Default color for empty slots (subtle, semi-transparent)
+  const emptySlotColor = useMemo(() => new THREE.Color('#888888'), []);
+
+  // Create shards (geometry only - colors updated dynamically)
   const shards = useMemo(() => {
     const result: ShardData[] = [];
-    const colorDistribution = buildColorDistribution(users);
 
     for (let i = 0; i < count; i++) {
       const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
 
-      // Apply per-vertex color from distribution or random fallback
-      const mood =
-        colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
-      applyVertexColors(geometry, mood);
+      // Apply initial neutral color (will be updated dynamically)
+      applyVertexColors(geometry, emptySlotColor);
 
       // Fibonacci sphere distribution
       const phi = Math.acos(-1 + (2 * i) / count);
@@ -261,12 +311,70 @@ export function ParticleSwarm({
       mesh.position.copy(direction).multiplyScalar(baseRadius);
       mesh.lookAt(0, 0, 0);
       mesh.frustumCulled = false;
+      mesh.visible = false; // Start hidden, show when slot is occupied
 
       result.push({ mesh, direction, geometry });
     }
 
     return result;
-  }, [count, users, baseRadius, shardSize, material]);
+  }, [count, baseRadius, shardSize, material, emptySlotColor]);
+
+  // Update shard colors and visibility when slotStates or users change
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex slot state management with enter/exit animations requires multiple conditional branches for slot-based vs legacy mode and animation states
+  useEffect(() => {
+    const currentShards = shardsRef.current;
+    if (currentShards.length === 0) return;
+
+    if (slotStates) {
+      // Slot-based mode: each slot maps to a shard
+      const slotColors = buildColorFromSlots(slotStates);
+      for (let i = 0; i < currentShards.length; i++) {
+        const shard = currentShards[i];
+        const slotState = slotStates[i];
+        const color = slotColors[i];
+
+        // Update color
+        if (color) {
+          applyVertexColors(shard.geometry, color);
+        }
+
+        // Update visibility based on slot state
+        const isOccupied = slotState?.mood !== null || slotState?.previousMood !== null;
+        shard.mesh.visible = isOccupied;
+
+        // Initialize slot animation state
+        const slotAnims = slotAnimationsRef.current;
+        slotAnims.visible[i] = isOccupied;
+
+        // Set initial scale/opacity based on animation state
+        if (slotState) {
+          if (slotState.animationState === 'entering') {
+            slotAnims.scale[i] = slotState.animationProgress;
+            slotAnims.opacity[i] = slotState.animationProgress;
+          } else if (slotState.animationState === 'exiting') {
+            slotAnims.scale[i] = slotState.animationProgress;
+            slotAnims.opacity[i] = slotState.animationProgress;
+          } else {
+            slotAnims.scale[i] = 1;
+            slotAnims.opacity[i] = 1;
+          }
+        }
+      }
+    } else if (users) {
+      // Legacy mode: color distribution from mood counts
+      const colorDistribution = buildColorDistribution(users);
+      for (let i = 0; i < currentShards.length; i++) {
+        const shard = currentShards[i];
+        const color =
+          colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
+        applyVertexColors(shard.geometry, color);
+        shard.mesh.visible = i < colorDistribution.length;
+        slotAnimationsRef.current.visible[i] = shard.mesh.visible;
+        slotAnimationsRef.current.scale[i] = 1;
+        slotAnimationsRef.current.opacity[i] = 1;
+      }
+    }
+  }, [slotStates, users]);
 
   // Add meshes to group and initialize physics state
   useEffect(() => {
@@ -301,11 +409,11 @@ export function ParticleSwarm({
 
       // Orbital drift speed variation - all shards orbit same direction to prevent overlap
       // Small speed variation creates gentle relative drift between neighbors
-      const orbitSeed = (i * 3.14159 + 0.1) % 1;
+      const orbitSeed = (i * Math.PI + 0.1) % 1;
       const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
 
       // Wobble seed for perpendicular motion phase offset
-      const wobbleSeed = i * 2.71828; // e-based offset for unique phases
+      const wobbleSeed = i * Math.E; // e-based offset for unique phases
 
       physicsStates.push({
         currentRadius: baseRadius,
@@ -341,15 +449,50 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - spring physics + ambient motion + shader updates
+  // Animation loop - spring physics + ambient motion + shader updates + slot animations
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex physics simulation with spring forces, orbital drift, wobble, ambient motion, and slot animations requires many conditional branches - refactoring would reduce readability
   useFrame((state, delta) => {
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
+    const slotAnims = slotAnimationsRef.current;
     if (currentShards.length === 0 || physics.length === 0) return;
 
     // Cap delta to prevent physics explosion on tab switch
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
+
+    // Tick slot animations if callback provided
+    onTickAnimations?.(time);
+
+    // Update slot animation states from slotStates prop
+    if (slotStates) {
+      for (let i = 0; i < Math.min(slotStates.length, currentShards.length); i++) {
+        const slotState = slotStates[i];
+        const isOccupied = slotState.mood !== null || slotState.previousMood !== null;
+
+        slotAnims.visible[i] = isOccupied;
+
+        // Smooth easing for enter/exit animations (easeOutQuad)
+        const easeOut = (t: number) => t * (2 - t);
+
+        if (slotState.animationState === 'entering') {
+          // Scale up from 0 to 1
+          slotAnims.scale[i] = easeOut(slotState.animationProgress);
+          slotAnims.opacity[i] = easeOut(slotState.animationProgress);
+        } else if (slotState.animationState === 'exiting') {
+          // Scale down from 1 to 0
+          slotAnims.scale[i] = easeOut(slotState.animationProgress);
+          slotAnims.opacity[i] = easeOut(slotState.animationProgress);
+        } else {
+          // Idle - full scale/opacity
+          slotAnims.scale[i] = 1;
+          slotAnims.opacity[i] = 1;
+        }
+
+        // Update mesh visibility
+        currentShards[i].mesh.visible = isOccupied && slotAnims.scale[i] > 0.01;
+      }
+    }
 
     // Get breathing state from ECS
     let targetRadius = baseRadius;
@@ -375,6 +518,11 @@ export function ParticleSwarm({
     for (let i = 0; i < currentShards.length; i++) {
       const shard = currentShards[i];
       const shardState = physics[i];
+
+      // Skip physics for invisible shards (optimization)
+      if (!slotAnims.visible[i] && slotAnims.scale[i] < 0.01) {
+        continue;
+      }
 
       // Apply phase offset for wave effect
       // This creates subtle stagger in breathing motion
@@ -453,7 +601,9 @@ export function ParticleSwarm({
       // Subtle scale breathing - shards pulse slightly with breath (3-8% range)
       // Combined with base scale offset for depth variation
       const breathScale = 1.0 + currentBreathPhase * 0.05; // 0-5% breath pulse
-      const finalScale = shardState.baseScaleOffset * breathScale;
+      // Apply slot animation scale on top of breathing scale
+      const slotScale = slotAnims.scale[i] ?? 1;
+      const finalScale = shardState.baseScaleOffset * breathScale * slotScale;
       shard.mesh.scale.setScalar(finalScale);
     }
   });
