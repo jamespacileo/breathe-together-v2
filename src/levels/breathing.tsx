@@ -6,6 +6,7 @@ import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
+import { BreathingFlowParticles } from '../entities/particle/BreathingFlowParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { generateMockPresence } from '../lib/mockPresence';
@@ -21,6 +22,9 @@ const TUNING_DEFAULTS = {
   orbitRadius: 4.5, // Base orbit radius
   shardSize: 0.5, // Max shard size
   atmosphereDensity: 100, // Atmospheric particle count
+  // Breathing flow particles (radial motion effect)
+  flowParticleCount: 150, // Radial flow particles for motion feel
+  flowSpeed: 0.6, // Flow velocity multiplier
   // Depth of Field settings
   enableDepthOfField: true,
   focusDistance: 15, // Focus on center (camera distance)
@@ -131,6 +135,19 @@ export function BreathingLevel({
                 size={0.08}
                 baseOpacity={0.1}
                 breathingOpacity={0.15}
+              />
+            )}
+
+            {/* Breathing Flow Particles - radial motion effect for fluid feel */}
+            {showParticles && (
+              <BreathingFlowParticles
+                count={TUNING_DEFAULTS.flowParticleCount}
+                flowSpeed={TUNING_DEFAULTS.flowSpeed}
+                innerRadius={2.0}
+                outerRadius={10.0}
+                particleSize={0.03}
+                opacity={0.12}
+                color="#e8e4df"
               />
             )}
           </PresentationControls>
