@@ -1,6 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { PhaseOverlay3D } from '../components/PhaseOverlay3D';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -91,6 +92,9 @@ export function BreathingLevel({
                 breathingOpacity={0.15}
               />
             )}
+
+            {/* 3D Phase overlay - billboarded text around globe */}
+            <PhaseOverlay3D globeRadius={1.5} />
           </PresentationControls>
         </RefractionPipeline>
 
@@ -102,7 +106,7 @@ export function BreathingLevel({
             onOpenSettings={() => setShowSettings(true)}
           />
 
-          {/* Main UI with breathing phase, inspirational text, and modals */}
+          {/* Main UI with inspirational text and modals */}
           <SimpleGaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
