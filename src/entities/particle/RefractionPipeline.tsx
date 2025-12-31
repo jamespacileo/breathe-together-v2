@@ -82,54 +82,55 @@ void main() {
   vec4 tex = texture2D(envMap, refractUv);
 
   // === BREATHING CUE 1: COLOR TEMPERATURE SHIFT ===
-  // Warm on inhale/hold-in, cool on exhale/hold-out
-  vec3 warmShift = vec3(0.06, 0.03, -0.03);  // Add warmth (red/yellow)
-  vec3 coolShift = vec3(-0.03, 0.02, 0.06);  // Add coolness (blue)
+  // DRAMATIC VERSION for visibility testing
+  // Warm (orange) on inhale/hold-in, cool (blue) on exhale/hold-out
+  vec3 warmShift = vec3(0.25, 0.1, -0.15);   // Strong orange/warm tint
+  vec3 coolShift = vec3(-0.15, 0.05, 0.3);   // Strong blue/cool tint
 
   vec3 temperatureShift = vec3(0.0);
   if (phaseType < 0.5) {
-    // Inhale: gradually warm up
+    // Inhale: gradually warm up (0 → orange)
     temperatureShift = warmShift * rawProgress;
   } else if (phaseType < 1.5) {
-    // Hold-in: stay warm (peak warmth)
+    // Hold-in: stay warm (peak orange)
     temperatureShift = warmShift;
   } else if (phaseType < 2.5) {
-    // Exhale: transition warm to cool
+    // Exhale: transition warm to cool (orange → blue)
     temperatureShift = mix(warmShift * 0.5, coolShift, rawProgress);
   } else {
-    // Hold-out: stay cool
+    // Hold-out: stay cool (blue)
     temperatureShift = coolShift * 0.8;
   }
 
   // === BREATHING CUE 2: TRANSITION PULSE ===
-  // Brief brightness flash at phase start (first 15% of each phase)
+  // DRAMATIC VERSION - bright flash at phase start (first 20% of each phase)
   float transitionPulse = 0.0;
-  if (rawProgress < 0.15) {
-    float pulseT = rawProgress / 0.15;
-    transitionPulse = sin(pulseT * 3.14159) * 0.2; // 20% brightness boost
+  if (rawProgress < 0.2) {
+    float pulseT = rawProgress / 0.2;
+    transitionPulse = sin(pulseT * 3.14159) * 0.5; // 50% brightness boost
   }
 
   // === BREATHING CUE 3: PHASE-AWARE FRESNEL ===
-  // Edge glow intensity varies by phase
+  // DRAMATIC VERSION - very different edge glow per phase
   float fresnelPower = 3.0;
   float fresnelIntensity = 0.4;
 
   if (phaseType < 0.5) {
-    // Inhale: sharper, moderate glow
-    fresnelPower = 3.5;
-    fresnelIntensity = 0.35;
-  } else if (phaseType < 1.5) {
-    // Hold-in: soft edges, brightest glow (peak presence)
-    fresnelPower = 2.5;
-    fresnelIntensity = 0.55;
-  } else if (phaseType < 2.5) {
-    // Exhale: soft, ethereal glow
-    fresnelPower = 2.8;
-    fresnelIntensity = 0.45;
-  } else {
-    // Hold-out: minimal glow (calm)
+    // Inhale: sharp edges, moderate glow
     fresnelPower = 4.0;
-    fresnelIntensity = 0.25;
+    fresnelIntensity = 0.3;
+  } else if (phaseType < 1.5) {
+    // Hold-in: VERY soft edges, BRIGHT glow (peak presence)
+    fresnelPower = 1.5;
+    fresnelIntensity = 0.8;
+  } else if (phaseType < 2.5) {
+    // Exhale: medium soft, ethereal glow
+    fresnelPower = 2.5;
+    fresnelIntensity = 0.5;
+  } else {
+    // Hold-out: very sharp, minimal glow (calm)
+    fresnelPower = 5.0;
+    fresnelIntensity = 0.15;
   }
 
   // 1. FROSTED TINT: mood color tints refraction (50% mix)
@@ -139,8 +140,9 @@ void main() {
   vec3 bodyColor = mix(tintedRefraction, vColor, 0.25) + temperatureShift;
 
   // === BREATHING CUE 4: LUMINOSITY PULSE ===
-  // Brightness varies with breath phase
-  float breathLuminosity = 1.0 + breathPhase * 0.15 + transitionPulse;
+  // DRAMATIC VERSION - very visible brightness change
+  // breathPhase: 0 = exhaled (dim), 1 = inhaled (bright)
+  float breathLuminosity = 0.7 + breathPhase * 0.6 + transitionPulse;
   bodyColor *= breathLuminosity;
 
   // 3. FRESNEL RIM: phase-aware edge highlight
@@ -154,6 +156,19 @@ void main() {
   float topLightBoost = phaseType < 1.5 && phaseType > 0.5 ? 1.3 : 1.0;
   float topLight = smoothstep(0.0, 1.0, normal.y) * 0.1 * topLightBoost;
   finalColor += vec3(1.0) * topLight;
+
+  // DEBUG MODE: Shows distinct colors per phase to verify uniforms are updating
+  // RED=inhale, GREEN=hold-in, BLUE=exhale, YELLOW=hold-out
+  #define DEBUG_PHASE_COLORS 1
+  #if DEBUG_PHASE_COLORS
+    vec3 phaseDebugColor;
+    if (phaseType < 0.5) phaseDebugColor = vec3(1.0, 0.4, 0.4);      // RED = inhale
+    else if (phaseType < 1.5) phaseDebugColor = vec3(0.4, 1.0, 0.4); // GREEN = hold-in
+    else if (phaseType < 2.5) phaseDebugColor = vec3(0.4, 0.4, 1.0); // BLUE = exhale
+    else phaseDebugColor = vec3(1.0, 1.0, 0.4);                      // YELLOW = hold-out
+    // Mix 50% debug color with final color to see both
+    finalColor = mix(finalColor, phaseDebugColor, 0.5);
+  #endif
 
   gl_FragColor = vec4(finalColor, 1.0);
 }
