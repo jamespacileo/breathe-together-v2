@@ -76,15 +76,15 @@ void main() {
   // Uses sine curve (0→π) for gentle rise and fall over 35% of phase
   float pulse = 0.0;
   if (rawProgress < 0.35) {
-    pulse = sin(rawProgress / 0.35 * 3.14159) * 0.06;
+    pulse = sin(rawProgress / 0.35 * 3.14159) * 0.15;
   }
 
   // Base color: frosted glass with mood tint
   vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor, 0.5);
   vec3 bodyColor = mix(tintedRefraction, vColor, 0.25);
 
-  // Apply pulse (adds white/brightness)
-  bodyColor += vec3(pulse);
+  // Apply pulse (adds white/brightness to create pulsing glow)
+  bodyColor = mix(bodyColor, vec3(1.0), pulse);
 
   // Fresnel rim glow (white edge highlight)
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
