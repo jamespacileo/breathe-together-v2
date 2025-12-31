@@ -31,6 +31,11 @@ const TUNING_DEFAULTS = {
 /**
  * BreathingLevel - Core meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * Now uses slot-based user ordering for visual stability:
+ * - Users are assigned to stable slot positions in arrival order
+ * - Smooth scale animations when users join (0→1) or leave (1→0)
+ * - Updates only during hold phases to minimize visual disruption
  */
 export function BreathingLevel({
   particleDensity,
@@ -62,7 +67,8 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
+  // Generate mock users with unique IDs for slot-based ordering
+  const users = useMemo(() => generateMockPresence(harmony).users, [harmony]);
 
   return (
     <ErrorBoundary>
@@ -92,12 +98,7 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm
-                count={harmony}
-                users={moods}
-                baseRadius={orbitRadius}
-                maxShardSize={shardSize}
-              />
+              <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
             )}
 
             {showParticles && (
