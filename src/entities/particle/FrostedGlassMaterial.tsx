@@ -66,41 +66,46 @@ void main() {
   float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
   colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
 
-  // ANTICIPATION EFFECT: Edge glint (Sekiro-style "ready" indicator)
-  // Prominent glint that gamers will recognize as "something is about to happen"
-  if (anticipation > 0.0) {
-    // PRIMARY GLINT: Sweeping highlight across shard edges
-    float sweepAngle = time * 4.0; // Faster sweep for more energy
-    vec3 lightDir = vec3(cos(sweepAngle), 0.4, sin(sweepAngle));
-    float edgeDot = max(dot(vNormal, lightDir), 0.0);
+  // ANTICIPATION EFFECT: Smooth organic glint with wind-like motion
+  // Gentle, flowing light that builds naturally before transitions
 
-    // Sharp glint with higher intensity - the "Sekiro parry flash" feel
-    float glint = pow(edgeDot, 6.0) * anticipation * 1.8;
+  // WIND EFFECT: Soft directional light that "breathes" with the cycle
+  // Creates feeling of gentle wind/energy flowing through the shards
+  float windAngle = time * 0.8; // Slow, gentle rotation
+  vec3 windDir = vec3(cos(windAngle), 0.3, sin(windAngle));
+  float windLight = max(dot(vNormal, windDir), 0.0);
+  float windGlow = pow(windLight, 3.0) * 0.15 * (1.0 + breathPhase * 0.3);
+  colorWithRim += vec3(1.0, 0.98, 0.95) * windGlow;
 
-    // SECONDARY GLINT: Counter-rotating highlight for more sparkle
-    float sweepAngle2 = -time * 2.5 + 1.57; // Offset by 90 degrees
-    vec3 lightDir2 = vec3(cos(sweepAngle2), 0.6, sin(sweepAngle2));
-    float edgeDot2 = max(dot(vNormal, lightDir2), 0.0);
-    float glint2 = pow(edgeDot2, 8.0) * anticipation * 0.8;
+  // ANTICIPATION GLINT: Smooth sweep that intensifies approaching transition
+  // Uses smooth sine waves instead of harsh thresholds
+  float sweepAngle = time * 1.5; // Slower, more graceful sweep
+  vec3 lightDir = vec3(cos(sweepAngle), 0.5, sin(sweepAngle));
+  float edgeDot = max(dot(vNormal, lightDir), 0.0);
 
-    // PULSE FLASH: Quick bright pulse at high anticipation (final 0.5s)
-    float pulseFlash = anticipation > 0.75
-      ? sin(time * 20.0) * 0.5 + 0.5 // Oscillating flash
-      : 0.0;
-    pulseFlash *= (anticipation - 0.75) * 4.0; // Ramp up in final 25%
+  // Smooth glint with organic falloff
+  float glint = pow(edgeDot, 4.0) * anticipation * 0.8;
 
-    // Combine glints with warm golden color
-    vec3 glintColor = vec3(1.0, 0.92, 0.75); // Warmer, more golden
-    colorWithRim += glintColor * (glint + glint2) * 0.6;
-    colorWithRim += vec3(1.0, 0.98, 0.9) * pulseFlash * 0.4;
+  // Secondary softer sweep for depth
+  float sweepAngle2 = -time * 0.9 + 2.0;
+  vec3 lightDir2 = vec3(cos(sweepAngle2), 0.6, sin(sweepAngle2));
+  float edgeDot2 = max(dot(vNormal, lightDir2), 0.0);
+  float glint2 = pow(edgeDot2, 5.0) * anticipation * 0.4;
 
-    // EDGE GLOW: Fresnel-based rim glow that intensifies with anticipation
-    float anticipationRim = fresnel * anticipation * 0.5;
-    colorWithRim += vec3(1.0, 0.95, 0.85) * anticipationRim;
+  // Gentle pulsing glow (slow sine wave, no harsh threshold)
+  float pulseGlow = sin(time * 3.0) * 0.5 + 0.5; // Smooth 0-1 oscillation
+  pulseGlow *= anticipation * anticipation * 0.3; // Squared for organic ramp
 
-    // Overall brightness boost - shards "charge up"
-    colorWithRim *= 1.0 + anticipation * 0.2;
-  }
+  // Combine with warm golden color
+  vec3 glintColor = vec3(1.0, 0.95, 0.88);
+  colorWithRim += glintColor * (glint + glint2 + pulseGlow) * 0.5;
+
+  // EDGE GLOW: Soft fresnel rim that builds smoothly
+  float anticipationRim = fresnel * anticipation * 0.35;
+  colorWithRim += vec3(1.0, 0.97, 0.9) * anticipationRim;
+
+  // Gentle overall brightness lift
+  colorWithRim *= 1.0 + anticipation * 0.12;
 
   // Slight desaturation toward edges for atmospheric feel
   vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));

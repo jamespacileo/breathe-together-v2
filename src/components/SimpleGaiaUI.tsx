@@ -202,43 +202,38 @@ export function SimpleGaiaUI({
         progressRef.current.style.width = `${cycleProgress * 100}%`;
       }
 
-      // ANTICIPATION EFFECT: Progress bar tension glow (highly visible)
-      // Creates a "charging up" effect as we approach phase transitions
-      // Like a game's stamina bar about to unlock a special move
+      // ANTICIPATION EFFECT: Progress bar glow (smooth, organic)
+      // Gentle breathing glow that intensifies smoothly before transitions
       if (progressContainerRef.current) {
-        // Base glow: peaks during inhale/hold-in
-        const baseGlow = phaseIndex === 0 || phaseIndex === 1 ? 0.45 + phaseProgress * 0.25 : 0.25;
+        // Base glow follows breathing rhythm smoothly
+        const breathGlow = 0.25 + phaseProgress * 0.15;
 
-        // Anticipation tension: strong intensification before transitions
-        const tensionGlow = anticipation.easedAnticipation * 0.7;
+        // Anticipation builds smoothly (squared for organic curve)
+        const anticipationSquared = anticipation.easedAnticipation * anticipation.easedAnticipation;
+        const tensionGlow = anticipationSquared * 0.4;
 
-        // Rapid pulse oscillation during final second - faster as we approach
-        const pulseSpeed = anticipation.timeToTransition < 0.5 ? 20 : 12;
-        const tensionPulse =
-          anticipation.timeToTransition < 1.0
-            ? Math.sin(now * pulseSpeed) * 0.15 * anticipation.easedAnticipation
-            : 0;
+        // Gentle continuous pulse (slow sine wave, always active)
+        const gentlePulse =
+          Math.sin(now * 2.5) * 0.05 * (0.3 + anticipation.easedAnticipation * 0.7);
 
-        // Flash at peak anticipation (final 0.3s)
-        const peakFlash =
-          anticipation.timeToTransition < 0.3
-            ? ((0.3 - anticipation.timeToTransition) / 0.3) * 0.3
-            : 0;
+        const totalGlow = Math.min(0.9, breathGlow + tensionGlow + gentlePulse);
 
-        const totalGlow = Math.min(1.0, baseGlow + tensionGlow + tensionPulse + peakFlash);
+        // Glow radius expands smoothly
+        const glowRadius = 8 + totalGlow * 12 + anticipationSquared * 8;
 
-        // Glow radius expands significantly during anticipation
-        const glowRadius = 10 + totalGlow * 16 + anticipation.easedAnticipation * 12;
+        // Smooth color transition (base golden → warmer gold)
+        // Base: rgb(201, 160, 108) - warm gold
+        // Target: rgb(235, 190, 120) - brighter warm gold
+        const colorR = Math.floor(201 + anticipationSquared * 34);
+        const colorG = Math.floor(160 + anticipationSquared * 30);
+        const colorB = Math.floor(108 + anticipationSquared * 12);
 
-        // Color shifts to bright gold during anticipation
-        const colorR = Math.floor(201 + anticipation.easedAnticipation * 54); // 201 → 255
-        const colorG = Math.floor(160 + anticipation.easedAnticipation * 40); // 160 → 200 (brighter yellow)
-        const colorB = Math.floor(108 - anticipation.easedAnticipation * 60); // 108 → 48 (more saturated)
-
-        // Add a secondary outer glow for more prominence
-        const outerGlow = anticipation.isAnticipating
-          ? `, 0 0 ${glowRadius * 2}px rgba(255, 200, 100, ${anticipation.easedAnticipation * 0.3})`
-          : '';
+        // Soft outer glow that fades in smoothly
+        const outerOpacity = anticipationSquared * 0.2;
+        const outerGlow =
+          outerOpacity > 0.02
+            ? `, 0 0 ${glowRadius * 1.8}px rgba(220, 180, 120, ${outerOpacity})`
+            : '';
 
         progressContainerRef.current.style.boxShadow = `0 0 ${glowRadius}px rgba(${colorR}, ${colorG}, ${colorB}, ${totalGlow})${outerGlow}`;
       }

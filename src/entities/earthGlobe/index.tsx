@@ -151,28 +151,36 @@ void main() {
   vec3 viewDir = normalize(vViewPosition);
   float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 1.5);
 
-  // ANTICIPATION EFFECT: Mist quickening and intensifying
-  // Speed multiplier: 1x normal → 3x at peak anticipation
-  float speedMultiplier = 1.0 + anticipation * 2.0;
+  // WIND EFFECT: Gentle flowing motion that follows breathing rhythm
+  // Creates sense of ethereal wind/energy around the globe
+  float windSpeed = 0.015 + anticipation * 0.015; // Subtle speed increase
+  float windDirection = time * 0.3; // Slow rotation of wind direction
 
-  // Animated noise for misty effect - faster when anticipating
-  vec2 uv = vUv * 4.0 + time * 0.02 * speedMultiplier;
+  // Wind-driven UV offset for flowing mist
+  vec2 windOffset = vec2(
+    cos(windDirection) * windSpeed,
+    sin(windDirection) * windSpeed * 0.5
+  );
+
+  // Animated noise for misty effect with wind flow
+  vec2 uv = vUv * 4.0 + time * 0.02 + windOffset * time;
   float n = noise(uv) * 0.5 + noise(uv * 2.0) * 0.3 + noise(uv * 4.0) * 0.2;
 
-  // Breathing modulation
-  float breath = 0.6 + breathPhase * 0.4;
+  // Secondary wind layer for depth (slower, different direction)
+  vec2 uv2 = vUv * 3.0 - time * 0.008;
+  float n2 = noise(uv2) * 0.3;
 
-  // ANTICIPATION EFFECT: Visible intensity increase
-  // Mist "gathers" and brightens before transition
-  float anticipationIntensity = 1.0 + anticipation * 0.6;
+  // Breathing modulation - mist "inhales" and "exhales"
+  float breath = 0.5 + breathPhase * 0.5;
 
-  // Add swirling effect during anticipation
-  float swirl = anticipation > 0.5
-    ? sin(time * 8.0 + vUv.x * 10.0) * 0.1 * (anticipation - 0.5) * 2.0
-    : 0.0;
+  // Anticipation: smooth intensity build (no harsh thresholds)
+  float anticipationIntensity = 1.0 + anticipation * anticipation * 0.4;
 
-  // Combine fresnel edge with noise
-  float alpha = fresnel * (n + swirl) * 0.18 * breath * anticipationIntensity;
+  // Gentle swirl that flows continuously (not threshold-based)
+  float swirl = sin(time * 2.0 + vUv.x * 6.0) * 0.08 * anticipation;
+
+  // Combine fresnel edge with layered noise
+  float alpha = fresnel * (n + n2 + swirl) * 0.16 * breath * anticipationIntensity;
 
   gl_FragColor = vec4(mistColor, alpha);
 }
@@ -332,77 +340,85 @@ export function EarthGlobe({
         const scale = 1.0 + phase * 0.06;
         groupRef.current.scale.set(scale, scale, scale);
 
-        // ANTICIPATION EFFECT: Atmosphere deepening (more visible)
-        // Layers pulse/glow noticeably before transitions
+        // ANTICIPATION EFFECT: Atmosphere breathing (smooth, organic)
+        // Layers gently expand and glow with the breathing rhythm
         atmosphereRefs.current.forEach((mesh, i) => {
           if (mesh) {
-            const phaseOffset = (i + 1) * 0.15; // Each layer slightly delayed
+            const phaseOffset = (i + 1) * 0.12; // Staggered for wave effect
             const delayedPhase = Math.max(0, phase - phaseOffset);
 
-            // Anticipation makes layers visibly larger
-            const anticipationScale = anticipation.easedAnticipation * 0.04 * (i + 1);
-            const layerScale = ATMOSPHERE_LAYERS[i].scale + delayedPhase * 0.04 + anticipationScale;
+            // Smooth scale breathing with anticipation
+            const breathScale = delayedPhase * 0.03;
+            const anticipationScale = anticipation.easedAnticipation * 0.025 * (i + 1);
+            const layerScale = ATMOSPHERE_LAYERS[i].scale + breathScale + anticipationScale;
             mesh.scale.set(layerScale, layerScale, layerScale);
 
-            // Stronger opacity pulse during anticipation
+            // Smooth opacity with gentle sine wave (no harsh thresholds)
             const baseMaterial = mesh.material as THREE.MeshBasicMaterial;
             const baseOpacity = ATMOSPHERE_LAYERS[i].opacity;
-            const anticipationOpacity = anticipation.easedAnticipation * 0.08 * (3 - i); // Inner layers glow more
 
-            // Add pulse in final second
-            const pulse =
-              anticipation.timeToTransition < 1.0
-                ? Math.sin(state.clock.elapsedTime * 12) * 0.02 * anticipation.easedAnticipation
-                : 0;
+            // Gentle breathing pulse
+            const breathPulse = Math.sin(state.clock.elapsedTime * 2.5) * 0.01;
 
-            baseMaterial.opacity = baseOpacity + anticipationOpacity + pulse;
+            // Anticipation glow builds smoothly (squared for organic ramp)
+            const anticipationOpacity =
+              anticipation.easedAnticipation * anticipation.easedAnticipation * 0.06 * (3 - i);
+
+            baseMaterial.opacity = baseOpacity + breathPulse + anticipationOpacity;
           }
         });
 
-        // ANTICIPATION EFFECT: Ring pulse sweep (highly visible)
-        // A bright glow "pulse" that clearly signals transition approaching
+        // ANTICIPATION EFFECT: Ring glow (smooth, continuous)
+        // Gentle pulsing glow that builds organically
         if (ringRef.current) {
           const ringMaterial = ringRef.current.material as THREE.MeshBasicMaterial;
 
           // Base breathing opacity
-          const baseOpacity = 0.15 + phase * 0.1; // 15% to 25%
+          const baseOpacity = 0.12 + phase * 0.08;
 
-          // Anticipation glow: strong intensification approaching transition
-          // This should be clearly visible - the "charging up" effect
-          const anticipationGlow = anticipation.easedAnticipation * 0.4;
+          // Smooth anticipation glow (squared for organic buildup)
+          const anticipationGlow =
+            anticipation.easedAnticipation * anticipation.easedAnticipation * 0.35;
 
-          // Rapid pulse effect during high anticipation (final 1s)
-          const pulseSpeed = anticipation.timeToTransition < 1.0 ? 15 : 8;
-          const pulseOscillation = anticipation.isAnticipating
-            ? Math.sin(state.clock.elapsedTime * pulseSpeed) * 0.08 * anticipation.easedAnticipation
-            : 0;
+          // Gentle continuous pulse (slow sine, no thresholds)
+          const gentlePulse =
+            Math.sin(state.clock.elapsedTime * 2.0) *
+            0.03 *
+            (0.3 + anticipation.easedAnticipation * 0.7);
 
-          // Flash at peak anticipation (final 0.3s) - the "ready" moment
-          const peakFlash =
-            anticipation.timeToTransition < 0.3
-              ? ((0.3 - anticipation.timeToTransition) / 0.3) * 0.25
-              : 0;
+          ringMaterial.opacity = Math.min(0.7, baseOpacity + anticipationGlow + gentlePulse);
 
-          ringMaterial.opacity = Math.min(
-            0.9,
-            baseOpacity + anticipationGlow + pulseOscillation + peakFlash,
-          );
+          // SMOOTH COLOR TRANSITION using lerp instead of sudden swaps
+          // Base color: rose gold (232, 196, 184) = 0xe8c4b8
+          // Warm color: golden (255, 210, 160) for inhale anticipation
+          // Cool color: blue-white (210, 225, 240) for exhale anticipation
 
-          // ANTICIPATION EFFECT: Color temperature shift (more dramatic)
-          // Ring glows golden before transitions
-          if (anticipation.isAnticipating && anticipation.nextPhaseIndex === 0) {
-            // Before inhale: bright warm golden
-            ringMaterial.color.setHex(0xffd090); // Bright gold
-          } else if (anticipation.isAnticipating && anticipation.nextPhaseIndex === 2) {
-            // Before exhale: soft blue-white
-            ringMaterial.color.setHex(0xd0e0f0); // Cool blue-white
-          } else if (anticipation.isAnticipating) {
-            // Other transitions: warm glow
-            ringMaterial.color.setHex(0xf0d0a0); // Golden
-          } else {
-            // Default rose gold
-            ringMaterial.color.setHex(0xe8c4b8);
+          const baseR = 232,
+            baseG = 196,
+            baseB = 184;
+          let targetR = baseR,
+            targetG = baseG,
+            targetB = baseB;
+
+          if (anticipation.nextPhaseIndex === 0) {
+            // Transitioning to inhale: warm up
+            targetR = 255;
+            targetG = 210;
+            targetB = 160;
+          } else if (anticipation.nextPhaseIndex === 2) {
+            // Transitioning to exhale: cool down
+            targetR = 210;
+            targetG = 225;
+            targetB = 240;
           }
+
+          // Smooth lerp based on anticipation (squared for organic feel)
+          const lerpAmount = anticipation.easedAnticipation * anticipation.easedAnticipation;
+          const r = Math.round(baseR + (targetR - baseR) * lerpAmount);
+          const g = Math.round(baseG + (targetG - baseG) * lerpAmount);
+          const b = Math.round(baseB + (targetB - baseB) * lerpAmount);
+
+          ringMaterial.color.setRGB(r / 255, g / 255, b / 255);
         }
       }
 

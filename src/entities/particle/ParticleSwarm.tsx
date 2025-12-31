@@ -444,13 +444,20 @@ export function ParticleSwarm({
       const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
       const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
 
-      // Compute final position: orbited direction + spring radius + tangent wobble + ambient
+      // WIND EFFECT: Gentle global wind that follows breathing rhythm
+      // Creates the feeling of ethereal wind flowing through the shards
+      const windPhase = time * 0.4; // Slow wind cycle
+      const breathWindStrength = 0.08 + currentBreathPhase * 0.06; // Stronger on inhale
+      const windX = Math.sin(windPhase) * breathWindStrength;
+      const windZ = Math.cos(windPhase * 0.7) * breathWindStrength * 0.6;
+
+      // Compute final position: orbited direction + spring radius + tangent wobble + ambient + wind
       shard.mesh.position
         .copy(orbitedDirection)
         .multiplyScalar(shardState.currentRadius)
         .addScaledVector(tangent1, wobble1)
         .addScaledVector(tangent2, wobble2)
-        .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+        .add(new THREE.Vector3(ambientX + windX, ambientY, ambientZ + windZ));
 
       // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
       shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
