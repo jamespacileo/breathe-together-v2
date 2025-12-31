@@ -108,6 +108,54 @@ export interface ParticleSwarmProps {
   buffer?: number;
   /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
   maxShardSize?: number;
+
+  // === Intro Animation Props ===
+
+  /**
+   * Enable staggered reveal animation on mount.
+   *
+   * When enabled, shards animate from center outward with staggered timing
+   * creating a beautiful "bloom" welcome effect.
+   *
+   * @default true
+   */
+  enableIntroAnimation?: boolean;
+
+  /**
+   * Total duration of the intro animation in seconds.
+   *
+   * All shards will complete their reveal within this window.
+   * Individual shard timing is distributed across this duration.
+   *
+   * @default 3.0
+   * @min 0.5
+   * @max 8.0
+   */
+  introDuration?: number;
+
+  /**
+   * Per-shard reveal animation duration in seconds.
+   *
+   * How long each individual shard takes to animate from hidden to visible.
+   * Overlaps with other shards based on stagger timing.
+   *
+   * @default 1.2
+   * @min 0.2
+   * @max 3.0
+   */
+  introShardDuration?: number;
+
+  /**
+   * Starting radius for shards during intro animation.
+   *
+   * Shards animate from this radius outward to their orbit position.
+   * 0 = start at center, higher = start closer to final position.
+   *
+   * @default 0.5
+   * @min 0
+   * @max 3.0
+   */
+  introStartRadius?: number;
 }
 
 interface ShardData {
@@ -125,6 +173,7 @@ interface ShardData {
  * - Ambient seed: unique floating pattern per shard
  * - Rotation speeds: per-shard variation for organic feel
  * - Scale offset: subtle size variation for depth
+ * - Intro animation: staggered reveal timing per shard
  */
 interface ShardPhysicsState {
   /** Current interpolated radius (spring-smoothed) */
@@ -143,6 +192,13 @@ interface ShardPhysicsState {
   rotationSpeedY: number;
   /** Base scale offset for depth variation (0.85-1.15 range) */
   baseScaleOffset: number;
+
+  // === Intro Animation State ===
+
+  /** Staggered delay before this shard starts revealing (seconds) */
+  introDelay: number;
+  /** Initial random rotation for visual variety during reveal */
+  introRotationOffset: THREE.Euler;
 }
 
 /**
@@ -185,6 +241,46 @@ const AMBIENT_Y_SCALE = 0.04; // Vertical motion is more subtle
  */
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 
+/**
+ * Easing function for smooth intro animation
+ *
+ * Custom ease-out-expo for a satisfying "bloom" feel:
+ * - Starts fast (immediate visual feedback)
+ * - Gradually slows (settles naturally into position)
+ * - Asymptotic approach (never jarring stop)
+ */
+function easeOutExpo(t: number): number {
+  return t === 1 ? 1 : 1 - 2 ** (-10 * t);
+}
+
+/**
+ * Easing function for scale animation
+ *
+ * Custom ease-out-back for "pop" effect:
+ * - Slight overshoot gives satisfying bounce
+ * - Settles to final scale naturally
+ */
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
+}
+
+/**
+ * Global intro animation state
+ *
+ * Tracks animation start time and completion status
+ * Shared across all shards for synchronized timing
+ */
+interface IntroAnimationState {
+  /** Animation start time (clock.elapsedTime at mount) */
+  startTime: number;
+  /** Whether intro animation has completed */
+  isComplete: boolean;
+  /** Whether we've initialized the start time */
+  isInitialized: boolean;
+}
+
 export function ParticleSwarm({
   count = 48,
   users,
@@ -193,11 +289,21 @@ export function ParticleSwarm({
   globeRadius = 1.5,
   buffer = 0.3,
   maxShardSize = 0.6,
+  // Intro animation props
+  enableIntroAnimation = true,
+  introDuration = 3.0,
+  introShardDuration = 1.2,
+  introStartRadius = 0.5,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+  const introRef = useRef<IntroAnimationState>({
+    startTime: 0,
+    isComplete: !enableIntroAnimation,
+    isInitialized: false,
+  });
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -254,13 +360,21 @@ export function ParticleSwarm({
 
     // Add new shards and initialize physics state
     const physicsStates: ShardPhysicsState[] = [];
+
+    // Calculate stagger timing for intro animation
+    // Uses golden ratio distribution for organic, non-linear reveals
+    const goldenRatio = (1 + Math.sqrt(5)) / 2;
+    const staggerWindow = introDuration - introShardDuration; // Time window for stagger distribution
+
     for (let i = 0; i < shards.length; i++) {
       const shard = shards[i];
       group.add(shard.mesh);
 
-      // Initialize physics state with staggered phase offsets
-      // Use golden ratio distribution for even visual spread
-      const goldenRatio = (1 + Math.sqrt(5)) / 2;
+      // Initialize mesh visibility for intro animation
+      if (enableIntroAnimation) {
+        shard.mesh.scale.setScalar(0); // Start invisible
+        shard.mesh.position.copy(shard.direction).multiplyScalar(introStartRadius);
+      }
 
       // Per-shard rotation speed variation (0.7-1.3 range)
       // Uses different seeds for X and Y to avoid synchronized rotation
@@ -273,8 +387,22 @@ export function ParticleSwarm({
       const scaleSeed = (i * goldenRatio + 0.5) % 1;
       const baseScaleOffset = 0.9 + scaleSeed * 0.2;
 
+      // Intro animation stagger delay using golden angle distribution
+      // Golden angle (137.5°) creates visually pleasing, non-repeating pattern
+      // Similar to sunflower seed distribution - no obvious clustering
+      const goldenAngle = 137.508 * (Math.PI / 180); // radians
+      const normalizedPosition = ((i * goldenAngle) % (2 * Math.PI)) / (2 * Math.PI);
+      const introDelay = normalizedPosition * staggerWindow;
+
+      // Random rotation offset for visual variety during intro
+      const introRotationOffset = new THREE.Euler(
+        Math.random() * Math.PI * 2,
+        Math.random() * Math.PI * 2,
+        Math.random() * Math.PI * 2,
+      );
+
       physicsStates.push({
-        currentRadius: baseRadius,
+        currentRadius: enableIntroAnimation ? introStartRadius : baseRadius,
         velocity: 0,
         phaseOffset: ((i * goldenRatio) % 1) * MAX_PHASE_OFFSET,
         ambientSeed: i * 137.508, // Golden angle in degrees for unique patterns
@@ -282,8 +410,17 @@ export function ParticleSwarm({
         rotationSpeedX,
         rotationSpeedY,
         baseScaleOffset,
+        introDelay,
+        introRotationOffset,
       });
     }
+
+    // Reset intro animation state
+    introRef.current = {
+      startTime: 0,
+      isComplete: !enableIntroAnimation,
+      isInitialized: false,
+    };
 
     shardsRef.current = shards;
     physicsRef.current = physicsStates;
@@ -295,7 +432,14 @@ export function ParticleSwarm({
         group.remove(shard.mesh);
       }
     };
-  }, [shards, baseRadius]);
+  }, [
+    shards,
+    baseRadius,
+    enableIntroAnimation,
+    introDuration,
+    introShardDuration,
+    introStartRadius,
+  ]);
 
   // Cleanup material on unmount
   useEffect(() => {
@@ -304,15 +448,26 @@ export function ParticleSwarm({
     };
   }, [material]);
 
-  // Animation loop - spring physics + ambient motion + shader updates
+  // Animation loop - intro animation + spring physics + ambient motion + shader updates
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation loop requires multiple force calculations (spring, ambient, intro reveal) + per-shard state management - refactoring would reduce readability and performance
   useFrame((state, delta) => {
     const currentShards = shardsRef.current;
     const physics = physicsRef.current;
+    const intro = introRef.current;
     if (currentShards.length === 0 || physics.length === 0) return;
 
     // Cap delta to prevent physics explosion on tab switch
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
+
+    // Initialize intro animation start time on first frame
+    if (!intro.isInitialized && enableIntroAnimation) {
+      intro.startTime = time;
+      intro.isInitialized = true;
+    }
+
+    // Calculate intro animation elapsed time
+    const introElapsed = time - intro.startTime;
 
     // Get breathing state from ECS
     let targetRadius = baseRadius;
@@ -334,10 +489,34 @@ export function ParticleSwarm({
       material.uniforms.time.value = time;
     }
 
-    // Update each shard with spring physics + ambient motion
+    // Track if all shards have completed their intro animation
+    let allIntroComplete = true;
+
+    // Update each shard with intro animation + spring physics + ambient motion
     for (let i = 0; i < currentShards.length; i++) {
       const shard = currentShards[i];
       const shardState = physics[i];
+
+      // === INTRO ANIMATION ===
+      // Calculate per-shard intro progress based on staggered delay
+      let introProgress = 1; // 1 = fully revealed (normal state)
+
+      if (enableIntroAnimation && !intro.isComplete) {
+        // Time since this shard's intro should start
+        const shardElapsed = introElapsed - shardState.introDelay;
+
+        if (shardElapsed < 0) {
+          // Shard hasn't started revealing yet
+          introProgress = 0;
+          allIntroComplete = false;
+        } else if (shardElapsed < introShardDuration) {
+          // Shard is currently animating
+          const rawProgress = shardElapsed / introShardDuration;
+          introProgress = easeOutExpo(rawProgress);
+          allIntroComplete = false;
+        }
+        // else: shardElapsed >= introShardDuration → introProgress = 1 (complete)
+      }
 
       // Apply phase offset for wave effect
       // This creates subtle stagger in breathing motion
@@ -352,30 +531,41 @@ export function ParticleSwarm({
       // Clamp target to prevent penetrating globe
       const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
 
-      // Detect expansion (exhale) and apply velocity boost for immediate response
-      // This overcomes spring lag so exhale feels like an immediate "release"
-      const targetDelta = clampedTarget - shardState.previousTarget;
-      if (targetDelta > 0.001) {
-        // Expanding outward (exhale starting) - inject outward velocity
-        shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+      // === PHYSICS (only when intro is progressing or complete) ===
+      if (introProgress > 0) {
+        // Detect expansion (exhale) and apply velocity boost for immediate response
+        // This overcomes spring lag so exhale feels like an immediate "release"
+        const targetDelta = clampedTarget - shardState.previousTarget;
+        if (targetDelta > 0.001) {
+          // Expanding outward (exhale starting) - inject outward velocity
+          shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
+        }
+        shardState.previousTarget = clampedTarget;
+
+        // Spring physics: F = -k(x - target) - c*v
+        const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
+        const dampingForce = -shardState.velocity * SPRING_DAMPING;
+        const totalForce = springForce + dampingForce;
+
+        // Integrate velocity and position (scaled by intro progress for smooth transition)
+        shardState.velocity += totalForce * clampedDelta * introProgress;
+        shardState.currentRadius += shardState.velocity * clampedDelta;
+
+        // During intro, blend from intro start radius to physics-driven radius
+        if (introProgress < 1) {
+          const introRadius =
+            introStartRadius + (shardState.currentRadius - introStartRadius) * introProgress;
+          shardState.currentRadius = introRadius;
+        }
       }
-      shardState.previousTarget = clampedTarget;
 
-      // Spring physics: F = -k(x - target) - c*v
-      const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
-      const dampingForce = -shardState.velocity * SPRING_DAMPING;
-      const totalForce = springForce + dampingForce;
-
-      // Integrate velocity and position
-      shardState.velocity += totalForce * clampedDelta;
-      shardState.currentRadius += shardState.velocity * clampedDelta;
-
-      // Ambient floating motion (secondary layer)
+      // Ambient floating motion (secondary layer, scaled by intro progress)
       // Uses different frequencies per axis for organic feel
       const seed = shardState.ambientSeed;
-      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE;
-      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE;
-      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
+      const ambientScale = introProgress; // Fade in ambient motion with intro
+      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE * ambientScale;
+      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_Y_SCALE * ambientScale;
+      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE * ambientScale;
 
       // Compute final position: spring-smoothed radius + ambient offset
       shard.mesh.position
@@ -383,15 +573,42 @@ export function ParticleSwarm({
         .multiplyScalar(shardState.currentRadius)
         .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
 
-      // Per-shard rotation with variation (base: 0.002 X, 0.003 Y × speed multipliers)
-      shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
-      shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
+      // === ROTATION ===
+      if (introProgress < 1) {
+        // During intro: blend from random start rotation to normal rotation
+        const targetRotX = shardState.introRotationOffset.x * (1 - introProgress);
+        const targetRotY = shardState.introRotationOffset.y * (1 - introProgress);
+        const targetRotZ = shardState.introRotationOffset.z * (1 - introProgress);
 
+        // Add continuous rotation on top
+        shard.mesh.rotation.x = targetRotX + time * 0.2 * shardState.rotationSpeedX;
+        shard.mesh.rotation.y = targetRotY + time * 0.3 * shardState.rotationSpeedY;
+        shard.mesh.rotation.z = targetRotZ;
+      } else {
+        // After intro: normal continuous rotation
+        shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
+        shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
+      }
+
+      // === SCALE ===
       // Subtle scale breathing - shards pulse slightly with breath (3-8% range)
       // Combined with base scale offset for depth variation
       const breathScale = 1.0 + currentBreathPhase * 0.05; // 0-5% breath pulse
-      const finalScale = shardState.baseScaleOffset * breathScale;
-      shard.mesh.scale.setScalar(finalScale);
+      const normalScale = shardState.baseScaleOffset * breathScale;
+
+      if (introProgress < 1) {
+        // During intro: animate scale from 0 to normal with "pop" effect
+        const scaleProgress = easeOutBack(introProgress);
+        shard.mesh.scale.setScalar(normalScale * scaleProgress);
+      } else {
+        // After intro: normal breathing scale
+        shard.mesh.scale.setScalar(normalScale);
+      }
+    }
+
+    // Mark intro as complete once all shards have finished
+    if (enableIntroAnimation && allIntroComplete && !intro.isComplete) {
+      intro.isComplete = true;
     }
   });
 
