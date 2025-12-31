@@ -164,7 +164,7 @@ export function PhaseOverlay3D({ globeRadius = 1.5, visible = true }: PhaseOverl
     <group position={[0, 0, textRadius]}>
       {/* Billboard only affects orientation, not position */}
       <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
-        {/* Phase name */}
+        {/* Phase name - depthTest ensures proper occlusion by particles */}
         <Text
           ref={phaseNameRef}
           position={[0, 0.15, 0]}
@@ -175,6 +175,9 @@ export function PhaseOverlay3D({ globeRadius = 1.5, visible = true }: PhaseOverl
           font="https://fonts.gstatic.com/s/cormorantgaramond/v16/co3YmX5slCNuHLi8bLeY9MK7whWMhyjYrEPjuw-NxBKL_y94.woff2"
           letterSpacing={0.15}
           textAlign="center"
+          depthOffset={0}
+          material-depthTest={true}
+          material-depthWrite={true}
         >
           HOLD
         </Text>
@@ -189,6 +192,9 @@ export function PhaseOverlay3D({ globeRadius = 1.5, visible = true }: PhaseOverl
           anchorY="middle"
           font="https://fonts.gstatic.com/s/dmsans/v14/rP2Hp2ywxg089UriCZOIHTWEBlw.woff2"
           letterSpacing={0.05}
+          depthOffset={0}
+          material-depthTest={true}
+          material-depthWrite={true}
         >
           4
         </Text>
@@ -203,13 +209,22 @@ export function PhaseOverlay3D({ globeRadius = 1.5, visible = true }: PhaseOverl
           anchorY="middle"
           font="https://fonts.gstatic.com/s/dmsans/v14/rP2Hp2ywxg089UriCZOIHTWEBlw.woff2"
           letterSpacing={0.08}
+          depthOffset={0}
+          material-depthTest={true}
+          material-depthWrite={true}
         >
           75 breathing
         </Text>
 
         {/* Progress ring background */}
         <Ring ref={progressBgRef} args={[0.52, 0.54, 64]} position={[0, -0.05, -0.01]}>
-          <meshBasicMaterial color={colors.textDim} transparent opacity={0.1} />
+          <meshBasicMaterial
+            color={colors.textDim}
+            transparent
+            opacity={0.1}
+            depthTest={true}
+            depthWrite={false}
+          />
         </Ring>
 
         {/* Progress ring - shows cycle progress */}
@@ -219,7 +234,13 @@ export function PhaseOverlay3D({ globeRadius = 1.5, visible = true }: PhaseOverl
           position={[0, -0.05, 0]}
           rotation={[0, 0, Math.PI / 2]} // Start from top
         >
-          <meshBasicMaterial color={colors.accent} transparent opacity={0.6} />
+          <meshBasicMaterial
+            color={colors.accent}
+            transparent
+            opacity={0.6}
+            depthTest={true}
+            depthWrite={false}
+          />
         </Ring>
       </Billboard>
     </group>
