@@ -17,20 +17,18 @@ import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
 const MOOD_COLORS = [
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.presence),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
+  new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
 ];
 
+// Direct 1:1 mapping - each mood has exactly one color
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
-  grateful: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  celebrating: new THREE.Color(MONUMENT_VALLEY_PALETTE.joy),
-  moment: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  here: new THREE.Color(MONUMENT_VALLEY_PALETTE.peace),
-  anxious: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  processing: new THREE.Color(MONUMENT_VALLEY_PALETTE.solitude),
-  preparing: new THREE.Color(MONUMENT_VALLEY_PALETTE.love),
+  gratitude: new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
+  presence: new THREE.Color(MONUMENT_VALLEY_PALETTE.presence),
+  release: new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
+  connection: new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
 };
 
 /**
@@ -301,11 +299,11 @@ export function ParticleSwarm({
 
       // Orbital drift speed variation - all shards orbit same direction to prevent overlap
       // Small speed variation creates gentle relative drift between neighbors
-      const orbitSeed = (i * 3.14159 + 0.1) % 1;
+      const orbitSeed = (i * Math.PI + 0.1) % 1;
       const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
 
       // Wobble seed for perpendicular motion phase offset
-      const wobbleSeed = i * 2.71828; // e-based offset for unique phases
+      const wobbleSeed = i * Math.E; // e-based offset for unique phases
 
       physicsStates.push({
         currentRadius: baseRadius,
