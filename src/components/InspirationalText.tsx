@@ -131,6 +131,8 @@ function calculateOpacity(phaseIndex: number, phaseProgress: number): number {
 export function InspirationalText() {
   const topWrapperRef = useRef<HTMLDivElement>(null);
   const bottomWrapperRef = useRef<HTMLDivElement>(null);
+  const topTextRef = useRef<HTMLDivElement>(null);
+  const bottomTextRef = useRef<HTMLDivElement>(null);
   const prevPhaseRef = useRef(-1);
   const { isMobile, isTablet } = useViewport();
 
@@ -181,6 +183,23 @@ export function InspirationalText() {
       if (bottomWrapperRef.current) {
         bottomWrapperRef.current.style.opacity = opacityStr;
         bottomWrapperRef.current.style.transform = transform;
+      }
+
+      // Text shadow breathing - more diffuse on exhale (low opacity), focused on inhale
+      // Shadow blur varies: 24-32px (mobile) or 30-45px (desktop) based on breath
+      // opacity here serves as a proxy for breath state (1 = visible/inhaled, 0 = hidden/exhaled)
+      const breathIntensity = opacity; // 0-1, peaks during inhale/hold
+      const baseBlur = 30;
+      const blurRange = 15;
+      const shadowBlur = baseBlur + (1 - breathIntensity) * blurRange; // More diffuse (larger) when fading
+      const glowOpacity = 0.3 + breathIntensity * 0.2; // Brighter glow on inhale
+      const textShadow = `0 0 ${shadowBlur}px rgba(255, 248, 230, ${glowOpacity}), 0 0 ${shadowBlur * 1.5}px rgba(201, 160, 108, ${glowOpacity * 0.5}), 0 2px 8px rgba(0, 0, 0, 0.12)`;
+
+      if (topTextRef.current) {
+        topTextRef.current.style.textShadow = textShadow;
+      }
+      if (bottomTextRef.current) {
+        bottomTextRef.current.style.textShadow = textShadow;
       }
 
       // Track cycle completion and advance queue
@@ -292,7 +311,9 @@ export function InspirationalText() {
           marginTop: isMobile ? '-2vh' : '-3vh', // Less offset on mobile
         }}
       >
-        <div style={textStyle}>{quote.top}</div>
+        <div ref={topTextRef} style={textStyle}>
+          {quote.top}
+        </div>
       </div>
 
       {/* Bottom text - below the globe */}
@@ -303,7 +324,9 @@ export function InspirationalText() {
           marginBottom: isMobile ? '-2vh' : '-3vh', // Less offset on mobile
         }}
       >
-        <div style={textStyle}>{quote.bottom}</div>
+        <div ref={bottomTextRef} style={textStyle}>
+          {quote.bottom}
+        </div>
       </div>
     </div>
   );

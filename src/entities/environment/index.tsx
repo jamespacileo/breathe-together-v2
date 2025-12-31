@@ -47,10 +47,29 @@ export function Environment({
     };
   }, [scene]);
 
-  // Animate cloud drift
+  // Animate cloud drift - synchronized with breathing
+  // Clouds drift faster during exhale (releasing), slower during hold (stillness)
   useFrame((state) => {
     if (cloudsRef.current) {
-      cloudsRef.current.rotation.y = state.clock.elapsedTime * 0.01 * cloudSpeed;
+      // Calculate breath-synchronized speed multiplier
+      const now = Date.now() / 1000;
+      const cycleTime = now % 19; // 19-second cycle (4+7+8+0)
+
+      // Speed varies: 0.85x during hold (stillness), 1.15x during exhale (release)
+      let speedMultiplier: number;
+      if (cycleTime < 4) {
+        // Inhale: normal speed (1.0)
+        speedMultiplier = 1.0;
+      } else if (cycleTime < 11) {
+        // Hold-in: slow down (0.85x) - stillness
+        speedMultiplier = 0.85;
+      } else {
+        // Exhale: speed up slightly (1.15x) - releasing
+        speedMultiplier = 1.15;
+      }
+
+      // Apply breathing-modulated rotation
+      cloudsRef.current.rotation.y = state.clock.elapsedTime * 0.01 * cloudSpeed * speedMultiplier;
     }
   });
 
