@@ -8,6 +8,7 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { AuroraBands, ParticleTrails, PhaseTransitionPulse } from '../entities/visualEffects';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -38,6 +39,10 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
+  // Visual effects toggles
+  showAuroraBands = true,
+  showPhaseTransitionPulse = true,
+  showParticleTrails = true,
 }: Partial<BreathingLevelProps> = {}) {
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
@@ -133,7 +138,14 @@ export function BreathingLevel({
                 breathingOpacity={0.15}
               />
             )}
+
+            {/* Breathing-Reactive Visual Effects */}
+            {showAuroraBands && <AuroraBands enabled={true} baseRadius={1.8} />}
           </PresentationControls>
+
+          {/* Effects outside PresentationControls (not affected by user rotation) */}
+          {showPhaseTransitionPulse && <PhaseTransitionPulse enabled={true} intensity={0.5} />}
+          {showParticleTrails && <ParticleTrails enabled={true} maxTrails={48} opacity={0.25} />}
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
