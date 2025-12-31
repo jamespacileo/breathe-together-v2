@@ -183,11 +183,12 @@ void main() {
   float normalizedDepth = (linearDepth - cameraNear) / (cameraFar - cameraNear);
 
   // Calculate circle of confusion (blur amount)
-  // Objects at focusDistance are sharp, blur increases with distance from focus
-  float distanceFromFocus = abs(normalizedDepth - focusDistance);
+  // Only blur objects FURTHER than focus distance (behind the focal plane)
+  // Objects closer to camera stay sharp
+  float distanceBeyondFocus = max(0.0, normalizedDepth - focusDistance);
 
-  // Smooth falloff from focus plane
-  float coc = smoothstep(0.0, focalRange, distanceFromFocus) * maxBlur;
+  // Smooth falloff - only applies to objects beyond focus
+  float coc = smoothstep(0.0, focalRange, distanceBeyondFocus) * maxBlur;
 
   // Apply blur based on CoC
   vec3 color;
