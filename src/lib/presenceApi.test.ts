@@ -5,7 +5,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   HeartbeatRequestSchema,
-  isMoodId,
   MoodIdSchema,
   PresenceStateSchema,
   ServerConfigSchema,
@@ -44,22 +43,6 @@ describe('presenceApi', () => {
       expect(validateMood(undefined)).toBe('presence');
       expect(validateMood(123)).toBe('presence');
       expect(validateMood({})).toBe('presence');
-    });
-  });
-
-  describe('isMoodId', () => {
-    it('returns true for valid mood IDs', () => {
-      expect(isMoodId('gratitude')).toBe(true);
-      expect(isMoodId('presence')).toBe(true);
-      expect(isMoodId('release')).toBe(true);
-      expect(isMoodId('connection')).toBe(true);
-    });
-
-    it('returns false for invalid inputs', () => {
-      expect(isMoodId('invalid')).toBe(false);
-      expect(isMoodId('')).toBe(false);
-      expect(isMoodId(null)).toBe(false);
-      expect(isMoodId(123)).toBe(false);
     });
   });
 

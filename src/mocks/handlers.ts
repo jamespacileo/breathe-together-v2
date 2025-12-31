@@ -142,18 +142,3 @@ export const handlers = [
     }
   }),
 ];
-
-/**
- * Reset mock state (for testing)
- */
-export function resetMockState() {
-  state.sessions.clear();
-  state.baseCount = 42;
-}
-
-/**
- * Set base count (for testing different scenarios)
- */
-export function setMockBaseCount(count: number) {
-  state.baseCount = count;
-}
