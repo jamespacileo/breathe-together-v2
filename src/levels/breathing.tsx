@@ -9,8 +9,32 @@ import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles'
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useSimulatedUserFlow } from '../hooks/useSimulatedUserFlow';
-import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
+
+/**
+ * Generate a randomized mood array for initial display
+ * Each slot gets a random mood (0-3) representing the 4 mood categories
+ *
+ * @param count - Number of slots to fill
+ * @param fillRatio - Ratio of slots to fill with users (0-1), default 0.7
+ * @returns Array of mood indices (-1 for empty slots)
+ */
+function generateRandomMoodArray(count: number, fillRatio = 0.7): number[] {
+  const filledCount = Math.floor(count * fillRatio);
+  const result: number[] = [];
+
+  // Fill with random moods (0-3)
+  for (let i = 0; i < filledCount; i++) {
+    result.push(Math.floor(Math.random() * 4));
+  }
+
+  // Pad with empty slots
+  while (result.length < count) {
+    result.push(-1);
+  }
+
+  return result;
+}
 
 /**
  * Tuning defaults for visual aesthetics (matching reference)
@@ -34,9 +58,9 @@ const TUNING_DEFAULTS = {
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
  *
  * User Ordering System (Dec 2024):
- * - Set `useOrderedUsers=true` to enable simulated user arrivals/departures
- * - Users appear in arrival order with smooth enter/exit animations
- * - Color transitions happen smoothly when mood changes
+ * - Uses ordered mood array where each element is a mood index (0-3)
+ * - Slot-based system ready for real user data from backend
+ * - Set `simulateUserFlow=true` to enable dynamic arrivals/departures demo
  */
 export function BreathingLevel({
   particleDensity,
@@ -44,9 +68,9 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-  // User ordering system
-  useOrderedUsers = false,
-}: Partial<BreathingLevelProps> & { useOrderedUsers?: boolean } = {}) {
+  // User ordering system - enable dynamic simulation for demo
+  simulateUserFlow = false,
+}: Partial<BreathingLevelProps> & { simulateUserFlow?: boolean } = {}) {
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
     particleDensity === 'sparse'
@@ -70,16 +94,20 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Legacy mood distribution (mood counts per type)
-  const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
+  // Static randomized mood array for initial display
+  // This will be replaced with real user data from backend
+  const staticMoodArray = useMemo(() => generateRandomMoodArray(harmony, 0.7), [harmony]);
 
-  // Simulated user flow (ordered arrivals/departures)
-  const { moodArray } = useSimulatedUserFlow({
+  // Dynamic simulated user flow (for demo/testing)
+  const { moodArray: simulatedMoodArray } = useSimulatedUserFlow({
     maxSlots: harmony,
     initialUsers: Math.floor(harmony * 0.6),
     targetUserCount: Math.floor(harmony * 0.7),
-    paused: !useOrderedUsers,
+    paused: !simulateUserFlow,
   });
+
+  // Use simulated array when enabled, otherwise static random array
+  const moodArray = simulateUserFlow ? simulatedMoodArray : staticMoodArray;
 
   return (
     <ErrorBoundary>
@@ -111,9 +139,7 @@ export function BreathingLevel({
             {showParticles && (
               <ParticleSwarm
                 count={harmony}
-                // Use ordered moodArray when enabled, otherwise legacy moods object
-                moodArray={useOrderedUsers ? moodArray : undefined}
-                users={useOrderedUsers ? undefined : moods}
+                moodArray={moodArray}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
               />
