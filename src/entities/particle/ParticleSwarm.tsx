@@ -474,18 +474,15 @@ export function ParticleSwarm({
     const time = state.clock.elapsedTime;
 
     // Get breathing state from ECS
+    // Query for all traits we access to ensure entity has them
     let targetRadius = baseRadius;
     let currentBreathPhase = 0;
     let currentPhaseType = 0;
-    try {
-      const breathEntity = world.queryFirst(orbitRadius);
-      if (breathEntity) {
-        targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
-        currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
-        currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
-      }
-    } catch {
-      // Ignore ECS errors during unmount/remount in Triplex
+    const breathEntity = world.queryFirst(orbitRadius, breathPhase, phaseType);
+    if (breathEntity) {
+      targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
+      currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
+      currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
     }
 
     // Check if we should reconcile (during hold phase transition)

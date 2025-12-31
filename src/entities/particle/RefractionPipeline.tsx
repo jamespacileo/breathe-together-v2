@@ -45,7 +45,8 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates frosted glass effect with mood color tinting
+// Refraction fragment shader - creates gem-like frosted crystal look
+// Improved Dec 2024: Bright luminous gem pastels with faceted shading (Monument Valley style)
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
@@ -57,33 +58,64 @@ varying vec3 vColor;
 varying vec3 worldNormal;
 varying vec3 eyeVector;
 
+// Key light from upper-right-front
+const vec3 keyLightDir = normalize(vec3(0.5, 0.7, 0.4));
+
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution;
   vec3 backfaceNormal = texture2D(backfaceMap, uv).rgb;
 
-  // Blend front and backface normals for thickness effect
+  // Blend front and backface normals for thickness/depth
   vec3 normal = normalize(worldNormal * (1.0 - backfaceIntensity) - backfaceNormal * backfaceIntensity);
   vec3 refracted = refract(eyeVector, normal, 1.0 / ior);
 
-  // Subtle distortion for clean polished look
-  vec2 refractUv = uv + refracted.xy * 0.05;
+  // Refraction for gem-like depth
+  vec2 refractUv = uv + refracted.xy * 0.04;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // 1. FROSTED TINT: mood color tints refraction (50% mix)
-  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor, 0.5);
+  // === BRIGHT LUMINOUS GEM COLOR ===
+  // Keep high saturation with brightness boost
+  vec3 warmWhite = vec3(1.0, 0.98, 0.95);
+  // 85% color intensity - vibrant
+  vec3 gemColor = mix(warmWhite, vColor, 0.85);
+  // Brightness boost for luminous feel
+  gemColor *= 1.15;
 
-  // 2. MATTE BODY: solid mood color (25% mix)
-  vec3 bodyColor = mix(tintedRefraction, vColor, 0.25);
+  // === FACETED SHADING (gem look) ===
+  float diffuse = max(dot(normal, keyLightDir), 0.0);
+  // Wrap lighting - higher base for brighter shadows
+  float wrapped = diffuse * 0.5 + 0.5;
+  // Shading range: lit faces very bright, shadow faces still bright (0.65 - 1.0)
+  float shading = wrapped * 0.35 + 0.65;
 
-  // 3. FRESNEL RIM: white edge highlight
-  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
-  vec3 finalColor = mix(bodyColor, vec3(1.0), fresnel * 0.4);
+  // === GEM BODY WITH INNER GLOW ===
+  vec3 shadedGem = gemColor * shading;
 
-  // 4. SOFT TOP-DOWN LIGHT
-  float topLight = smoothstep(0.0, 1.0, normal.y) * 0.1;
-  finalColor += vec3(1.0) * topLight;
+  // Inner luminosity - gems glow from within (stronger)
+  float innerGlow = (1.0 - diffuse) * 0.2;
+  shadedGem += gemColor * innerGlow;
 
-  gl_FragColor = vec4(finalColor, 1.0);
+  // Tinted refraction for depth
+  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), gemColor, 0.35);
+
+  // Mix: gem body (65%) with refraction (35%) for crystalline depth
+  vec3 bodyColor = mix(tintedRefraction, shadedGem, 0.65);
+
+  // === FRESNEL RIM (crystalline edge glow) ===
+  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
+  vec3 rimColor = vec3(1.0, 0.99, 0.97);
+  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.3);
+
+  // === SPECULAR HIGHLIGHT (gem sparkle) ===
+  vec3 halfVec = normalize(keyLightDir - eyeVector);
+  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
+  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.3;
+
+  // === TOP AMBIENT ===
+  float topLight = max(normal.y, 0.0) * 0.12;
+  colorWithRim += vec3(1.0, 0.99, 0.97) * topLight;
+
+  gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
 }
 `;
 
@@ -366,15 +398,16 @@ export function RefractionPipeline({
   // Store original materials for mesh swapping
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
 
-  // Cache refraction meshes to avoid scene.traverse() every frame
+  // Cache refraction meshes (refreshed when count changes or meshes become stale)
   const refractionMeshesRef = useRef<THREE.Mesh[]>([]);
-  const sceneVersionRef = useRef<number>(0);
 
   // Cleanup
   useEffect(() => {
     return () => {
       envFBO.dispose();
       backfaceFBO.dispose();
+      // Dispose depth texture explicitly before render target
+      compositeFBO.depthTexture?.dispose();
       compositeFBO.dispose();
       backfaceMaterial.dispose();
       refractionMaterial.dispose();
@@ -396,9 +429,16 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
-    // Validate cached meshes are still valid (in scene and have useRefraction flag)
-    // This handles cases where meshes are recreated with same scene.children.length
-    let needsRefresh = sceneVersionRef.current !== scene.children.length;
+    // Count actual refraction meshes in scene (handles dynamic additions)
+    let actualMeshCount = 0;
+    scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
+        actualMeshCount++;
+      }
+    });
+
+    // Refresh cache if count changed or any cached mesh is stale
+    let needsRefresh = actualMeshCount !== refractionMeshesRef.current.length;
 
     if (!needsRefresh && refractionMeshesRef.current.length > 0) {
       // Check if any cached mesh is stale (removed from scene or flag changed)
@@ -411,7 +451,6 @@ export function RefractionPipeline({
     }
 
     if (needsRefresh) {
-      sceneVersionRef.current = scene.children.length;
       refractionMeshesRef.current = [];
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
