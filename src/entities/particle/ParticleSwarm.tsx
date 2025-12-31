@@ -324,12 +324,12 @@ export function ParticleSwarm({
       // Orbital drift speed variation - all shards orbit same direction to prevent overlap
       // Small speed variation creates gentle relative drift between neighbors
       // Master Craftsman: Session seed adds unique variation per session
-      const orbitSeed = (i * 3.14159 + 0.1) % 1;
+      const orbitSeed = (i * Math.PI + 0.1) % 1;
       const baseOrbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
       const orbitSpeed = getSessionOrbitSpeed(baseOrbitSpeed, i);
 
       // Wobble seed for perpendicular motion phase offset
-      const wobbleSeed = i * 2.71828; // e-based offset for unique phases
+      const wobbleSeed = i * Math.E; // e-based offset for unique phases
 
       physicsStates.push({
         currentRadius: baseRadius,
