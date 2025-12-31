@@ -1191,6 +1191,51 @@ export function SimpleGaiaUI({
                 </div>
               ))}
             </div>
+
+            {/* Debug Section */}
+            <div
+              style={{
+                marginTop: '16px',
+                paddingTop: '16px',
+                borderTop: `1px solid ${colors.border}`,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                  color: colors.textDim,
+                  marginBottom: '12px',
+                  letterSpacing: '0.12em',
+                  fontVariant: 'small-caps',
+                }}
+              >
+                Debug
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('breathe-together-intro-seen');
+                  window.location.reload();
+                }}
+                onPointerDown={stopPropagation}
+                style={{
+                  background: 'rgba(200, 100, 100, 0.1)',
+                  border: `1px solid ${colors.border}`,
+                  padding: '8px 16px',
+                  borderRadius: '12px',
+                  fontSize: '0.6rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  color: colors.text,
+                  cursor: 'pointer',
+                  width: '100%',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Reset Intro (Reload)
+              </button>
+            </div>
           </div>
         </div>
       )}

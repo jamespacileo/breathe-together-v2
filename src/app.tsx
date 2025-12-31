@@ -5,6 +5,7 @@ import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { CinematicFog, CinematicIntro } from './components/cinematic';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { MainMenu } from './components/MainMenu';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
 import { BreathingLevel } from './levels/breathing';
@@ -32,12 +33,25 @@ function markIntroSeen(): void {
   }
 }
 
+/**
+ * Reset intro seen flag (for testing)
+ */
+export function resetIntroSeen(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('breathe-together-intro-seen');
+    window.location.reload();
+  }
+}
+
 export function App() {
   // Track if user has completed intro (for this session)
-  const [introComplete, setIntroComplete] = useState(false);
+  const [introComplete, setIntroComplete] = useState(hasSeenIntro());
+
+  // Track if user has clicked "Join" - this is separate from intro completion
+  // Both new and returning users need to click Join to see the full experience
+  const [hasJoined, setHasJoined] = useState(false);
 
   // Check if we should skip intro (returning user)
-  // To test the intro again, clear localStorage: localStorage.removeItem('breathe-together-intro-seen')
   const skipIntro = hasSeenIntro();
 
   const handleIntroComplete = useCallback(() => {
@@ -46,12 +60,16 @@ export function App() {
   }, []);
 
   const handleJoin = useCallback(() => {
-    // User clicked CTA - mark intro complete
+    setHasJoined(true);
     markIntroSeen();
   }, []);
 
   return (
     <ErrorBoundary>
+      {/* Main Menu overlay - shown for returning users or after intro ends */}
+      {/* This creates a consistent "main menu" state for all users */}
+      {introComplete && !hasJoined && <MainMenu onJoin={handleJoin} />}
+
       <CinematicIntro skipIntro={skipIntro} onComplete={handleIntroComplete} onJoin={handleJoin}>
         {(phase, progress) => (
           <Canvas
@@ -64,15 +82,12 @@ export function App() {
             {/* Cinematic fog - clears as intro progresses */}
             {!introComplete && <CinematicFog phase={phase} progress={progress} />}
 
-            <CameraRig
-              introMode={!introComplete}
-              introProgress={phase === 'complete' ? 1 : progress}
-            />
+            <CameraRig introMode={!hasJoined} introProgress={phase === 'complete' ? 1 : progress} />
 
             <KootaSystems breathSystemEnabled={true}>
               <AudioProvider>
                 <BreathEntity />
-                <BreathingLevel introPhase={phase} />
+                <BreathingLevel hasJoined={hasJoined} />
               </AudioProvider>
             </KootaSystems>
           </Canvas>

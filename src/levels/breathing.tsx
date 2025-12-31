@@ -1,6 +1,5 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
-import type { IntroPhase } from '../components/cinematic';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -9,7 +8,6 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
-import { useSceneReadiness } from '../hooks/useSceneReadiness';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -33,13 +31,16 @@ const TUNING_DEFAULTS = {
 };
 
 interface BreathingLevelExtendedProps extends Partial<BreathingLevelProps> {
-  /** Current cinematic intro phase */
-  introPhase?: IntroPhase;
+  /** Whether user has clicked "Join" - controls particle visibility */
+  hasJoined?: boolean;
 }
 
 /**
  * BreathingLevel - Core meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * Before joining: Shows globe only (clean main menu state)
+ * After joining: Shows all particles and full experience
  */
 export function BreathingLevel({
   particleDensity,
@@ -47,12 +48,15 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-  // Cinematic intro props
-  introPhase = 'complete',
+  // Whether user has clicked "Join" to enter full experience
+  hasJoined = false,
 }: BreathingLevelExtendedProps = {}) {
-  // Single source of truth for scene visibility
-  const { shouldShowUI, shouldRunOnboarding, shouldPlayText, canInteract } =
-    useSceneReadiness(introPhase);
+  // Single source of truth for scene visibility based on hasJoined, not introPhase
+  // After user clicks Join, full experience becomes visible
+  const shouldShowUI = hasJoined;
+  const canInteract = hasJoined;
+  const shouldRunOnboarding = hasJoined;
+  const shouldPlayText = hasJoined;
 
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
@@ -91,8 +95,13 @@ export function BreathingLevel({
           focalRange={focalRange}
           maxBlur={maxBlur}
         >
-          {/* Monument Valley inspired atmosphere - clouds, lighting, fog */}
-          {showEnvironment && <Environment showClouds={true} showStars={true} />}
+          {/* Monument Valley inspired atmosphere - simplified before joining */}
+          {showEnvironment && (
+            <Environment
+              showClouds={hasJoined} // Heavy clouds only after joining
+              showStars={true}
+            />
+          )}
 
           {/* Wrap rotatable entities in PresentationControls */}
           <PresentationControls
@@ -106,7 +115,8 @@ export function BreathingLevel({
           >
             {showGlobe && <EarthGlobe />}
 
-            {showParticles && (
+            {/* Particle shards - only shown after user clicks Join */}
+            {showParticles && hasJoined && (
               <ParticleSwarm
                 count={harmony}
                 users={moods}
@@ -115,7 +125,8 @@ export function BreathingLevel({
               />
             )}
 
-            {showParticles && (
+            {/* Atmospheric particles - only shown after user clicks Join */}
+            {showParticles && hasJoined && (
               <AtmosphericParticles
                 count={atmosphereDensity}
                 size={0.08}
