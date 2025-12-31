@@ -257,11 +257,11 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                 justifyContent: 'center',
               }}
             >
-              {/* Progress ring - elegant minimal circle */}
+              {/* Progress ring - matches globe outer edge */}
               {currentStep === 'breathing' && (
                 <svg
-                  width="140"
-                  height="140"
+                  width="320"
+                  height="320"
                   role="img"
                   aria-label="Breathing progress"
                   style={{
@@ -269,29 +269,30 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
                     top: '50%',
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
+                    pointerEvents: 'none',
                   }}
                 >
                   <title>Breathing progress</title>
-                  {/* Background ring */}
+                  {/* Background ring - subtle guide */}
                   <circle
-                    cx="70"
-                    cy="70"
-                    r="60"
+                    cx="160"
+                    cy="160"
+                    r="150"
                     fill="none"
-                    stroke="rgba(160, 140, 120, 0.12)"
+                    stroke="rgba(160, 140, 120, 0.08)"
                     strokeWidth="1"
                   />
-                  {/* Progress ring */}
+                  {/* Progress ring - follows globe edge */}
                   <circle
-                    cx="70"
-                    cy="70"
-                    r="60"
+                    cx="160"
+                    cy="160"
+                    r="150"
                     fill="none"
-                    stroke="rgba(201, 160, 108, 0.6)"
-                    strokeWidth="1.5"
+                    stroke="rgba(201, 160, 108, 0.5)"
+                    strokeWidth="2"
                     strokeLinecap="round"
-                    strokeDasharray={`${2 * Math.PI * 60}`}
-                    strokeDashoffset={`${2 * Math.PI * 60 * (1 - phaseProgress)}`}
+                    strokeDasharray={`${2 * Math.PI * 150}`}
+                    strokeDashoffset={`${2 * Math.PI * 150 * (1 - phaseProgress)}`}
                     style={{
                       transform: 'rotate(-90deg)',
                       transformOrigin: '50% 50%',
