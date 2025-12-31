@@ -79,15 +79,16 @@ function easeInhale(t: number): number {
  * Exhale easing: Controlled, relaxing breath release
  *
  * Uses asymmetric ramps for relaxation breathing:
- * - Soft start (20%): Gentle release begins
- * - Steady middle (50%): Constant velocity, controlled even exhale
+ * - Quick start (8%): Visible expansion begins almost immediately (~0.64s ramp)
+ * - Steady middle (62%): Constant velocity, controlled even exhale
  * - Extended soft end (30%): Extra gentle landing for relaxation
  *
- * The longer end ramp creates the "letting go" feel essential for relaxation.
+ * The shorter start ramp ensures users see expansion begin promptly (critical for
+ * visual breathing cues), while the longer end ramp creates the "letting go" feel.
  */
 function easeExhale(t: number): number {
-  // Asymmetric: shorter start ramp, longer end ramp for relaxed finish
-  return controlledBreathCurve(t, 0.2, 0.3);
+  // Asymmetric: very short start ramp for immediate visual feedback, longer end for relaxation
+  return controlledBreathCurve(t, 0.08, 0.3);
 }
 
 /**
@@ -96,13 +97,14 @@ function easeExhale(t: number): number {
  * Physics: Underdamped harmonic oscillator creates subtle "breathing"
  * even during holds - nothing in nature is perfectly still.
  *
- * amplitude: 1.2% keeps it subtle but perceptible
+ * amplitude: 0.4% very subtle micro-movement (reduced from 1.2% to avoid
+ *            appearing as a "bounce" before exhale begins)
  * damping: Reduces amplitude over the hold phase
- * frequency: ~1.5 cycles per hold for gentle rhythm
+ * frequency: ~1.0 cycles per hold for gentler rhythm (reduced from 1.5)
  */
-const HOLD_AMPLITUDE = 0.012;
-const HOLD_DAMPING = 0.5; // How much oscillation decreases over hold
-const HOLD_FREQUENCY = 1.5; // Oscillation cycles per hold phase
+const HOLD_AMPLITUDE = 0.004; // Reduced from 0.012 to avoid visible bounce
+const HOLD_DAMPING = 0.6; // Slightly increased to settle faster
+const HOLD_FREQUENCY = 1.0; // Reduced from 1.5 for gentler rhythm
 
 /**
  * Breath Phase Convention:
