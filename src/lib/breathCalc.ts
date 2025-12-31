@@ -1,7 +1,7 @@
 import { BREATH_TOTAL_CYCLE, HOLD_OSCILLATION, VISUALS } from '../constants';
 import type { BreathState } from '../types';
 import { calculatePhaseInfo } from './breathPhase';
-import { easeExhale, easeInhale } from './easing';
+import { clamp01, easeExhale, easeInhale } from './easing';
 
 /**
  * Breathing state calculation using shared easing functions.
@@ -71,7 +71,7 @@ export function calculateBreathState(elapsedTime: number): BreathState {
   }
 
   // Clamp to valid range
-  breathPhase = Math.max(0, Math.min(1, breathPhase));
+  breathPhase = clamp01(breathPhase);
 
   // Derive orbit radius (particles spread on exhale, contract on inhale)
   const orbitRadius =

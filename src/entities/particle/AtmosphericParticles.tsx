@@ -83,9 +83,9 @@ export const AtmosphericParticles = memo(function AtmosphericParticlesComponent(
       materialRef.current = sparklesRef.current.material as THREE.PointsMaterial;
     }
 
-    const breathEntity = world?.queryFirst?.(breathPhase);
-    if (breathEntity && materialRef.current?.opacity !== undefined) {
-      const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
+    const breathEntity = world.queryFirst(breathPhase);
+    if (breathEntity && materialRef.current) {
+      const phase = breathEntity.get(breathPhase)?.value ?? 0;
       materialRef.current.opacity = baseOpacity + phase * breathingOpacity;
     }
   });
