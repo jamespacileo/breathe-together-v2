@@ -181,7 +181,6 @@ export function ProgressCircleOverlay({
   /**
    * Update progress arc, breathing scale, and text each frame
    */
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation loop requires multiple state checks for breathing animation, progress arc updates, indicator position, and material opacity - all tightly coupled
   useFrame((_, delta) => {
     if (!groupRef.current || !progressMeshRef.current) return;
 

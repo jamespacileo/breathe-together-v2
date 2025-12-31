@@ -1,7 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { ProgressCircleOverlay } from '../components/ProgressCircleOverlay';
+import { ProgressCircleOverlayHTML } from '../components/ProgressCircleOverlayHTML';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -112,21 +112,11 @@ export function BreathingLevel({
           </PresentationControls>
         </RefractionPipeline>
 
-        {/* Progress circle overlay - OUTSIDE RefractionPipeline to avoid DoF blur */}
-        {/* Renders as crisp UI overlay in front of the blurred 3D scene */}
-        {showGlobe && (
-          <ProgressCircleOverlay
-            radius={2.0}
-            expandedRadius={3.5}
-            thickness={0.04}
-            userCount={harmony}
-            zOffset={0.5}
-            renderOrder={100}
-          />
-        )}
-
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
+          {/* Progress circle overlay - HTML/SVG for crisp rendering (not affected by DoF) */}
+          {showGlobe && <ProgressCircleOverlayHTML userCount={harmony} />}
+
           {/* Top-right control icons (audio + tune + settings) */}
           <TopRightControls
             onOpenTuneControls={() => setShowTuneControls(true)}
