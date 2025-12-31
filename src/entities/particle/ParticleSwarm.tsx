@@ -12,7 +12,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
-import { breathPhase, orbitRadius } from '../breath/traits';
+import { getSessionOrbitSpeed } from '../../lib/sessionSeed';
+import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
@@ -125,6 +126,10 @@ interface ShardData {
  * - Scale offset: subtle size variation for depth
  * - Orbit: slow orbital drift around center
  * - Perpendicular: tangent wobble for organic floating feel
+ *
+ * Master Craftsman additions:
+ * - Velocity history: momentum memory for more physical feel
+ * - Gravitational settling: shards "relax" into position during holds
  */
 interface ShardPhysicsState {
   /** Current interpolated radius (spring-smoothed) */
@@ -149,6 +154,8 @@ interface ShardPhysicsState {
   orbitSpeed: number;
   /** Seed for perpendicular wobble phase */
   wobbleSeed: number;
+  /** Velocity history for momentum memory (last 3 frames) */
+  velocityHistory: number[];
 }
 
 /**
@@ -157,22 +164,22 @@ interface ShardPhysicsState {
  * Tuned for controlled relaxation breathing:
  * - Stiffness: responsive but not instant (follows breath naturally)
  * - Damping: settles quickly on holds without oscillation
- * - Expansion boost: immediate response when exhale begins
  */
 const SPRING_STIFFNESS = 6; // Lower = more lag, higher = snappier
 const SPRING_DAMPING = 4.5; // Lower = oscillates, higher = settles faster
 
 /**
- * Expansion velocity boost for immediate exhale response
+ * Exhale-specific physics: Overdamped for smooth "letting go"
  *
- * When target radius increases (exhale starts), inject outward velocity
- * proportional to target change. This overcomes spring lag and makes
- * the exhale expansion feel immediate rather than delayed.
+ * During exhale, we want NO bounce - just smooth, organic release.
+ * Overdamped springs (damping > critical) never oscillate, they just
+ * smoothly approach the target like a feather floating outward.
  *
- * The boost is asymmetric - only applied during expansion (exhale),
- * not contraction (inhale), for a more natural "release" feel.
+ * Critical damping = 2 * sqrt(stiffness) ≈ 4.9 for stiffness=6
+ * We use higher damping during exhale to ensure no overshoot.
  */
-const EXPANSION_VELOCITY_BOOST = 2.5; // Multiplier for expansion velocity injection
+const EXHALE_DAMPING = 8.0; // Overdamped: smooth release, no bounce
+const EXHALE_STIFFNESS = 4.0; // Softer spring during exhale for gentler motion
 
 /**
  * Ambient floating motion constants
@@ -209,6 +216,23 @@ const PERPENDICULAR_FREQUENCY = 0.35; // Oscillation speed (Hz, slower = softer)
  */
 const MAX_PHASE_OFFSET = 0.04; // 4% of breath cycle
 
+/**
+ * Master Craftsman: Gravitational settling during holds
+ *
+ * During hold phases (1 and 3), add subtle gravity pulling shards
+ * toward their equilibrium position. Mimics how the user's body settles.
+ */
+const HOLD_SETTLE_STRENGTH = 0.015; // Very subtle settling force
+
+/**
+ * Master Craftsman: Velocity memory smoothing
+ *
+ * Blend current velocity with historical average for more "physical" motion.
+ * Creates sense of mass and momentum without disrupting responsiveness.
+ */
+const VELOCITY_SMOOTHING = 0.85; // 85% current, 15% historical
+const VELOCITY_HISTORY_LENGTH = 3; // Frames of history to track
+
 export function ParticleSwarm({
   count = 48,
   users,
@@ -222,6 +246,7 @@ export function ParticleSwarm({
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+  const prevPhaseTypeRef = useRef<number>(-1); // Track phase transitions
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -299,8 +324,10 @@ export function ParticleSwarm({
 
       // Orbital drift speed variation - all shards orbit same direction to prevent overlap
       // Small speed variation creates gentle relative drift between neighbors
+      // Master Craftsman: Session seed adds unique variation per session
       const orbitSeed = (i * Math.PI + 0.1) % 1;
-      const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
+      const baseOrbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
+      const orbitSpeed = getSessionOrbitSpeed(baseOrbitSpeed, i);
 
       // Wobble seed for perpendicular motion phase offset
       const wobbleSeed = i * Math.E; // e-based offset for unique phases
@@ -317,6 +344,7 @@ export function ParticleSwarm({
         orbitAngle: 0,
         orbitSpeed,
         wobbleSeed,
+        velocityHistory: [0, 0, 0], // Initialize velocity history
       });
     }
 
@@ -352,15 +380,24 @@ export function ParticleSwarm({
     // Get breathing state from ECS
     let targetRadius = baseRadius;
     let currentBreathPhase = 0;
+    let currentPhaseType = 0;
     try {
       const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
         targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
         currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
+        currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
     }
+
+    // Master Craftsman: Check if we're in a hold phase (1 = hold-in, 3 = hold-out)
+    const isHoldPhase = currentPhaseType === 1 || currentPhaseType === 3;
+
+    // Check if we're in exhale phase (2) - use overdamped physics for smooth release
+    const isExhalePhase = currentPhaseType === 2;
+    prevPhaseTypeRef.current = currentPhaseType;
 
     // Update shader material uniforms for all shards
     // (shared material means updating once affects all)
@@ -386,24 +423,44 @@ export function ParticleSwarm({
 
       // Clamp target to prevent penetrating globe
       const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
-
-      // Detect expansion (exhale) and apply velocity boost for immediate response
-      // This overcomes spring lag so exhale feels like an immediate "release"
-      const targetDelta = clampedTarget - shardState.previousTarget;
-      if (targetDelta > 0.001) {
-        // Expanding outward (exhale starting) - inject outward velocity
-        shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
-      }
       shardState.previousTarget = clampedTarget;
 
-      // Spring physics: F = -k(x - target) - c*v
-      const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
-      const dampingForce = -shardState.velocity * SPRING_DAMPING;
-      const totalForce = springForce + dampingForce;
+      // Select physics parameters based on breath phase
+      // Exhale uses overdamped spring for smooth "letting go" without any bounce
+      // Inhale/holds use normal spring for responsive, organic motion
+      const stiffness = isExhalePhase ? EXHALE_STIFFNESS : SPRING_STIFFNESS;
+      const damping = isExhalePhase ? EXHALE_DAMPING : SPRING_DAMPING;
 
-      // Integrate velocity and position
+      // Spring physics: F = -k(x - target) - c*v
+      const springForce = (clampedTarget - shardState.currentRadius) * stiffness;
+      const dampingForce = -shardState.velocity * damping;
+      let totalForce = springForce + dampingForce;
+
+      // Master Craftsman: Gravitational settling during hold phases
+      // Shards "relax" into their rest position, mirroring user's body settling
+      if (isHoldPhase) {
+        const settleForce = (clampedTarget - shardState.currentRadius) * HOLD_SETTLE_STRENGTH;
+        totalForce += settleForce;
+      }
+
+      // Integrate velocity
       shardState.velocity += totalForce * clampedDelta;
-      shardState.currentRadius += shardState.velocity * clampedDelta;
+
+      // Master Craftsman: Velocity memory - blend with historical velocity for mass/momentum feel
+      // Update velocity history (circular buffer style)
+      shardState.velocityHistory.push(shardState.velocity);
+      if (shardState.velocityHistory.length > VELOCITY_HISTORY_LENGTH) {
+        shardState.velocityHistory.shift();
+      }
+
+      // Calculate smoothed velocity from history
+      const historicalVelocity =
+        shardState.velocityHistory.reduce((a, b) => a + b, 0) / shardState.velocityHistory.length;
+      const smoothedVelocity =
+        shardState.velocity * VELOCITY_SMOOTHING + historicalVelocity * (1 - VELOCITY_SMOOTHING);
+
+      // Integrate position with smoothed velocity
+      shardState.currentRadius += smoothedVelocity * clampedDelta;
 
       // Update orbital drift angle
       shardState.orbitAngle += shardState.orbitSpeed * clampedDelta;
