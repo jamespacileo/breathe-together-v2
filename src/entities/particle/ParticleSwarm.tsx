@@ -303,6 +303,9 @@ export function ParticleSwarm({
 
   // Create shards (geometry only - colors updated dynamically)
   const shards = useMemo(() => {
+    // Guard against count=0 to prevent division by zero in Fibonacci calculation
+    if (count === 0) return [];
+
     const result: ShardData[] = [];
 
     for (let i = 0; i < count; i++) {
@@ -311,7 +314,7 @@ export function ParticleSwarm({
       // Apply initial neutral color (will be updated dynamically)
       applyVertexColors(geometry, emptySlotColor);
 
-      // Fibonacci sphere distribution
+      // Fibonacci sphere distribution (count guaranteed > 0 here)
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
       const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
@@ -330,15 +333,15 @@ export function ParticleSwarm({
   }, [count, baseRadius, shardSize, material, emptySlotColor]);
 
   // Update shard colors and visibility when shardStates, slotStates, or users change
+  // Uses `shards` directly (not shardsRef) to avoid timing issues with mesh-adding effect
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex state management with enter/exit animations requires multiple conditional branches for dynamic vs slot-based vs legacy mode
   useEffect(() => {
-    const currentShards = shardsRef.current;
-    if (currentShards.length === 0) return;
+    if (shards.length === 0) return;
 
     if (shardStates) {
       // Dynamic mode: count derived from shardStates length
-      for (let i = 0; i < currentShards.length && i < shardStates.length; i++) {
-        const shard = currentShards[i];
+      for (let i = 0; i < shards.length && i < shardStates.length; i++) {
+        const shard = shards[i];
         const state = shardStates[i];
 
         // Update color from mood
@@ -368,8 +371,8 @@ export function ParticleSwarm({
     } else if (slotStates) {
       // Slot-based mode: each slot maps to a shard
       const slotColors = buildColorFromSlots(slotStates);
-      for (let i = 0; i < currentShards.length; i++) {
-        const shard = currentShards[i];
+      for (let i = 0; i < shards.length; i++) {
+        const shard = shards[i];
         const slotState = slotStates[i];
         const color = slotColors[i];
 
@@ -403,8 +406,8 @@ export function ParticleSwarm({
     } else if (users) {
       // Legacy mode: color distribution from mood counts
       const colorDistribution = buildColorDistribution(users);
-      for (let i = 0; i < currentShards.length; i++) {
-        const shard = currentShards[i];
+      for (let i = 0; i < shards.length; i++) {
+        const shard = shards[i];
         const color =
           colorDistribution[i] ?? MOOD_COLORS[Math.floor(Math.random() * MOOD_COLORS.length)];
         applyVertexColors(shard.geometry, color);
@@ -414,7 +417,7 @@ export function ParticleSwarm({
         slotAnimationsRef.current.opacity[i] = 1;
       }
     }
-  }, [shardStates, slotStates, users]);
+  }, [shardStates, slotStates, users, shards]);
 
   // Add meshes to group and initialize physics state
   useEffect(() => {

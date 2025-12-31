@@ -102,123 +102,167 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
     })),
   );
 
-  // Ref for animation timing
-  const animationTimingRef = useRef<Map<number, { startTime: number; duration: number }>>(
-    new Map(),
-  );
-
-  // Counter for unique shard IDs (used as map key for timing)
-  const shardIdCounter = useRef(initialMoods.length);
+  // Store animation duration in ref for use in tickAnimations
+  const animationDurationRef = useRef(animationDuration);
 
   /**
    * Update the mood array with smooth transitions
+   * Uses performance.now() for startTime - tickAnimations uses same time base
    */
-  const setMoods = useCallback(
-    (newMoods: MoodId[]) => {
-      setMoodsState(newMoods);
+  const setMoods = useCallback((newMoods: MoodId[]) => {
+    setMoodsState(newMoods);
 
+    setShardStates((prevStates) => {
+      const now = performance.now() / 1000;
+      const nextStates: ShardAnimationState[] = [];
+
+      // Get currently visible moods (excluding exiting)
+      const activeStates = prevStates.filter((s) => s.state !== 'exiting');
+
+      // Simple diff: compare lengths and contents
+      const oldLength = activeStates.length;
+      const newLength = newMoods.length;
+
+      // Process each new mood
+      for (let i = 0; i < newLength; i++) {
+        const newMood = newMoods[i];
+
+        if (i < oldLength) {
+          // Existing position - update mood and target position
+          const existing = activeStates[i];
+          nextStates.push({
+            mood: newMood,
+            state: existing.state,
+            progress: existing.progress,
+            startTime: existing.startTime,
+            positionIndex: existing.positionIndex,
+            targetPositionIndex: i,
+          });
+        } else {
+          // New position - enter animation
+          nextStates.push({
+            mood: newMood,
+            state: 'entering',
+            progress: 0,
+            startTime: now,
+            positionIndex: i,
+            targetPositionIndex: i,
+          });
+        }
+      }
+
+      // Mark removed positions as exiting
+      for (let i = newLength; i < oldLength; i++) {
+        const existing = activeStates[i];
+        nextStates.push({
+          mood: existing.mood,
+          state: 'exiting',
+          progress: 1,
+          startTime: now,
+          positionIndex: existing.positionIndex,
+          targetPositionIndex: existing.positionIndex, // Stay in place while exiting
+        });
+      }
+
+      // Keep already exiting shards (don't duplicate)
+      for (const state of prevStates) {
+        if (state.state === 'exiting' && !nextStates.some((s) => s === state)) {
+          nextStates.push(state);
+        }
+      }
+
+      return nextStates;
+    });
+  }, []);
+
+  /**
+   * Add a user with specified mood
+   * Uses functional update to avoid stale closure issues
+   */
+  const addUser = useCallback((mood: MoodId) => {
+    setMoodsState((prevMoods) => {
+      const newMoods = [...prevMoods, mood];
+      // Trigger animation state update
       setShardStates((prevStates) => {
         const now = performance.now() / 1000;
-        const nextStates: ShardAnimationState[] = [];
+        return [
+          ...prevStates.filter((s) => s.state !== 'exiting'),
+          {
+            mood,
+            state: 'entering' as const,
+            progress: 0,
+            startTime: now,
+            positionIndex: prevMoods.length,
+            targetPositionIndex: prevMoods.length,
+          },
+          ...prevStates.filter((s) => s.state === 'exiting'),
+        ];
+      });
+      return newMoods;
+    });
+  }, []);
 
-        // Get currently visible moods (excluding exiting)
+  /**
+   * Remove user at index
+   * Uses functional update to avoid stale closure issues
+   */
+  const removeUser = useCallback((index: number) => {
+    setMoodsState((prevMoods) => {
+      if (index < 0 || index >= prevMoods.length) return prevMoods;
+      const newMoods = [...prevMoods];
+      newMoods.splice(index, 1);
+
+      // Trigger animation state update
+      setShardStates((prevStates) => {
+        const now = performance.now() / 1000;
         const activeStates = prevStates.filter((s) => s.state !== 'exiting');
 
-        // Simple diff: compare lengths and contents
-        const oldLength = activeStates.length;
-        const newLength = newMoods.length;
+        // Mark the removed shard as exiting
+        const exitingShard = activeStates[index];
+        const nextStates: ShardAnimationState[] = [];
 
-        // Process each new mood
-        for (let i = 0; i < newLength; i++) {
-          const newMood = newMoods[i];
-
-          if (i < oldLength) {
-            // Existing position - update mood and target position
-            const existing = activeStates[i];
+        for (let i = 0; i < activeStates.length; i++) {
+          if (i === index) {
+            // This one is exiting
             nextStates.push({
-              mood: newMood,
-              state: existing.state,
-              progress: existing.progress,
-              startTime: existing.startTime,
-              positionIndex: existing.positionIndex,
-              targetPositionIndex: i,
+              ...exitingShard,
+              state: 'exiting',
+              progress: 1,
+              startTime: now,
+            });
+          } else if (i > index) {
+            // Shift indices for items after the removed one
+            nextStates.push({
+              ...activeStates[i],
+              targetPositionIndex: i - 1,
             });
           } else {
-            // New position - enter animation
-            const shardId = shardIdCounter.current++;
-            nextStates.push({
-              mood: newMood,
-              state: 'entering',
-              progress: 0,
-              startTime: now,
-              positionIndex: i,
-              targetPositionIndex: i,
-            });
-            animationTimingRef.current.set(shardId, {
-              startTime: now,
-              duration: animationDuration,
-            });
+            nextStates.push(activeStates[i]);
           }
         }
 
-        // Mark removed positions as exiting
-        for (let i = newLength; i < oldLength; i++) {
-          const existing = activeStates[i];
-          const shardId = shardIdCounter.current++;
-          nextStates.push({
-            mood: existing.mood,
-            state: 'exiting',
-            progress: 1,
-            startTime: now,
-            positionIndex: existing.positionIndex,
-            targetPositionIndex: existing.positionIndex, // Stay in place while exiting
-          });
-          animationTimingRef.current.set(shardId, {
-            startTime: now,
-            duration: animationDuration,
-          });
-        }
-
-        // Keep already exiting shards
+        // Keep existing exiting shards
         for (const state of prevStates) {
-          if (state.state === 'exiting') {
+          if (state.state === 'exiting' && state !== exitingShard) {
             nextStates.push(state);
           }
         }
 
         return nextStates;
       });
-    },
-    [animationDuration],
-  );
 
-  /**
-   * Add a user with specified mood
-   */
-  const addUser = useCallback(
-    (mood: MoodId) => {
-      setMoods([...moods, mood]);
-    },
-    [moods, setMoods],
-  );
-
-  /**
-   * Remove user at index
-   */
-  const removeUser = useCallback(
-    (index: number) => {
-      if (index < 0 || index >= moods.length) return;
-      const newMoods = [...moods];
-      newMoods.splice(index, 1);
-      setMoods(newMoods);
-    },
-    [moods, setMoods],
-  );
+      return newMoods;
+    });
+  }, []);
 
   /**
    * Tick animations (call from useFrame)
+   * Uses performance.now() to match startTime time base (ignores elapsedTime param)
    */
-  const tickAnimations = useCallback((elapsedTime: number) => {
+  const tickAnimations = useCallback((_elapsedTime: number) => {
+    const now = performance.now() / 1000;
+    const duration = animationDurationRef.current;
+
     setShardStates((prevStates) => {
       let updated = false;
 
@@ -241,9 +285,8 @@ export function useMoodArray(config: UseMoodArrayConfig = {}): UseMoodArrayResul
             return state;
           }
 
-          // Calculate animation progress
-          const elapsed = elapsedTime - state.startTime;
-          const duration = animationTimingRef.current.values().next().value?.duration ?? 0.5;
+          // Calculate animation progress using performance.now() time base
+          const elapsed = now - state.startTime;
           const progress = Math.min(elapsed / duration, 1);
 
           if (progress >= 1) {
