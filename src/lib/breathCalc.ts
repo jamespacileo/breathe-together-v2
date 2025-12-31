@@ -76,20 +76,27 @@ function easeInhale(t: number): number {
 }
 
 /**
- * Exhale easing: Immediate release with gentle landing
+ * Exhale easing: Fast release with gradual landing
  *
- * Uses NO start ramp for instant visual feedback:
- * - Immediate start (0%): Movement begins instantly at steady velocity
- * - Steady middle (70%): Constant velocity, controlled even exhale
- * - Extended soft end (30%): Extra gentle landing for relaxation
+ * Uses ease-out curve for immediate visible movement at phase start:
+ * - Fast initial release: ~40% of movement in first 25% of time
+ * - Gradual deceleration: Smooth landing as lungs empty
  *
- * Unlike inhale (which has a soft start to feel like "filling up"),
- * exhale needs instant movement to signal "letting go". Users should
- * see expansion begin immediately when the phase changes.
+ * This creates the "letting go of a rubber band" feel:
+ * - Instant visible pop when exhale begins (matches UI phase change)
+ * - Natural slowdown as tension releases
+ * - No constant velocity that feels mechanical
+ *
+ * Technical: Uses cubic ease-out: 1 - (1-t)^3
+ * This provides strong initial velocity that decelerates smoothly.
  */
 function easeExhale(t: number): number {
-  // No start ramp: instant velocity for immediate visual feedback
-  return controlledBreathCurve(t, 0, 0.3);
+  // Cubic ease-out: fast start, gradual landing
+  // At t=0: slope = 3 (3x faster than linear)
+  // At t=0.5: slope = 0.75
+  // At t=1: slope = 0 (smooth stop)
+  const tClamped = Math.max(0, Math.min(1, t));
+  return 1 - (1 - tClamped) ** 3;
 }
 
 /**
