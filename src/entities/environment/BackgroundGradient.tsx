@@ -103,10 +103,6 @@ void main() {
   float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
   color *= mix(0.97, 1.0, vignette);
 
-  // Paper texture noise (very subtle)
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
-  color += noise;
-
   gl_FragColor = vec4(color, 1.0);
 }
 `;

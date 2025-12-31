@@ -39,16 +39,20 @@ export function CinematicIntro({
     onComplete: handleComplete,
   });
 
-  // Handle scene visibility based on phase - simplified
+  // Handle scene visibility based on phase
+  // Title appears on black first (0-50%), then scene fades in (50-100%)
   useEffect(() => {
     switch (phase) {
       case 'void':
         setSceneOpacity(0);
         break;
-      case 'reveal':
-        // Smooth reveal from 0 to 1
-        setSceneOpacity(progress);
+      case 'reveal': {
+        // Scene starts fading in at 50% of reveal phase
+        // Maps progress 0.5-1.0 → opacity 0-1
+        const sceneProgress = Math.max(0, (progress - 0.5) * 2);
+        setSceneOpacity(sceneProgress);
         break;
+      }
       case 'cta':
       case 'complete':
         setSceneOpacity(1);
@@ -112,21 +116,27 @@ export function CinematicIntro({
             pointerEvents: phase === 'cta' ? 'auto' : 'none',
           }}
         >
-          {/* Black overlay that fades during reveal */}
+          {/* Black overlay - stays visible while title appears, then fades */}
           <div
             style={{
               position: 'absolute',
               inset: 0,
               background: '#0a0908',
-              opacity: phase === 'void' ? 1 : phase === 'reveal' ? 1 - progress : 0,
-              transition: 'opacity 0.5s ease-out',
+              // Black overlay stays at 100% until 50% of reveal, then fades
+              opacity:
+                phase === 'void'
+                  ? 1
+                  : phase === 'reveal'
+                    ? Math.max(0, 1 - (progress - 0.4) * 2.5)
+                    : 0,
+              transition: 'opacity 0.8s ease-out',
               pointerEvents: 'none',
             }}
             aria-hidden="true"
           />
 
-          {/* Title and CTA - shown during cta phase */}
-          <TitleReveal phase={phase} onJoin={handleJoin} />
+          {/* Title and CTA */}
+          <TitleReveal phase={phase} progress={progress} onJoin={handleJoin} />
 
           {/* Letterbox bars - visible during reveal and cta */}
           <Letterbox phase={phase} retracting={isRetracting} />

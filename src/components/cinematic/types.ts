@@ -17,8 +17,8 @@ export type IntroPhase = 'void' | 'reveal' | 'cta' | 'complete';
  * Phase timing configuration (milliseconds)
  */
 export const PHASE_TIMING: Record<IntroPhase, number> = {
-  void: 800, // 0.8s black screen
-  reveal: 2000, // 2s globe reveal
+  void: 600, // 0.6s black screen
+  reveal: 3000, // 3s - title appears on black (0-50%), then scene fades in (50-100%)
   cta: 0, // Main menu - waits for user interaction
   complete: 0, // Immediate transition
 };
