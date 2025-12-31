@@ -116,6 +116,8 @@ export interface ParticleSwarmProps {
    * Can be either:
    * - User[]: Individual users with id and mood
    * - Partial<Record<MoodId, number>>: Aggregate mood counts (legacy, converted internally)
+   *
+   * The number of shards dynamically matches the number of users.
    */
   users?: User[] | Partial<Record<MoodId, number>>;
   /** Base radius for orbit @default 4.5 */
@@ -130,8 +132,12 @@ export interface ParticleSwarmProps {
   maxShardSize?: number;
   /** Minimum shard size (prevents tiny shards at high counts) @default 0.15 */
   minShardSize?: number;
-  /** Maximum number of visible shards (performance cap) @default 200 */
-  maxShards?: number;
+  /**
+   * Performance safety cap - maximum shards to render
+   * Only kicks in at very high user counts to prevent GPU overload.
+   * @default 1000
+   */
+  performanceCap?: number;
 }
 
 interface ShardData {
@@ -248,7 +254,7 @@ export function ParticleSwarm({
   buffer = 0.3,
   maxShardSize = 0.6,
   minShardSize = 0.15,
-  maxShards = 200,
+  performanceCap = 1000,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
@@ -297,10 +303,7 @@ export function ParticleSwarm({
   // Create shared material (will be swapped by RefractionPipeline)
   const material = useMemo(() => createFrostedGlassMaterial(), []);
 
-  // Create initial shard pool (will grow dynamically)
-  const initialShardCount = 48;
-
-  // Create a shard at a specific index (initial distribution uses pool size)
+  // Create a shard at a specific index
   const createShardAtIndex = useCallback(
     (index: number, shardSize: number, totalForDistribution: number) => {
       const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
@@ -346,7 +349,7 @@ export function ParticleSwarm({
     [material, baseRadius],
   );
 
-  // Ensure we have enough shards for all slots
+  // Ensure we have enough shards for all users (grows dynamically)
   const ensureShardCapacity = useCallback(
     (requiredCount: number) => {
       const group = groupRef.current;
@@ -354,18 +357,20 @@ export function ParticleSwarm({
       const physics = physicsRef.current;
       if (!group || requiredCount <= shards.length) return;
 
-      const shardSize = calculateShardSize(requiredCount);
+      // Apply performance cap only at very high counts
+      const cappedCount = Math.min(requiredCount, performanceCap);
+      const shardSize = calculateShardSize(cappedCount);
 
-      for (let i = shards.length; i < Math.min(requiredCount, maxShards); i++) {
+      for (let i = shards.length; i < cappedCount; i++) {
         // New shards use current active count for initial distribution
-        const { shard, physics: physicsState } = createShardAtIndex(i, shardSize, requiredCount);
+        const { shard, physics: physicsState } = createShardAtIndex(i, shardSize, cappedCount);
         group.add(shard.mesh);
         shard.mesh.scale.setScalar(0); // Start invisible
         shards.push(shard);
         physics.push(physicsState);
       }
     },
-    [calculateShardSize, createShardAtIndex, maxShards],
+    [calculateShardSize, createShardAtIndex, performanceCap],
   );
 
   /**
@@ -399,7 +404,7 @@ export function ParticleSwarm({
     }
   }, []);
 
-  // Initialize shard pool
+  // Initialize - no pre-allocation, shards created dynamically based on user count
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
@@ -409,47 +414,41 @@ export function ParticleSwarm({
       group.remove(group.children[0]);
     }
 
-    // Pre-allocate initial shard pool
-    const shards: ShardData[] = [];
-    const physicsStates: ShardPhysicsState[] = [];
-    const shardSize = calculateShardSize(initialShardCount);
-
-    for (let i = 0; i < initialShardCount; i++) {
-      const { shard, physics } = createShardAtIndex(i, shardSize, initialShardCount);
-      group.add(shard.mesh);
-      shards.push(shard);
-      physicsStates.push(physics);
-
-      // Start invisible (scale 0)
-      shard.mesh.scale.setScalar(0);
-    }
-
-    shardsRef.current = shards;
-    physicsRef.current = physicsStates;
+    // Start with empty arrays - shards created on demand
+    shardsRef.current = [];
+    physicsRef.current = [];
 
     // Initial reconciliation with current users
     const slotManager = slotManagerRef.current;
     if (slotManager) {
+      const userCount = pendingUsersRef.current.length;
+
+      // Create shards for initial users
+      if (userCount > 0) {
+        ensureShardCapacity(userCount);
+      }
+
       slotManager.reconcile(pendingUsersRef.current);
+
       // Set initial active count and redistribute
       const activeCount = slotManager.activeCount;
       prevActiveCountRef.current = activeCount;
       if (activeCount > 0) {
         redistributePositions(activeCount);
         // Snap to target positions immediately on init
-        for (const shard of shards) {
+        for (const shard of shardsRef.current) {
           shard.direction.copy(shard.targetDirection);
         }
       }
     }
 
     return () => {
-      for (const shard of shards) {
+      for (const shard of shardsRef.current) {
         shard.geometry.dispose();
         group.remove(shard.mesh);
       }
     };
-  }, [calculateShardSize, createShardAtIndex, redistributePositions]);
+  }, [ensureShardCapacity, redistributePositions]);
 
   // Cleanup material on unmount
   useEffect(() => {
