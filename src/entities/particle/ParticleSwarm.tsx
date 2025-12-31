@@ -6,6 +6,11 @@
  * - Calculates Fibonacci positions dynamically each frame
  * - Gentle opacity fade for enter/exit (no scale animation)
  * - Positions naturally redistribute as count changes
+ *
+ * Performance optimizations:
+ * - Colors only updated when mood changes (tracked per-shard)
+ * - Reuses Vector3 instances to avoid GC pressure
+ * - No allocations in useFrame loop
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -62,6 +67,8 @@ export interface ParticleSwarmProps {
 interface PooledShard {
   mesh: THREE.Mesh;
   geometry: THREE.IcosahedronGeometry;
+  /** Track current mood to avoid redundant color updates */
+  currentMood: MoodId | null;
 }
 
 /**
@@ -79,6 +86,10 @@ interface ShardPhysics {
 const SPRING_K = 6;
 const SPRING_D = 4.5;
 const AMBIENT_SCALE = 0.06;
+
+// Reusable Vector3 instances to avoid allocations in useFrame
+const _direction = new THREE.Vector3();
+const _ambient = new THREE.Vector3();
 
 export function ParticleSwarm({
   shardStates,
@@ -110,7 +121,7 @@ export function ParticleSwarm({
       mesh.frustumCulled = false;
       mesh.visible = false;
 
-      shards.push({ mesh, geometry });
+      shards.push({ mesh, geometry, currentMood: null });
     }
 
     return shards;
@@ -157,7 +168,7 @@ export function ParticleSwarm({
     return () => material.dispose();
   }, [material]);
 
-  // Animation loop
+  // Animation loop - optimized to avoid allocations
   useFrame((state, delta) => {
     const physics = physicsRef.current;
     if (pool.length === 0 || physics.length === 0) return;
@@ -192,7 +203,8 @@ export function ParticleSwarm({
 
     // Update each shard
     for (let i = 0; i < pool.length; i++) {
-      const { mesh, geometry } = pool[i];
+      const pooledShard = pool[i];
+      const { mesh, geometry } = pooledShard;
       const phys = physics[i];
       const shardState = shardStates?.[i];
 
@@ -204,23 +216,22 @@ export function ParticleSwarm({
 
       mesh.visible = true;
 
-      // Update color from mood
-      const color = MOOD_TO_COLOR[shardState.mood];
-      if (color) {
-        applyVertexColors(geometry, color);
+      // Update color ONLY when mood changes (avoid redundant GPU uploads)
+      if (pooledShard.currentMood !== shardState.mood) {
+        const color = MOOD_TO_COLOR[shardState.mood];
+        if (color) {
+          applyVertexColors(geometry, color);
+          pooledShard.currentMood = shardState.mood;
+        }
       }
 
-      // Apply opacity via material (use userData to pass to shader or scale for simple approach)
-      // For simplicity, we'll scale down slightly when fading
       const opacity = shardState.opacity;
 
-      // Calculate Fibonacci position for THIS shard based on VISIBLE count
-      // This naturally redistributes positions as count changes
-      const activeIndex = i;
+      // Calculate Fibonacci position (reuse _direction vector)
       const activeCount = Math.max(1, visibleCount);
-      const phi = Math.acos(-1 + (2 * activeIndex + 1) / activeCount);
+      const phi = Math.acos(-1 + (2 * i + 1) / activeCount);
       const theta = Math.sqrt(activeCount * Math.PI) * phi;
-      const direction = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+      _direction.setFromSphericalCoords(1, phi, theta);
 
       // Spring physics for smooth radius changes
       const clampedTarget = Math.max(targetRadius, minRadius);
@@ -229,17 +240,16 @@ export function ParticleSwarm({
       phys.velocity += (springForce + dampForce) * dt;
       phys.currentRadius += phys.velocity * dt;
 
-      // Ambient floating motion
+      // Ambient floating motion (reuse _ambient vector)
       const seed = phys.ambientSeed;
-      const ambientX = Math.sin(time * 0.4 + seed) * AMBIENT_SCALE;
-      const ambientY = Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_SCALE * 0.6;
-      const ambientZ = Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE;
+      _ambient.set(
+        Math.sin(time * 0.4 + seed) * AMBIENT_SCALE,
+        Math.sin(time * 0.3 + seed * 0.7) * AMBIENT_SCALE * 0.6,
+        Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE,
+      );
 
-      // Position
-      mesh.position
-        .copy(direction)
-        .multiplyScalar(phys.currentRadius)
-        .add(new THREE.Vector3(ambientX, ambientY, ambientZ));
+      // Position (no allocations)
+      mesh.position.copy(_direction).multiplyScalar(phys.currentRadius).add(_ambient);
 
       // Rotation
       mesh.rotation.x += 0.002 * phys.rotSpeedX;

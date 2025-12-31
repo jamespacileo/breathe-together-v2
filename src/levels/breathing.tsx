@@ -177,6 +177,9 @@ export function BreathingLevel({
   // This simulates real-world behavior where users join/leave naturally
   // Will be replaced by Cloudflare Workers backend later
   const lastHoldSyncRef = useRef<number>(0);
+  const moodsLengthRef = useRef(moods.length);
+  moodsLengthRef.current = moods.length; // Keep ref updated without re-running effect
+
   useEffect(() => {
     const checkAndSync = () => {
       const now = Date.now() / 1000;
@@ -198,11 +201,12 @@ export function BreathingLevel({
           for (let i = 0; i < changeCount; i++) {
             // 55% add, 45% remove (slight growth bias)
             const shouldAdd = Math.random() < 0.55;
+            const currentLength = moodsLengthRef.current;
 
-            if (shouldAdd || moods.length <= 5) {
+            if (shouldAdd || currentLength <= 5) {
               addUser(getRandomMood());
             } else {
-              const randomIndex = Math.floor(Math.random() * moods.length);
+              const randomIndex = Math.floor(Math.random() * currentLength);
               removeUser(randomIndex);
             }
           }
@@ -212,7 +216,7 @@ export function BreathingLevel({
 
     const interval = setInterval(checkAndSync, 200);
     return () => clearInterval(interval);
-  }, [addUser, removeUser, moods.length]);
+  }, [addUser, removeUser]); // Removed moods.length - use ref instead
 
   // Simulation: Random join/leave activity - only during hold phases
   // This syncs user changes with the natural breathing rhythm
@@ -223,12 +227,13 @@ export function BreathingLevel({
         if (isInHoldPhase()) {
           // Random action: 60% add, 40% remove (net growth bias)
           const shouldAdd = Math.random() < 0.6;
+          const currentLength = moodsLengthRef.current;
 
           if (shouldAdd) {
             addUser(getRandomMood());
-          } else if (moods.length > 5) {
+          } else if (currentLength > 5) {
             // Keep minimum 5 users
-            const randomIndex = Math.floor(Math.random() * moods.length);
+            const randomIndex = Math.floor(Math.random() * currentLength);
             removeUser(randomIndex);
           }
         }
@@ -250,7 +255,7 @@ export function BreathingLevel({
         }
       };
     }
-  }, [isSimulating, addUser, removeUser, moods.length]);
+  }, [isSimulating, addUser, removeUser]); // Removed moods.length - use ref instead
 
   return (
     <ErrorBoundary>
