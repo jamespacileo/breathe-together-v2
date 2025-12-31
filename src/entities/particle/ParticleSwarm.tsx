@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
-import { breathPhase, orbitRadius } from '../breath/traits';
+import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 
 // Convert palette to THREE.Color array for random selection
@@ -171,10 +171,20 @@ const SPRING_DAMPING = 5.0; // Slightly increased to match higher stiffness
  *
  * The boost is asymmetric - only applied during expansion (exhale),
  * not contraction (inhale), for a more natural "release" feel.
- *
- * Increased to 6.0 to ensure visible outward movement within first 0.25s.
  */
-const EXPANSION_VELOCITY_BOOST = 6.0; // Increased from 2.5 for faster exhale response
+const EXPANSION_VELOCITY_BOOST = 4.0; // Per-frame boost (reduced, phase kick handles initial burst)
+
+/**
+ * One-time velocity kick at exhale phase start
+ *
+ * When phase transitions from hold-in (1) to exhale (2), inject a large
+ * instant velocity to ALL particles. This syncs visual movement with the
+ * UI text change, overcoming spring damping lag.
+ *
+ * This is the key fix for the "UI shows Exhale but particles don't move" issue.
+ * The kick needs to be large enough to overcome damping (SPRING_DAMPING = 5.0).
+ */
+const EXHALE_PHASE_KICK = 3.0; // One-time velocity injection at exhale start
 
 /**
  * Ambient floating motion constants
@@ -224,6 +234,7 @@ export function ParticleSwarm({
   const groupRef = useRef<THREE.Group>(null);
   const shardsRef = useRef<ShardData[]>([]);
   const physicsRef = useRef<ShardPhysicsState[]>([]);
+  const prevPhaseTypeRef = useRef<number>(-1); // Track phase transitions
 
   // Calculate shard size (capped to prevent oversized shards at low counts)
   const shardSize = useMemo(
@@ -354,15 +365,23 @@ export function ParticleSwarm({
     // Get breathing state from ECS
     let targetRadius = baseRadius;
     let currentBreathPhase = 0;
+    let currentPhaseType = 0;
     try {
       const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
         targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
         currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
+        currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
     }
+
+    // Detect phase transition: hold-in (1) → exhale (2)
+    // When this happens, inject a large one-time velocity kick to all particles
+    // This syncs particle movement with the UI text change
+    const exhaleJustStarted = prevPhaseTypeRef.current === 1 && currentPhaseType === 2;
+    prevPhaseTypeRef.current = currentPhaseType;
 
     // Update shader material uniforms for all shards
     // (shared material means updating once affects all)
@@ -389,11 +408,17 @@ export function ParticleSwarm({
       // Clamp target to prevent penetrating globe
       const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
 
-      // Detect expansion (exhale) and apply velocity boost for immediate response
-      // This overcomes spring lag so exhale feels like an immediate "release"
+      // Apply one-time velocity kick when exhale phase starts
+      // This syncs particle movement with UI text change (critical for UX)
+      if (exhaleJustStarted) {
+        shardState.velocity += EXHALE_PHASE_KICK;
+      }
+
+      // Detect expansion (exhale) and apply per-frame velocity boost
+      // This maintains momentum through the exhale phase
       const targetDelta = clampedTarget - shardState.previousTarget;
       if (targetDelta > 0.001) {
-        // Expanding outward (exhale starting) - inject outward velocity
+        // Expanding outward - inject outward velocity
         shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
       }
       shardState.previousTarget = clampedTarget;
