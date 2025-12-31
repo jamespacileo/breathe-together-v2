@@ -154,13 +154,13 @@ interface ShardPhysicsState {
 /**
  * Spring physics constants for relaxed breathing feel
  *
- * Tuned for controlled relaxation breathing:
- * - Stiffness: responsive but not instant (follows breath naturally)
+ * Tuned for controlled relaxation breathing with snappy exhale response:
+ * - Stiffness: 8 provides quick response while still feeling organic
  * - Damping: settles quickly on holds without oscillation
- * - Expansion boost: immediate response when exhale begins
+ * - Expansion boost: strong immediate response when exhale begins
  */
-const SPRING_STIFFNESS = 6; // Lower = more lag, higher = snappier
-const SPRING_DAMPING = 4.5; // Lower = oscillates, higher = settles faster
+const SPRING_STIFFNESS = 8; // Increased from 6 for snappier response
+const SPRING_DAMPING = 5.0; // Slightly increased to match higher stiffness
 
 /**
  * Expansion velocity boost for immediate exhale response
@@ -171,8 +171,10 @@ const SPRING_DAMPING = 4.5; // Lower = oscillates, higher = settles faster
  *
  * The boost is asymmetric - only applied during expansion (exhale),
  * not contraction (inhale), for a more natural "release" feel.
+ *
+ * Increased to 6.0 to ensure visible outward movement within first 0.25s.
  */
-const EXPANSION_VELOCITY_BOOST = 2.5; // Multiplier for expansion velocity injection
+const EXPANSION_VELOCITY_BOOST = 6.0; // Increased from 2.5 for faster exhale response
 
 /**
  * Ambient floating motion constants
