@@ -123,10 +123,13 @@ jobs:
         run: |
           cat > screenshot.mjs << 'EOF'
           import { chromium } from 'playwright';
-          import { mkdir } from 'fs/promises';
+          import { mkdir, readFile } from 'fs/promises';
           import { existsSync } from 'fs';
 
           const PREVIEW_URL = process.env.PREVIEW_URL;
+          const UPLOAD_URL = process.env.UPLOAD_URL;
+          const API_KEY = process.env.API_KEY || '';
+          const PR_NUMBER = process.env.PR_NUMBER;
           const SCREENSHOTS_DIR = './screenshots';
 
           // Viewport configurations
@@ -136,11 +139,49 @@ jobs:
             { name: 'mobile', width: 375, height: 667 },
           ];
 
+          /**
+           * Upload a screenshot to R2 via the API
+           */
+          async function uploadToR2(filepath, viewport, state) {
+            if (!UPLOAD_URL) {
+              console.log(`  ⏭️  Skipping R2 upload (no UPLOAD_URL configured)`);
+              return null;
+            }
+
+            try {
+              const imageData = await readFile(filepath);
+              const formData = new FormData();
+              formData.append('file', new Blob([imageData], { type: 'image/png' }), `${viewport}-${state}.png`);
+              formData.append('prNumber', PR_NUMBER);
+              formData.append('viewport', viewport);
+              formData.append('state', state);
+
+              const response = await fetch(`${UPLOAD_URL}/api/screenshots`, {
+                method: 'POST',
+                body: formData,
+                headers: API_KEY ? { 'X-API-Key': API_KEY } : {},
+              });
+
+              if (!response.ok) {
+                const error = await response.text();
+                throw new Error(`Upload failed: ${response.status} ${error}`);
+              }
+
+              const result = await response.json();
+              console.log(`  ☁️  Uploaded to R2: ${result.url}`);
+              return result;
+            } catch (error) {
+              console.error(`  ⚠️  R2 upload failed:`, error.message);
+              return null;
+            }
+          }
+
           async function captureScreenshots() {
             if (!existsSync(SCREENSHOTS_DIR)) {
               await mkdir(SCREENSHOTS_DIR, { recursive: true });
             }
 
+            const uploadResults = [];
             let browser;
             try {
               browser = await chromium.launch({
@@ -148,6 +189,9 @@ jobs:
               });
 
               console.log(`Capturing screenshots from: ${PREVIEW_URL}`);
+              if (UPLOAD_URL) {
+                console.log(`Uploading to R2 at: ${UPLOAD_URL}`);
+              }
 
               for (const viewport of viewports) {
                 console.log(`\nCapturing ${viewport.name} (${viewport.width}x${viewport.height})...`);
@@ -174,32 +218,47 @@ jobs:
                   await page.waitForTimeout(5000);
 
                   // Capture initial state
+                  const initialPath = `${SCREENSHOTS_DIR}/${viewport.name}-initial.png`;
                   await page.screenshot({
-                    path: `${SCREENSHOTS_DIR}/${viewport.name}-initial.png`,
+                    path: initialPath,
                     fullPage: false,
                   });
                   console.log(`  ✓ Captured ${viewport.name}-initial.png`);
+
+                  // Upload to R2
+                  const initialUpload = await uploadToR2(initialPath, viewport.name, 'initial');
+                  if (initialUpload) uploadResults.push(initialUpload);
 
                   // Wait a few seconds for breathing animation to progress
                   await page.waitForTimeout(4000);
 
                   // Capture mid-cycle state
+                  const animationPath = `${SCREENSHOTS_DIR}/${viewport.name}-animation.png`;
                   await page.screenshot({
-                    path: `${SCREENSHOTS_DIR}/${viewport.name}-animation.png`,
+                    path: animationPath,
                     fullPage: false,
                   });
                   console.log(`  ✓ Captured ${viewport.name}-animation.png`);
+
+                  // Upload to R2
+                  const animationUpload = await uploadToR2(animationPath, viewport.name, 'animation');
+                  if (animationUpload) uploadResults.push(animationUpload);
 
                 } catch (error) {
                   console.error(`  ✗ Error capturing ${viewport.name}:`, error.message);
 
                   // Try to capture whatever is on screen for debugging
                   try {
+                    const errorPath = `${SCREENSHOTS_DIR}/${viewport.name}-error.png`;
                     await page.screenshot({
-                      path: `${SCREENSHOTS_DIR}/${viewport.name}-error.png`,
+                      path: errorPath,
                       fullPage: false,
                     });
                     console.log(`  ✓ Captured ${viewport.name}-error.png (fallback)`);
+
+                    // Upload error screenshot to R2
+                    const errorUpload = await uploadToR2(errorPath, viewport.name, 'error');
+                    if (errorUpload) uploadResults.push(errorUpload);
                   } catch (e) {
                     console.error(`  ✗ Could not capture fallback screenshot`);
                   }
@@ -209,6 +268,12 @@ jobs:
               }
 
               console.log('\nScreenshot capture complete!');
+              if (uploadResults.length > 0) {
+                console.log(`\nUploaded ${uploadResults.length} screenshots to R2:`);
+                for (const result of uploadResults) {
+                  console.log(`  - ${result.key}`);
+                }
+              }
             } finally {
               if (browser) {
                 await browser.close();
@@ -228,6 +293,9 @@ jobs:
         continue-on-error: true
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          UPLOAD_URL: https://breathe-together-v2.palladio-registry.workers.dev
+          API_KEY: ${{ secrets.SCREENSHOTS_API_KEY }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
           node screenshot.mjs
           # Check if we got any screenshots
@@ -315,6 +383,7 @@ jobs:
           CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
           SCREENSHOTS_BRANCH: ${{ steps.push_screenshots.outputs.branch }}
           SCREENSHOTS_FOLDER: ${{ steps.push_screenshots.outputs.folder }}
+          R2_BASE_URL: https://breathe-together-v2.palladio-registry.workers.dev
         with:
           script: |
             const fs = require('fs');
@@ -329,8 +398,14 @@ jobs:
             const artifactUrl = `${repoUrl}/actions/runs/${workflowRunId}`;
             const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
-            // Base URL for raw image access
+            // Base URLs for image access (prefer R2, fallback to GitHub raw)
+            const r2BaseUrl = process.env.R2_BASE_URL;
             const rawBaseUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${screenshotsBranch}/${screenshotsFolder}`;
+
+            // Use R2 URL pattern: /api/screenshots/pr-{number}/{viewport}/{state}/{id}
+            // For embedded images, we'll use the R2 API listing endpoint
+            const getR2ImageUrl = (viewport, state) =>
+              `${r2BaseUrl}/api/screenshots/pr-${prNumber}/${viewport}/${state}`;
 
             // List captured screenshots from the PR folder on screenshots branch
             const screenshotsDir = `./${screenshotsFolder}`;
@@ -383,6 +458,11 @@ jobs:
             ];
 
             if (hasScreenshots) {
+              // Helper to get R2 URL for a screenshot
+              // Format: /api/screenshots/pr-{prNumber}/{viewport}-{state}.png
+              const getImageUrl = (viewport, state) =>
+                `${r2BaseUrl}/api/screenshots/pr-${prNumber}/${viewport}-${state}.png`;
+
               // Group screenshots by device
               const devices = [
                 { name: 'Desktop', prefix: 'desktop', emoji: '🖥️', resolution: '1920×1080' },
@@ -403,21 +483,22 @@ jobs:
                   const animationFile = deviceFiles.find(f => f.includes('animation'));
                   const errorFile = deviceFiles.find(f => f.includes('error'));
 
+                  // Use R2 URLs for images (CDN-delivered, permanent storage)
                   if (initialFile && animationFile) {
                     bodyParts.push(
                       '| Initial State | Animation State |',
                       '|:-------------:|:---------------:|',
-                      `| ![Initial](${rawBaseUrl}/${initialFile}) | ![Animation](${rawBaseUrl}/${animationFile}) |`,
+                      `| ![Initial](${getImageUrl(device.prefix, 'initial')}) | ![Animation](${getImageUrl(device.prefix, 'animation')}) |`,
                       '',
                     );
                   } else if (initialFile) {
                     bodyParts.push(
-                      `![${device.name} Initial](${rawBaseUrl}/${initialFile})`,
+                      `![${device.name} Initial](${getImageUrl(device.prefix, 'initial')})`,
                       '',
                     );
                   } else if (errorFile) {
                     bodyParts.push(
-                      `![${device.name} Error State](${rawBaseUrl}/${errorFile})`,
+                      `![${device.name} Error State](${getImageUrl(device.prefix, 'error')})`,
                       '',
                       '> ⚠️ Error occurred during capture - showing fallback screenshot',
                       '',
@@ -431,6 +512,7 @@ jobs:
                 '<summary>📥 Download Options</summary>',
                 '',
                 `- [Download as Artifact](${artifactUrl}) (zip with all screenshots)`,
+                `- [Browse R2 Screenshots](${r2BaseUrl}/api/screenshots?pr=${prNumber})`,
                 `- [Browse on GitHub](${repoUrl}/tree/${screenshotsBranch}/${screenshotsFolder})`,
                 '',
                 '</details>',

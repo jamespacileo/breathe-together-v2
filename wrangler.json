@@ -3,8 +3,19 @@
   "name": "breathe-together-v2",
   "compatibility_date": "2025-10-08",
   "compatibility_flags": [],
+  "main": "workers/index.ts",
   "assets": {
     "directory": "./dist/",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS"
+  },
+  "r2_buckets": [
+    {
+      "binding": "SCREENSHOTS_BUCKET",
+      "bucket_name": "breathe-together-screenshots"
+    }
+  ],
+  "vars": {
+    "API_KEY": ""
   }
 }
