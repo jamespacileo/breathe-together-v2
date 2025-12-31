@@ -12,12 +12,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import {
-  breathPhase as breathPhaseTrait,
-  orbitRadius,
-  phaseType as phaseTypeTrait,
-  rawProgress as rawProgressTrait,
-} from '../breath/traits';
+import { orbitRadius, rawProgress as rawProgressTrait } from '../breath/traits';
 
 // Backface vertex shader - renders normals from back faces
 const backfaceVertexShader = `
@@ -52,18 +47,14 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - frosted glass with anticipatory phase flash
+// Refraction fragment shader - frosted glass with phase transition flash
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
 uniform vec2 resolution;
 uniform float ior;
 uniform float backfaceIntensity;
-
-// Breathing phase uniforms
-uniform float breathPhase;   // 0 = exhaled, 1 = inhaled
-uniform float phaseType;     // 0=inhale, 1=hold-in, 2=exhale, 3=hold-out
-uniform float rawProgress;   // 0-1 progress within current phase
+uniform float rawProgress;  // 0-1 progress within current phase
 
 varying vec3 vColor;
 varying vec3 worldNormal;
@@ -81,14 +72,8 @@ void main() {
   vec2 refractUv = uv + refracted.xy * 0.05;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === PHASE CHANGE FLASH ===
-  // Gentle flash at phase transition (first 15% of new phase)
-  // Slower fade for subtler, more noticeable effect
-  float flash = 0.0;
-  if (rawProgress < 0.15) {
-    float t = rawProgress / 0.15;           // 0→1 over first 15%
-    flash = (1.0 - t * t) * 0.05;           // Gentle ease-out fade, 5% intensity
-  }
+  // Phase transition flash - gentle brightness at start of each phase
+  float flash = rawProgress < 0.15 ? (1.0 - rawProgress / 0.15) * (1.0 - rawProgress / 0.15) * 0.05 : 0.0;
 
   // Base color: frosted glass with mood tint
   vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor, 0.5);
@@ -258,20 +243,8 @@ interface RefractionPipelineProps {
    */
   maxBlur?: number;
   /**
-   * Current breath phase (0 = exhaled, 1 = inhaled).
-   * Used for visual breathing cues on icosahedrons.
-   * @default 0
-   */
-  breathPhase?: number;
-  /**
-   * Current phase type (0=inhale, 1=hold-in, 2=exhale, 3=hold-out).
-   * Used for phase-specific visual effects.
-   * @default 0
-   */
-  phaseType?: number;
-  /**
    * Progress within current phase (0-1).
-   * Used for transition pulses and gradual effects.
+   * Used for subtle flash at phase transitions.
    * @default 0
    */
   rawProgress?: number;
@@ -286,8 +259,6 @@ export function RefractionPipeline({
   focusDistance = 15,
   focalRange = 8,
   maxBlur = 3,
-  breathPhase = 0,
-  phaseType = 0,
   rawProgress = 0,
   children,
 }: RefractionPipelineProps) {
@@ -374,9 +345,6 @@ export function RefractionPipeline({
         resolution: { value: new THREE.Vector2(size.width, size.height) },
         ior: { value: ior },
         backfaceIntensity: { value: backfaceIntensity },
-        // Breathing phase uniforms for visual cues
-        breathPhase: { value: 0 },
-        phaseType: { value: 0 },
         rawProgress: { value: 0 },
       },
       vertexShader: refractionVertexShader,
@@ -443,24 +411,18 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
-    // Query breath data from ECS for visual cues
-    let currentBreathPhase = breathPhase;
-    let currentPhaseType = phaseType;
+    // Query rawProgress from ECS for phase transition flash
     let currentRawProgress = rawProgress;
     try {
       const breathEntity = world.queryFirst(orbitRadius);
       if (breathEntity) {
-        currentBreathPhase = breathEntity.get(breathPhaseTrait)?.value ?? breathPhase;
-        currentPhaseType = breathEntity.get(phaseTypeTrait)?.value ?? phaseType;
         currentRawProgress = breathEntity.get(rawProgressTrait)?.value ?? rawProgress;
       }
     } catch {
       // Ignore ECS errors during unmount/remount in Triplex
     }
 
-    // Update breath uniforms for visual cues
-    refractionMaterial.uniforms.breathPhase.value = currentBreathPhase;
-    refractionMaterial.uniforms.phaseType.value = currentPhaseType;
+    // Update rawProgress uniform for phase transition flash
     refractionMaterial.uniforms.rawProgress.value = currentRawProgress;
 
     // Validate cached meshes are still valid (in scene and have useRefraction flag)
