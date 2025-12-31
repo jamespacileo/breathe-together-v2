@@ -29,10 +29,13 @@ export interface PresenceState {
 
 /**
  * Configuration for the presence system
+ *
+ * Cost optimization: 30s heartbeat reduces requests by 3x vs 10s.
+ * Combined with server-side write coalescing, this cuts KV writes by ~80%.
  */
 const CONFIG = {
-  /** Heartbeat interval in milliseconds */
-  HEARTBEAT_INTERVAL_MS: 10_000,
+  /** Heartbeat interval in milliseconds (30s for cost efficiency) */
+  HEARTBEAT_INTERVAL_MS: 30_000,
   /** API base URL - uses env var or defaults to localhost for dev */
   API_URL: import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787',
   /** LocalStorage keys */

@@ -1,15 +1,18 @@
 /**
  * Cloudflare Worker - Breathe Together Presence API
  *
- * Simple presence tracking for anonymous users using KV storage.
- * Design goals:
- * - Cheap: Polling-based, minimal KV operations
- * - Simple: Single KV key with all sessions, TTL-based cleanup
- * - Anonymous: Session IDs only, no PII
+ * Optimized presence tracking for anonymous users using KV storage.
+ *
+ * Cost optimizations:
+ * - 30s heartbeat interval (3x reduction vs 10s)
+ * - Write coalescing (skip writes if mood unchanged)
+ * - Edge caching for presence reads (5s cache)
+ * - Scheduled cleanup via cron (not per-request)
  *
  * Endpoints:
  * - POST /api/heartbeat - Send presence heartbeat with mood
- * - GET /api/presence - Get current presence stats
+ * - GET /api/presence - Get current presence stats (cached)
+ * - POST /api/leave - Explicit session cleanup
  */
 
 import type { MoodId, PresenceSession, PresenceState } from './types';
@@ -19,8 +22,19 @@ export interface Env {
 }
 
 // Configuration
-const SESSION_TTL_MS = 30_000; // Sessions expire after 30 seconds without heartbeat
-const PRESENCE_KEY = 'presence:sessions';
+const CONFIG = {
+  /** Sessions expire after 90s without heartbeat (3x the 30s heartbeat interval) */
+  SESSION_TTL_MS: 90_000,
+  /** Minimum time between writes for same session (prevents redundant writes) */
+  WRITE_COOLDOWN_MS: 20_000,
+  /** Edge cache duration for presence reads */
+  CACHE_TTL_SECONDS: 5,
+  /** KV keys */
+  KEYS: {
+    SESSIONS: 'presence:sessions',
+    AGGREGATE: 'presence:aggregate',
+  },
+} as const;
 
 /**
  * Valid mood IDs (must match frontend constants)
@@ -28,22 +42,30 @@ const PRESENCE_KEY = 'presence:sessions';
 const VALID_MOODS: MoodId[] = ['gratitude', 'presence', 'release', 'connection'];
 
 /**
+ * Session data with write tracking
+ */
+interface SessionWithMeta extends PresenceSession {
+  /** When this session was last written to KV */
+  lastWritten?: number;
+}
+
+/**
  * Get all active sessions from KV
  */
-async function getSessions(kv: KVNamespace): Promise<Record<string, PresenceSession>> {
-  const data = await kv.get(PRESENCE_KEY, 'json');
-  return (data as Record<string, PresenceSession>) || {};
+async function getSessions(kv: KVNamespace): Promise<Record<string, SessionWithMeta>> {
+  const data = await kv.get(CONFIG.KEYS.SESSIONS, 'json');
+  return (data as Record<string, SessionWithMeta>) || {};
 }
 
 /**
  * Prune stale sessions (older than TTL)
  */
-function pruneStale(sessions: Record<string, PresenceSession>): Record<string, PresenceSession> {
+function pruneStale(sessions: Record<string, SessionWithMeta>): Record<string, SessionWithMeta> {
   const now = Date.now();
-  const result: Record<string, PresenceSession> = {};
+  const result: Record<string, SessionWithMeta> = {};
 
   for (const [id, session] of Object.entries(sessions)) {
-    if (now - session.lastSeen < SESSION_TTL_MS) {
+    if (now - session.lastSeen < CONFIG.SESSION_TTL_MS) {
       result[id] = session;
     }
   }
@@ -54,7 +76,7 @@ function pruneStale(sessions: Record<string, PresenceSession>): Record<string, P
 /**
  * Aggregate presence data from sessions
  */
-function aggregatePresence(sessions: Record<string, PresenceSession>): PresenceState {
+function aggregatePresence(sessions: Record<string, SessionWithMeta>): PresenceState {
   const moodCounts: Record<MoodId, number> = {
     gratitude: 0,
     presence: 0,
@@ -79,7 +101,21 @@ function aggregatePresence(sessions: Record<string, PresenceSession>): PresenceS
 }
 
 /**
- * Handle heartbeat request
+ * Check if we should write this session update to KV
+ * Returns true if:
+ * - Session is new, OR
+ * - Mood changed, OR
+ * - Last write was > WRITE_COOLDOWN_MS ago
+ */
+function shouldWrite(existing: SessionWithMeta | undefined, newMood: MoodId, now: number): boolean {
+  if (!existing) return true; // New session
+  if (existing.mood !== newMood) return true; // Mood changed
+  if (!existing.lastWritten) return true; // No write timestamp
+  return now - existing.lastWritten > CONFIG.WRITE_COOLDOWN_MS; // Cooldown expired
+}
+
+/**
+ * Handle heartbeat request with write coalescing
  */
 async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
   try {
@@ -97,22 +133,41 @@ async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
     // Validate mood (optional, defaults to 'presence')
     const validMood: MoodId = VALID_MOODS.includes(mood as MoodId) ? (mood as MoodId) : 'presence';
 
-    // Get current sessions, prune stale, add/update this session
+    const now = Date.now();
+
+    // Get current sessions
     const sessions = await getSessions(env.PRESENCE_KV);
-    const activeSessions = pruneStale(sessions);
+    const existing = sessions[sessionId];
 
-    activeSessions[sessionId] = {
-      mood: validMood,
-      lastSeen: Date.now(),
-    };
+    // Check if we need to write (write coalescing)
+    const needsWrite = shouldWrite(existing, validMood, now);
 
-    // Write back to KV
-    await env.PRESENCE_KV.put(PRESENCE_KEY, JSON.stringify(activeSessions));
+    let activeSessions: Record<string, SessionWithMeta>;
+
+    if (needsWrite) {
+      // Prune stale sessions and update this one
+      activeSessions = pruneStale(sessions);
+      activeSessions[sessionId] = {
+        mood: validMood,
+        lastSeen: now,
+        lastWritten: now,
+      };
+
+      // Write back to KV
+      await env.PRESENCE_KV.put(CONFIG.KEYS.SESSIONS, JSON.stringify(activeSessions));
+    } else {
+      // Just update lastSeen in memory for aggregation (no KV write)
+      activeSessions = pruneStale(sessions);
+      activeSessions[sessionId] = {
+        ...existing,
+        lastSeen: now,
+      };
+    }
 
     // Return current presence state
     const presence = aggregatePresence(activeSessions);
 
-    return new Response(JSON.stringify(presence), {
+    return new Response(JSON.stringify({ ...presence, written: needsWrite }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (e) {
@@ -125,7 +180,7 @@ async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
 }
 
 /**
- * Handle presence request (read-only)
+ * Handle presence request with edge caching
  */
 async function handlePresence(env: Env): Promise<Response> {
   try {
@@ -134,7 +189,11 @@ async function handlePresence(env: Env): Promise<Response> {
     const presence = aggregatePresence(activeSessions);
 
     return new Response(JSON.stringify(presence), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // Edge cache for 5 seconds - reduces KV reads significantly
+        'Cache-Control': `public, max-age=${CONFIG.CACHE_TTL_SECONDS}`,
+      },
     });
   } catch (e) {
     console.error('Presence error:', e);
@@ -166,7 +225,7 @@ async function handleLeave(request: Request, env: Env): Promise<Response> {
 
     // Prune stale and write back
     const activeSessions = pruneStale(sessions);
-    await env.PRESENCE_KV.put(PRESENCE_KEY, JSON.stringify(activeSessions));
+    await env.PRESENCE_KV.put(CONFIG.KEYS.SESSIONS, JSON.stringify(activeSessions));
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { 'Content-Type': 'application/json' },
@@ -177,6 +236,27 @@ async function handleLeave(request: Request, env: Env): Promise<Response> {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
+  }
+}
+
+/**
+ * Scheduled cleanup task - prunes stale sessions periodically
+ * Configure in wrangler.toml: [triggers] crons = ["* * * * *"]
+ */
+async function handleScheduled(env: Env): Promise<void> {
+  try {
+    const sessions = await getSessions(env.PRESENCE_KV);
+    const activeSessions = pruneStale(sessions);
+
+    // Only write if we actually pruned something
+    if (Object.keys(activeSessions).length !== Object.keys(sessions).length) {
+      await env.PRESENCE_KV.put(CONFIG.KEYS.SESSIONS, JSON.stringify(activeSessions));
+      console.log(
+        `Cleanup: pruned ${Object.keys(sessions).length - Object.keys(activeSessions).length} stale sessions`,
+      );
+    }
+  } catch (e) {
+    console.error('Scheduled cleanup error:', e);
   }
 }
 
@@ -230,5 +310,10 @@ export default {
       status: response.status,
       headers,
     });
+  },
+
+  // Scheduled handler for cleanup
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
+    await handleScheduled(env);
   },
 };

@@ -18,6 +18,11 @@ binding = "PRESENCE_KV"
 id = "YOUR_KV_NAMESPACE_ID"
 preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
 
+# Scheduled cleanup task - runs every minute to prune stale sessions
+# This offloads cleanup from request handlers, reducing per-request latency
+[triggers]
+crons = ["* * * * *"]
+
 # Production environment (optional, for separate prod namespace)
 # [env.production]
 # [[env.production.kv_namespaces]]
