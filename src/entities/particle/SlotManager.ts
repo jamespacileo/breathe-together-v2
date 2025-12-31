@@ -175,6 +175,15 @@ export class SlotManager {
   }
 
   /**
+   * Number of slots that will remain after transitions complete
+   * Excludes 'exiting' slots - use this for Fibonacci position distribution
+   * so remaining shards can move to fill gaps immediately
+   */
+  get stableCount(): number {
+    return this._slots.filter((s) => s.state === 'entering' || s.state === 'active').length;
+  }
+
+  /**
    * Check if we should reconcile this cycle
    *
    * @param cycleIndex - Current breathing cycle index (derived from UTC time)

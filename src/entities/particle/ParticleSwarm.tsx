@@ -374,16 +374,17 @@ export function ParticleSwarm({
   );
 
   /**
-   * Redistribute Fibonacci positions for all active slots
-   * Called when active count changes to maintain uniform sphere coverage
+   * Redistribute Fibonacci positions for stable slots (entering + active)
+   * Called when count changes to maintain uniform sphere coverage
+   * Exiting slots keep their position while fading out
    */
-  const redistributePositions = useCallback((activeCount: number) => {
+  const redistributePositions = useCallback((stableCount: number) => {
     const shards = shardsRef.current;
-    if (activeCount === 0) return;
+    if (stableCount === 0) return;
 
-    // Update target directions for all shards that will be active
-    // Each active slot gets a new Fibonacci position based on its rank
-    let activeIndex = 0;
+    // Update target directions for stable shards (not exiting)
+    // Each stable slot gets a Fibonacci position based on its rank
+    let stableIndex = 0;
     const slotManager = slotManagerRef.current;
     if (!slotManager) return;
 
@@ -392,11 +393,14 @@ export function ParticleSwarm({
       const slot = slots[i];
       const shard = shards[i];
 
-      if (slot.state !== 'empty') {
-        // This slot is active - assign it a Fibonacci position based on its rank
-        const newDirection = getFibonacciSpherePoint(activeIndex, activeCount);
+      if (slot.state === 'entering' || slot.state === 'active') {
+        // Stable slot - assign Fibonacci position based on rank among stable slots
+        const newDirection = getFibonacciSpherePoint(stableIndex, stableCount);
         shard.targetDirection.copy(newDirection);
-        activeIndex++;
+        stableIndex++;
+      } else if (slot.state === 'exiting') {
+        // Exiting slot - keep current position while fading out
+        // Don't update targetDirection so it stays in place
       } else {
         // Empty slots keep their current direction (won't be visible anyway)
         shard.targetDirection.copy(shard.direction);
@@ -430,11 +434,11 @@ export function ParticleSwarm({
 
       slotManager.reconcile(pendingUsersRef.current);
 
-      // Set initial active count and redistribute
-      const activeCount = slotManager.activeCount;
-      prevActiveCountRef.current = activeCount;
-      if (activeCount > 0) {
-        redistributePositions(activeCount);
+      // Set initial stable count and redistribute
+      const stableCount = slotManager.stableCount;
+      prevActiveCountRef.current = stableCount;
+      if (stableCount > 0) {
+        redistributePositions(stableCount);
         // Snap to target positions immediately on init
         for (const shard of shardsRef.current) {
           shard.direction.copy(shard.targetDirection);
@@ -498,11 +502,13 @@ export function ParticleSwarm({
       slotManager.reconcile(pendingUsersRef.current);
       slotManager.markReconciled(cycleIndex);
 
-      // Check if active count changed - redistribute positions
-      const newActiveCount = slotManager.activeCount;
-      if (newActiveCount !== prevActiveCountRef.current) {
-        redistributePositions(newActiveCount);
-        prevActiveCountRef.current = newActiveCount;
+      // Check if stable count changed - redistribute positions
+      // Use stableCount (entering + active) so remaining shards move immediately
+      // when a user leaves, rather than waiting for exit animation to complete
+      const newStableCount = slotManager.stableCount;
+      if (newStableCount !== prevActiveCountRef.current) {
+        redistributePositions(newStableCount);
+        prevActiveCountRef.current = newStableCount;
       }
 
       // Update shard colors based on slot moods
