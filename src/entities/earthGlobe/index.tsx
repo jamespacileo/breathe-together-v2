@@ -151,9 +151,9 @@ void main() {
   vec3 viewDir = normalize(vViewPosition);
   float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 1.5);
 
-  // ANTICIPATION EFFECT: Mist quickening
-  // Speed multiplier: 1x normal → 2.5x at peak anticipation
-  float speedMultiplier = 1.0 + anticipation * 1.5;
+  // ANTICIPATION EFFECT: Mist quickening and intensifying
+  // Speed multiplier: 1x normal → 3x at peak anticipation
+  float speedMultiplier = 1.0 + anticipation * 2.0;
 
   // Animated noise for misty effect - faster when anticipating
   vec2 uv = vUv * 4.0 + time * 0.02 * speedMultiplier;
@@ -162,12 +162,17 @@ void main() {
   // Breathing modulation
   float breath = 0.6 + breathPhase * 0.4;
 
-  // ANTICIPATION EFFECT: Subtle intensity increase
-  // Mist "gathers" before transition - slightly more visible
-  float anticipationIntensity = 1.0 + anticipation * 0.25;
+  // ANTICIPATION EFFECT: Visible intensity increase
+  // Mist "gathers" and brightens before transition
+  float anticipationIntensity = 1.0 + anticipation * 0.6;
+
+  // Add swirling effect during anticipation
+  float swirl = anticipation > 0.5
+    ? sin(time * 8.0 + vUv.x * 10.0) * 0.1 * (anticipation - 0.5) * 2.0
+    : 0.0;
 
   // Combine fresnel edge with noise
-  float alpha = fresnel * n * 0.15 * breath * anticipationIntensity;
+  float alpha = fresnel * (n + swirl) * 0.18 * breath * anticipationIntensity;
 
   gl_FragColor = vec4(mistColor, alpha);
 }
@@ -327,52 +332,73 @@ export function EarthGlobe({
         const scale = 1.0 + phase * 0.06;
         groupRef.current.scale.set(scale, scale, scale);
 
-        // ANTICIPATION EFFECT: Atmosphere deepening
-        // Layers pulse/intensify slightly before transitions
+        // ANTICIPATION EFFECT: Atmosphere deepening (more visible)
+        // Layers pulse/glow noticeably before transitions
         atmosphereRefs.current.forEach((mesh, i) => {
           if (mesh) {
             const phaseOffset = (i + 1) * 0.15; // Each layer slightly delayed
             const delayedPhase = Math.max(0, phase - phaseOffset);
 
-            // Anticipation makes layers slightly larger/more visible
-            const anticipationScale = anticipation.easedAnticipation * 0.015 * (i + 1);
+            // Anticipation makes layers visibly larger
+            const anticipationScale = anticipation.easedAnticipation * 0.04 * (i + 1);
             const layerScale = ATMOSPHERE_LAYERS[i].scale + delayedPhase * 0.04 + anticipationScale;
             mesh.scale.set(layerScale, layerScale, layerScale);
 
-            // Also pulse opacity slightly
+            // Stronger opacity pulse during anticipation
             const baseMaterial = mesh.material as THREE.MeshBasicMaterial;
             const baseOpacity = ATMOSPHERE_LAYERS[i].opacity;
-            baseMaterial.opacity = baseOpacity + anticipation.easedAnticipation * 0.03;
+            const anticipationOpacity = anticipation.easedAnticipation * 0.08 * (3 - i); // Inner layers glow more
+
+            // Add pulse in final second
+            const pulse =
+              anticipation.timeToTransition < 1.0
+                ? Math.sin(state.clock.elapsedTime * 12) * 0.02 * anticipation.easedAnticipation
+                : 0;
+
+            baseMaterial.opacity = baseOpacity + anticipationOpacity + pulse;
           }
         });
 
-        // ANTICIPATION EFFECT: Ring pulse sweep
-        // A soft glow "pulse" travels around the ring as transition approaches
+        // ANTICIPATION EFFECT: Ring pulse sweep (highly visible)
+        // A bright glow "pulse" that clearly signals transition approaching
         if (ringRef.current) {
           const ringMaterial = ringRef.current.material as THREE.MeshBasicMaterial;
 
           // Base breathing opacity
-          const baseOpacity = 0.12 + phase * 0.08; // 12% to 20%
+          const baseOpacity = 0.15 + phase * 0.1; // 15% to 25%
 
-          // Anticipation glow: intensifies as we approach transition
-          // Creates a "charging up" effect
-          const anticipationGlow = anticipation.easedAnticipation * 0.15;
+          // Anticipation glow: strong intensification approaching transition
+          // This should be clearly visible - the "charging up" effect
+          const anticipationGlow = anticipation.easedAnticipation * 0.4;
 
-          // Subtle pulse effect during anticipation (quick oscillation)
+          // Rapid pulse effect during high anticipation (final 1s)
+          const pulseSpeed = anticipation.timeToTransition < 1.0 ? 15 : 8;
           const pulseOscillation = anticipation.isAnticipating
-            ? Math.sin(state.clock.elapsedTime * 8) * 0.03 * anticipation.easedAnticipation
+            ? Math.sin(state.clock.elapsedTime * pulseSpeed) * 0.08 * anticipation.easedAnticipation
             : 0;
 
-          ringMaterial.opacity = baseOpacity + anticipationGlow + pulseOscillation;
+          // Flash at peak anticipation (final 0.3s) - the "ready" moment
+          const peakFlash =
+            anticipation.timeToTransition < 0.3
+              ? ((0.3 - anticipation.timeToTransition) / 0.3) * 0.25
+              : 0;
 
-          // ANTICIPATION EFFECT: Color temperature shift
-          // Ring warms slightly before inhale, cools before exhale
+          ringMaterial.opacity = Math.min(
+            0.9,
+            baseOpacity + anticipationGlow + pulseOscillation + peakFlash,
+          );
+
+          // ANTICIPATION EFFECT: Color temperature shift (more dramatic)
+          // Ring glows golden before transitions
           if (anticipation.isAnticipating && anticipation.nextPhaseIndex === 0) {
-            // Before inhale: warm golden tint
-            ringMaterial.color.setHex(0xf0c8a8); // Warmer rose gold
+            // Before inhale: bright warm golden
+            ringMaterial.color.setHex(0xffd090); // Bright gold
           } else if (anticipation.isAnticipating && anticipation.nextPhaseIndex === 2) {
-            // Before exhale: cool down slightly
-            ringMaterial.color.setHex(0xd8c4c8); // Cooler lavender-rose
+            // Before exhale: soft blue-white
+            ringMaterial.color.setHex(0xd0e0f0); // Cool blue-white
+          } else if (anticipation.isAnticipating) {
+            // Other transitions: warm glow
+            ringMaterial.color.setHex(0xf0d0a0); // Golden
           } else {
             // Default rose gold
             ringMaterial.color.setHex(0xe8c4b8);
