@@ -364,7 +364,7 @@ export function RefractionPipeline({
 
   // Store original materials for mesh swapping (cached, not rebuilt every frame)
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
-  // Cached list of refraction meshes (collected once, persists for component lifetime)
+  // Cached list of refraction meshes (validated each frame for hot reload)
   const cachedMeshesRef = useRef<THREE.Mesh[]>([]);
 
   // Cleanup
@@ -396,13 +396,26 @@ export function RefractionPipeline({
 
   // 4-pass rendering loop
   useFrame(() => {
-    // Lazy collection: only traverse scene once when cache is empty
-    // Refraction meshes (ParticleSwarm shards) are created once and persist
-    if (cachedMeshesRef.current.length === 0) {
+    // Validate cached meshes are still valid (handles hot reload scenarios)
+    let needsRefresh = cachedMeshesRef.current.length === 0;
+
+    if (!needsRefresh) {
+      // Check if any cached mesh is stale (removed from scene or flag changed)
+      for (const mesh of cachedMeshesRef.current) {
+        if (!mesh.parent || !mesh.userData.useRefraction) {
+          needsRefresh = true;
+          break;
+        }
+      }
+    }
+
+    if (needsRefresh) {
+      cachedMeshesRef.current = [];
+      meshDataRef.current.clear();
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
           cachedMeshesRef.current.push(obj);
-          // Cache original material once
+          // Cache original material once per mesh
           meshDataRef.current.set(obj, obj.material);
         }
       });

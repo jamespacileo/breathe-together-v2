@@ -51,7 +51,7 @@ export interface ParticleSwarmProps {
   /** Dynamic shard states from useMoodArray */
   shardStates?: ShardAnimationState[];
   /** Callback to tick animations each frame */
-  onTickAnimations?: (elapsedTime: number) => void;
+  onTickAnimations?: () => void;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
   /** Shard size @default 0.35 */
@@ -177,7 +177,7 @@ export function ParticleSwarm({
     const time = state.clock.elapsedTime;
 
     // Tick opacity animations
-    onTickAnimations?.(time);
+    onTickAnimations?.();
 
     // Get breathing state
     let targetRadius = baseRadius;
