@@ -12,6 +12,15 @@
  * The frontend auto-detects WebSocket support and upgrades.
  */
 
+import {
+  type AggregateState,
+  addSample,
+  createInitialState,
+  PRESENCE_CONFIG,
+  recalculate,
+  toPresenceState,
+  validateMood,
+} from './presence';
 import type { MoodId, PresenceState } from './types';
 
 // Re-export Durable Object class
@@ -22,104 +31,26 @@ export interface Env {
   BREATHING_ROOM: DurableObjectNamespace;
 }
 
-// Configuration
-const CONFIG = {
-  SAMPLE_RATE: 0.03,
-  SAMPLE_TTL_SECONDS: 120,
-  DECAY_FACTOR: 0.85,
-  CACHE_TTL_SECONDS: 10,
-  AGGREGATE_KEY: 'presence:aggregate',
-} as const;
-
-const VALID_MOODS: MoodId[] = ['gratitude', 'presence', 'release', 'connection'];
+const AGGREGATE_KEY = 'presence:aggregate';
+const CACHE_TTL_SECONDS = 10;
 
 // ============================================================================
-// KV-based implementation (for smaller scale)
+// KV Operations
 // ============================================================================
-
-interface AggregateState {
-  estimatedCount: number;
-  sampleCount: number;
-  moodRatios: Record<MoodId, number>;
-  lastUpdate: number;
-  samples: Record<string, { mood: MoodId; ts: number }>;
-}
-
-function hashSession(sessionId: string): string {
-  return sessionId.slice(0, 8);
-}
 
 async function getAggregate(kv: KVNamespace): Promise<AggregateState> {
-  const data = await kv.get(CONFIG.AGGREGATE_KEY, 'json');
+  const data = await kv.get(AGGREGATE_KEY, 'json');
   if (data) return data as AggregateState;
-
-  return {
-    estimatedCount: 0,
-    sampleCount: 0,
-    moodRatios: { gratitude: 0.25, presence: 0.35, release: 0.25, connection: 0.15 },
-    lastUpdate: Date.now(),
-    samples: {},
-  };
+  return createInitialState();
 }
 
-function recalculate(state: AggregateState, now: number): AggregateState {
-  const cutoff = now - CONFIG.SAMPLE_TTL_SECONDS * 1000;
-
-  const activeSamples: Record<string, { mood: MoodId; ts: number }> = {};
-  for (const [slot, sample] of Object.entries(state.samples)) {
-    if (sample.ts > cutoff) {
-      activeSamples[slot] = sample;
-    }
-  }
-
-  const moodCounts: Record<MoodId, number> = {
-    gratitude: 0,
-    presence: 0,
-    release: 0,
-    connection: 0,
-  };
-  let sampleCount = 0;
-
-  for (const sample of Object.values(activeSamples)) {
-    sampleCount++;
-    moodCounts[sample.mood]++;
-  }
-
-  const moodRatios: Record<MoodId, number> = { ...state.moodRatios };
-  if (sampleCount > 0) {
-    for (const mood of VALID_MOODS) {
-      const newRatio = moodCounts[mood] / sampleCount;
-      moodRatios[mood] = newRatio * 0.7 + state.moodRatios[mood] * 0.3;
-    }
-  }
-
-  const rawEstimate = sampleCount / CONFIG.SAMPLE_RATE;
-  const timeSinceUpdate = (now - state.lastUpdate) / 60000;
-  const decayedPrevious = state.estimatedCount * CONFIG.DECAY_FACTOR ** timeSinceUpdate;
-  const estimatedCount = Math.round(rawEstimate * 0.6 + decayedPrevious * 0.4);
-
-  return {
-    estimatedCount: Math.max(0, estimatedCount),
-    sampleCount,
-    moodRatios,
-    lastUpdate: now,
-    samples: activeSamples,
-  };
+async function saveAggregate(kv: KVNamespace, state: AggregateState): Promise<void> {
+  await kv.put(AGGREGATE_KEY, JSON.stringify(state));
 }
 
-function toPresenceState(state: AggregateState): PresenceState {
-  const count = state.estimatedCount;
-  return {
-    count,
-    moods: {
-      gratitude: Math.round(count * state.moodRatios.gratitude),
-      presence: Math.round(count * state.moodRatios.presence),
-      release: Math.round(count * state.moodRatios.release),
-      connection: Math.round(count * state.moodRatios.connection),
-    },
-    timestamp: state.lastUpdate,
-  };
-}
+// ============================================================================
+// Request Handlers
+// ============================================================================
 
 async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
   try {
@@ -133,15 +64,12 @@ async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
       });
     }
 
-    const validMood: MoodId = VALID_MOODS.includes(mood as MoodId) ? (mood as MoodId) : 'presence';
+    const validMood = validateMood(mood);
     const now = Date.now();
-    const slot = hashSession(sessionId);
 
     const state = await getAggregate(env.PRESENCE_KV);
-    state.samples[slot] = { mood: validMood, ts: now };
-    const updated = recalculate(state, now);
-
-    await env.PRESENCE_KV.put(CONFIG.AGGREGATE_KEY, JSON.stringify(updated));
+    const updated = addSample(state, sessionId, validMood, now);
+    await saveAggregate(env.PRESENCE_KV, updated);
 
     const presence = toPresenceState(updated);
     return new Response(JSON.stringify(presence), {
@@ -165,7 +93,7 @@ async function handlePresence(env: Env): Promise<Response> {
     return new Response(JSON.stringify(presence), {
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': `public, max-age=${CONFIG.CACHE_TTL_SECONDS}`,
+        'Cache-Control': `public, max-age=${CACHE_TTL_SECONDS}`,
       },
     });
   } catch (e) {
@@ -180,7 +108,7 @@ async function handlePresence(env: Env): Promise<Response> {
 function handleConfig(): Response {
   return new Response(
     JSON.stringify({
-      sampleRate: CONFIG.SAMPLE_RATE,
+      sampleRate: PRESENCE_CONFIG.SAMPLE_RATE,
       heartbeatIntervalMs: 30000,
       supportsWebSocket: true,
       version: 2,
@@ -195,11 +123,10 @@ function handleConfig(): Response {
 }
 
 // ============================================================================
-// Durable Object routing
+// Durable Object Routing
 // ============================================================================
 
 async function handleWebSocket(request: Request, env: Env): Promise<Response> {
-  // Get the single global breathing room
   const roomId = env.BREATHING_ROOM.idFromName('global');
   const room = env.BREATHING_ROOM.get(roomId);
   return room.fetch(request);
@@ -212,7 +139,7 @@ async function handleRoomPresence(env: Env): Promise<Response> {
 }
 
 // ============================================================================
-// Main router
+// CORS & Routing
 // ============================================================================
 
 function corsHeaders(): HeadersInit {
@@ -221,6 +148,14 @@ function corsHeaders(): HeadersInit {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Upgrade',
   };
+}
+
+function addCorsHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(corsHeaders())) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, { status: response.status, headers });
 }
 
 export default {
@@ -233,57 +168,62 @@ export default {
       return new Response(null, { headers: corsHeaders() });
     }
 
-    let response: Response;
-
     // WebSocket upgrade → Durable Object
     if (request.headers.get('Upgrade') === 'websocket') {
       return handleWebSocket(request, env);
     }
 
+    let response: Response;
+
     // REST API routes
-    if (path === '/api/heartbeat' && request.method === 'POST') {
-      response = await handleHeartbeat(request, env);
-    } else if (path === '/api/presence' && request.method === 'GET') {
-      // Check if DO-based presence is preferred
-      const preferDO = url.searchParams.get('realtime') === 'true';
-      response = preferDO ? await handleRoomPresence(env) : await handlePresence(env);
-    } else if (path === '/api/config' && request.method === 'GET') {
-      response = handleConfig();
-    } else if (path === '/api/ws') {
-      // WebSocket endpoint info
-      response = new Response(
-        JSON.stringify({
-          url: `wss://${url.host}/api/room`,
-          protocol: 'websocket',
-        }),
-        { headers: { 'Content-Type': 'application/json' } },
-      );
-    } else if (path === '/api/room') {
-      // Direct room access (for WebSocket or REST)
-      response = await handleRoomPresence(env);
-    } else {
-      response = new Response(JSON.stringify({ error: 'Not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    switch (true) {
+      case path === '/api/heartbeat' && request.method === 'POST':
+        response = await handleHeartbeat(request, env);
+        break;
+
+      case path === '/api/presence' && request.method === 'GET':
+        response =
+          url.searchParams.get('realtime') === 'true'
+            ? await handleRoomPresence(env)
+            : await handlePresence(env);
+        break;
+
+      case path === '/api/config' && request.method === 'GET':
+        response = handleConfig();
+        break;
+
+      case path === '/api/ws' && request.method === 'GET':
+        response = new Response(
+          JSON.stringify({
+            url: `wss://${url.host}/api/room`,
+            protocol: 'websocket',
+          }),
+          { headers: { 'Content-Type': 'application/json' } },
+        );
+        break;
+
+      case path === '/api/room':
+        response = await handleRoomPresence(env);
+        break;
+
+      default:
+        response = new Response(JSON.stringify({ error: 'Not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        });
     }
 
-    // Add CORS headers
-    const headers = new Headers(response.headers);
-    for (const [key, value] of Object.entries(corsHeaders())) {
-      headers.set(key, value);
-    }
-
-    return new Response(response.body, { status: response.status, headers });
+    return addCorsHeaders(response);
   },
 
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
-    // Cleanup stale KV samples
     try {
       const state = await getAggregate(env.PRESENCE_KV);
       const updated = recalculate(state, Date.now());
+
+      // Only write if samples changed
       if (Object.keys(updated.samples).length !== Object.keys(state.samples).length) {
-        await env.PRESENCE_KV.put(CONFIG.AGGREGATE_KEY, JSON.stringify(updated));
+        await saveAggregate(env.PRESENCE_KV, updated);
       }
     } catch (e) {
       console.error('Scheduled cleanup error:', e);
