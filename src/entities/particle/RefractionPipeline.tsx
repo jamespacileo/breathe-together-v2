@@ -82,11 +82,12 @@ void main() {
   vec4 tex = texture2D(envMap, refractUv);
 
   // === PHASE CHANGE FLASH ===
-  // Brief flash at the exact moment of phase transition (first 8% of new phase)
+  // Gentle flash at phase transition (first 15% of new phase)
+  // Slower fade for subtler, more noticeable effect
   float flash = 0.0;
-  if (rawProgress < 0.08) {
-    float t = rawProgress / 0.08;           // 0→1 over first 8%
-    flash = (1.0 - t) * 0.08;               // Instant bright, quick fade out
+  if (rawProgress < 0.15) {
+    float t = rawProgress / 0.15;           // 0→1 over first 15%
+    flash = (1.0 - t * t) * 0.05;           // Gentle ease-out fade, 5% intensity
   }
 
   // Base color: frosted glass with mood tint
@@ -412,6 +413,10 @@ export function RefractionPipeline({
   // Store original materials for mesh swapping
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
 
+  // Cache refraction meshes to avoid scene.traverse() every frame
+  const refractionMeshesRef = useRef<THREE.Mesh[]>([]);
+  const sceneVersionRef = useRef<number>(0);
+
   // Cleanup
   useEffect(() => {
     return () => {
@@ -458,13 +463,31 @@ export function RefractionPipeline({
     refractionMaterial.uniforms.phaseType.value = currentPhaseType;
     refractionMaterial.uniforms.rawProgress.value = currentRawProgress;
 
-    // Collect all meshes in scene that should use refraction
-    const meshes: THREE.Mesh[] = [];
-    scene.traverse((obj) => {
-      if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
-        meshes.push(obj);
+    // Validate cached meshes are still valid (in scene and have useRefraction flag)
+    // This handles cases where meshes are recreated with same scene.children.length
+    let needsRefresh = sceneVersionRef.current !== scene.children.length;
+
+    if (!needsRefresh && refractionMeshesRef.current.length > 0) {
+      // Check if any cached mesh is stale (removed from scene or flag changed)
+      for (const mesh of refractionMeshesRef.current) {
+        if (!mesh.parent || !mesh.userData.useRefraction) {
+          needsRefresh = true;
+          break;
+        }
       }
-    });
+    }
+
+    if (needsRefresh) {
+      sceneVersionRef.current = scene.children.length;
+      refractionMeshesRef.current = [];
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
+          refractionMeshesRef.current.push(obj);
+        }
+      });
+    }
+
+    const meshes = refractionMeshesRef.current;
 
     // Store original materials
     meshDataRef.current.clear();
