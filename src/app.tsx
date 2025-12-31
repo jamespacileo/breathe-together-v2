@@ -5,9 +5,12 @@ import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { CinematicFog, CinematicIntro } from './components/cinematic';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { TutorialPromptModal } from './components/TutorialPromptModal';
+import type { MoodId } from './constants';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
 import { BreathingLevel } from './levels/breathing';
+import { TutorialLevel } from './levels/tutorial';
 import { KootaSystems } from './providers';
 
 // Extend R3F with Three.js types
@@ -16,8 +19,17 @@ declare module '@react-three/fiber' {
 }
 
 /**
+ * App state machine phases:
+ * - intro: CinematicIntro (letterbox + title + mood selection)
+ * - tutorial-prompt: TutorialPromptModal asking if user wants guidance
+ * - tutorial: TutorialLevel with step-by-step introduction
+ * - breathing: Full BreathingLevel experience
+ */
+type AppPhase = 'intro' | 'tutorial-prompt' | 'tutorial' | 'breathing';
+
+/**
  * Check if user is returning (has joined before)
- * Used to skip onboarding modals, NOT the beautiful intro animation
+ * Used to adjust tutorial prompt copy, NOT to skip the beautiful intro
  */
 export function isReturningUser(): boolean {
   if (typeof window === 'undefined') return false;
@@ -25,7 +37,7 @@ export function isReturningUser(): boolean {
 }
 
 /**
- * Mark user as having joined (for skipping onboarding next time)
+ * Mark user as having joined (for adjusting prompts next time)
  */
 function markUserJoined(): void {
   if (typeof window !== 'undefined') {
@@ -45,19 +57,30 @@ export function resetReturningUser(): void {
 }
 
 export function App() {
-  // Track if user has clicked "Join" to enter full experience
-  const [hasJoined, setHasJoined] = useState(false);
+  // App state machine
+  const [appPhase, setAppPhase] = useState<AppPhase>('intro');
 
-  // Layered reveal progress (0→1 over 3s after joining)
+  // User's selected mood (from intro mood selection)
+  const [selectedMood, setSelectedMood] = useState<MoodId | undefined>(undefined);
+
+  // Whether user is returning (affects tutorial prompt copy)
+  const [returningUser] = useState(() => isReturningUser());
+
+  // Layered reveal progress (0→1 over 3s after entering breathing phase)
   // Shared with CameraRig and BreathingLevel for coordinated transitions
   const [joinProgress, setJoinProgress] = useState(0);
 
   // RAF ref for cleanup
   const rafRef = useRef<number | null>(null);
 
-  // Animate joinProgress after user joins (with proper cleanup)
+  // Derived state for cleaner conditionals
+  const isInBreathingPhase = appPhase === 'breathing';
+  const isInTutorialPhase = appPhase === 'tutorial';
+  const hasLeftIntro = appPhase !== 'intro';
+
+  // Animate joinProgress when entering breathing phase (with proper cleanup)
   useEffect(() => {
-    if (!hasJoined) {
+    if (!isInBreathingPhase) {
       setJoinProgress(0);
       return;
     }
@@ -81,18 +104,41 @@ export function App() {
 
     rafRef.current = requestAnimationFrame(animate);
 
-    // Cleanup: cancel RAF if component unmounts or hasJoined changes
+    // Cleanup: cancel RAF if component unmounts or phase changes
     return () => {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
     };
-  }, [hasJoined]);
+  }, [isInBreathingPhase]);
 
-  const handleJoin = useCallback(() => {
-    setHasJoined(true);
+  // Handle mood selection from CinematicIntro → show tutorial prompt
+  const handleJoin = useCallback((mood?: string) => {
+    setSelectedMood(mood as MoodId | undefined);
+    // Store mood for persistence
+    if (mood) {
+      localStorage.setItem('breathe-together-selected-mood', mood);
+    }
+    // Show tutorial prompt instead of going directly to breathing
+    setAppPhase('tutorial-prompt');
+  }, []);
+
+  // Handle tutorial prompt: user wants tutorial
+  const handleStartTutorial = useCallback(() => {
+    setAppPhase('tutorial');
+  }, []);
+
+  // Handle tutorial prompt: user skips tutorial
+  const handleSkipTutorial = useCallback(() => {
     markUserJoined();
+    setAppPhase('breathing');
+  }, []);
+
+  // Handle tutorial completion → transition to full breathing experience
+  const handleTutorialComplete = useCallback(() => {
+    markUserJoined();
+    setAppPhase('breathing');
   }, []);
 
   return (
@@ -107,11 +153,11 @@ export function App() {
           >
             {import.meta.env.DEV && <Stats />}
 
-            {/* Cinematic fog - clears as intro progresses, removed after joining */}
-            {!hasJoined && <CinematicFog phase={phase} progress={progress} />}
+            {/* Cinematic fog - clears as intro progresses, removed after leaving intro */}
+            {!hasLeftIntro && <CinematicFog phase={phase} progress={progress} />}
 
             <CameraRig
-              introMode={!hasJoined}
+              introMode={!hasLeftIntro}
               introProgress={phase === 'complete' ? 1 : progress}
               joinProgress={joinProgress}
             />
@@ -119,12 +165,35 @@ export function App() {
             <KootaSystems breathSystemEnabled={true}>
               <AudioProvider>
                 <BreathEntity />
-                <BreathingLevel hasJoined={hasJoined} joinProgress={joinProgress} />
+
+                {/* Tutorial scene - minimal view with user's shape */}
+                {isInTutorialPhase && (
+                  <TutorialLevel userMood={selectedMood} onComplete={handleTutorialComplete} />
+                )}
+
+                {/* Full breathing experience - shown after tutorial or skip */}
+                {isInBreathingPhase && (
+                  <BreathingLevel hasJoined={true} joinProgress={joinProgress} />
+                )}
+
+                {/* During intro/tutorial-prompt, show minimal globe (handled by BreathingLevel with hasJoined=false) */}
+                {!isInTutorialPhase && !isInBreathingPhase && (
+                  <BreathingLevel hasJoined={false} joinProgress={0} />
+                )}
               </AudioProvider>
             </KootaSystems>
           </Canvas>
         )}
       </CinematicIntro>
+
+      {/* Tutorial prompt modal - appears after mood selection */}
+      {appPhase === 'tutorial-prompt' && (
+        <TutorialPromptModal
+          onStartTutorial={handleStartTutorial}
+          onSkipTutorial={handleSkipTutorial}
+          isReturningUser={returningUser}
+        />
+      )}
     </ErrorBoundary>
   );
 }
