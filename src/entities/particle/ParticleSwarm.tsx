@@ -292,6 +292,7 @@ export function ParticleSwarm({
 
   // Settle-in period: particles hidden until user completes first breathing cycle
   // This gives users time to settle into the breathing rhythm before visual complexity appears
+  // Uses Three.js clock elapsed time (relative to app start) not UTC cycle index
   const hasSettledInRef = useRef(false);
   const settleAnimationRef = useRef(0); // 0 = hidden, 1 = fully visible
 
@@ -554,7 +555,9 @@ export function ParticleSwarm({
 
     // Settle-in period: Wait for user to complete first breathing cycle before showing particles
     // This gives users time to settle into the rhythm before visual complexity appears
-    if (!hasSettledInRef.current && cycleIndex >= 1) {
+    // Uses Three.js clock elapsed time (relative to app start), NOT UTC-based cycleIndex
+    // which would be a huge number and always >= 1 immediately
+    if (!hasSettledInRef.current && time >= BREATH_TOTAL_CYCLE) {
       hasSettledInRef.current = true;
     }
 
