@@ -327,9 +327,10 @@ export function EarthGlobe({
         }
       }
 
-      // Slow rotation
+      // Slow rotation - DRIFT FIX: Use absolute time instead of accumulating
+      // 0.048 rad/s ≈ 0.0008 rad/frame at 60fps (one full rotation every ~131 seconds)
       if (enableRotation) {
-        groupRef.current.rotation.y -= 0.0008;
+        groupRef.current.rotation.y = -0.048 * state.clock.elapsedTime;
       }
 
       // Ring rotates slightly faster and tilted
