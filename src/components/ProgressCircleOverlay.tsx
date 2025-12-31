@@ -14,7 +14,7 @@
 import { Ring, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
@@ -100,11 +100,12 @@ export function ProgressCircleOverlay({
   renderOrder = 10,
 }: ProgressCircleOverlayProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const textRef = useRef<THREE.Mesh>(null);
-  const countTextRef = useRef<THREE.Mesh>(null);
   const progressMeshRef = useRef<THREE.Mesh>(null);
   const indicatorRef = useRef<THREE.Mesh>(null);
   const world = useWorld();
+
+  // Phase name state (updates on phase transitions only - 4 times per 16s cycle)
+  const [phaseName, setPhaseName] = useState<string>('Hold');
 
   // Create progress arc geometry (will be updated each frame)
   const progressGeometryRef = useRef<THREE.BufferGeometry | null>(null);
@@ -174,13 +175,8 @@ export function ProgressCircleOverlay({
       // Update phase text only on phase transition
       if (currentPhaseType !== prevPhaseRef.current) {
         prevPhaseRef.current = currentPhaseType;
-        if (textRef.current) {
-          // drei Text component uses 'text' property
-          const textMesh = textRef.current as THREE.Mesh & { text?: string };
-          if (textMesh.text !== undefined) {
-            textMesh.text = PHASE_NAMES[currentPhaseType] ?? 'Breathe';
-          }
-        }
+        const newPhaseName = PHASE_NAMES[currentPhaseType] ?? 'Breathe';
+        setPhaseName(newPhaseName);
       }
 
       // Update progress arc geometry (throttle to every 2% change)
@@ -257,26 +253,25 @@ export function ProgressCircleOverlay({
         <meshBasicMaterial color={progressColor} transparent opacity={0.95} depthWrite={false} />
       </mesh>
 
-      {/* Phase text (centered) */}
+      {/* Phase text (centered) - displays current breathing phase */}
       <Text
-        ref={textRef}
         position={[0, 0.1, 0.01]}
         fontSize={0.32}
         color={textColor}
         anchorX="center"
         anchorY="middle"
         letterSpacing={0.12}
+        textAlign="center"
         renderOrder={renderOrder + 3}
         material-transparent={true}
         material-depthWrite={false}
       >
-        Hold
+        {phaseName}
       </Text>
 
       {/* User count text (below phase name) */}
       {showUserCount && (
         <Text
-          ref={countTextRef}
           position={[0, -0.25, 0.01]}
           fontSize={0.12}
           color={textColor}
