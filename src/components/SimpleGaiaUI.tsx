@@ -84,16 +84,20 @@ export function SimpleGaiaUI({
 
   // Use external control for tune controls if provided, otherwise use internal state
   const isControlsOpen = externalShowTuneControls ?? internalIsControlsOpen;
+  // Store current value in ref to avoid stale closure in callback
+  const isControlsOpenRef = useRef(isControlsOpen);
+  isControlsOpenRef.current = isControlsOpen;
+
   const setIsControlsOpen = useCallback(
     (value: SetStateAction<boolean>) => {
-      const newValue = typeof value === 'function' ? value(isControlsOpen) : value;
+      const newValue = typeof value === 'function' ? value(isControlsOpenRef.current) : value;
       if (onShowTuneControlsChange) {
         onShowTuneControlsChange(newValue);
       } else {
         setInternalIsControlsOpen(newValue);
       }
     },
-    [onShowTuneControlsChange, isControlsOpen],
+    [onShowTuneControlsChange],
   );
 
   // Use external control for settings if provided, otherwise use internal state

@@ -22,6 +22,7 @@ import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
+import { useDisposeMaterials } from '../../hooks/useDisposeMaterials';
 import { breathPhase } from '../breath/traits';
 
 // Vertex shader for textured globe with fresnel
@@ -276,14 +277,8 @@ export function EarthGlobe({
     [],
   );
 
-  // Cleanup materials on unmount
-  useEffect(() => {
-    return () => {
-      material.dispose();
-      glowMaterial.dispose();
-      mistMaterial.dispose();
-    };
-  }, [material, glowMaterial, mistMaterial]);
+  // Cleanup materials on unmount using helper hook
+  useDisposeMaterials([material, glowMaterial, mistMaterial]);
 
   /**
    * Update globe scale, rotation, and shader uniforms

@@ -106,8 +106,44 @@ export function useViewport(): ViewportSize {
 }
 
 /**
+ * Generic responsive value utility - returns value based on device type
+ *
+ * This is the core utility that both getResponsiveSpacing and getResponsiveFontSize use.
+ * Use this directly for any responsive value that needs to scale by device.
+ *
+ * @param deviceType - Current device type
+ * @param mobile - Value for mobile devices
+ * @param tablet - Value for tablets (optional, defaults to mobile)
+ * @param desktop - Value for desktop (optional, defaults to tablet)
+ *
+ * @example
+ * ```tsx
+ * const { deviceType } = useViewport();
+ * const padding = getResponsiveValue(deviceType, 16, 24, 32);
+ * const opacity = getResponsiveValue(deviceType, 0.8, 0.9, 1);
+ * const columns = getResponsiveValue(deviceType, 1, 2, 3);
+ * ```
+ */
+export function getResponsiveValue<T>(
+  deviceType: DeviceType,
+  mobile: T,
+  tablet?: T,
+  desktop?: T,
+): T {
+  switch (deviceType) {
+    case 'mobile':
+      return mobile;
+    case 'tablet':
+      return tablet ?? mobile;
+    case 'desktop':
+      return desktop ?? tablet ?? mobile;
+  }
+}
+
+/**
  * Responsive spacing utility - scales padding/margin based on device type
  *
+ * @param deviceType - Current device type
  * @param mobile - Spacing value for mobile devices (in px)
  * @param tablet - Spacing value for tablets (optional, defaults to mobile)
  * @param desktop - Spacing value for desktop (optional, defaults to tablet)
@@ -124,14 +160,7 @@ export function getResponsiveSpacing(
   tablet?: number,
   desktop?: number,
 ): number {
-  switch (deviceType) {
-    case 'mobile':
-      return mobile;
-    case 'tablet':
-      return tablet ?? mobile;
-    case 'desktop':
-      return desktop ?? tablet ?? mobile;
-  }
+  return getResponsiveValue(deviceType, mobile, tablet, desktop);
 }
 
 /**
@@ -154,12 +183,5 @@ export function getResponsiveFontSize(
   tablet?: number,
   desktop?: number,
 ): number {
-  switch (deviceType) {
-    case 'mobile':
-      return mobile;
-    case 'tablet':
-      return tablet ?? mobile;
-    case 'desktop':
-      return desktop ?? tablet ?? mobile;
-  }
+  return getResponsiveValue(deviceType, mobile, tablet, desktop);
 }

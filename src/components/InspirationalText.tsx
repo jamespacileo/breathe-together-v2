@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { AMBIENT_MESSAGES, WELCOME_INTRO } from '../config/inspirationalSequences';
 import { BREATH_TOTAL_CYCLE } from '../constants';
 import { useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
+import { easeExhale, easeInhaleText } from '../lib/easing';
 import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
 import { TYPOGRAPHY, UI_COLORS, Z_INDEX } from '../styles/designTokens';
 
@@ -15,94 +16,14 @@ import { TYPOGRAPHY, UI_COLORS, Z_INDEX } from '../styles/designTokens';
  * Text appears as user inhales, stays during hold, fades as they exhale.
  * Uses the same controlled breathing curve as the visual elements so the
  * text feels like it's being breathed in and out with the user.
+ *
+ * Easing functions imported from src/lib/easing.ts (single source of truth)
  */
-
-/**
- * Controlled breath curve with soft start/end and steady middle
- *
- * Creates organic controlled breathing feel with three sections:
- * 1. Soft start: Raised cosine ramp (velocity 0 → steady)
- * 2. Steady middle: Linear/constant velocity (controlled, even flow)
- * 3. Soft end: Raised cosine ramp (velocity steady → 0)
- *
- * The raised cosine provides C1-continuous transitions (smooth velocity)
- * while the linear middle creates the "steady controlled" breathing feel.
- *
- * @param t Progress 0-1
- * @param startRamp Fraction of time for start ramp (0.2-0.35)
- * @param endRamp Fraction of time for end ramp (0.2-0.35)
- */
-function controlledBreathCurve(t: number, startRamp: number, endRamp: number): number {
-  // Clamp input
-  t = Math.max(0, Math.min(1, t));
-
-  // Middle section starts after startRamp and ends before endRamp
-  const middleEnd = 1 - endRamp;
-
-  // Calculate steady velocity needed to cover remaining distance
-  // Total distance = 1, ramps each cover (ramp * velocity / 2)
-  // So: startRamp*v/2 + middleDuration*v + endRamp*v/2 = 1
-  // v * (startRamp/2 + middleDuration + endRamp/2) = 1
-  // v = 1 / (1 - startRamp/2 - endRamp/2)
-  const middleVelocity = 1 / (1 - startRamp / 2 - endRamp / 2);
-
-  // Height reached at end of start ramp
-  const startRampHeight = (middleVelocity * startRamp) / 2;
-  // Height at start of end ramp
-  const endRampStart = 1 - (middleVelocity * endRamp) / 2;
-
-  if (t <= startRamp) {
-    // Raised cosine ramp-up: smooth acceleration from 0 to middleVelocity
-    // Integral of (1 - cos(πx))/2 from 0 to x = x/2 - sin(πx)/(2π)
-    const normalized = t / startRamp;
-    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
-    return middleVelocity * startRamp * integral;
-  }
-  if (t >= middleEnd) {
-    // Raised cosine ramp-down: smooth deceleration from middleVelocity to 0
-    const normalized = (t - middleEnd) / endRamp;
-    const integral = normalized / 2 - Math.sin(Math.PI * normalized) / (2 * Math.PI);
-    return endRampStart + middleVelocity * endRamp * integral;
-  }
-  // Linear middle: constant velocity for steady, controlled feel
-  return startRampHeight + middleVelocity * (t - startRamp);
-}
-
-/**
- * Inhale easing: Delayed reveal that mirrors exhale timing
- *
- * Uses asymmetric ramps - the mirror of exhale:
- * - Extended soft start (30%): Text stays invisible longer
- * - Steady middle (50%): Controlled reveal catches up
- * - Quick soft end (20%): Arrives at full visibility
- *
- * This mirrors how exhale fades sooner - inhale reveals later,
- * creating the sense of words emerging with the breath.
- */
-function easeInhale(t: number): number {
-  // Mirror of exhale: longer start ramp delays the reveal
-  return controlledBreathCurve(t, 0.3, 0.2);
-}
-
-/**
- * Exhale easing: Controlled, relaxing fade-out
- *
- * Uses asymmetric ramps for relaxation breathing:
- * - Soft start (20%): Text begins fading gently
- * - Steady middle (50%): Constant velocity, controlled fade
- * - Extended soft end (30%): Extra gentle fade-out for "letting go" feel
- *
- * The longer end ramp creates the sense of words being released with the breath.
- */
-function easeExhale(t: number): number {
-  // Asymmetric: shorter start ramp, longer end ramp for relaxed finish
-  return controlledBreathCurve(t, 0.2, 0.3);
-}
 
 function calculateOpacity(phaseIndex: number, phaseProgress: number): number {
   switch (phaseIndex) {
-    case 0: // Inhale - fade in with breathing curve
-      return easeInhale(phaseProgress);
+    case 0: // Inhale - fade in with breathing curve (text variant with delayed reveal)
+      return easeInhaleText(phaseProgress);
     case 1: // Hold-in - fully visible
       return 1;
     case 2: // Exhale - fade out with breathing curve
@@ -128,7 +49,7 @@ function calculateOpacity(phaseIndex: number, phaseProgress: number): number {
  * Mobile Responsive: Reduces spacing and font size on mobile to maximize 3D scene visibility
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: RAF loop with phase calculations and multiple style conditions requires higher complexity
-export function InspirationalText() {
+function InspirationalTextComponent() {
   const topWrapperRef = useRef<HTMLDivElement>(null);
   const bottomWrapperRef = useRef<HTMLDivElement>(null);
   const prevPhaseRef = useRef(-1);
@@ -143,6 +64,10 @@ export function InspirationalText() {
   // Subscribe to both currentSequence AND ambientIndex to trigger re-renders
   const currentSequence = useInspirationalTextStore((state) => state.currentSequence);
   const ambientIndex = useInspirationalTextStore((state) => state.ambientIndex);
+
+  // Store advanceCycle in ref to avoid stale closure and prevent RAF loop restarts
+  const advanceCycleRef = useRef(advanceCycle);
+  advanceCycleRef.current = advanceCycle;
 
   // Initialize store on mount - set ambient pool and queue intro if first visit
   useEffect(() => {
@@ -185,7 +110,7 @@ export function InspirationalText() {
 
       // Track cycle completion and advance queue
       if (phaseIndex === 0 && prevPhaseRef.current === 3) {
-        advanceCycle();
+        advanceCycleRef.current();
       }
       prevPhaseRef.current = phaseIndex;
 
@@ -194,7 +119,7 @@ export function InspirationalText() {
 
     updateText();
     return () => cancelAnimationFrame(animationId);
-  }, [advanceCycle]);
+  }, []); // Empty deps - advanceCycleRef is stable and updated each render
 
   // Get current message from store
   // Note: Re-renders when currentSequence or ambientIndex changes (subscribed above)
@@ -308,3 +233,6 @@ export function InspirationalText() {
     </div>
   );
 }
+
+// Wrap with React.memo to prevent unnecessary re-renders
+export const InspirationalText = memo(InspirationalTextComponent);
