@@ -1,10 +1,11 @@
 /**
- * RefractionPipeline - 3-pass FBO rendering for frosted glass refraction
+ * RefractionPipeline - 4-pass FBO rendering for frosted glass refraction + depth of field
  *
  * Implements the Monument Valley reference rendering pipeline:
  * Pass 1: Render background gradient → envFBO texture
  * Pass 2: Render scene with backface material → backfaceFBO texture
- * Pass 3: Render scene with refraction material (samples both FBOs)
+ * Pass 3: Render scene with refraction material → compositeFBO (with depth)
+ * Pass 4: Apply depth of field blur → screen
  */
 
 import { useFrame, useThree } from '@react-three/fiber';
@@ -124,11 +125,115 @@ void main() {
 }
 `;
 
+// Depth of Field vertex shader - simple fullscreen quad
+const dofVertexShader = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position, 1.0);
+}
+`;
+
+// Depth of Field fragment shader - bokeh-style blur based on depth
+const dofFragmentShader = `
+uniform sampler2D colorTexture;
+uniform sampler2D depthTexture;
+uniform float focusDistance;    // Focus distance in world units (normalized 0-1)
+uniform float focalRange;       // Range around focus that stays sharp
+uniform float maxBlur;          // Maximum blur radius
+uniform float cameraNear;
+uniform float cameraFar;
+uniform vec2 resolution;
+
+varying vec2 vUv;
+
+// Convert depth buffer value to linear depth
+float linearizeDepth(float depth) {
+  float z = depth * 2.0 - 1.0; // Back to NDC
+  return (2.0 * cameraNear * cameraFar) / (cameraFar + cameraNear - z * (cameraFar - cameraNear));
+}
+
+// Simple box blur kernel with variable radius
+vec3 boxBlur(vec2 uv, float radius) {
+  vec3 color = vec3(0.0);
+  float count = 0.0;
+  vec2 texelSize = 1.0 / resolution;
+
+  // Sample in a circle pattern for smoother bokeh
+  for (float x = -3.0; x <= 3.0; x += 1.0) {
+    for (float y = -3.0; y <= 3.0; y += 1.0) {
+      vec2 offset = vec2(x, y) * texelSize * radius;
+      // Circular mask for bokeh shape
+      if (length(vec2(x, y)) <= 3.0) {
+        color += texture2D(colorTexture, uv + offset).rgb;
+        count += 1.0;
+      }
+    }
+  }
+
+  return color / count;
+}
+
+void main() {
+  // Sample depth and convert to linear
+  float depth = texture2D(depthTexture, vUv).r;
+  float linearDepth = linearizeDepth(depth);
+
+  // Normalize depth to camera range
+  float normalizedDepth = (linearDepth - cameraNear) / (cameraFar - cameraNear);
+
+  // Calculate circle of confusion (blur amount)
+  // Objects at focusDistance are sharp, blur increases with distance from focus
+  float distanceFromFocus = abs(normalizedDepth - focusDistance);
+
+  // Smooth falloff from focus plane
+  float coc = smoothstep(0.0, focalRange, distanceFromFocus) * maxBlur;
+
+  // Apply blur based on CoC
+  vec3 color;
+  if (coc < 0.5) {
+    // Sharp - just sample directly
+    color = texture2D(colorTexture, vUv).rgb;
+  } else {
+    // Blur - apply box blur with radius based on CoC
+    color = boxBlur(vUv, coc);
+  }
+
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
 interface RefractionPipelineProps {
   /** Index of refraction @default 1.3 */
   ior?: number;
   /** Backface normal intensity @default 0.3 */
   backfaceIntensity?: number;
+  /**
+   * Enable depth of field effect for realistic depth perception.
+   * @default true
+   */
+  enableDepthOfField?: boolean;
+  /**
+   * Focus distance from camera in world units.
+   * Objects at this distance are sharpest.
+   * @min 5 @max 25 @step 0.5
+   * @default 15
+   */
+  focusDistance?: number;
+  /**
+   * Range around focus distance that remains sharp.
+   * Smaller = shallower depth of field, more blur.
+   * @min 1 @max 20 @step 0.5
+   * @default 8
+   */
+  focalRange?: number;
+  /**
+   * Maximum blur intensity for out-of-focus areas.
+   * Higher = more pronounced blur effect.
+   * @min 0 @max 8 @step 0.5
+   * @default 3
+   */
+  maxBlur?: number;
   /** Children meshes to render with refraction */
   children?: React.ReactNode;
 }
@@ -136,15 +241,28 @@ interface RefractionPipelineProps {
 export function RefractionPipeline({
   ior = 1.3,
   backfaceIntensity = 0.3,
+  enableDepthOfField = true,
+  focusDistance = 15,
+  focalRange = 8,
+  maxBlur = 3,
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
+  const perspCamera = camera as THREE.PerspectiveCamera;
 
   // Create render targets
-  const { envFBO, backfaceFBO } = useMemo(() => {
+  const { envFBO, backfaceFBO, compositeFBO } = useMemo(() => {
     const envFBO = new THREE.WebGLRenderTarget(size.width, size.height);
     const backfaceFBO = new THREE.WebGLRenderTarget(size.width, size.height);
-    return { envFBO, backfaceFBO };
+    // Composite FBO with depth texture for DoF
+    const depthTexture = new THREE.DepthTexture(size.width, size.height);
+    depthTexture.format = THREE.DepthFormat;
+    depthTexture.type = THREE.UnsignedIntType;
+    const compositeFBO = new THREE.WebGLRenderTarget(size.width, size.height, {
+      depthTexture: depthTexture,
+      depthBuffer: true,
+    });
+    return { envFBO, backfaceFBO, compositeFBO };
   }, [size.width, size.height]);
 
   // Create background scene with ortho camera
@@ -162,6 +280,31 @@ export function RefractionPipeline({
 
     return { bgScene, orthoCamera, bgMesh };
   }, []);
+
+  // Create DoF scene for final composite
+  const { dofScene, dofMesh, dofMaterial } = useMemo(() => {
+    const dofScene = new THREE.Scene();
+
+    const dofMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        colorTexture: { value: null },
+        depthTexture: { value: null },
+        focusDistance: { value: focusDistance / perspCamera.far },
+        focalRange: { value: focalRange / perspCamera.far },
+        maxBlur: { value: maxBlur },
+        cameraNear: { value: perspCamera.near },
+        cameraFar: { value: perspCamera.far },
+        resolution: { value: new THREE.Vector2(size.width, size.height) },
+      },
+      vertexShader: dofVertexShader,
+      fragmentShader: dofFragmentShader,
+    });
+    const dofGeometry = new THREE.PlaneGeometry(2, 2);
+    const dofMesh = new THREE.Mesh(dofGeometry, dofMaterial);
+    dofScene.add(dofMesh);
+
+    return { dofScene, dofMesh, dofMaterial };
+  }, [size.width, size.height, perspCamera.near, perspCamera.far, focusDistance, focalRange, maxBlur]);
 
   // Create materials
   const { backfaceMaterial, refractionMaterial } = useMemo(() => {
@@ -192,12 +335,23 @@ export function RefractionPipeline({
     refractionMaterial.uniforms.backfaceIntensity.value = backfaceIntensity;
   }, [ior, backfaceIntensity, refractionMaterial]);
 
+  // Update DoF uniforms when props change
+  useEffect(() => {
+    dofMaterial.uniforms.focusDistance.value = focusDistance / perspCamera.far;
+    dofMaterial.uniforms.focalRange.value = focalRange / perspCamera.far;
+    dofMaterial.uniforms.maxBlur.value = maxBlur;
+    dofMaterial.uniforms.cameraNear.value = perspCamera.near;
+    dofMaterial.uniforms.cameraFar.value = perspCamera.far;
+  }, [focusDistance, focalRange, maxBlur, perspCamera.near, perspCamera.far, dofMaterial]);
+
   // Update resolution on resize
   useEffect(() => {
     envFBO.setSize(size.width, size.height);
     backfaceFBO.setSize(size.width, size.height);
+    compositeFBO.setSize(size.width, size.height);
     refractionMaterial.uniforms.resolution.value.set(size.width, size.height);
-  }, [size.width, size.height, envFBO, backfaceFBO, refractionMaterial]);
+    dofMaterial.uniforms.resolution.value.set(size.width, size.height);
+  }, [size.width, size.height, envFBO, backfaceFBO, compositeFBO, refractionMaterial, dofMaterial]);
 
   // Store original materials for mesh swapping
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
@@ -207,14 +361,17 @@ export function RefractionPipeline({
     return () => {
       envFBO.dispose();
       backfaceFBO.dispose();
+      compositeFBO.dispose();
       backfaceMaterial.dispose();
       refractionMaterial.dispose();
+      dofMaterial.dispose();
       bgMesh.geometry.dispose();
       (bgMesh.material as THREE.Material).dispose();
+      dofMesh.geometry.dispose();
     };
-  }, [envFBO, backfaceFBO, backfaceMaterial, refractionMaterial, bgMesh]);
+  }, [envFBO, backfaceFBO, compositeFBO, backfaceMaterial, refractionMaterial, dofMaterial, bgMesh, dofMesh]);
 
-  // 3-pass rendering loop
+  // 4-pass rendering loop
   useFrame(() => {
     // Collect all meshes in scene that should use refraction
     const meshes: THREE.Mesh[] = [];
@@ -243,9 +400,9 @@ export function RefractionPipeline({
     gl.clear();
     gl.render(scene, camera);
 
-    // Pass 3: Render final composite
-    // First render background to screen
-    gl.setRenderTarget(null);
+    // Pass 3: Render composite to compositeFBO (with depth for DoF)
+    // First render background
+    gl.setRenderTarget(compositeFBO);
     gl.clear();
     gl.render(bgScene, orthoCamera);
 
@@ -266,6 +423,25 @@ export function RefractionPipeline({
       if (original) {
         mesh.material = original;
       }
+    }
+
+    // Pass 4: Apply depth of field and render to screen
+    gl.setRenderTarget(null);
+    gl.clear();
+
+    if (enableDepthOfField) {
+      // Update DoF material with composite textures
+      dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
+      dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
+      gl.render(dofScene, orthoCamera);
+    } else {
+      // Skip DoF, render composite directly
+      // Create a simple passthrough if needed, or just render the composite
+      dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
+      dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
+      dofMaterial.uniforms.maxBlur.value = 0; // Disable blur
+      gl.render(dofScene, orthoCamera);
+      dofMaterial.uniforms.maxBlur.value = maxBlur; // Restore
     }
   }, 1); // Priority 1 to run before default render
 
