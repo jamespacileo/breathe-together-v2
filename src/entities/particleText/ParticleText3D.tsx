@@ -1,16 +1,15 @@
 /**
  * ParticleText3D - 3D Particle Text Effect
  *
- * Displays text formed by 3D particles in the scene. Positioned in front of
- * the camera in a safe zone that won't overlap with the main scene elements
- * (EarthGlobe at Y=0, ParticleSwarm orbiting at radius 2.5-6.0).
+ * Displays text formed by 3D particles in the scene. Positioned to artistically
+ * overlap with scene elements - the gradual fade-in creates an emerging effect.
  *
  * Features:
  * - Canvas-based text sampling to particle positions
  * - Instanced rendering for performance
  * - Breathing-synchronized fade in/out animations
  * - Organic floating motion for dreamy effect
- * - Positioned at Z=7 (between camera at Z=10 and scene at Z=0)
+ * - Positioned at Z=3 to overlap with scene (globe, particles)
  *
  * Integration:
  * - Uses breathing phase from ECS traits for opacity animation
@@ -25,12 +24,12 @@ import { breathPhase, phaseType } from '../breath/traits';
 import { getTextAspectRatio, sampleTextToParticles } from './textSampler';
 
 // Constants for particle text appearance
-const PARTICLE_SIZE = 0.045; // Size of each particle dot (larger for legibility)
-const TEXT_SCALE = 3.0; // Overall text scale in 3D world units
-// Camera at Z=10, scene at Z=0. Position text at Z=7 (between camera and scene)
-const TEXT_Z_POSITION = 7;
-const TOP_TEXT_Y = 2.8; // Y position for top text (above scene)
-const BOTTOM_TEXT_Y = -2.8; // Y position for bottom text (below scene)
+const PARTICLE_SIZE = 0.035; // Size of each particle dot
+const TEXT_SCALE = 2.2; // Overall text scale in 3D world units
+// Position text at Z=3 to overlap with scene elements (globe at Z=0, particles orbit 2.5-6)
+const TEXT_Z_POSITION = 3;
+const TOP_TEXT_Y = 1.6; // Y position for top text (overlaps upper scene)
+const BOTTOM_TEXT_Y = -1.6; // Y position for bottom text (overlaps lower scene)
 
 // Sampling options for text-to-particle conversion
 const SAMPLE_OPTIONS = {
