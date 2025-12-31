@@ -92,9 +92,6 @@ export function BreathingLevel({
           >
             {showGlobe && <EarthGlobe />}
 
-            {/* Holographic UI ring around globe showing breathing phase */}
-            <HolographicBreathUI innerRadius={2.2} outerRadius={2.5} yOffset={0} />
-
             {showParticles && (
               <ParticleSwarm
                 count={harmony}
@@ -114,6 +111,9 @@ export function BreathingLevel({
             )}
           </PresentationControls>
         </RefractionPipeline>
+
+        {/* Holographic UI ring - OUTSIDE pipeline to avoid DOF blur */}
+        <HolographicBreathUI innerRadius={2.2} outerRadius={2.5} yOffset={0} />
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
