@@ -1,6 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ProgressCircleOverlay } from '../components/ProgressCircleOverlay';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -21,11 +22,11 @@ const TUNING_DEFAULTS = {
   orbitRadius: 4.5, // Base orbit radius
   shardSize: 0.5, // Max shard size
   atmosphereDensity: 100, // Atmospheric particle count
-  // Depth of Field settings
+  // Depth of Field settings - tuned to keep globe/ring sharp, blur distant particles
   enableDepthOfField: true,
   focusDistance: 15, // Focus on center (camera distance)
-  focalRange: 8, // Range that stays sharp
-  maxBlur: 3, // Maximum blur intensity
+  focalRange: 12, // Larger range keeps center area (globe + ring) sharp
+  maxBlur: 2.5, // Slightly reduced blur intensity
 };
 
 /**
@@ -110,6 +111,19 @@ export function BreathingLevel({
             )}
           </PresentationControls>
         </RefractionPipeline>
+
+        {/* Progress circle overlay - soft, organic breathing animation */}
+        {/* Contracts closer to globe on inhale, expands on exhale */}
+        {showGlobe && (
+          <ProgressCircleOverlay
+            radius={1.8}
+            contractedRadius={1.45}
+            thickness={0.015}
+            userCount={harmony}
+            zOffset={0.3}
+            renderOrder={100}
+          />
+        )}
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
