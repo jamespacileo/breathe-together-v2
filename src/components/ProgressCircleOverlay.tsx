@@ -20,9 +20,6 @@ import * as THREE from 'three';
 import { BREATH_PHASES, BREATH_TOTAL_CYCLE } from '../constants';
 import { breathPhase, phaseType, rawProgress } from '../entities/breath/traits';
 
-// Phase names for display
-const PHASE_NAMES = ['Inhale', 'Hold', 'Exhale', 'Hold'] as const;
-
 // Phase label configuration - positioned around the ring
 // Each phase starts at a specific angle (clockwise from top)
 const PHASE_LABELS = [
@@ -60,8 +57,6 @@ interface ProgressCircleOverlayProps {
   thickness?: number;
   /** Progress arc color @default '#c9a06c' */
   progressColor?: string;
-  /** Text color @default '#5a4d42' */
-  textColor?: string;
   /** Show user count @default true */
   showUserCount?: boolean;
   /** User count to display @default 77 */
@@ -102,7 +97,6 @@ export function ProgressCircleOverlay({
   expandedRadius = 3.2,
   thickness = 0.03,
   progressColor = '#c9a06c',
-  textColor = '#5a4d42',
   showUserCount = true,
   userCount = 77,
   zOffset = 0.1,
@@ -115,15 +109,17 @@ export function ProgressCircleOverlay({
   const ringRef = useRef<THREE.Mesh>(null);
   const world = useWorld();
 
-  // Phase name state (updates on phase transitions only - 4 times per 16s cycle)
-  const [phaseName, setPhaseName] = useState<string>('Hold');
+  // Phase state (updates on phase transitions only - 4 times per 16s cycle)
   const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(0);
 
   // Current animated radius (smoothly interpolates between radius and expandedRadius)
   const currentRadiusRef = useRef<number>(radius);
 
   // Label offset distance from ring (slightly outside)
-  const labelOffset = 0.35;
+  const labelOffset = 0.5;
+
+  // Muted color for inactive elements (matches ring track)
+  const mutedColor = '#a08c78';
 
   // Create progress arc geometry (will be updated each frame)
   const progressGeometryRef = useRef<THREE.BufferGeometry | null>(null);
@@ -195,11 +191,9 @@ export function ProgressCircleOverlay({
       const cycleProgress =
         (phaseStartTime + currentRawProgress * phaseDuration) / BREATH_TOTAL_CYCLE;
 
-      // Update phase text only on phase transition
+      // Update phase state only on phase transition
       if (currentPhaseType !== prevPhaseRef.current) {
         prevPhaseRef.current = currentPhaseType;
-        const newPhaseName = PHASE_NAMES[currentPhaseType] ?? 'Breathe';
-        setPhaseName(newPhaseName);
         setCurrentPhaseIndex(currentPhaseType);
       }
 
@@ -301,34 +295,38 @@ export function ProgressCircleOverlay({
         {/* Phase markers and labels - positioned around the ring */}
         {PHASE_LABELS.map((label) => {
           const isActive = currentPhaseIndex === label.phaseIndex;
-          const labelRadius = radius + labelOffset;
 
-          // Line marker dimensions
-          const lineLength = isActive ? thickness * 8 : thickness * 5;
-          const lineWidth = isActive ? thickness * 1.2 : thickness * 0.8;
+          // Line marker dimensions - thick measurement-style ticks extending outward
+          const lineLength = isActive ? thickness * 6 : thickness * 4;
+          const lineWidth = isActive ? thickness * 1.5 : thickness * 1.0;
 
-          // Position line marker centered on the ring edge
-          const markerX = Math.cos(label.angle) * radius;
-          const markerY = Math.sin(label.angle) * radius;
+          // Position marker at outer edge of ring, extending outward
+          const ringOuterEdge = radius + thickness / 2;
+          const markerCenterRadius = ringOuterEdge + lineLength / 2;
+          const markerX = Math.cos(label.angle) * markerCenterRadius;
+          const markerY = Math.sin(label.angle) * markerCenterRadius;
+
+          // Label positioned further out from the marker
+          const labelRadius = ringOuterEdge + lineLength + labelOffset;
           const labelX = Math.cos(label.angle) * labelRadius;
           const labelY = Math.sin(label.angle) * labelRadius;
 
           // Rotation to align line radially (perpendicular to ring)
-          const rotation = label.angle + Math.PI / 2;
+          const rotation = label.angle;
 
           return (
             <group key={`phase-${label.phaseIndex}-${label.name}`}>
-              {/* Phase marker line (radial tick mark) */}
+              {/* Phase marker line (measurement-style tick extending outward) */}
               <mesh
                 position={[markerX, markerY, 0.01]}
                 rotation={[0, 0, rotation]}
                 renderOrder={renderOrder + 2}
               >
-                <planeGeometry args={[lineWidth, lineLength]} />
+                <planeGeometry args={[lineLength, lineWidth]} />
                 <meshBasicMaterial
-                  color={isActive ? progressColor : '#a08c78'}
+                  color={isActive ? progressColor : mutedColor}
                   transparent
-                  opacity={isActive ? 0.95 : 0.5}
+                  opacity={isActive ? 0.9 : 0.4}
                   depthWrite={false}
                   side={THREE.DoubleSide}
                 />
@@ -337,15 +335,14 @@ export function ProgressCircleOverlay({
               {/* Phase label as billboard (always faces camera) */}
               <Billboard position={[labelX, labelY, 0.02]} follow={true}>
                 <Text
-                  fontSize={isActive ? 0.18 : 0.12}
-                  color={isActive ? progressColor : textColor}
+                  fontSize={isActive ? 0.16 : 0.11}
+                  color={isActive ? progressColor : mutedColor}
                   anchorX="center"
                   anchorY="middle"
-                  letterSpacing={0.08}
+                  letterSpacing={0.06}
                   renderOrder={renderOrder + 4}
                   material-transparent={true}
                   material-depthWrite={false}
-                  fontWeight={isActive ? 'bold' : 'normal'}
                 >
                   {label.name}
                 </Text>
@@ -356,31 +353,15 @@ export function ProgressCircleOverlay({
       </group>
 
       {/* Center text stays fixed size (outside ring group) */}
-      {/* Current phase text (large, centered) */}
-      <Text
-        position={[0, 0.1, 0.01]}
-        fontSize={0.38}
-        color={textColor}
-        anchorX="center"
-        anchorY="middle"
-        letterSpacing={0.1}
-        textAlign="center"
-        renderOrder={renderOrder + 5}
-        material-transparent={true}
-        material-depthWrite={false}
-      >
-        {phaseName}
-      </Text>
-
-      {/* User count text (below phase name) */}
+      {/* User count (centered) */}
       {showUserCount && (
         <Text
-          position={[0, -0.3, 0.01]}
-          fontSize={0.11}
-          color={textColor}
+          position={[0, 0, 0.01]}
+          fontSize={0.13}
+          color={mutedColor}
           anchorX="center"
           anchorY="middle"
-          letterSpacing={0.06}
+          letterSpacing={0.04}
           renderOrder={renderOrder + 5}
           material-transparent={true}
           material-depthWrite={false}
