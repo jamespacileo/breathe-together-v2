@@ -46,7 +46,7 @@ void main() {
 `;
 
 // Refraction fragment shader - creates gem-like frosted crystal look
-// Improved Dec 2024: Vibrant gem pastels with faceted shading (Monument Valley style)
+// Improved Dec 2024: Bright luminous gem pastels with faceted shading (Monument Valley style)
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
@@ -73,27 +73,29 @@ void main() {
   vec2 refractUv = uv + refracted.xy * 0.04;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === VIBRANT GEM COLOR ===
-  // Keep most saturation, soften just slightly toward warm white
-  vec3 warmWhite = vec3(1.0, 0.97, 0.94);
-  // 80% color intensity - vibrant but soft
-  vec3 gemColor = mix(warmWhite, vColor, 0.80);
+  // === BRIGHT LUMINOUS GEM COLOR ===
+  // Keep high saturation with brightness boost
+  vec3 warmWhite = vec3(1.0, 0.98, 0.95);
+  // 85% color intensity - vibrant
+  vec3 gemColor = mix(warmWhite, vColor, 0.85);
+  // Brightness boost for luminous feel
+  gemColor *= 1.15;
 
   // === FACETED SHADING (gem look) ===
   float diffuse = max(dot(normal, keyLightDir), 0.0);
-  // Wrap lighting but with more contrast for facet visibility
-  float wrapped = diffuse * 0.6 + 0.4;
-  // Shading range: lit faces bright, shadow faces darker (0.55 - 1.0)
-  float shading = wrapped * 0.45 + 0.55;
+  // Wrap lighting - higher base for brighter shadows
+  float wrapped = diffuse * 0.5 + 0.5;
+  // Shading range: lit faces very bright, shadow faces still bright (0.65 - 1.0)
+  float shading = wrapped * 0.35 + 0.65;
 
   // === GEM BODY WITH INNER GLOW ===
   vec3 shadedGem = gemColor * shading;
 
-  // Inner luminosity - gems glow from within
-  float innerGlow = (1.0 - diffuse) * 0.15;
+  // Inner luminosity - gems glow from within (stronger)
+  float innerGlow = (1.0 - diffuse) * 0.2;
   shadedGem += gemColor * innerGlow;
 
-  // Tinted refraction for depth (more visible in gems)
+  // Tinted refraction for depth
   vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), gemColor, 0.35);
 
   // Mix: gem body (65%) with refraction (35%) for crystalline depth
@@ -101,17 +103,17 @@ void main() {
 
   // === FRESNEL RIM (crystalline edge glow) ===
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
-  vec3 rimColor = vec3(1.0, 0.98, 0.95);
-  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.28);
+  vec3 rimColor = vec3(1.0, 0.99, 0.97);
+  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.3);
 
   // === SPECULAR HIGHLIGHT (gem sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
   float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
-  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.25;
+  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.3;
 
   // === TOP AMBIENT ===
-  float topLight = max(normal.y, 0.0) * 0.1;
-  colorWithRim += vec3(1.0, 0.98, 0.95) * topLight;
+  float topLight = max(normal.y, 0.0) * 0.12;
+  colorWithRim += vec3(1.0, 0.99, 0.97) * topLight;
 
   gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
 }
