@@ -39,13 +39,20 @@ export function CameraRig({
   distance = 15,
   enableRotation = false,
 }: CameraRigProps = {}) {
-  // Internal constants for smoothing and movement
-  const swayIntensity = 0.05;
-  const breathZoomIntensity = 1.5;
-  const lerpSpeed = 1.5;
-  const dampingFactor = 0.03; // Smoother damping
+  // === CINEMATIC CAMERA SETTINGS ===
+  // Organic sway - subtle drift that feels alive
+  const swayIntensity = 0.08;
+  // Breathing zoom - camera pushes in/out with breath (more dramatic)
+  const breathZoomIntensity = 2.0;
+  // Breathing tilt - subtle camera rotation with breathing
+  const breathTiltIntensity = 0.015;
+  // Cinematic drift - slow, dreamy floating motion
+  const driftIntensity = 0.03;
+  // Smoothing
+  const lerpSpeed = 1.2; // Slightly slower for more cinematic feel
+  const dampingFactor = 0.025;
 
-  const { mouse } = useThree();
+  const { mouse, camera } = useThree();
   const world = useWorld();
   const controlsRef = useRef<OrbitControls>(null);
 
@@ -53,6 +60,7 @@ export function CameraRig({
   const lastPhase = useRef(0);
   const targetCameraPos = useRef(new THREE.Vector3(0, 0, distance));
   const currentCameraPos = useRef(new THREE.Vector3(0, 0, distance));
+  const baseRotation = useRef(new THREE.Euler(0, 0, 0));
 
   useFrame((state, delta) => {
     try {
@@ -68,39 +76,57 @@ export function CameraRig({
 
       const t = state.clock.elapsedTime;
 
-      // 1. Procedural Sway (Organic "breathing" movement)
-      // Subtle float + rotation that feels linked to the lungs expanding
-      const swayX = Math.sin(t * 0.5) * swayIntensity;
-      const swayY = Math.cos(t * 0.4) * swayIntensity;
+      // 1. ORGANIC SWAY - Multi-frequency drift for natural feel
+      // Primary sway (slow)
+      const swayX = Math.sin(t * 0.3) * swayIntensity;
+      const swayY = Math.cos(t * 0.25) * swayIntensity * 0.7;
+      // Secondary drift (very slow, larger amplitude)
+      const driftX = Math.sin(t * 0.08) * driftIntensity;
+      const driftY = Math.cos(t * 0.06) * driftIntensity * 0.5;
 
-      // 2. Breathing Zoom (Camera pushes in/out with the breath)
+      // 2. BREATHING ZOOM - Camera dolly with breath (cinematic)
+      // Inhale: camera moves closer (intimate)
+      // Exhale: camera moves back (spacious)
       const dynamicDistance = distance - phase * breathZoomIntensity;
 
-      // 3. Mouse Parallax (Gentle look-around)
+      // 3. BREATHING TILT - Subtle camera rotation with breath
+      // Creates subtle "nodding" motion synced with breathing
+      const tiltX = phase * breathTiltIntensity * 0.5; // Slight up tilt on inhale
+      const tiltZ = Math.sin(phase * Math.PI) * breathTiltIntensity * 0.3; // Very subtle roll
+
+      // 4. MOUSE PARALLAX - Gentle look-around
       const mouseX = mouse.x * parallaxIntensity;
-      const mouseY = mouse.y * parallaxIntensity;
+      const mouseY = mouse.y * parallaxIntensity * 0.6; // Less vertical
 
       // Update target position
-      // Combine base distance, mouse offset, and breathing push
-      targetCameraPos.current.set(mouseX + swayX, mouseY + swayY, dynamicDistance);
+      // Combine all movements: base distance, mouse, sway, drift, and breathing
+      targetCameraPos.current.set(
+        mouseX + swayX + driftX,
+        mouseY + swayY + driftY,
+        dynamicDistance,
+      );
 
       // Smoothly interpolate the camera position
       damp3(currentCameraPos.current, targetCameraPos.current, lerpSpeed, delta);
 
+      // Apply subtle camera rotation for cinematic tilt
+      const targetRotX = baseRotation.current.x + tiltX;
+      const targetRotZ = baseRotation.current.z + tiltZ;
+      camera.rotation.x += (targetRotX - camera.rotation.x) * 0.02;
+      camera.rotation.z += (targetRotZ - camera.rotation.z) * 0.015;
+
       if (controlsRef.current) {
-        // We update the camera position relative to the target
-        // OrbitControls handles rotations, we influence the distance and subtle offset
+        // Update distance dynamically
         controlsRef.current.minDistance = dynamicDistance;
         controlsRef.current.maxDistance = dynamicDistance;
 
-        // Lock target to origin (0,0,0) - scene rotation is handled by PresentationControls
-        // This keeps the OrbitControls centered while PresentationControls handles all rotation
+        // Lock target to origin
         damp3(controlsRef.current.target, ORIGIN, lerpSpeed, delta);
 
         controlsRef.current.update();
       }
     } catch (error) {
-      // Ignore stale world errors
+      // Ignore stale world errors during Triplex hot-reload
       logger.warn('[CameraRig] Unexpected error (expected during Triplex hot-reload):', error);
     }
   });
