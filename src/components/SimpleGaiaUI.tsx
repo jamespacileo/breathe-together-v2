@@ -19,6 +19,8 @@ interface SimpleGaiaUIProps {
   /** Particle count (harmony) */
   harmony: number;
   setHarmony: (v: number) => void;
+  /** Current number of users in the mood array */
+  userCount?: number;
   /** Index of Refraction - controls light bending through glass */
   ior: number;
   setIor: (v: number) => void;
@@ -42,6 +44,21 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  // Utility callbacks for testing user events
+  /** Add a single random user */
+  onAddUser?: () => void;
+  /** Remove a random user */
+  onRemoveUser?: () => void;
+  /** Add 5 random users */
+  onAddBatch?: () => void;
+  /** Remove 5 random users */
+  onRemoveBatch?: () => void;
+  /** Shuffle all mood colors randomly */
+  onShuffle?: () => void;
+  /** Clear all users */
+  onClearAll?: () => void;
+  /** Reset to default state */
+  onReset?: () => void;
 }
 
 /**
@@ -66,6 +83,7 @@ interface SimpleGaiaUIProps {
 export function SimpleGaiaUI({
   harmony,
   setHarmony,
+  userCount,
   ior,
   setIor,
   glassDepth,
@@ -80,6 +98,14 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  // Utility callbacks
+  onAddUser,
+  onRemoveUser,
+  onAddBatch,
+  onRemoveBatch,
+  onShuffle,
+  onClearAll,
+  onReset,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -1000,9 +1026,15 @@ export function SimpleGaiaUI({
                   fontVariant: 'small-caps',
                   borderBottom: `1px solid ${colors.border}`,
                   paddingBottom: '6px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}
               >
-                Particles
+                <span>Particles</span>
+                {userCount !== undefined && (
+                  <span style={{ fontWeight: 400, color: colors.accent }}>{userCount} users</span>
+                )}
               </div>
 
               <label style={{ marginBottom: '14px', display: 'block' }}>
@@ -1052,6 +1084,203 @@ export function SimpleGaiaUI({
                   style={inputStyle}
                 />
               </label>
+
+              {/* User Simulation Buttons */}
+              {(onAddUser || onRemoveUser) && (
+                <div
+                  style={{
+                    marginTop: '16px',
+                    paddingTop: '12px',
+                    borderTop: `1px solid ${colors.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '0.6rem',
+                      fontWeight: 600,
+                      color: colors.textDim,
+                      marginBottom: '10px',
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Test Events
+                  </div>
+
+                  {/* Single user add/remove */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    {onAddUser && (
+                      <button
+                        type="button"
+                        onClick={onAddUser}
+                        onPointerDown={stopPropagation}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          fontSize: '0.6rem',
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          background: 'rgba(76, 175, 80, 0.15)',
+                          border: '1px solid rgba(76, 175, 80, 0.3)',
+                          borderRadius: '8px',
+                          color: '#4a8c4e',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        + User
+                      </button>
+                    )}
+                    {onRemoveUser && (
+                      <button
+                        type="button"
+                        onClick={onRemoveUser}
+                        onPointerDown={stopPropagation}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          fontSize: '0.6rem',
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          background: 'rgba(244, 67, 54, 0.12)',
+                          border: '1px solid rgba(244, 67, 54, 0.25)',
+                          borderRadius: '8px',
+                          color: '#c94a42',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        - User
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Batch add/remove */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    {onAddBatch && (
+                      <button
+                        type="button"
+                        onClick={onAddBatch}
+                        onPointerDown={stopPropagation}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          fontSize: '0.6rem',
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          background: 'rgba(76, 175, 80, 0.1)',
+                          border: '1px solid rgba(76, 175, 80, 0.2)',
+                          borderRadius: '8px',
+                          color: '#4a8c4e',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        +5 Users
+                      </button>
+                    )}
+                    {onRemoveBatch && (
+                      <button
+                        type="button"
+                        onClick={onRemoveBatch}
+                        onPointerDown={stopPropagation}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          fontSize: '0.6rem',
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          background: 'rgba(244, 67, 54, 0.08)',
+                          border: '1px solid rgba(244, 67, 54, 0.18)',
+                          borderRadius: '8px',
+                          color: '#c94a42',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        -5 Users
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Shuffle and Clear */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {onShuffle && (
+                      <button
+                        type="button"
+                        onClick={onShuffle}
+                        onPointerDown={stopPropagation}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          fontSize: '0.6rem',
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          background: 'rgba(156, 39, 176, 0.1)',
+                          border: '1px solid rgba(156, 39, 176, 0.2)',
+                          borderRadius: '8px',
+                          color: '#8e4a98',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        Shuffle
+                      </button>
+                    )}
+                    {onClearAll && (
+                      <button
+                        type="button"
+                        onClick={onClearAll}
+                        onPointerDown={stopPropagation}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          fontSize: '0.6rem',
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          background: 'rgba(100, 100, 100, 0.1)',
+                          border: '1px solid rgba(100, 100, 100, 0.2)',
+                          borderRadius: '8px',
+                          color: '#666',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        Clear All
+                      </button>
+                    )}
+                    {onReset && (
+                      <button
+                        type="button"
+                        onClick={onReset}
+                        onPointerDown={stopPropagation}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          fontSize: '0.6rem',
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          background: `rgba(201, 160, 108, 0.12)`,
+                          border: `1px solid rgba(201, 160, 108, 0.25)`,
+                          borderRadius: '8px',
+                          color: colors.accent,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* GLASS SECTION */}

@@ -1,5 +1,5 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useState, useTransition } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -8,8 +8,28 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
-import { generateMockPresence } from '../lib/mockPresence';
+import { useSimulatedUserFlow } from '../hooks/useSimulatedUserFlow';
 import type { BreathingLevelProps } from '../types/sceneProps';
+
+/** Generate a random mood index (0-3) */
+function randomMood(): number {
+  return Math.floor(Math.random() * 4);
+}
+
+/**
+ * Generate a randomized mood array for initial display
+ * Each element is a mood index (0-3) representing the 4 mood categories
+ *
+ * @param count - Number of users to generate
+ * @returns Array of mood indices (only active moods, no -1 values)
+ */
+function generateRandomMoodArray(count: number): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < count; i++) {
+    result.push(randomMood());
+  }
+  return result;
+}
 
 /**
  * Tuning defaults for visual aesthetics (matching reference)
@@ -31,6 +51,11 @@ const TUNING_DEFAULTS = {
 /**
  * BreathingLevel - Core meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * User Ordering System (Dec 2024):
+ * - Uses ordered mood array where each element is a mood index (0-3)
+ * - Slot-based system ready for real user data from backend
+ * - Set `simulateUserFlow=true` to enable dynamic arrivals/departures demo
  */
 export function BreathingLevel({
   particleDensity,
@@ -38,7 +63,9 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-}: Partial<BreathingLevelProps> = {}) {
+  // User ordering system - enable dynamic simulation for demo
+  simulateUserFlow = false,
+}: Partial<BreathingLevelProps> & { simulateUserFlow?: boolean } = {}) {
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
     particleDensity === 'sparse'
@@ -62,7 +89,128 @@ export function BreathingLevel({
   const [showTuneControls, setShowTuneControls] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
+  // Managed mood array state - source of truth for particle swarm
+  const initialCount = Math.floor(
+    (particleDensity === 'sparse'
+      ? TUNING_DEFAULTS.particleCounts.sparse
+      : particleDensity === 'dense'
+        ? TUNING_DEFAULTS.particleCounts.dense
+        : TUNING_DEFAULTS.particleCounts.normal) * 0.7,
+  );
+  const [managedMoodArray, setManagedMoodArray] = useState<number[]>(() =>
+    generateRandomMoodArray(initialCount),
+  );
+
+  // Dynamic simulated user flow (for demo/testing)
+  const { moodArray: simulatedMoodArray } = useSimulatedUserFlow({
+    maxSlots: harmony,
+    initialUsers: Math.floor(harmony * 0.6),
+    targetUserCount: Math.floor(harmony * 0.7),
+    paused: !simulateUserFlow,
+  });
+
+  // Use simulated array when enabled, otherwise managed array
+  const moodArray = simulateUserFlow ? simulatedMoodArray : managedMoodArray;
+
+  // React 19: useTransition for non-blocking batch updates
+  const [, startTransition] = useTransition();
+
+  /**
+   * Handle harmony slider changes - adds/removes random moods to simulate real behavior
+   * Uses functional update to avoid stale closure and unnecessary recreations
+   */
+  const handleHarmonyChange = useCallback((newHarmony: number) => {
+    setHarmony(newHarmony);
+
+    // Target count is ~70% of harmony
+    const targetCount = Math.floor(newHarmony * 0.7);
+
+    setManagedMoodArray((prev) => {
+      const currentCount = prev.length;
+
+      if (targetCount > currentCount) {
+        // Add random moods to reach target
+        const newMoods = [...prev];
+        for (let i = 0; i < targetCount - currentCount; i++) {
+          newMoods.push(randomMood());
+        }
+        return newMoods;
+      }
+
+      if (targetCount < currentCount) {
+        // Remove random indices to reach target
+        const newMoods = [...prev];
+        const removeCount = currentCount - targetCount;
+        for (let i = 0; i < removeCount; i++) {
+          const randomIndex = Math.floor(Math.random() * newMoods.length);
+          newMoods.splice(randomIndex, 1);
+        }
+        return newMoods;
+      }
+
+      return prev; // No change needed
+    });
+  }, []); // ← No dependencies - stable reference!
+
+  // Utility callbacks for testing
+  const addRandomUser = useCallback(() => {
+    setManagedMoodArray((prev) => [...prev, randomMood()]);
+  }, []);
+
+  const removeRandomUser = useCallback(() => {
+    setManagedMoodArray((prev) => {
+      if (prev.length === 0) return prev;
+      const randomIndex = Math.floor(Math.random() * prev.length);
+      return prev.filter((_, i) => i !== randomIndex);
+    });
+  }, []);
+
+  // Batch operations wrapped in startTransition for non-blocking updates
+  // Note: startTransition is stable and doesn't need to be in dependencies
+  const addBatchUsers = useCallback((count: number) => {
+    startTransition(() => {
+      setManagedMoodArray((prev) => {
+        const newMoods = [...prev];
+        for (let i = 0; i < count; i++) {
+          newMoods.push(randomMood());
+        }
+        return newMoods;
+      });
+    });
+  }, []);
+
+  const removeBatchUsers = useCallback((count: number) => {
+    startTransition(() => {
+      setManagedMoodArray((prev) => {
+        const newMoods = [...prev];
+        const actualRemove = Math.min(count, newMoods.length);
+        for (let i = 0; i < actualRemove; i++) {
+          const randomIndex = Math.floor(Math.random() * newMoods.length);
+          newMoods.splice(randomIndex, 1);
+        }
+        return newMoods;
+      });
+    });
+  }, []);
+
+  const shuffleMoods = useCallback(() => {
+    startTransition(() => {
+      setManagedMoodArray((prev) => prev.map(() => randomMood()));
+    });
+  }, []);
+
+  const clearAllUsers = useCallback(() => {
+    startTransition(() => {
+      setManagedMoodArray([]);
+    });
+  }, []);
+
+  const resetToDefault = useCallback(() => {
+    const count = Math.floor(harmony * 0.7);
+    startTransition(() => {
+      setManagedMoodArray(generateRandomMoodArray(count));
+    });
+  }, [harmony]);
 
   return (
     <ErrorBoundary>
@@ -93,8 +241,7 @@ export function BreathingLevel({
 
             {showParticles && (
               <ParticleSwarm
-                count={harmony}
-                users={moods}
+                moodArray={moodArray}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
               />
@@ -122,7 +269,8 @@ export function BreathingLevel({
           {/* Main UI with breathing phase, inspirational text, and modals */}
           <SimpleGaiaUI
             harmony={harmony}
-            setHarmony={setHarmony}
+            setHarmony={handleHarmonyChange}
+            userCount={moodArray.length}
             ior={ior}
             setIor={setIor}
             glassDepth={glassDepth}
@@ -137,6 +285,14 @@ export function BreathingLevel({
             onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
+            // Utility callbacks for testing user events
+            onAddUser={addRandomUser}
+            onRemoveUser={removeRandomUser}
+            onAddBatch={() => addBatchUsers(5)}
+            onRemoveBatch={() => removeBatchUsers(5)}
+            onShuffle={shuffleMoods}
+            onClearAll={clearAllUsers}
+            onReset={resetToDefault}
           />
         </Html>
       </Suspense>
