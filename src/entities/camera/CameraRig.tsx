@@ -42,6 +42,12 @@ interface CameraRigProps {
    * Progress through intro (0-1), used for dolly animation.
    */
   introProgress?: number;
+
+  /**
+   * Progress through join transition (0-1), used for smooth camera continuation.
+   * Prevents camera from snapping when intro ends and hasJoined becomes true.
+   */
+  joinProgress?: number;
 }
 
 export function CameraRig({
@@ -50,6 +56,7 @@ export function CameraRig({
   enableRotation = false,
   introMode = false,
   introProgress = 1,
+  joinProgress = 0,
 }: CameraRigProps = {}) {
   // Internal constants for smoothing and movement
   const swayIntensity = 0.05;
@@ -60,6 +67,10 @@ export function CameraRig({
   // Intro dolly settings
   const introStartDistance = 6; // Start close
   const introEndDistance = distance; // End at normal distance
+
+  // Combined progress: use intro progress during intro, then continue with join progress
+  // This ensures smooth camera dolly continuation when transitioning from intro to joined state
+  const effectiveProgress = introMode ? introProgress : Math.max(introProgress, joinProgress);
 
   const { mouse } = useThree();
   const world = useWorld();
@@ -91,11 +102,18 @@ export function CameraRig({
       const swayX = Math.sin(t * 0.5) * swayIntensity * introSwayMultiplier;
       const swayY = Math.cos(t * 0.4) * swayIntensity * introSwayMultiplier;
 
-      // 2. Calculate base distance (intro dolly or normal)
-      // Use easeOutCubic for smooth dolly
+      // 2. Calculate base distance (smooth dolly using effectiveProgress)
+      // Use easeOutCubic for smooth dolly - continues through join transition
       const easeOutCubic = (x: number) => 1 - (1 - x) ** 3;
-      const baseDistance = introMode
-        ? THREE.MathUtils.lerp(introStartDistance, introEndDistance, easeOutCubic(introProgress))
+      // During intro or join transition, smoothly dolly from close to far
+      // effectiveProgress handles the transition between intro and join phases
+      const isTransitioning = introMode || effectiveProgress < 1;
+      const baseDistance = isTransitioning
+        ? THREE.MathUtils.lerp(
+            introStartDistance,
+            introEndDistance,
+            easeOutCubic(effectiveProgress),
+          )
         : distance;
 
       // 3. Breathing Zoom (Camera pushes in/out with the breath)

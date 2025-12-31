@@ -1,6 +1,6 @@
 import { Stats } from '@react-three/drei';
 import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { CinematicFog, CinematicIntro } from './components/cinematic';
@@ -51,6 +51,35 @@ export function App() {
   // Both new and returning users need to click Join to see the full experience
   const [hasJoined, setHasJoined] = useState(false);
 
+  // Layered reveal progress (0→1 over 3s after joining)
+  // Shared with CameraRig and BreathingLevel for coordinated transitions
+  const [joinProgress, setJoinProgress] = useState(0);
+
+  // Animate joinProgress after user joins
+  useEffect(() => {
+    if (!hasJoined) {
+      setJoinProgress(0);
+      return;
+    }
+
+    const duration = 3000; // 3 seconds for full reveal
+    const start = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      // Ease out cubic for smooth deceleration
+      const linear = Math.min(elapsed / duration, 1);
+      const eased = 1 - (1 - linear) ** 3;
+      setJoinProgress(eased);
+
+      if (linear < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, [hasJoined]);
+
   // Check if we should skip intro (returning user)
   const skipIntro = hasSeenIntro();
 
@@ -82,12 +111,16 @@ export function App() {
             {/* Cinematic fog - clears as intro progresses */}
             {!introComplete && <CinematicFog phase={phase} progress={progress} />}
 
-            <CameraRig introMode={!hasJoined} introProgress={phase === 'complete' ? 1 : progress} />
+            <CameraRig
+              introMode={!hasJoined}
+              introProgress={phase === 'complete' ? 1 : progress}
+              joinProgress={joinProgress}
+            />
 
             <KootaSystems breathSystemEnabled={true}>
               <AudioProvider>
                 <BreathEntity />
-                <BreathingLevel hasJoined={hasJoined} />
+                <BreathingLevel hasJoined={hasJoined} joinProgress={joinProgress} />
               </AudioProvider>
             </KootaSystems>
           </Canvas>

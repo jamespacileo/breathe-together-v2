@@ -33,6 +33,8 @@ const TUNING_DEFAULTS = {
 interface BreathingLevelExtendedProps extends Partial<BreathingLevelProps> {
   /** Whether user has clicked "Join" - controls particle visibility */
   hasJoined?: boolean;
+  /** Progress through join transition (0-1), for staggered element reveal */
+  joinProgress?: number;
 }
 
 /**
@@ -50,13 +52,28 @@ export function BreathingLevel({
   showEnvironment = true,
   // Whether user has clicked "Join" to enter full experience
   hasJoined = false,
+  // Progress through join transition (0-1), animated in App.tsx
+  joinProgress = 0,
 }: BreathingLevelExtendedProps = {}) {
-  // Single source of truth for scene visibility based on hasJoined, not introPhase
-  // After user clicks Join, full experience becomes visible
-  const shouldShowUI = hasJoined;
-  const canInteract = hasJoined;
-  const shouldRunOnboarding = hasJoined;
-  const shouldPlayText = hasJoined;
+  // Staggered visibility thresholds (cinematic reveal order)
+  // 0.0-0.3: Letterbox retracts, camera dolly continues
+  // 0.3-0.5: Clouds fade in
+  // 0.5-0.7: Particles begin appearing
+  // 0.7-0.85: Atmospheric particles fade in
+  // 0.85-1.0: UI fades in
+  const showCloudsNow = joinProgress > 0.3;
+  const showParticlesNow = joinProgress > 0.5;
+  const showAtmosphereNow = joinProgress > 0.7;
+  const showUINow = joinProgress > 0.85;
+
+  // Calculate opacity for smooth fades (0→1 within their window)
+  const atmosphereOpacity = showAtmosphereNow ? Math.min((joinProgress - 0.7) / 0.15, 1) : 0;
+  const uiOpacity = showUINow ? Math.min((joinProgress - 0.85) / 0.15, 1) : 0;
+
+  // Single source of truth for scene visibility based on hasJoined
+  const canInteract = hasJoined && joinProgress > 0.9;
+  const shouldRunOnboarding = hasJoined && joinProgress >= 1;
+  const shouldPlayText = hasJoined && joinProgress >= 1;
 
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
@@ -125,13 +142,8 @@ export function BreathingLevel({
           focalRange={focalRange}
           maxBlur={maxBlur}
         >
-          {/* Monument Valley inspired atmosphere - simplified before joining */}
-          {showEnvironment && (
-            <Environment
-              showClouds={hasJoined} // Heavy clouds only after joining
-              showStars={true}
-            />
-          )}
+          {/* Monument Valley inspired atmosphere - clouds fade in during reveal */}
+          {showEnvironment && <Environment showClouds={showCloudsNow} showStars={true} />}
 
           {/* Wrap rotatable entities in PresentationControls */}
           <PresentationControls
@@ -145,55 +157,64 @@ export function BreathingLevel({
           >
             {showGlobe && <EarthGlobe />}
 
-            {/* Particle shards - only shown after user clicks Join */}
-            {showParticles && hasJoined && (
+            {/* Particle shards - staggered reveal after joining */}
+            {showParticles && showParticlesNow && (
               <ParticleSwarm users={mockUsers} baseRadius={orbitRadius} maxShardSize={shardSize} />
             )}
 
-            {/* Atmospheric particles - only shown after user clicks Join */}
-            {showParticles && hasJoined && (
+            {/* Atmospheric particles - fade in after particles appear */}
+            {showParticles && showAtmosphereNow && (
               <AtmosphericParticles
                 count={atmosphereDensity}
                 size={0.08}
-                baseOpacity={0.1}
-                breathingOpacity={0.15}
+                baseOpacity={0.1 * atmosphereOpacity}
+                breathingOpacity={0.15 * atmosphereOpacity}
               />
             )}
           </PresentationControls>
         </RefractionPipeline>
 
-        {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
-        {/* Only show UI after intro completes */}
-        {shouldShowUI && (
+        {/* UI stays OUTSIDE pipeline (fixed HUD) - staggered fade-in */}
+        {showUINow && (
           <Html fullscreen>
-            {/* Top-right control icons (audio + tune + settings) */}
-            <TopRightControls
-              onOpenTuneControls={() => canInteract && setShowTuneControls(true)}
-              onOpenSettings={() => canInteract && setShowSettings(true)}
-            />
+            {/* Fade wrapper for smooth entrance */}
+            <div
+              style={{
+                opacity: uiOpacity,
+                transition: 'opacity 0.3s ease-out',
+                width: '100%',
+                height: '100%',
+              }}
+            >
+              {/* Top-right control icons (audio + tune + settings) */}
+              <TopRightControls
+                onOpenTuneControls={() => canInteract && setShowTuneControls(true)}
+                onOpenSettings={() => canInteract && setShowSettings(true)}
+              />
 
-            {/* Main UI with breathing phase, inspirational text, and modals */}
-            <SimpleGaiaUI
-              harmony={harmony}
-              setHarmony={setHarmony}
-              ior={ior}
-              setIor={setIor}
-              glassDepth={glassDepth}
-              setGlassDepth={setGlassDepth}
-              orbitRadius={orbitRadius}
-              setOrbitRadius={setOrbitRadius}
-              shardSize={shardSize}
-              setShardSize={setShardSize}
-              atmosphereDensity={atmosphereDensity}
-              setAtmosphereDensity={setAtmosphereDensity}
-              showTuneControls={showTuneControls}
-              onShowTuneControlsChange={setShowTuneControls}
-              showSettings={showSettings}
-              onShowSettingsChange={setShowSettings}
-              // Scene readiness flags
-              shouldRunOnboarding={shouldRunOnboarding}
-              shouldPlayText={shouldPlayText}
-            />
+              {/* Main UI with breathing phase, inspirational text, and modals */}
+              <SimpleGaiaUI
+                harmony={harmony}
+                setHarmony={setHarmony}
+                ior={ior}
+                setIor={setIor}
+                glassDepth={glassDepth}
+                setGlassDepth={setGlassDepth}
+                orbitRadius={orbitRadius}
+                setOrbitRadius={setOrbitRadius}
+                shardSize={shardSize}
+                setShardSize={setShardSize}
+                atmosphereDensity={atmosphereDensity}
+                setAtmosphereDensity={setAtmosphereDensity}
+                showTuneControls={showTuneControls}
+                onShowTuneControlsChange={setShowTuneControls}
+                showSettings={showSettings}
+                onShowSettingsChange={setShowSettings}
+                // Scene readiness flags - only run onboarding after full reveal
+                shouldRunOnboarding={shouldRunOnboarding}
+                shouldPlayText={shouldPlayText}
+              />
+            </div>
           </Html>
         )}
       </Suspense>
