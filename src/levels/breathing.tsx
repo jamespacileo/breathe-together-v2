@@ -1,7 +1,6 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { UserSlotDemoControls } from '../components/ParticleSwarmWithSlots';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import type { MoodId } from '../constants';
@@ -10,8 +9,7 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
-import { useMoodSlots } from '../hooks/useMoodSlots';
-import { generateMockPresence } from '../lib/mockPresence';
+import { generateRandomMoods, useMoodArray } from '../hooks/useMoodArray';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
@@ -72,17 +70,13 @@ export function BreathingLevel({
   // Demo controls state
   const [showDemoControls, setShowDemoControls] = useState(false);
 
-  // Slot-based user ordering system
-  const { slotStates, addUser, removeUser, syncFromMoodCounts, tickAnimations, slots } =
-    useMoodSlots({ slotCount: harmony, animationDuration: 0.6 });
-
-  // Generate initial moods and sync to slots
-  const moods = useMemo(() => generateMockPresence(harmony).moods, [harmony]);
-
-  // Sync moods to slots when they change
-  useEffect(() => {
-    syncFromMoodCounts(moods);
-  }, [moods, syncFromMoodCounts]);
+  // Dynamic mood array system - count is derived from array length
+  // This format matches the future backend: a direct array of mood IDs
+  const { shardStates, addUser, removeUser, tickAnimations, moods, userCount } = useMoodArray({
+    animationDuration: 0.6,
+    // Initial random moods: ~60% of harmony count
+    initialMoods: generateRandomMoods(Math.floor(harmony * 0.6)),
+  });
 
   // Keyboard shortcut: Press 'D' to toggle demo controls
   useEffect(() => {
@@ -104,8 +98,8 @@ export function BreathingLevel({
   );
 
   const handleRemoveUser = useCallback(
-    (slotIndex: number) => {
-      removeUser(slotIndex);
+    (index: number) => {
+      removeUser(index);
     },
     [removeUser],
   );
@@ -139,8 +133,8 @@ export function BreathingLevel({
 
             {showParticles && (
               <ParticleSwarm
-                count={harmony}
-                slotStates={slotStates}
+                count={shardStates.length}
+                shardStates={shardStates}
                 onTickAnimations={tickAnimations}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
@@ -195,14 +189,58 @@ export function BreathingLevel({
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 1000,
+                background: 'rgba(0, 0, 0, 0.7)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: '12px',
+                padding: '16px',
+                color: '#fff',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                fontSize: '13px',
+                minWidth: '220px',
               }}
             >
-              <UserSlotDemoControls
-                onAddUser={handleAddUser}
-                onRemoveUser={handleRemoveUser}
-                slots={slots}
-                slotCount={harmony}
-              />
+              <div style={{ marginBottom: '12px', fontWeight: 600 }}>Dynamic Mood Array Demo</div>
+              <div style={{ marginBottom: '12px', opacity: 0.8 }}>
+                Users: {userCount} (visible: {shardStates.length})
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleAddUser('gratitude')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: '#4ade80',
+                    color: '#000',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  + Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveUser(moods.length - 1)}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: '#f87171',
+                    color: '#000',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  - Remove
+                </button>
+              </div>
+              <div style={{ fontSize: '11px', opacity: 0.6 }}>
+                Moods: [{moods.slice(0, 5).join(', ')}
+                {moods.length > 5 ? `, ...+${moods.length - 5}` : ''}]
+              </div>
             </div>
           )}
         </Html>

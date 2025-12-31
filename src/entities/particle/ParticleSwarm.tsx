@@ -15,6 +15,7 @@ import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { MoodId } from '../../constants';
+import type { ShardAnimationState } from '../../hooks/useMoodArray';
 import type { SlotState } from '../../hooks/useMoodSlots';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius } from '../breath/traits';
@@ -115,22 +116,32 @@ function applyVertexColors(geometry: THREE.IcosahedronGeometry, color: THREE.Col
 }
 
 export interface ParticleSwarmProps {
-  /** Number of shards (default 48 matches reference) */
+  /**
+   * Number of shards (capacity mode).
+   * When using shardStates (dynamic mode), this is ignored.
+   * @default 48
+   */
   count?: number;
   /**
    * Users by mood for color distribution (legacy mode)
-   * @deprecated Use slotStates for smooth enter/exit animations
+   * @deprecated Use shardStates for dynamic count with smooth animations
    */
   users?: Partial<Record<MoodId, number>>;
   /**
-   * Slot-based user states with animation info (preferred)
+   * Slot-based user states with animation info (fixed capacity mode)
    * Each slot maps 1:1 to a shard with smooth enter/exit transitions.
-   * When provided, takes precedence over `users` prop.
+   * @deprecated Use shardStates for dynamic count
    */
   slotStates?: SlotState[];
   /**
-   * Callback to tick slot animations each frame.
-   * Required when using slotStates for animation timing.
+   * Dynamic shard states from useMoodArray (preferred).
+   * Count is determined by array length. Supports smooth enter/exit
+   * animations and dynamic position interpolation.
+   */
+  shardStates?: ShardAnimationState[];
+  /**
+   * Callback to tick animations each frame.
+   * Required when using slotStates or shardStates.
    */
   onTickAnimations?: (elapsedTime: number) => void;
   /** Base radius for orbit @default 4.5 */
@@ -250,6 +261,7 @@ export function ParticleSwarm({
   count = 48,
   users,
   slotStates,
+  shardStates,
   onTickAnimations,
   baseRadius = 4.5,
   baseShardSize = 4.0,
@@ -317,13 +329,43 @@ export function ParticleSwarm({
     return result;
   }, [count, baseRadius, shardSize, material, emptySlotColor]);
 
-  // Update shard colors and visibility when slotStates or users change
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex slot state management with enter/exit animations requires multiple conditional branches for slot-based vs legacy mode and animation states
+  // Update shard colors and visibility when shardStates, slotStates, or users change
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex state management with enter/exit animations requires multiple conditional branches for dynamic vs slot-based vs legacy mode
   useEffect(() => {
     const currentShards = shardsRef.current;
     if (currentShards.length === 0) return;
 
-    if (slotStates) {
+    if (shardStates) {
+      // Dynamic mode: count derived from shardStates length
+      for (let i = 0; i < currentShards.length && i < shardStates.length; i++) {
+        const shard = currentShards[i];
+        const state = shardStates[i];
+
+        // Update color from mood
+        const color = MOOD_TO_COLOR[state.mood];
+        if (color) {
+          applyVertexColors(shard.geometry, color);
+        }
+
+        // All shards are visible (animations handled via scale/opacity)
+        shard.mesh.visible = true;
+
+        // Update animation state
+        const slotAnims = slotAnimationsRef.current;
+        slotAnims.visible[i] = true;
+
+        if (state.state === 'entering') {
+          slotAnims.scale[i] = state.progress;
+          slotAnims.opacity[i] = state.progress;
+        } else if (state.state === 'exiting') {
+          slotAnims.scale[i] = state.progress;
+          slotAnims.opacity[i] = state.progress;
+        } else {
+          slotAnims.scale[i] = 1;
+          slotAnims.opacity[i] = 1;
+        }
+      }
+    } else if (slotStates) {
       // Slot-based mode: each slot maps to a shard
       const slotColors = buildColorFromSlots(slotStates);
       for (let i = 0; i < currentShards.length; i++) {
@@ -372,7 +414,7 @@ export function ParticleSwarm({
         slotAnimationsRef.current.opacity[i] = 1;
       }
     }
-  }, [slotStates, users]);
+  }, [shardStates, slotStates, users]);
 
   // Add meshes to group and initialize physics state
   useEffect(() => {

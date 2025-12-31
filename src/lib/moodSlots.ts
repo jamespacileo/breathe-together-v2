@@ -11,7 +11,7 @@
  * - Fixed slot count prevents jarring particle count changes
  */
 
-import type { MoodId } from '../constants';
+import { MOOD_IDS, type MoodId } from '../constants';
 
 /**
  * A slot is either occupied (MoodId) or empty (null)
@@ -247,6 +247,40 @@ export function reconcileSlotsWithCounts(
         }
       }
     }
+  }
+
+  return slots;
+}
+
+/**
+ * Generate a randomized array of moods for initial display
+ *
+ * Creates a slot array with randomly assigned moods, simulating
+ * users who arrived in random order. This format matches the
+ * future backend data structure (array of mood IDs).
+ *
+ * @param slotCount - Total number of slots
+ * @param fillRatio - Percentage of slots to fill (0-1), default 0.6 (60%)
+ * @returns Slot array with randomly assigned moods
+ */
+export function generateRandomMoodSlots(slotCount: number, fillRatio = 0.6): MoodSlots {
+  const slots = createEmptySlots(slotCount);
+  const targetFill = Math.floor(slotCount * Math.min(1, Math.max(0, fillRatio)));
+
+  // Randomly select which slots to fill
+  const slotIndices = Array.from({ length: slotCount }, (_, i) => i);
+
+  // Fisher-Yates shuffle for unbiased random selection
+  for (let i = slotIndices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [slotIndices[i], slotIndices[j]] = [slotIndices[j], slotIndices[i]];
+  }
+
+  // Fill the first targetFill slots with random moods
+  for (let i = 0; i < targetFill; i++) {
+    const slotIndex = slotIndices[i];
+    const randomMood = MOOD_IDS[Math.floor(Math.random() * MOOD_IDS.length)];
+    slots[slotIndex] = randomMood;
   }
 
   return slots;

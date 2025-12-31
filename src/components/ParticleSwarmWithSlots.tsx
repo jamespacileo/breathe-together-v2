@@ -84,7 +84,7 @@ export function UserSlotDemoControls({
   slots,
   slotCount,
 }: UserSlotDemoControlsProps) {
-  const [selectedMood, setSelectedMood] = useState<MoodId>('grateful');
+  const [selectedMood, setSelectedMood] = useState<MoodId>('gratitude');
   const occupiedCount = slots.filter((s) => s !== null).length;
 
   const handleAddBatch = (batchSize: number) => {

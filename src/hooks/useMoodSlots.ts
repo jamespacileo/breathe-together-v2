@@ -20,6 +20,7 @@ import type { MoodId } from '../constants';
 import {
   createEmptySlots,
   diffSlots,
+  generateRandomMoodSlots,
   type MoodSlots,
   reconcileSlotsWithCounts,
   type SlotsDiff,
@@ -57,6 +58,10 @@ export interface UseMoodSlotsConfig {
   slotCount?: number;
   /** Duration of enter/exit animations in seconds @default 0.5 */
   animationDuration?: number;
+  /** Initial slots to populate (optional) - if provided, used instead of empty slots */
+  initialSlots?: MoodSlots;
+  /** Generate random initial slots (0-1 fill ratio, or false to disable) @default false */
+  randomInitialFill?: number | false;
 }
 
 /**
@@ -71,6 +76,8 @@ export interface UseMoodSlotsResult {
   removeUser: (slotIndex: number) => void;
   /** Batch update from mood counts (for presence sync) */
   syncFromMoodCounts: (moodCounts: Partial<Record<MoodId, number>>) => void;
+  /** Sync directly from a slots array (future backend format) */
+  syncFromSlots: (newSlots: MoodSlots) => void;
   /** Update animation progress (call from useFrame) */
   tickAnimations: (elapsedTime: number) => void;
   /** Get the underlying slots array */
@@ -93,17 +100,48 @@ function createSlotState(mood: MoodId | null = null): SlotState {
 }
 
 /**
+ * Compute initial slots from config (computed once, outside React lifecycle)
+ */
+function computeInitialSlots(
+  slotCount: number,
+  initialSlots?: MoodSlots,
+  randomInitialFill?: number | false,
+): MoodSlots {
+  if (initialSlots) {
+    return initialSlots.length === slotCount
+      ? [...initialSlots]
+      : [...initialSlots.slice(0, slotCount), ...createEmptySlots(slotCount - initialSlots.length)];
+  }
+  if (randomInitialFill !== false && randomInitialFill && randomInitialFill > 0) {
+    return generateRandomMoodSlots(slotCount, randomInitialFill);
+  }
+  return createEmptySlots(slotCount);
+}
+
+/**
  * Hook for managing mood slots with smooth transitions
  */
 export function useMoodSlots(config: UseMoodSlotsConfig = {}): UseMoodSlotsResult {
-  const { slotCount = 48, animationDuration = 0.5 } = config;
+  const {
+    slotCount = 48,
+    animationDuration = 0.5,
+    initialSlots,
+    randomInitialFill = false,
+  } = config;
+
+  // Compute initial slots once (ref prevents recomputation)
+  const initialSlotsRef = useRef<MoodSlots | null>(null);
+  if (initialSlotsRef.current === null) {
+    initialSlotsRef.current = computeInitialSlots(slotCount, initialSlots, randomInitialFill);
+  }
+  const computedInitialSlots = initialSlotsRef.current;
 
   // Core slot data (mood per slot)
-  const [slots, setSlots] = useState<MoodSlots>(() => createEmptySlots(slotCount));
+  const [slots, setSlots] = useState<MoodSlots>(() => [...computedInitialSlots]);
 
-  // Animation states per slot
+  // Animation states per slot - initialize based on initial slots
   const [slotStates, setSlotStates] = useState<SlotState[]>(() =>
-    Array.from({ length: slotCount }, () => createSlotState()),
+    computedInitialSlots.map((mood) => createSlotState(mood)),
   );
 
   // Track last diff for debugging
@@ -266,6 +304,83 @@ export function useMoodSlots(config: UseMoodSlotsConfig = {}): UseMoodSlotsResul
   );
 
   /**
+   * Sync directly from a slots array (future backend format)
+   * Diffs the arrays and triggers appropriate animations
+   */
+  const syncFromSlots = useCallback(
+    (newSlots: MoodSlots): void => {
+      setSlots((prevSlots) => {
+        // Ensure newSlots matches our slot count
+        const normalizedSlots =
+          newSlots.length === slotCount
+            ? newSlots
+            : [
+                ...newSlots.slice(0, slotCount),
+                ...createEmptySlots(Math.max(0, slotCount - newSlots.length)),
+              ];
+
+        const diff = diffSlots(prevSlots, normalizedSlots);
+
+        if (diff.hasChanges) {
+          setLastDiff(diff);
+
+          // Process animations for each change (same logic as syncFromMoodCounts)
+          // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation state updates for enters, exits, and changes require multiple conditional branches
+          setSlotStates((prevStates) => {
+            const nextStates = [...prevStates];
+            const now = performance.now() / 1000;
+
+            for (const { slotIndex, mood } of diff.enters) {
+              nextStates[slotIndex] = {
+                mood,
+                previousMood: null,
+                animationState: 'entering',
+                animationProgress: 0,
+                animationStartTime: now,
+              };
+              animationTimingRef.current.set(slotIndex, {
+                startTime: now,
+                duration: animationDuration,
+              });
+            }
+
+            for (const { slotIndex, previousMood } of diff.exits) {
+              nextStates[slotIndex] = {
+                mood: null,
+                previousMood,
+                animationState: 'exiting',
+                animationProgress: 1,
+                animationStartTime: now,
+              };
+              animationTimingRef.current.set(slotIndex, {
+                startTime: now,
+                duration: animationDuration,
+              });
+            }
+
+            for (const { slotIndex, to } of diff.changes) {
+              nextStates[slotIndex] = {
+                ...nextStates[slotIndex],
+                mood: to,
+                previousMood: diff.changes.find((c) => c.slotIndex === slotIndex)?.from ?? null,
+                animationState:
+                  nextStates[slotIndex].animationState === 'idle'
+                    ? 'idle'
+                    : nextStates[slotIndex].animationState,
+              };
+            }
+
+            return nextStates;
+          });
+        }
+
+        return normalizedSlots;
+      });
+    },
+    [animationDuration, slotCount],
+  );
+
+  /**
    * Update animation progress (call from useFrame)
    */
   const tickAnimations = useCallback((elapsedTime: number): void => {
@@ -324,6 +439,7 @@ export function useMoodSlots(config: UseMoodSlotsConfig = {}): UseMoodSlotsResul
     addUser,
     removeUser,
     syncFromMoodCounts,
+    syncFromSlots,
     tickAnimations,
     slots,
     lastDiff,
