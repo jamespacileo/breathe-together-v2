@@ -12,10 +12,13 @@ interface CinematicIntroProps extends CinematicConfig {
 /**
  * CinematicIntro - Orchestrates the cinematic landing experience.
  *
- * Elegant minimal flow:
+ * Elegant minimal flow (shown to ALL users, returning and new):
  * 1. Globe visible with letterbox bars, title fades in (reveal)
  * 2. Letterbox retracts, CTA appears (cta)
  * 3. User clicks Join → mood selection → complete
+ *
+ * The intro is beautiful, minimal (~3s), and always worth showing.
+ * skipIntro is only for programmatic/testing use, not for returning users.
  */
 export function CinematicIntro({
   children,
@@ -24,7 +27,8 @@ export function CinematicIntro({
   onComplete,
   onJoin,
 }: CinematicIntroProps) {
-  const [introComplete, setIntroComplete] = useState(skipIntro);
+  // Always start with intro not complete - we want everyone to see it
+  const [introComplete, setIntroComplete] = useState(false);
   const [isRetracting, setIsRetracting] = useState(false);
 
   const handleComplete = useCallback(() => {
@@ -52,25 +56,21 @@ export function CinematicIntro({
     [advance, onJoin],
   );
 
-  // Skip intro on Escape key
+  // Skip intro on Escape key (power user feature)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !introComplete) {
         skip();
+        onJoin?.();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [introComplete, skip]);
+  }, [introComplete, skip, onJoin]);
 
   // Render children - support both ReactNode and render prop
   const renderedChildren = typeof children === 'function' ? children(phase, progress) : children;
-
-  // If skip is enabled, render children directly with main menu overlay
-  if (skipIntro) {
-    return <>{typeof children === 'function' ? children('cta', 1) : children}</>;
-  }
 
   return (
     <>

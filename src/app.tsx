@@ -1,11 +1,10 @@
 import { Stats } from '@react-three/drei';
 import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { CinematicFog, CinematicIntro } from './components/cinematic';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { MainMenu } from './components/MainMenu';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
 import { BreathingLevel } from './levels/breathing';
@@ -17,45 +16,46 @@ declare module '@react-three/fiber' {
 }
 
 /**
- * Check if user has seen intro before (localStorage)
+ * Check if user is returning (has joined before)
+ * Used to skip onboarding modals, NOT the beautiful intro animation
  */
-function hasSeenIntro(): boolean {
+export function isReturningUser(): boolean {
   if (typeof window === 'undefined') return false;
   return localStorage.getItem('breathe-together-intro-seen') === 'true';
 }
 
 /**
- * Mark intro as seen
+ * Mark user as having joined (for skipping onboarding next time)
  */
-function markIntroSeen(): void {
+function markUserJoined(): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem('breathe-together-intro-seen', 'true');
   }
 }
 
 /**
- * Reset intro seen flag (for testing)
+ * Reset returning user flag (for testing)
  */
-export function resetIntroSeen(): void {
+export function resetReturningUser(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('breathe-together-intro-seen');
+    localStorage.removeItem('breathe-together-selected-mood');
     window.location.reload();
   }
 }
 
 export function App() {
-  // Track if user has completed intro (for this session)
-  const [introComplete, setIntroComplete] = useState(hasSeenIntro());
-
-  // Track if user has clicked "Join" - this is separate from intro completion
-  // Both new and returning users need to click Join to see the full experience
+  // Track if user has clicked "Join" to enter full experience
   const [hasJoined, setHasJoined] = useState(false);
 
   // Layered reveal progress (0→1 over 3s after joining)
   // Shared with CameraRig and BreathingLevel for coordinated transitions
   const [joinProgress, setJoinProgress] = useState(0);
 
-  // Animate joinProgress after user joins
+  // RAF ref for cleanup
+  const rafRef = useRef<number | null>(null);
+
+  // Animate joinProgress after user joins (with proper cleanup)
   useEffect(() => {
     if (!hasJoined) {
       setJoinProgress(0);
@@ -73,33 +73,32 @@ export function App() {
       setJoinProgress(eased);
 
       if (linear < 1) {
-        requestAnimationFrame(animate);
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        rafRef.current = null;
       }
     };
 
-    requestAnimationFrame(animate);
+    rafRef.current = requestAnimationFrame(animate);
+
+    // Cleanup: cancel RAF if component unmounts or hasJoined changes
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
   }, [hasJoined]);
-
-  // Check if we should skip intro (returning user)
-  const skipIntro = hasSeenIntro();
-
-  const handleIntroComplete = useCallback(() => {
-    setIntroComplete(true);
-    markIntroSeen();
-  }, []);
 
   const handleJoin = useCallback(() => {
     setHasJoined(true);
-    markIntroSeen();
+    markUserJoined();
   }, []);
 
   return (
     <ErrorBoundary>
-      {/* Main Menu overlay - shown for returning users or after intro ends */}
-      {/* This creates a consistent "main menu" state for all users */}
-      {introComplete && !hasJoined && <MainMenu onJoin={handleJoin} />}
-
-      <CinematicIntro skipIntro={skipIntro} onComplete={handleIntroComplete} onJoin={handleJoin}>
+      {/* CinematicIntro handles ALL users - the beautiful intro is always shown */}
+      <CinematicIntro onJoin={handleJoin}>
         {(phase, progress) => (
           <Canvas
             shadows={false}
@@ -108,8 +107,8 @@ export function App() {
           >
             {import.meta.env.DEV && <Stats />}
 
-            {/* Cinematic fog - clears as intro progresses */}
-            {!introComplete && <CinematicFog phase={phase} progress={progress} />}
+            {/* Cinematic fog - clears as intro progresses, removed after joining */}
+            {!hasJoined && <CinematicFog phase={phase} progress={progress} />}
 
             <CameraRig
               introMode={!hasJoined}
