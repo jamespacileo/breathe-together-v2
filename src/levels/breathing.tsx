@@ -9,6 +9,7 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { useSceneReadiness } from '../hooks/useSceneReadiness';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -47,8 +48,10 @@ export function BreathingLevel({
   // Cinematic intro props
   introPhase = 'complete',
 }: BreathingLevelExtendedProps = {}) {
-  // Determine if we should show UI (only after intro is complete or in CTA phase)
-  const showUI = introPhase === 'complete' || introPhase === 'cta';
+  // Single source of truth for scene visibility
+  const { shouldShowUI, shouldRunOnboarding, shouldPlayText, canInteract } =
+    useSceneReadiness(introPhase);
+
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
     particleDensity === 'sparse'
@@ -123,12 +126,12 @@ export function BreathingLevel({
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         {/* Only show UI after intro completes */}
-        {showUI && (
+        {shouldShowUI && (
           <Html fullscreen>
             {/* Top-right control icons (audio + tune + settings) */}
             <TopRightControls
-              onOpenTuneControls={() => setShowTuneControls(true)}
-              onOpenSettings={() => setShowSettings(true)}
+              onOpenTuneControls={() => canInteract && setShowTuneControls(true)}
+              onOpenSettings={() => canInteract && setShowSettings(true)}
             />
 
             {/* Main UI with breathing phase, inspirational text, and modals */}
@@ -149,6 +152,9 @@ export function BreathingLevel({
               onShowTuneControlsChange={setShowTuneControls}
               showSettings={showSettings}
               onShowSettingsChange={setShowSettings}
+              // Scene readiness flags
+              shouldRunOnboarding={shouldRunOnboarding}
+              shouldPlayText={shouldPlayText}
             />
           </Html>
         )}

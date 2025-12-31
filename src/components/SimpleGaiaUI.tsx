@@ -42,6 +42,11 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  // Scene readiness flags (from useSceneReadiness)
+  /** Whether onboarding flows (welcome, mood select) should run */
+  shouldRunOnboarding?: boolean;
+  /** Whether inspirational text should play */
+  shouldPlayText?: boolean;
 }
 
 /**
@@ -80,11 +85,15 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  // Scene readiness flags
+  shouldRunOnboarding = true,
+  shouldPlayText = true,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
+  // Only show welcome if onboarding should run (scene is ready)
+  const [showWelcome, setShowWelcome] = useState(shouldRunOnboarding);
   const [showKeyHint, setShowKeyHint] = useState(false);
   const [internalShowSettings, setInternalShowSettings] = useState(false);
   const [showMoodSelect, setShowMoodSelect] = useState(false);
@@ -153,15 +162,23 @@ export function SimpleGaiaUI({
     return () => clearTimeout(timer);
   }, []);
 
-  // Welcome message: Auto-dismiss after 8 seconds (but user can click Begin earlier)
+  // Show welcome when scene becomes ready (shouldRunOnboarding transitions to true)
   useEffect(() => {
-    if (showWelcome) {
+    if (shouldRunOnboarding && !showWelcome) {
+      setShowWelcome(true);
+    }
+  }, [shouldRunOnboarding, showWelcome]);
+
+  // Welcome message: Auto-dismiss after 8 seconds (but user can click Begin earlier)
+  // Only runs when shouldRunOnboarding is true
+  useEffect(() => {
+    if (showWelcome && shouldRunOnboarding) {
       const timer = setTimeout(() => {
         setShowWelcome(false);
       }, 8000);
       return () => clearTimeout(timer);
     }
-  }, [showWelcome]);
+  }, [showWelcome, shouldRunOnboarding]);
 
   // Show keyboard hint after 30 seconds
   useEffect(() => {
@@ -400,7 +417,8 @@ export function SimpleGaiaUI({
       }}
     >
       {/* Inspirational Text - Above & Beyond style messages */}
-      <InspirationalText />
+      {/* Only show when scene is ready (not during intro) */}
+      {shouldPlayText && <InspirationalText />}
 
       {/* Top-Left: App Branding + Settings */}
       <div
