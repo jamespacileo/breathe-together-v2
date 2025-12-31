@@ -164,34 +164,22 @@ interface ShardPhysicsState {
  * Tuned for controlled relaxation breathing:
  * - Stiffness: responsive but not instant (follows breath naturally)
  * - Damping: settles quickly on holds without oscillation
- * - Expansion boost: immediate response when exhale begins
  */
 const SPRING_STIFFNESS = 6; // Lower = more lag, higher = snappier
 const SPRING_DAMPING = 4.5; // Lower = oscillates, higher = settles faster
 
 /**
- * Expansion velocity boost for immediate exhale response
+ * Exhale-specific physics: Overdamped for smooth "letting go"
  *
- * When target radius increases (exhale starts), inject outward velocity
- * proportional to target change. This overcomes spring lag and makes
- * the exhale expansion feel immediate rather than delayed.
+ * During exhale, we want NO bounce - just smooth, organic release.
+ * Overdamped springs (damping > critical) never oscillate, they just
+ * smoothly approach the target like a feather floating outward.
  *
- * The boost is asymmetric - only applied during expansion (exhale),
- * not contraction (inhale), for a more natural "release" feel.
+ * Critical damping = 2 * sqrt(stiffness) ≈ 4.9 for stiffness=6
+ * We use higher damping during exhale to ensure no overshoot.
  */
-const EXPANSION_VELOCITY_BOOST = 2.5; // Multiplier for expansion velocity injection
-
-/**
- * Exhale transition impulse - immediate outward force when exhale begins
- *
- * Applied once at the exact moment we transition from hold-in to exhale.
- * This eliminates the "bounce inward" by giving particles immediate outward
- * momentum before spring physics can pull them back.
- *
- * The impulse represents the "letting go" - air being released doesn't
- * hesitate or pull back before expanding outward.
- */
-const EXHALE_IMPULSE = 0.8; // Immediate velocity injection at exhale start
+const EXHALE_DAMPING = 8.0; // Overdamped: smooth release, no bounce
+const EXHALE_STIFFNESS = 4.0; // Softer spring during exhale for gentler motion
 
 /**
  * Ambient floating motion constants
@@ -407,9 +395,8 @@ export function ParticleSwarm({
     // Master Craftsman: Check if we're in a hold phase (1 = hold-in, 3 = hold-out)
     const isHoldPhase = currentPhaseType === 1 || currentPhaseType === 3;
 
-    // Detect exhale transition: hold-in (1) → exhale (2)
-    // This is the moment of "letting go" - apply immediate outward impulse
-    const isExhaleTransition = prevPhaseTypeRef.current === 1 && currentPhaseType === 2;
+    // Check if we're in exhale phase (2) - use overdamped physics for smooth release
+    const isExhalePhase = currentPhaseType === 2;
     prevPhaseTypeRef.current = currentPhaseType;
 
     // Update shader material uniforms for all shards
@@ -436,27 +423,17 @@ export function ParticleSwarm({
 
       // Clamp target to prevent penetrating globe
       const clampedTarget = Math.max(phaseTargetRadius, minOrbitRadius);
-
-      // Exhale transition: Apply immediate outward impulse at the exact moment
-      // This eliminates the "bounce inward" - exhale should feel like letting go
-      if (isExhaleTransition) {
-        // Inject strong outward velocity immediately
-        shardState.velocity = EXHALE_IMPULSE;
-        // Clear velocity history to prevent momentum memory from fighting
-        shardState.velocityHistory = [EXHALE_IMPULSE, EXHALE_IMPULSE, EXHALE_IMPULSE];
-      }
-
-      // Detect ongoing expansion and apply velocity boost for sustained response
-      const targetDelta = clampedTarget - shardState.previousTarget;
-      if (targetDelta > 0.001 && !isExhaleTransition) {
-        // Expanding outward - inject outward velocity proportional to change
-        shardState.velocity += targetDelta * EXPANSION_VELOCITY_BOOST;
-      }
       shardState.previousTarget = clampedTarget;
 
+      // Select physics parameters based on breath phase
+      // Exhale uses overdamped spring for smooth "letting go" without any bounce
+      // Inhale/holds use normal spring for responsive, organic motion
+      const stiffness = isExhalePhase ? EXHALE_STIFFNESS : SPRING_STIFFNESS;
+      const damping = isExhalePhase ? EXHALE_DAMPING : SPRING_DAMPING;
+
       // Spring physics: F = -k(x - target) - c*v
-      const springForce = (clampedTarget - shardState.currentRadius) * SPRING_STIFFNESS;
-      const dampingForce = -shardState.velocity * SPRING_DAMPING;
+      const springForce = (clampedTarget - shardState.currentRadius) * stiffness;
+      const dampingForce = -shardState.velocity * damping;
       let totalForce = springForce + dampingForce;
 
       // Master Craftsman: Gravitational settling during hold phases
