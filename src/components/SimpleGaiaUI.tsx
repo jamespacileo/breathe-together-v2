@@ -1,8 +1,17 @@
-import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
+import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
 
@@ -107,29 +116,43 @@ export function SimpleGaiaUI({
   const [showMoodSelect, setShowMoodSelect] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
 
+  // React 19 useTransition for non-urgent updates (modals, animations)
+  // Keeps UI responsive during modal opens/closes and mood selections
+  const [, startTransition] = useTransition();
+
   // Use external control for tune controls if provided, otherwise use internal state
   const isControlsOpen = externalShowTuneControls ?? internalIsControlsOpen;
+  // Store current value in ref to avoid stale closure in callback
+  const isControlsOpenRef = useRef(isControlsOpen);
+  isControlsOpenRef.current = isControlsOpen;
+
   const setIsControlsOpen = useCallback(
     (value: SetStateAction<boolean>) => {
-      const newValue = typeof value === 'function' ? value(isControlsOpen) : value;
+      const newValue = typeof value === 'function' ? value(isControlsOpenRef.current) : value;
       if (onShowTuneControlsChange) {
         onShowTuneControlsChange(newValue);
       } else {
         setInternalIsControlsOpen(newValue);
       }
     },
-    [onShowTuneControlsChange, isControlsOpen],
+    [onShowTuneControlsChange],
   );
 
   // Use external control for settings if provided, otherwise use internal state
   const showSettings = externalShowSettings ?? internalShowSettings;
-  const setShowSettings = (value: boolean) => {
-    if (onShowSettingsChange) {
-      onShowSettingsChange(value);
-    } else {
-      setInternalShowSettings(value);
-    }
-  };
+  const setShowSettings = useCallback(
+    (value: boolean) => {
+      // Use transition for non-urgent modal updates
+      startTransition(() => {
+        if (onShowSettingsChange) {
+          onShowSettingsChange(value);
+        } else {
+          setInternalShowSettings(value);
+        }
+      });
+    },
+    [onShowSettingsChange],
+  );
 
   // Animation states for modals
   const [settingsAnimated, setSettingsAnimated] = useState(false);
@@ -295,69 +318,99 @@ export function SimpleGaiaUI({
     };
   }, [isControlsOpen]);
 
-  // Design Tokens - using centralized values from designTokens.ts
-  const colors = {
-    text: UI_COLORS.text.secondary,
-    textDim: UI_COLORS.text.muted,
-    textGlow: UI_COLORS.accent.textGlow,
-    border: UI_COLORS.border.default,
-    glass: UI_COLORS.surface.glass,
-    accent: UI_COLORS.accent.gold,
-    accentGlow: UI_COLORS.accent.goldGlow,
-  };
+  // Design Tokens - memoized to prevent object recreation on every render
+  const colors = useMemo(
+    () => ({
+      text: UI_COLORS.text.secondary,
+      textDim: UI_COLORS.text.muted,
+      textGlow: UI_COLORS.accent.textGlow,
+      border: UI_COLORS.border.default,
+      glass: UI_COLORS.surface.glass,
+      accent: UI_COLORS.accent.gold,
+      accentGlow: UI_COLORS.accent.goldGlow,
+    }),
+    [],
+  );
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: '0.72rem',
-    fontWeight: 500,
-    fontVariant: 'small-caps',
-    letterSpacing: '0.08em',
-    color: colors.text,
-    marginBottom: '8px',
-    display: 'flex',
-    justifyContent: 'space-between',
-  };
+  // Memoized style objects to prevent recreation on every render
+  const labelStyle: React.CSSProperties = useMemo(
+    () => ({
+      fontSize: '0.72rem',
+      fontWeight: 500,
+      fontVariant: 'small-caps',
+      letterSpacing: '0.08em',
+      color: colors.text,
+      marginBottom: '8px',
+      display: 'flex',
+      justifyContent: 'space-between',
+    }),
+    [colors.text],
+  );
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    cursor: 'pointer',
-    height: '6px',
-    borderRadius: '3px',
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    background: `linear-gradient(to right, ${colors.accent}40, ${colors.border})`,
-    outline: 'none',
-    transition: 'background 0.2s ease',
-  };
+  const inputStyle: React.CSSProperties = useMemo(
+    () => ({
+      width: '100%',
+      cursor: 'pointer',
+      height: '6px',
+      borderRadius: '3px',
+      appearance: 'none',
+      WebkitAppearance: 'none',
+      background: `linear-gradient(to right, ${colors.accent}40, ${colors.border})`,
+      outline: 'none',
+      transition: 'background 0.2s ease',
+    }),
+    [colors.accent, colors.border],
+  );
 
-  const sectionStyle: React.CSSProperties = {
-    marginBottom: '16px',
-    paddingBottom: '16px',
-    borderBottom: `1px solid ${colors.border}`,
-  };
+  const sectionStyle: React.CSSProperties = useMemo(
+    () => ({
+      marginBottom: '16px',
+      paddingBottom: '16px',
+      borderBottom: `1px solid ${colors.border}`,
+    }),
+    [colors.border],
+  );
 
   // Stop pointer/touch events from propagating to PresentationControls
-  const stopPropagation = (e: React.PointerEvent | React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-  };
+  // Memoized to maintain stable reference
+  const stopPropagation = useCallback(
+    (e: React.PointerEvent | React.MouseEvent | React.TouchEvent) => {
+      e.stopPropagation();
+    },
+    [],
+  );
 
-  // Get mood color helper
-  const getMoodColor = (moodId: MoodId): string => {
+  // Get mood color helper - memoized
+  const getMoodColor = useCallback((moodId: MoodId): string => {
     return MOOD_COLORS[moodId] ?? MOOD_COLORS.presence;
-  };
+  }, []);
 
-  const handleMoodSelect = (mood: MoodId) => {
-    setSelectedMood(mood);
+  const handleMoodSelect = useCallback((mood: MoodId) => {
+    // Use transition for non-urgent mood selection
+    startTransition(() => {
+      setSelectedMood(mood);
+    });
     // Small delay before closing to show selection feedback
-    setTimeout(() => setShowMoodSelect(false), 200);
-  };
+    setTimeout(() => {
+      startTransition(() => {
+        setShowMoodSelect(false);
+      });
+    }, 200);
+  }, []);
 
-  const handleBeginClick = () => {
-    setShowWelcome(false);
+  const handleBeginClick = useCallback(() => {
+    startTransition(() => {
+      setShowWelcome(false);
+    });
     // Show mood selection after welcome dismisses if no mood selected yet
     if (!selectedMood) {
-      setTimeout(() => setShowMoodSelect(true), 400);
+      setTimeout(() => {
+        startTransition(() => {
+          setShowMoodSelect(true);
+        });
+      }, 400);
     }
-  };
+  }, [selectedMood]);
 
   return (
     <div
@@ -1368,15 +1421,15 @@ export function SimpleGaiaUI({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: isMobile ? '12px' : '14px',
+          gap: isMobile ? '10px' : '12px',
         }}
       >
-        {/* Phase Name + Timer */}
+        {/* Phase Name + Timer Row */}
         <div
           style={{
             display: 'flex',
             alignItems: 'baseline',
-            gap: isMobile ? '10px' : '10px',
+            gap: isMobile ? '10px' : '12px',
           }}
         >
           <span
@@ -1408,14 +1461,17 @@ export function SimpleGaiaUI({
           </span>
         </div>
 
+        {/* 4·7·8 Cycle Indicator */}
+        <BreathCycleIndicator />
+
         {/* Progress Bar */}
         <div
           ref={progressContainerRef}
           style={{
-            width: isMobile ? '100px' : '100px',
-            height: isMobile ? '3px' : '2px',
+            width: isMobile ? '120px' : '140px',
+            height: isMobile ? '2px' : '1.5px',
             background: colors.border,
-            borderRadius: '2px',
+            borderRadius: '1px',
             overflow: 'hidden',
             boxShadow: `0 0 8px ${colors.accentGlow}`,
             transition: 'box-shadow 0.3s ease',
@@ -1427,7 +1483,7 @@ export function SimpleGaiaUI({
               height: '100%',
               width: '0%',
               background: `linear-gradient(90deg, ${colors.accent}, ${colors.textGlow})`,
-              borderRadius: '2px',
+              borderRadius: '1px',
               transition: 'width 0.08s linear',
             }}
           />
@@ -1436,13 +1492,13 @@ export function SimpleGaiaUI({
         {/* Presence Count */}
         <div
           style={{
-            fontSize: isMobile ? '0.75rem' : '0.65rem',
+            fontSize: isMobile ? '0.68rem' : '0.6rem',
             fontWeight: isMobile ? 500 : 400,
-            color: colors.text,
-            opacity: isMobile ? 0.7 : 0.6,
-            letterSpacing: isMobile ? '0.08em' : '0.1em',
+            color: colors.textDim,
+            opacity: 0.65,
+            letterSpacing: '0.12em',
             textTransform: 'uppercase',
-            marginTop: isMobile ? '4px' : '4px',
+            marginTop: '2px',
           }}
         >
           <span ref={presenceCountRef}>75</span> breathing together

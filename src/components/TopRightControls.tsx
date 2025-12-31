@@ -6,7 +6,7 @@
  * - Audio toggle icon - Quick enable/disable audio with visual state indicator
  */
 
-import { useContext } from 'react';
+import { useCallback, useContext, useMemo } from 'react';
 import { AudioContext } from '../audio/AudioProvider';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { UI_COLORS, Z_INDEX } from '../styles/designTokens';
@@ -32,55 +32,68 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
   const iconSize = isMobile ? 18 : 20;
   const buttonGap = isMobile ? 6 : 10;
 
-  // Use centralized design tokens
-  const colors = {
-    icon: UI_COLORS.text.tertiary,
-    iconHover: UI_COLORS.text.secondary,
-    iconActive: UI_COLORS.accent.gold,
-    bg: UI_COLORS.surface.glassLight,
-    bgHover: UI_COLORS.surface.glassHover,
-    border: UI_COLORS.border.light,
-    shadow: UI_COLORS.shadow.soft,
-    shadowHover: UI_COLORS.shadow.medium,
-  };
+  // Use centralized design tokens - memoized to prevent recreation
+  const colors = useMemo(
+    () => ({
+      icon: UI_COLORS.text.tertiary,
+      iconHover: UI_COLORS.text.secondary,
+      iconActive: UI_COLORS.accent.gold,
+      bg: UI_COLORS.surface.glassLight,
+      bgHover: UI_COLORS.surface.glassHover,
+      border: UI_COLORS.border.light,
+      shadow: UI_COLORS.shadow.soft,
+      shadowHover: UI_COLORS.shadow.medium,
+    }),
+    [],
+  );
 
-  const stopPropagation = (e: React.PointerEvent) => {
+  const stopPropagation = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
-  };
+  }, []);
 
-  // Common button styles to reduce duplication
-  const buttonStyle: React.CSSProperties = {
-    background: colors.bg,
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: `1px solid ${colors.border}`,
-    borderRadius: '50%',
-    width: `${buttonSize}px`,
-    height: `${buttonSize}px`,
-    minWidth: `${buttonSize}px`,
-    minHeight: `${buttonSize}px`,
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    color: colors.icon,
-    boxShadow: colors.shadow,
-    transform: 'translateY(0)',
-    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-  };
+  // Common button styles to reduce duplication - memoized
+  const buttonStyle: React.CSSProperties = useMemo(
+    () => ({
+      background: colors.bg,
+      backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
+      border: `1px solid ${colors.border}`,
+      borderRadius: '50%',
+      width: `${buttonSize}px`,
+      height: `${buttonSize}px`,
+      minWidth: `${buttonSize}px`,
+      minHeight: `${buttonSize}px`,
+      flexShrink: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      color: colors.icon,
+      boxShadow: colors.shadow,
+      transform: 'translateY(0)',
+      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+    }),
+    [buttonSize, colors.bg, colors.border, colors.icon, colors.shadow],
+  );
 
-  const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.currentTarget.style.background = colors.bgHover;
-    e.currentTarget.style.boxShadow = colors.shadowHover;
-    e.currentTarget.style.transform = 'translateY(-2px)';
-  };
+  // Memoized event handlers to prevent recreation on every render
+  const handleMouseEnter = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.background = colors.bgHover;
+      e.currentTarget.style.boxShadow = colors.shadowHover;
+      e.currentTarget.style.transform = 'translateY(-2px)';
+    },
+    [colors.bgHover, colors.shadowHover],
+  );
 
-  const handleMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.currentTarget.style.background = colors.bg;
-    e.currentTarget.style.boxShadow = colors.shadow;
-    e.currentTarget.style.transform = 'translateY(0)';
-  };
+  const handleMouseLeave = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.background = colors.bg;
+      e.currentTarget.style.boxShadow = colors.shadow;
+      e.currentTarget.style.transform = 'translateY(0)';
+    },
+    [colors.bg, colors.shadow],
+  );
 
   return (
     <div
