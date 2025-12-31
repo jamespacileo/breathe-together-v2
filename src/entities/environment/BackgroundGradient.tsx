@@ -21,6 +21,7 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
+uniform float breathPhase;
 varying vec2 vUv;
 
 // Simplex noise functions for cloud-like patterns
@@ -98,10 +99,15 @@ void main() {
   // Blend clouds very subtly into sky
   vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
 
-  // Very subtle vignette - just darkens corners slightly
+  // Breathing vignette - darkens on hold (cocooning), lightens on inhale (opening)
+  // breathPhase: 0 = exhaled (expanded), 1 = inhaled (contracted)
   vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
-  color *= mix(0.97, 1.0, vignette);
+  // Vignette strength varies subtly with breath: darker during hold (high breathPhase)
+  float vignetteStrength = 0.14 + breathPhase * 0.03; // 0.14-0.17 range
+  float vignette = 1.0 - dot(vignetteUv * vignetteStrength, vignetteUv * vignetteStrength);
+  // Inner mix also breathes: 0.965-0.975 (darker on hold, lighter on exhale)
+  float innerMix = 0.97 - breathPhase * 0.005;
+  color *= mix(innerMix, 1.0, vignette);
 
   // Paper texture noise (very subtle)
   float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
@@ -118,6 +124,7 @@ export function BackgroundGradient() {
     return new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        breathPhase: { value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -127,10 +134,26 @@ export function BackgroundGradient() {
     });
   }, []);
 
-  // Animate time uniform
+  // Animate time + breathPhase uniforms
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+      // Calculate breath phase from UTC time (globally synchronized)
+      const now = Date.now() / 1000;
+      const cycleTime = now % 19; // 19-second cycle (4+7+8+0)
+      // Simple breath phase: rises during inhale (0-4s), holds (4-11s), falls during exhale (11-19s)
+      let breathPhase: number;
+      if (cycleTime < 4) {
+        // Inhale: 0 → 1
+        breathPhase = cycleTime / 4;
+      } else if (cycleTime < 11) {
+        // Hold-in: stay at 1
+        breathPhase = 1;
+      } else {
+        // Exhale: 1 → 0
+        breathPhase = 1 - (cycleTime - 11) / 8;
+      }
+      materialRef.current.uniforms.breathPhase.value = breathPhase;
     }
   });
 

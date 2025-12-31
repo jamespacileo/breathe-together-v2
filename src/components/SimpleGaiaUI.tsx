@@ -115,6 +115,7 @@ export function SimpleGaiaUI({
   const progressRef = useRef<HTMLDivElement>(null);
   const progressContainerRef = useRef<HTMLDivElement>(null);
   const presenceCountRef = useRef<HTMLSpanElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   // Responsive viewport detection
   const { deviceType, isMobile, isTablet } = useViewport();
@@ -193,10 +194,30 @@ export function SimpleGaiaUI({
         timerRef.current.textContent = `${remaining}`;
       }
 
-      // Update progress bar with breathing-synchronized glow
+      // Update progress bar with breathing-synchronized glow and luminance
       if (progressRef.current) {
         const cycleProgress = (accumulatedTime + phaseTime) / BREATH_TOTAL_CYCLE;
         progressRef.current.style.width = `${cycleProgress * 100}%`;
+
+        // Progress bar luminance: brighter leading edge during inhale, dimmer during exhale
+        // Phase 0 (inhale): growing light, Phase 2 (exhale): fading light
+        let luminance: number;
+        if (phaseIndex === 0) {
+          luminance = 0.5 + phaseProgress * 0.5; // 0.5 → 1.0 (brightening)
+        } else if (phaseIndex === 1) {
+          luminance = 1.0; // Peak brightness during hold-in
+        } else if (phaseIndex === 2) {
+          luminance = 1.0 - phaseProgress * 0.4; // 1.0 → 0.6 (dimming)
+        } else {
+          luminance = 0.6; // Dim during hold-out
+        }
+        // Leading edge gets extra brightness (white highlight), trailing edge is base gold
+        const highlightAlpha = luminance * 0.3;
+        progressRef.current.style.background = `linear-gradient(90deg,
+          rgba(201, 160, 108, 0.8) 0%,
+          rgba(201, 160, 108, ${0.7 + luminance * 0.3}) 60%,
+          rgba(255, 245, 220, ${highlightAlpha}) 90%,
+          rgba(255, 255, 255, ${highlightAlpha * 0.7}) 100%)`;
       }
 
       // Breathing-synchronized glow on progress container
@@ -207,12 +228,32 @@ export function SimpleGaiaUI({
         progressContainerRef.current.style.boxShadow = `0 0 ${8 + glowIntensity * 12}px rgba(201, 160, 108, ${glowIntensity})`;
       }
 
+      // Letter-spacing breath on title - imperceptible but adds life
+      // Expands slightly on inhale (0.15em → 0.16em), contracts on exhale
+      if (titleRef.current) {
+        // Calculate breath phase (0 = exhaled, 1 = inhaled)
+        let breathPhase: number;
+        if (phaseIndex === 0) {
+          breathPhase = phaseProgress; // Inhale: 0 → 1
+        } else if (phaseIndex === 1) {
+          breathPhase = 1; // Hold-in: stay at 1
+        } else if (phaseIndex === 2) {
+          breathPhase = 1 - phaseProgress; // Exhale: 1 → 0
+        } else {
+          breathPhase = 0; // Hold-out: stay at 0
+        }
+        // Very subtle letter-spacing change: 0.15em ± 0.01em
+        const baseSpacing = isMobile ? 0.08 : 0.15;
+        const letterSpacing = baseSpacing + breathPhase * 0.01;
+        titleRef.current.style.letterSpacing = `${letterSpacing}em`;
+      }
+
       animationId = requestAnimationFrame(updatePhase);
     };
 
     updatePhase();
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [isMobile]);
 
   // Presence count simulation - updates every 2 seconds with subtle variation
   // Moved out of RAF loop to avoid 60 random number generations per second
@@ -367,6 +408,7 @@ export function SimpleGaiaUI({
         {/* App Name */}
         <div>
           <h1
+            ref={titleRef}
             style={{
               fontFamily: "'Cormorant Garamond', Georgia, serif",
               fontSize: isMobile ? '1.2rem' : isTablet ? '1.25rem' : '1.4rem',
