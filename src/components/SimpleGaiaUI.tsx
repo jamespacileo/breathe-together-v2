@@ -42,6 +42,8 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  /** Hide DOM inspirational text (when using 3D holographic text instead) */
+  hideInspirationalText?: boolean;
 }
 
 /**
@@ -80,6 +82,7 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  hideInspirationalText = false,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -399,8 +402,8 @@ export function SimpleGaiaUI({
         transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Inspirational Text - Above & Beyond style messages */}
-      <InspirationalText />
+      {/* Inspirational Text - Above & Beyond style messages (hidden when using 3D holographic text) */}
+      {!hideInspirationalText && <InspirationalText />}
 
       {/* Top-Left: App Branding + Settings */}
       <div

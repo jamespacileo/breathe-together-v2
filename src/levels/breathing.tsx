@@ -1,6 +1,7 @@
 import { Html, PresentationControls } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { HolographicText3D } from '../components/HolographicText3D';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -38,7 +39,9 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-}: Partial<BreathingLevelProps> = {}) {
+  // Text display mode: '3d' for holographic in-scene text, 'dom' for HTML overlay
+  textMode = '3d',
+}: Partial<BreathingLevelProps> & { textMode?: '3d' | 'dom' } = {}) {
   // UI State for tuning the aesthetic
   const [harmony, setHarmony] = useState(
     particleDensity === 'sparse'
@@ -136,6 +139,9 @@ export function BreathingLevel({
           </PresentationControls>
         </RefractionPipeline>
 
+        {/* 3D Holographic Text - OUTSIDE RefractionPipeline to avoid FBO rendering issues */}
+        {textMode === '3d' && <HolographicText3D />}
+
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
           {/* Top-right control icons (audio + tune + settings) */}
@@ -144,7 +150,7 @@ export function BreathingLevel({
             onOpenSettings={() => setShowSettings(true)}
           />
 
-          {/* Main UI with breathing phase, inspirational text, and modals */}
+          {/* Main UI with breathing phase, inspirational text (if DOM mode), and modals */}
           <SimpleGaiaUI
             harmony={harmony}
             setHarmony={setHarmony}
@@ -162,6 +168,7 @@ export function BreathingLevel({
             onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
+            hideInspirationalText={textMode === '3d'}
           />
         </Html>
       </Suspense>
