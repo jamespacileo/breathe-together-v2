@@ -167,7 +167,7 @@ export function PhaseOverlay3D({
           color={color}
           anchorX="center"
           anchorY="middle"
-          font="https://fonts.gstatic.com/s/cormorantgaramond/v16/co3YmX5slCNuHLi8bLeY9MK7whWMhyjQAllvuQ.woff"
+          font="/fonts/CormorantGaramond-Light.ttf"
           characters="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ "
         >
           {phaseName}
