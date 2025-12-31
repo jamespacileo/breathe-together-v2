@@ -17,9 +17,9 @@ import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
  * to avoid overlap with the globe and particles.
  *
  * **Safe positioning strategy:**
- * - Top text: Y = +5.5 units (above particle orbit radius of 4.5)
- * - Bottom text: Y = -5.5 units (below particle orbit radius of 4.5)
- * - Z = +2 (slightly toward camera to prevent occlusion by particles)
+ * - Top text: Y = +4.5 units (at particle orbit edge)
+ * - Bottom text: Y = -4.5 units (at particle orbit edge)
+ * - Z = +5 (forward toward camera to render in front of everything)
  *
  * **Holographic effects:**
  * - Semi-transparent text with breathing-synced opacity
@@ -27,15 +27,13 @@ import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
  * - Billboard mode (always faces camera)
  * - Subtle scale pulsing with breath
  *
- * **Why these positions are safe:**
- * - Globe center: (0, 0, 0) with radius ~1.5
- * - Particle orbit: radius 4.5 units (spherical distribution)
- * - At Y = ±5.5, text is outside the sphere formed by particles
- * - Z = +2 places text in front of most particles when viewed from camera
+ * **Rendering notes:**
+ * - Must be placed OUTSIDE RefractionPipeline to avoid FBO issues
+ * - Uses drei's Text (Troika) with fillOpacity for smooth animation
  */
 
 // Vertical offset from center - places text safely outside particle orbit
-const TEXT_Y_OFFSET = 5.5;
+const TEXT_Y_OFFSET = 4.5;
 
 // Holographic color palette - warm whites with teal accent
 const COLORS = {
@@ -67,18 +65,17 @@ interface HolographicTextProps {
   /**
    * Vertical offset from center for text placement.
    * Positive = above center, negative = below center.
-   * Must be greater than particle orbit radius (4.5) to avoid overlap.
-   * @min 4.5
-   * @max 10
-   * @default 5.5
+   * @min 3
+   * @max 8
+   * @default 4.5
    */
   yOffset?: number;
 
   /**
    * Base font size for the text.
    * @min 0.3
-   * @max 1.5
-   * @default 0.55
+   * @max 2
+   * @default 0.8
    */
   fontSize?: number;
 
@@ -86,8 +83,8 @@ interface HolographicTextProps {
    * Depth position (Z axis). Positive = toward camera.
    * Higher values reduce occlusion risk from particles.
    * @min 0
-   * @max 5
-   * @default 2
+   * @max 10
+   * @default 5
    */
   zPosition?: number;
 
@@ -96,7 +93,7 @@ interface HolographicTextProps {
    * Higher values create more spaced-out, elegant text.
    * @min 0
    * @max 0.5
-   * @default 0.12
+   * @default 0.1
    */
   letterSpacing?: number;
 
@@ -105,7 +102,7 @@ interface HolographicTextProps {
    * Creates the holographic edge effect.
    * @min 0
    * @max 0.1
-   * @default 0.02
+   * @default 0.03
    */
   glowWidth?: number;
 
@@ -114,7 +111,7 @@ interface HolographicTextProps {
    * Higher values create more visible glow.
    * @min 0
    * @max 1
-   * @default 0.6
+   * @default 0.8
    */
   glowIntensity?: number;
 }
@@ -191,11 +188,11 @@ function HolographicTextElement({
  */
 function HolographicText3DComponent({
   yOffset = TEXT_Y_OFFSET,
-  fontSize = 0.55,
-  zPosition = 2,
-  letterSpacing = 0.12,
-  glowWidth = 0.02,
-  glowIntensity = 0.6,
+  fontSize = 0.8,
+  zPosition = 5,
+  letterSpacing = 0.1,
+  glowWidth = 0.03,
+  glowIntensity = 0.8,
 }: HolographicTextProps) {
   const prevPhaseRef = useRef(-1);
   const [currentMessage, setCurrentMessage] = useState({ top: '', bottom: '' });
