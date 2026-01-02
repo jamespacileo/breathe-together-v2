@@ -1,0 +1,318 @@
+/**
+ * Inspirational text system - backend-driven message synchronization
+ * All users see the same message at the same time (UTC-synced)
+ */
+
+import type {
+  GlobalTextState,
+  InspirationResponse,
+  MessageBatch,
+  UserTextOverride,
+} from './types/inspirational';
+
+// ============================================================================
+// KV Keys
+// ============================================================================
+
+const GLOBAL_STATE_KEY = 'inspiration:state';
+const CURRENT_BATCH_KEY = 'inspiration:batch:current';
+const BATCH_PREFIX = 'inspiration:batch:';
+const OVERRIDE_PREFIX = 'inspiration:override:';
+
+// ============================================================================
+// Defaults & Config
+// ============================================================================
+
+const CYCLES_PER_MESSAGE = 2; // 2 cycles = 32 seconds per message
+const CYCLE_DURATION_MS = 16 * 1000; // 16-second breathing cycle
+const MESSAGE_DISPLAY_TIME_MS = CYCLES_PER_MESSAGE * CYCLE_DURATION_MS;
+
+// ============================================================================
+// Preset Message Batches
+// ============================================================================
+
+function createPresetBatches(): Record<string, MessageBatch> {
+  return {
+    'preset:intro': {
+      id: 'preset:intro',
+      name: 'Welcome Intro',
+      source: 'preset',
+      createdAt: Date.now(),
+      messages: [
+        {
+          id: 'intro-1',
+          top: 'Welcome',
+          bottom: 'To Breathe Together',
+          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          authoredAt: Date.now(),
+          source: 'preset',
+        },
+        {
+          id: 'intro-2',
+          top: 'Breathing in',
+          bottom: 'We breathe as one',
+          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          authoredAt: Date.now(),
+          source: 'preset',
+        },
+        {
+          id: 'intro-3',
+          top: 'Presence',
+          bottom: 'Connected across the world',
+          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          authoredAt: Date.now(),
+          source: 'preset',
+        },
+      ],
+    },
+    'preset:ambient': {
+      id: 'preset:ambient',
+      name: 'Ambient Wisdom',
+      source: 'preset',
+      createdAt: Date.now(),
+      messages: [
+        {
+          id: 'ambient-1',
+          top: 'Notice your breath',
+          bottom: 'Without judgment',
+          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          authoredAt: Date.now(),
+          source: 'preset',
+        },
+        {
+          id: 'ambient-2',
+          top: 'Each breath',
+          bottom: 'Is a fresh beginning',
+          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          authoredAt: Date.now(),
+          source: 'preset',
+        },
+        {
+          id: 'ambient-3',
+          top: 'In this moment',
+          bottom: 'We are all together',
+          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          authoredAt: Date.now(),
+          source: 'preset',
+        },
+        {
+          id: 'ambient-4',
+          top: 'Breathing teaches us',
+          bottom: 'The rhythm of life',
+          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          authoredAt: Date.now(),
+          source: 'preset',
+        },
+        {
+          id: 'ambient-5',
+          top: 'Your presence matters',
+          bottom: 'You are connected',
+          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          authoredAt: Date.now(),
+          source: 'preset',
+        },
+      ],
+    },
+  };
+}
+
+// ============================================================================
+// State Management
+// ============================================================================
+
+function createInitialState(): GlobalTextState {
+  return {
+    currentMessageIndex: 0,
+    currentBatchId: 'preset:intro',
+    batchStartTime: Date.now(),
+    nextRotationTime: Date.now() + MESSAGE_DISPLAY_TIME_MS,
+    totalCycles: 0,
+    lastUpdated: Date.now(),
+  };
+}
+
+export async function initializeInspirational(kv: KVNamespace): Promise<void> {
+  // Check if already initialized
+  const existing = await kv.get(GLOBAL_STATE_KEY);
+  if (existing) return;
+
+  // Create initial state
+  const state = createInitialState();
+  await kv.put(GLOBAL_STATE_KEY, JSON.stringify(state));
+
+  // Store preset batches
+  const presets = createPresetBatches();
+  for (const [id, batch] of Object.entries(presets)) {
+    await kv.put(BATCH_PREFIX + id, JSON.stringify(batch));
+  }
+
+  // Set current batch
+  await kv.put(CURRENT_BATCH_KEY, JSON.stringify({ id: 'preset:intro', updatedAt: Date.now() }));
+}
+
+async function getGlobalState(kv: KVNamespace): Promise<GlobalTextState> {
+  const data = await kv.get(GLOBAL_STATE_KEY, 'json');
+  if (data) return data as GlobalTextState;
+  return createInitialState();
+}
+
+async function saveGlobalState(kv: KVNamespace, state: GlobalTextState): Promise<void> {
+  state.lastUpdated = Date.now();
+  await kv.put(GLOBAL_STATE_KEY, JSON.stringify(state));
+}
+
+async function getBatch(kv: KVNamespace, batchId: string): Promise<MessageBatch | null> {
+  const data = await kv.get(BATCH_PREFIX + batchId, 'json');
+  return data as MessageBatch | null;
+}
+
+export async function getUserOverride(
+  kv: KVNamespace,
+  sessionId: string,
+): Promise<UserTextOverride | null> {
+  const data = await kv.get(OVERRIDE_PREFIX + sessionId, 'json');
+  if (!data) return null;
+
+  const override = data as UserTextOverride;
+
+  // Check if expired
+  if (override.expiresAt < Date.now()) {
+    await kv.delete(OVERRIDE_PREFIX + sessionId);
+    return null;
+  }
+
+  return override;
+}
+
+export async function setUserOverride(
+  kv: KVNamespace,
+  sessionId: string,
+  override: UserTextOverride,
+): Promise<void> {
+  const ttl = Math.ceil((override.expiresAt - Date.now()) / 1000);
+  if (ttl > 0) {
+    await kv.put(OVERRIDE_PREFIX + sessionId, JSON.stringify(override), {
+      expirationTtl: ttl,
+    });
+  }
+}
+
+// ============================================================================
+// Message Rotation
+// ============================================================================
+
+export async function rotateMessage(
+  kv: KVNamespace,
+): Promise<{ advanced: boolean; newState: GlobalTextState }> {
+  const state = await getGlobalState(kv);
+  const now = Date.now();
+
+  // Check if it's time to rotate
+  if (now < state.nextRotationTime) {
+    return { advanced: false, newState: state };
+  }
+
+  const batch = await getBatch(kv, state.currentBatchId);
+  let currentBatch = batch;
+
+  if (!currentBatch) {
+    // Fallback to intro batch if current batch missing
+    state.currentBatchId = 'preset:intro';
+    currentBatch = await getBatch(kv, 'preset:intro');
+    if (!currentBatch) {
+      return { advanced: false, newState: state };
+    }
+  }
+
+  // Advance to next message
+  state.currentMessageIndex++;
+  state.totalCycles++;
+
+  // Wrap around if at end of batch
+  if (state.currentMessageIndex >= currentBatch.messages.length) {
+    state.currentMessageIndex = 0;
+    // In production, could queue next batch here
+  }
+
+  state.nextRotationTime = now + MESSAGE_DISPLAY_TIME_MS;
+  await saveGlobalState(kv, state);
+
+  return { advanced: true, newState: state };
+}
+
+// ============================================================================
+// Get Current Message
+// ============================================================================
+
+export async function getCurrentInspirationMessage(
+  kv: KVNamespace,
+  sessionId?: string,
+): Promise<InspirationResponse> {
+  const now = Date.now();
+
+  // Check for user override first
+  let override: UserTextOverride | null = null;
+  if (sessionId) {
+    override = await getUserOverride(kv, sessionId);
+  }
+
+  if (override) {
+    // User has override - return override message
+    const message = override.messages[override.currentIndex];
+    const cyclesUntilNext = message.cyclesPerMessage;
+
+    return {
+      message,
+      currentIndex: override.currentIndex,
+      batchId: `override:${sessionId}`,
+      override,
+      nextRotationTime: now + cyclesUntilNext * CYCLE_DURATION_MS,
+      cacheMaxAge: Math.min(cyclesUntilNext * CYCLE_DURATION_MS, 30000) / 1000,
+    };
+  }
+
+  // Get global state and current batch
+  const state = await getGlobalState(kv);
+  const batch = await getBatch(kv, state.currentBatchId);
+
+  if (!batch || batch.messages.length === 0) {
+    // Fallback - shouldn't happen with proper initialization
+    return {
+      message: {
+        id: 'fallback',
+        top: 'Welcome',
+        bottom: 'To Breathe Together',
+        cyclesPerMessage: CYCLES_PER_MESSAGE,
+        authoredAt: now,
+        source: 'preset',
+      },
+      currentIndex: 0,
+      batchId: 'fallback',
+      nextRotationTime: now + MESSAGE_DISPLAY_TIME_MS,
+      cacheMaxAge: 30,
+    };
+  }
+
+  const message = batch.messages[state.currentMessageIndex];
+  const timeUntilNext = Math.max(0, state.nextRotationTime - now);
+  const cacheMaxAge = Math.min(timeUntilNext, 30000) / 1000;
+
+  return {
+    message,
+    currentIndex: state.currentMessageIndex,
+    batchId: state.currentBatchId,
+    nextRotationTime: state.nextRotationTime,
+    cacheMaxAge,
+  };
+}
+
+// ============================================================================
+// Scheduled Rotation Job
+// ============================================================================
+
+export async function rotateInspirationalOnSchedule(kv: KVNamespace): Promise<void> {
+  const { advanced } = await rotateMessage(kv);
+  if (advanced) {
+    console.log('Inspirational message rotated');
+  }
+}

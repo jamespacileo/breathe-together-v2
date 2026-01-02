@@ -13,6 +13,11 @@
  */
 
 import {
+  getCurrentInspirationMessage,
+  initializeInspirational,
+  rotateInspirationalOnSchedule,
+} from './inspirational';
+import {
   type AggregateState,
   addSample,
   createInitialState,
@@ -104,6 +109,39 @@ async function handlePresence(env: Env): Promise<Response> {
   }
 }
 
+async function handleInspirationText(request: Request, env: Env): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const sessionId = url.searchParams.get('sessionId') ?? undefined;
+    const skipCache = url.searchParams.get('skipCache') === 'true';
+
+    // Advance rotation if needed (probabilistic to reduce KV writes)
+    if (Math.random() < 0.1) {
+      // 10% of requests trigger rotation check
+      await rotateInspirationalOnSchedule(env.PRESENCE_KV);
+    }
+
+    const message = await getCurrentInspirationMessage(env.PRESENCE_KV, sessionId);
+
+    const cacheControl = skipCache
+      ? 'private, no-cache'
+      : `public, max-age=${Math.ceil(message.cacheMaxAge)}`;
+
+    return new Response(JSON.stringify(message), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': cacheControl,
+      },
+    });
+  } catch (e) {
+    console.error('Inspirational text error:', e);
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
 function handleConfig(): Response {
   return new Response(
     JSON.stringify({
@@ -170,6 +208,13 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Initialize inspirational text system on first request
+    try {
+      await initializeInspirational(env.PRESENCE_KV);
+    } catch (e) {
+      console.error('Failed to initialize inspirational text:', e);
+    }
+
     // CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders() });
@@ -193,6 +238,10 @@ export default {
           url.searchParams.get('realtime') === 'true'
             ? await handleRoomPresence(env)
             : await handlePresence(env);
+        break;
+
+      case path === '/api/inspirational' && request.method === 'GET':
+        response = await handleInspirationText(request, env);
         break;
 
       case path === '/api/config' && request.method === 'GET':
@@ -239,6 +288,9 @@ export default {
       if (Object.keys(updated.samples).length !== Object.keys(state.samples).length) {
         await saveAggregate(env.PRESENCE_KV, updated);
       }
+
+      // Rotate inspirational messages if needed
+      await rotateInspirationalOnSchedule(env.PRESENCE_KV);
     } catch (e) {
       console.error('Scheduled cleanup error:', e);
     }

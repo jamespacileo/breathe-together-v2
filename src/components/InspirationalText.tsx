@@ -1,11 +1,9 @@
 import { memo, useEffect, useRef } from 'react';
-import { useShallow } from 'zustand/shallow';
-import { AMBIENT_MESSAGES, WELCOME_INTRO } from '../config/inspirationalSequences';
 import { BREATH_TOTAL_CYCLE } from '../constants';
+import { useInspirationText } from '../hooks/useInspirationText';
 import { useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { easeExhale, easeInhaleText } from '../lib/easing';
-import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
 import { TYPOGRAPHY, UI_COLORS, Z_INDEX } from '../styles/designTokens';
 
 /**
@@ -43,8 +41,8 @@ function calculateOpacity(phaseIndex: number, phaseProgress: number): number {
  * fades in during inhale and out during exhale. Creates a sense of
  * unity and collective consciousness.
  *
- * Messages are configured in: src/config/inspirationalMessages.ts
- * See that file for documentation on adding new messages.
+ * Messages are backend-driven and synchronized globally (UTC-based) so all
+ * users see the same message at the same time, reinforcing unity and connection.
  *
  * Performance: Uses RAF loop with direct DOM updates (no React state for animation)
  * Mobile Responsive: Reduces spacing and font size on mobile to maximize 3D scene visibility
@@ -56,41 +54,8 @@ function InspirationalTextComponent() {
   const prevPhaseRef = useRef(-1);
   const { isMobile, isTablet } = useViewport();
 
-  // Consolidated store selector - single subscription with shallow comparison
-  // Reduces 7 separate subscriptions to 1, preventing multiple re-renders
-  const {
-    getCurrentMessage,
-    advanceCycle,
-    setAmbientPool,
-    enqueue,
-    ambientPool,
-    currentSequence,
-    ambientIndex,
-  } = useInspirationalTextStore(
-    useShallow((state) => ({
-      getCurrentMessage: state.getCurrentMessage,
-      advanceCycle: state.advanceCycle,
-      setAmbientPool: state.setAmbientPool,
-      enqueue: state.enqueue,
-      ambientPool: state.ambientPool,
-      currentSequence: state.currentSequence,
-      ambientIndex: state.ambientIndex,
-    })),
-  );
-
-  // Store advanceCycle in ref to avoid stale closure and prevent RAF loop restarts
-  const advanceCycleRef = useRef(advanceCycle);
-  advanceCycleRef.current = advanceCycle;
-
-  // Initialize store on mount - set ambient pool and queue intro if first visit
-  useEffect(() => {
-    // Only initialize if ambient pool is empty (first mount)
-    if (ambientPool.length === 0) {
-      setAmbientPool(AMBIENT_MESSAGES);
-      // Queue welcome intro - store handles playOnce logic
-      enqueue(WELCOME_INTRO);
-    }
-  }, [ambientPool.length, setAmbientPool, enqueue]);
+  // Fetch current inspiration message from backend
+  const { message } = useInspirationText();
 
   // RAF loop for smooth opacity animation synchronized to breathing
   useEffect(() => {
@@ -121,10 +86,6 @@ function InspirationalTextComponent() {
         bottomWrapperRef.current.style.transform = transform;
       }
 
-      // Track cycle completion and advance queue
-      if (phaseIndex === 0 && prevPhaseRef.current === 3) {
-        advanceCycleRef.current();
-      }
       prevPhaseRef.current = phaseIndex;
 
       animationId = requestAnimationFrame(updateText);
@@ -132,15 +93,10 @@ function InspirationalTextComponent() {
 
     updateText();
     return () => cancelAnimationFrame(animationId);
-  }, []); // Empty deps - advanceCycleRef is stable and updated each render
+  }, []); // Empty deps - RAF loop is independent of state
 
-  // Get current message from store
-  // Note: Re-renders when currentSequence or ambientIndex changes (subscribed above)
-  const quote = getCurrentMessage() ?? { top: '', bottom: '' };
-
-  // Suppress unused variable warnings - these subscriptions trigger re-renders
-  void currentSequence;
-  void ambientIndex;
+  // Format message for display
+  const quote = message ? { top: message.top, bottom: message.bottom } : { top: '', bottom: '' };
 
   // Design tokens - using centralized values
   const colors = {
