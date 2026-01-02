@@ -3,7 +3,7 @@ import { Leva } from 'leva';
 import { Perf } from 'r3f-perf';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { MomentumControls } from '../components/MomentumControls';
+import { type ExclusionZone, MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
@@ -124,6 +124,36 @@ export function BreathingLevel({
   const [showSettings, setShowSettings] = useState(false);
 
   // ==========================================
+  // EXCLUSION ZONES FOR MOMENTUM CONTROLS
+  // ==========================================
+  // Define areas where mouse events should not trigger scene rotation
+  // (e.g., r3f-perf monitor, Leva panel)
+  const exclusionZones = useMemo<ExclusionZone[]>(() => {
+    const zones: ExclusionZone[] = [];
+
+    // Add perf monitor exclusion zone when visible
+    if (DEV_MODE_ENABLED && devControls.showPerfMonitor) {
+      zones.push({
+        position: devControls.perfPosition,
+        // r3f-perf panel dimensions (approximate, with extra padding)
+        width: devControls.perfMinimal ? 100 : 450,
+        height: devControls.perfMinimal ? 40 : 220,
+      });
+    }
+
+    // Add Leva panel exclusion zone (always top-right, ~300px wide)
+    if (DEV_MODE_ENABLED) {
+      zones.push({
+        position: 'top-right',
+        width: 320,
+        height: 600, // Leva can be quite tall when expanded
+      });
+    }
+
+    return zones;
+  }, [devControls.showPerfMonitor, devControls.perfPosition, devControls.perfMinimal]);
+
+  // ==========================================
   // MOCK PRESENCE DATA
   // ==========================================
   const mockUsers = useMemo(() => {
@@ -208,6 +238,7 @@ export function BreathingLevel({
             minVelocityThreshold={devControls.dragMinVelocity}
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
+            exclusionZones={exclusionZones}
           >
             {showGlobe && <EarthGlobe />}
 

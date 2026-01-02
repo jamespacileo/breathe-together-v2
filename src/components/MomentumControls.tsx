@@ -16,6 +16,16 @@ const IOS_DEFAULTS = {
   minVelocityThreshold: 50,
 };
 
+/** Exclusion zone definition for UI regions that should not trigger rotation */
+export interface ExclusionZone {
+  /** Position of the zone */
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  /** Width of the zone in pixels */
+  width: number;
+  /** Height of the zone in pixels */
+  height: number;
+}
+
 interface MomentumControlsProps {
   /** Enable/disable the controls */
   enabled?: boolean;
@@ -41,6 +51,8 @@ interface MomentumControlsProps {
   velocityMultiplier?: number;
   /** Minimum flick speed (px/s) to trigger momentum */
   minVelocityThreshold?: number;
+  /** Exclusion zones where rotation should not be triggered (for overlays like r3f-perf) */
+  exclusionZones?: ExclusionZone[];
   children?: React.ReactNode;
 }
 
@@ -65,6 +77,7 @@ export function MomentumControls({
   timeConstant = IOS_DEFAULTS.timeConstant,
   velocityMultiplier = IOS_DEFAULTS.velocityMultiplier,
   minVelocityThreshold = IOS_DEFAULTS.minVelocityThreshold,
+  exclusionZones = [],
   children,
 }: MomentumControlsProps) {
   const events = useThree((state) => state.events);
@@ -117,46 +130,106 @@ export function MomentumControls({
     animation.current.damping = damping;
   }, [damping]);
 
+  // Check if coordinates are within an exclusion zone
+  const isInExclusionZone = React.useCallback(
+    (clientX: number, clientY: number): boolean => {
+      if (exclusionZones.length === 0) return false;
+
+      // Get canvas bounding rect to calculate relative positions
+      const rect = domElement.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const canvasWidth = rect.width;
+      const canvasHeight = rect.height;
+
+      return exclusionZones.some((zone) => {
+        let zoneX: number;
+        let zoneY: number;
+
+        // Calculate zone position based on corner
+        switch (zone.position) {
+          case 'top-left':
+            zoneX = 0;
+            zoneY = 0;
+            break;
+          case 'top-right':
+            zoneX = canvasWidth - zone.width;
+            zoneY = 0;
+            break;
+          case 'bottom-left':
+            zoneX = 0;
+            zoneY = canvasHeight - zone.height;
+            break;
+          case 'bottom-right':
+            zoneX = canvasWidth - zone.width;
+            zoneY = canvasHeight - zone.height;
+            break;
+        }
+
+        // Check if point is within zone bounds (with some padding)
+        const padding = 10;
+        return (
+          x >= zoneX - padding &&
+          x <= zoneX + zone.width + padding &&
+          y >= zoneY - padding &&
+          y <= zoneY + zone.height + padding
+        );
+      });
+    },
+    [exclusionZones, domElement],
+  );
+
   // Check if event target is within UI overlay (Leva, modals, perf monitor, etc.)
-  const isUIElement = React.useCallback((event: PointerEvent | MouseEvent | TouchEvent) => {
-    const target = event.target as HTMLElement;
-    if (!target) return false;
+  const isUIElement = React.useCallback(
+    (event: PointerEvent | MouseEvent | TouchEvent) => {
+      const target = event.target as HTMLElement;
 
-    // Check if click is on UI elements that should not trigger rotation
-    const uiSelectors = [
-      // Our UI components (data attributes for reliable detection)
-      '[data-ui]',
-      '.gaia-ui',
-      // Leva panel
-      '[class*="leva"]',
-      '[data-leva]',
-      // r3f-perf performance monitor (renders with specific class patterns)
-      '[class*="r3f-perf"]',
-      '[class*="perf"]',
-      // Interactive HTML elements
-      'button',
-      'input',
-      'select',
-      'textarea',
-      'label',
-      'a[href]',
-      // ARIA roles for accessibility
-      '[role="button"]',
-      '[role="slider"]',
-      '[role="dialog"]',
-      '[role="menu"]',
-      '[role="menuitem"]',
-      // Common modal/overlay patterns
-      '[class*="modal"]',
-      '[class*="Modal"]',
-      '[class*="overlay"]',
-      '[class*="Overlay"]',
-    ];
+      // First check exclusion zones by coordinates (for r3f-perf which uses portals)
+      if ('clientX' in event && 'clientY' in event) {
+        if (isInExclusionZone(event.clientX, event.clientY)) {
+          return true;
+        }
+      }
 
-    return uiSelectors.some(
-      (selector) => target.closest(selector) !== null || target.matches(selector),
-    );
-  }, []);
+      if (!target) return false;
+
+      // Check if click is on UI elements that should not trigger rotation
+      const uiSelectors = [
+        // Our UI components (data attributes for reliable detection)
+        '[data-ui]',
+        '.gaia-ui',
+        // Leva panel
+        '[class*="leva"]',
+        '[data-leva]',
+        // r3f-perf performance monitor (renders with specific class patterns)
+        '[class*="r3f-perf"]',
+        '[class*="perf"]',
+        // Interactive HTML elements
+        'button',
+        'input',
+        'select',
+        'textarea',
+        'label',
+        'a[href]',
+        // ARIA roles for accessibility
+        '[role="button"]',
+        '[role="slider"]',
+        '[role="dialog"]',
+        '[role="menu"]',
+        '[role="menuitem"]',
+        // Common modal/overlay patterns
+        '[class*="modal"]',
+        '[class*="Modal"]',
+        '[class*="overlay"]',
+        '[class*="Overlay"]',
+      ];
+
+      return uiSelectors.some(
+        (selector) => target.closest(selector) !== null || target.matches(selector),
+      );
+    },
+    [isInExclusionZone],
+  );
 
   // Smooth animation loop
   useFrame((_state, delta) => {
