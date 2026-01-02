@@ -5,15 +5,25 @@ import { RootProviders } from './providers';
 // Global UI styles (animations, range sliders, button focus states)
 import './styles/ui.css';
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error('Root element not found. Ensure index.html contains <div id="root"></div>');
+async function startApp() {
+  // Start MSW in development mode when VITE_USE_MSW=true
+  if (import.meta.env.DEV && import.meta.env.VITE_USE_MSW === 'true') {
+    const { startMSW } = await import('./mocks/browser');
+    await startMSW();
+  }
+
+  const rootElement = document.getElementById('root');
+  if (!rootElement) {
+    throw new Error('Root element not found. Ensure index.html contains <div id="root"></div>');
+  }
+
+  createRoot(rootElement).render(
+    <StrictMode>
+      <RootProviders>
+        <App />
+      </RootProviders>
+    </StrictMode>,
+  );
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <RootProviders>
-      <App />
-    </RootProviders>
-  </StrictMode>,
-);
+startApp();

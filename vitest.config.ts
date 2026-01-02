@@ -3,11 +3,16 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    environment: 'happy-dom',
+    include: ['src/**/*.test.{ts,tsx}', 'worker/**/*.test.ts'],
     // Longer timeout for WebGL setup
     testTimeout: 30000,
-    // Setup file for WebGL mocks
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/**/*.{ts,tsx}', 'worker/src/**/*.ts'],
+      exclude: ['**/*.test.{ts,tsx}', '**/types.ts', '**/*.d.ts'],
+    },
     setupFiles: ['./src/test/setup.ts'],
   },
 });

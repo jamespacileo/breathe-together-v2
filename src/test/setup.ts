@@ -1,10 +1,37 @@
 /**
- * Vitest setup file for headless WebGL testing
+ * Vitest test setup
  *
- * Creates a mock canvas and WebGL context for Three.js rendering tests
+ * Configures:
+ * - MSW server for API mocking
+ * - WebGL mocks for Three.js rendering tests
  */
 
 import createGL from 'gl';
+import { afterAll, afterEach, beforeAll } from 'vitest';
+import { server } from '../mocks/server';
+
+// ============================================
+// MSW Server Setup
+// ============================================
+
+// Start MSW server before tests
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'bypass' });
+});
+
+// Reset handlers after each test
+afterEach(() => {
+  server.resetHandlers();
+});
+
+// Close server after all tests
+afterAll(() => {
+  server.close();
+});
+
+// ============================================
+// WebGL / Canvas Mocks for Three.js
+// ============================================
 
 // Create a headless WebGL context factory
 function createHeadlessCanvas(width = 800, height = 600) {
