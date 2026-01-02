@@ -119,7 +119,7 @@ export function MomentumControls({
   }, [cursor, enabled, domElement]);
 
   // Smooth animation loop
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     if (!ref.current || !enabled) return;
 
     // Smoothly interpolate rotation toward target
