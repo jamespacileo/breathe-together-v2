@@ -114,8 +114,8 @@ export function BreathingLevel({
             global
             cursor={true}
             snap={false}
-            speed={1}
-            damping={0.3}
+            speed={1.8}
+            damping={0.12}
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
