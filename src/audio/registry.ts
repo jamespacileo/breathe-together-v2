@@ -2,6 +2,7 @@
  * SOUND REGISTRY
  *
  * Single source of truth for all sounds in the application.
+ * Uses `as const satisfies` for type-safe sound IDs with autocomplete.
  *
  * To add a new sound:
  * 1. Drop the audio file in public/audio/{category}/
@@ -13,7 +14,15 @@
 
 import type { SoundCategory, SoundDefinition } from './types';
 
-export const SOUNDS: Record<string, SoundDefinition> = {
+/**
+ * Sound registry with type-safe IDs
+ *
+ * Using `as const satisfies` provides:
+ * - Autocomplete for sound IDs
+ * - Compile-time error on typos
+ * - Inferred SoundId type
+ */
+export const SOUNDS = {
   // ─────────────────────────────────────────────────────
   // AMBIENT DRONES
   // Foundation layer, constant volume, loops forever
@@ -195,7 +204,17 @@ export const SOUNDS: Record<string, SoundDefinition> = {
     fadeIn: 0,
     fadeOut: 0,
   },
-};
+} as const satisfies Record<string, SoundDefinition>;
+
+/**
+ * Type-safe sound ID derived from registry keys
+ */
+export type SoundId = keyof typeof SOUNDS;
+
+/**
+ * Array of all sound IDs for iteration
+ */
+export const SOUND_IDS = Object.keys(SOUNDS) as SoundId[];
 
 // ─────────────────────────────────────────────────────
 // HELPERS
@@ -207,26 +226,33 @@ export const SOUNDS: Record<string, SoundDefinition> = {
 export function getSoundsByCategory(category: SoundCategory) {
   return Object.entries(SOUNDS)
     .filter(([_, def]) => def.category === category)
-    .map(([id, def]) => ({ id, ...def }));
+    .map(([id, def]) => ({ id: id as SoundId, ...def }));
 }
 
 /**
  * Get all sound IDs
  */
-export function getSoundIds(): string[] {
-  return Object.keys(SOUNDS);
+export function getSoundIds(): SoundId[] {
+  return SOUND_IDS;
 }
 
 /**
  * Get all nature sound IDs
  */
-export function getNatureSoundIds(): string[] {
+export function getNatureSoundIds(): SoundId[] {
   return getSoundsByCategory('nature').map((s) => s.id);
 }
 
 /**
- * Get a sound definition by ID
+ * Get a sound definition by ID (type-safe)
  */
-export function getSound(id: string): SoundDefinition | undefined {
+export function getSound(id: SoundId): SoundDefinition {
   return SOUNDS[id];
+}
+
+/**
+ * Check if a string is a valid sound ID
+ */
+export function isValidSoundId(id: string): id is SoundId {
+  return id in SOUNDS;
 }

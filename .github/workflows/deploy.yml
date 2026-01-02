@@ -30,10 +30,12 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-  deploy:
+  deploy-worker:
     needs: build
     runs-on: ubuntu-latest
-    name: Deploy
+    name: Deploy Worker
+    outputs:
+      worker-url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,13 +48,46 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Configure KV Namespace IDs
+        run: |
+          sed -i "s/YOUR_KV_NAMESPACE_ID/${{ secrets.PRESENCE_KV_ID }}/" worker/wrangler.toml
+          sed -i "s/YOUR_PREVIEW_KV_NAMESPACE_ID/${{ secrets.PRESENCE_KV_PREVIEW_ID }}/" worker/wrangler.toml
 
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy Presence Worker
+        id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Use stable wrangler version (4.55.0/4.56.0 have opennextjs-cloudflare delegation bug)
+          workingDirectory: worker
+          wranglerVersion: "4.54.0"
+          # Explicit --config to avoid picking up root wrangler.json (which has assets.directory for frontend)
+          command: deploy --config wrangler.toml
+
+  deploy-frontend:
+    needs: deploy-worker
+    runs-on: ubuntu-latest
+    name: Deploy Frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with API URL
+        run: npm run build
+        env:
+          VITE_PRESENCE_API_URL: https://breathe-together-presence.palladio-registry.workers.dev
+
+      - name: Deploy Frontend to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.54.0"
