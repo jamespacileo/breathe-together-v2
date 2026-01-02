@@ -1,4 +1,5 @@
 import { Leva } from 'leva';
+import { Perf } from 'r3f-perf';
 import { Suspense } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -46,6 +47,20 @@ export function BreathingLevel({
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
+        {/* Performance monitor (dev only) */}
+        {DEV_MODE_ENABLED && devControls.showPerfMonitor && (
+          <Perf
+            position={devControls.perfPosition}
+            minimal={devControls.perfMinimal}
+            showGraph={devControls.perfShowGraph}
+            logsPerSecond={devControls.perfLogsPerSecond}
+            antialias={devControls.perfAntialias}
+            overClock={devControls.perfOverClock}
+            deepAnalyze={devControls.perfDeepAnalyze}
+            matrixUpdate={devControls.perfMatrixUpdate}
+          />
+        )}
+
         {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
         <AudioDevControls />
 
