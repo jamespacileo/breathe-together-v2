@@ -599,6 +599,148 @@ GPU memory leaks are **critical** because:
 
 **Solution**: Always pair `useMemo` geometry/material creation with `useEffect` cleanup.
 
+### Disposal Hooks (Recommended Pattern)
+
+This codebase provides convenient hooks for automatic disposal in `src/hooks/useDisposeMaterials.ts`:
+
+#### Available Hooks
+
+1. **`useDisposeMaterials(materials)`** - Auto-dispose array of materials
+   ```typescript
+   const material = useMemo(() => new THREE.ShaderMaterial({...}), []);
+   const glowMaterial = useMemo(() => new THREE.MeshBasicMaterial({...}), []);
+
+   // Automatically disposed when component unmounts
+   useDisposeMaterials([material, glowMaterial]);
+   ```
+
+2. **`useDisposeGeometries(geometries)`** - Auto-dispose array of geometries
+   ```typescript
+   const geometry = useMemo(() => new THREE.IcosahedronGeometry(1, 4), []);
+
+   useDisposeGeometries([geometry]);
+   ```
+
+3. **`useDisposeTextures(textures)`** - Auto-dispose array of textures
+   ```typescript
+   const texture = useMemo(() => new THREE.DataTexture(data, w, h), []);
+
+   useDisposeTextures([texture]);
+   ```
+
+4. **`useDisposeRenderTargets(renderTargets)`** - Auto-dispose array of render targets
+   ```typescript
+   const fbo = useMemo(() => new THREE.WebGLRenderTarget(width, height), [width, height]);
+
+   useDisposeRenderTargets([fbo]);
+   ```
+
+5. **`useDispose(resources, disposeMethod?)`** - Generic disposal hook
+   ```typescript
+   const mesh = useMemo(() => new THREE.Mesh(geo, mat), []);
+
+   // Generic disposal (calls .dispose() by default)
+   useDispose([mesh]);
+
+   // Custom disposal method
+   useDispose([customResource], 'cleanup');
+   ```
+
+#### Best Practices with Disposal Hooks
+
+✅ **Good - Using disposal hooks:**
+```typescript
+// src/entities/particle/ParticleSwarm.tsx (lines 330-335, 438-443)
+const geometry = useMemo(() => new THREE.IcosahedronGeometry(shardSize, 0), [shardSize]);
+const material = useMemo(() => createFrostedGlassMaterial(true), []);
+
+// Clean disposal with useEffect
+useEffect(() => {
+  return () => {
+    geometry.dispose();
+    material.dispose();
+  };
+}, [geometry, material]);
+```
+
+✅ **Good - Using convenience hooks:**
+```typescript
+// src/entities/earthGlobe/index.tsx (lines 290, 321, 324)
+const atmosphereGeometry = useMemo(() => new THREE.SphereGeometry(radius, 32, 32), [radius]);
+const atmosphereMaterials = useMemo(() => ATMOSPHERE_LAYERS.map(...), []);
+
+// Disposal hooks handle cleanup automatically
+useDisposeMaterials([material, glowMaterial, mistMaterial, ...atmosphereMaterials, ringMaterial]);
+useDisposeGeometries([atmosphereGeometry]);
+```
+
+❌ **Bad - No disposal:**
+```typescript
+const geometry = useMemo(() => new THREE.SphereGeometry(radius, 32, 32), [radius]);
+// Missing disposal - GPU memory leak!
+```
+
+### Disposal Audit Tool
+
+Run the automated disposal audit to detect potential GPU memory leaks:
+
+```bash
+# Quick audit
+npm run audit:disposal
+
+# Verbose output with code snippets
+npm run audit:disposal:verbose
+```
+
+The audit script scans `src/entities`, `src/components`, `src/hooks`, and `src/lib` for:
+- Three.js resource creation patterns (Geometry, Material, Texture, RenderTarget)
+- Corresponding disposal calls or disposal hooks
+- Heuristic checks for potential leaks
+
+**Example output:**
+```
+Three.js Disposal Audit
+
+Scanning 39 files...
+
+⚠️  WARNINGS (1)
+
+⚠️ src/entities/myEntity/index.tsx
+  Found 3 resource(s) but only 0 disposal call(s)
+
+Summary:
+  Errors:   0
+  Warnings: 1
+  OK:       5
+  Clean:    33
+  Total:    39
+
+Resource Statistics:
+  Resources created:  23
+  Disposal calls:     20
+  Disposal coverage:  87%
+```
+
+**Integrate in CI/CD** by adding to `.github/workflows/`:
+```yaml
+- name: Audit Three.js Disposal
+  run: npm run audit:disposal
+```
+
+### Runtime WebGL Validation (Development Only)
+
+This project includes `webgl-lint` for runtime WebGL API validation. It's automatically enabled in development mode:
+
+**Features:**
+- Detects WebGL context loss
+- Validates WebGL state management
+- Checks for common API misuse
+- Provides performance warnings
+
+**Configuration:** `src/lib/webgl-lint-setup.ts`
+
+The tool runs automatically when `import.meta.env.DEV === true`. Check browser console for WebGL warnings during development.
+
 ## Biome Linting Guidelines
 
 ### When to Use biome-ignore Comments

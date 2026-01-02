@@ -4,6 +4,8 @@ import { App } from './app';
 import { RootProviders } from './providers';
 // Global UI styles (animations, range sliders, button focus states)
 import './styles/ui.css';
+// WebGL API validation in development mode
+import './lib/webgl-lint-setup';
 
 async function startApp() {
   // Start MSW in development mode when VITE_USE_MSW=true
