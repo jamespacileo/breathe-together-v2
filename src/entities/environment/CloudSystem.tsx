@@ -47,8 +47,9 @@ interface CloudSystemProps {
 // These positions, colors, and properties never change after initial mount
 // IMPORTANT: Camera is at z=10 with 45° FOV. Clouds positioned at z=-5 to z=-15
 // for optimal visibility (15-25 units from camera)
+// DISTRIBUTION: More clouds at top (7), medium in middle (4), fewer at bottom (2)
 const CLOUD_CONFIGS: CloudConfig[] = [
-  // === TOP LAYER (z: -5 to -8, y: 4-8) - Fastest parallax, closest ===
+  // === TOP LAYER (z: -5 to -8, y: 3-7) - 7 clouds, fastest parallax ===
   {
     id: 'top-pink-left',
     initialPosition: [-8, 5, -5],
@@ -65,7 +66,7 @@ const CLOUD_CONFIGS: CloudConfig[] = [
   },
   {
     id: 'top-lavender-right',
-    initialPosition: [10, 6, -6],
+    initialPosition: [9, 6, -6],
     color: '#d4c4e8', // Soft lavender
     opacity: 0.48,
     speed: 1.1,
@@ -79,7 +80,7 @@ const CLOUD_CONFIGS: CloudConfig[] = [
   },
   {
     id: 'top-blue-center',
-    initialPosition: [2, 4, -8],
+    initialPosition: [0, 4, -7],
     color: '#a8d4e8', // Sky blue
     opacity: 0.45,
     speed: 1.0,
@@ -91,8 +92,64 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     verticalBobSpeed: 0.1,
     verticalBobAmount: 0.15,
   },
+  {
+    id: 'top-coral-far-left',
+    initialPosition: [-10, 4, -6],
+    color: '#f8c8b8', // Soft coral
+    opacity: 0.42,
+    speed: 1.15,
+    segments: 20,
+    bounds: [6, 1.5, 4],
+    volume: 4,
+    fade: 17,
+    layer: 'top',
+    verticalBobSpeed: 0.13,
+    verticalBobAmount: 0.16,
+  },
+  {
+    id: 'top-cream-high',
+    initialPosition: [5, 5.5, -5],
+    color: '#f8f0e8', // Warm cream
+    opacity: 0.38,
+    speed: 1.05,
+    segments: 18,
+    bounds: [5, 1.2, 3],
+    volume: 3.5,
+    fade: 15,
+    layer: 'top',
+    verticalBobSpeed: 0.11,
+    verticalBobAmount: 0.14,
+  },
+  {
+    id: 'top-rose-wisp',
+    initialPosition: [-4, 6, -8],
+    color: '#e8c4d4', // Dusty rose
+    opacity: 0.35,
+    speed: 0.95,
+    segments: 16,
+    bounds: [5, 1.3, 3],
+    volume: 3,
+    fade: 14,
+    layer: 'top',
+    verticalBobSpeed: 0.14,
+    verticalBobAmount: 0.17,
+  },
+  {
+    id: 'top-mint-accent',
+    initialPosition: [7, 3.5, -7],
+    color: '#c8e8dc', // Soft mint
+    opacity: 0.4,
+    speed: 1.08,
+    segments: 17,
+    bounds: [5, 1.4, 3],
+    volume: 3.5,
+    fade: 16,
+    layer: 'top',
+    verticalBobSpeed: 0.12,
+    verticalBobAmount: 0.15,
+  },
 
-  // === MIDDLE LAYER (z: -8 to -12, y: 0-4) - Medium parallax ===
+  // === MIDDLE LAYER (z: -8 to -12, y: 0-3) - 4 clouds, medium parallax ===
   {
     id: 'mid-peach-left',
     initialPosition: [-12, 2, -10],
@@ -109,7 +166,7 @@ const CLOUD_CONFIGS: CloudConfig[] = [
   },
   {
     id: 'mid-mint-right',
-    initialPosition: [12, 3, -11],
+    initialPosition: [12, 2, -11],
     color: '#b8e8d4', // Soft mint
     opacity: 0.42,
     speed: 0.8,
@@ -123,7 +180,7 @@ const CLOUD_CONFIGS: CloudConfig[] = [
   },
   {
     id: 'mid-rose-center',
-    initialPosition: [-3, 1, -9],
+    initialPosition: [-2, 1, -9],
     color: '#e8c4d4', // Dusty rose
     opacity: 0.4,
     speed: 0.9,
@@ -136,106 +193,48 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     verticalBobAmount: 0.2,
   },
   {
-    id: 'mid-cream-far-left',
-    initialPosition: [-18, 0, -12],
-    color: '#f0e8dc', // Warm cream
+    id: 'mid-sage-right',
+    initialPosition: [8, 0, -10],
+    color: '#c8dcc8', // Soft sage
     opacity: 0.38,
     speed: 0.75,
     segments: 20,
-    bounds: [12, 1.5, 7],
-    volume: 3.5,
-    fade: 24,
-    layer: 'middle',
-    verticalBobSpeed: 0.07,
-    verticalBobAmount: 0.28,
-  },
-
-  // === BOTTOM LAYER (z: -12 to -15, y: -4 to 0) - Slowest parallax, furthest ===
-  {
-    id: 'bottom-apricot-left',
-    initialPosition: [-14, -2, -13],
-    color: '#f8e0c8', // Soft apricot
-    opacity: 0.4,
-    speed: 0.6,
-    segments: 30,
-    bounds: [14, 2, 8],
-    volume: 4,
-    fade: 26,
-    layer: 'bottom',
-    verticalBobSpeed: 0.05,
-    verticalBobAmount: 0.35,
-  },
-  {
-    id: 'bottom-blush-right',
-    initialPosition: [14, -3, -14],
-    color: '#f0d4d4', // Blush pink
-    opacity: 0.38,
-    speed: 0.55,
-    segments: 28,
-    bounds: [12, 1.5, 7],
-    volume: 3.5,
-    fade: 25,
-    layer: 'bottom',
-    verticalBobSpeed: 0.06,
-    verticalBobAmount: 0.32,
-  },
-  {
-    id: 'bottom-mist-center',
-    initialPosition: [0, -4, -15],
-    color: '#e8e4e0', // Warm mist
-    opacity: 0.35,
-    speed: 0.5,
-    segments: 32,
-    bounds: [16, 1.5, 9],
-    volume: 3,
-    fade: 28,
-    layer: 'bottom',
-    verticalBobSpeed: 0.04,
-    verticalBobAmount: 0.4,
-  },
-  {
-    id: 'bottom-lilac-far-right',
-    initialPosition: [20, -1, -13],
-    color: '#e0d8e8', // Soft lilac
-    opacity: 0.36,
-    speed: 0.65,
-    segments: 24,
-    bounds: [10, 1.8, 6],
-    volume: 3.5,
-    fade: 24,
-    layer: 'bottom',
-    verticalBobSpeed: 0.055,
-    verticalBobAmount: 0.3,
-  },
-
-  // === EXTRA DETAIL CLOUDS (scattered for depth) ===
-  {
-    id: 'detail-coral-high',
-    initialPosition: [-10, 4, -7],
-    color: '#f8c8b8', // Soft coral
-    opacity: 0.32,
-    speed: 1.0,
-    segments: 18,
-    bounds: [6, 1.2, 4],
-    volume: 3,
-    fade: 15,
-    layer: 'top',
-    verticalBobSpeed: 0.13,
-    verticalBobAmount: 0.16,
-  },
-  {
-    id: 'detail-sage-mid',
-    initialPosition: [18, 1, -11],
-    color: '#c8dcc8', // Soft sage
-    opacity: 0.34,
-    speed: 0.7,
-    segments: 20,
     bounds: [8, 1.5, 5],
-    volume: 3,
+    volume: 3.5,
     fade: 20,
     layer: 'middle',
     verticalBobSpeed: 0.085,
     verticalBobAmount: 0.24,
+  },
+
+  // === BOTTOM LAYER (z: -12 to -15, y: -4 to -1) - 2 clouds, slowest parallax ===
+  {
+    id: 'bottom-mist-left',
+    initialPosition: [-10, -2, -13],
+    color: '#e8e4e0', // Warm mist
+    opacity: 0.35,
+    speed: 0.5,
+    segments: 28,
+    bounds: [14, 1.5, 8],
+    volume: 3,
+    fade: 26,
+    layer: 'bottom',
+    verticalBobSpeed: 0.04,
+    verticalBobAmount: 0.35,
+  },
+  {
+    id: 'bottom-blush-right',
+    initialPosition: [10, -3, -14],
+    color: '#f0d4d4', // Blush pink
+    opacity: 0.32,
+    speed: 0.55,
+    segments: 26,
+    bounds: [12, 1.5, 7],
+    volume: 3,
+    fade: 25,
+    layer: 'bottom',
+    verticalBobSpeed: 0.05,
+    verticalBobAmount: 0.32,
   },
 ];
 

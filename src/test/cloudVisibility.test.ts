@@ -37,8 +37,9 @@ interface CloudConfig {
 
 // Updated cloud positions - closer to camera for better visibility
 // Camera at z=10, clouds at z=-5 to z=-15 (15-25 units from camera)
+// DISTRIBUTION: More clouds at top (7), medium in middle (4), fewer at bottom (2)
 const CLOUD_CONFIGS: CloudConfig[] = [
-  // TOP LAYER (z: -5 to -8)
+  // TOP LAYER (z: -5 to -8) - 7 clouds
   {
     id: 'top-pink-left',
     position: { x: -8, y: 5, z: -5 },
@@ -47,18 +48,42 @@ const CLOUD_CONFIGS: CloudConfig[] = [
   },
   {
     id: 'top-lavender-right',
-    position: { x: 10, y: 6, z: -6 },
+    position: { x: 9, y: 6, z: -6 },
     bounds: { width: 7, height: 1.8, depth: 4 },
     layer: 'top',
   },
   {
     id: 'top-blue-center',
-    position: { x: 2, y: 4, z: -8 },
+    position: { x: 0, y: 4, z: -7 },
     bounds: { width: 6, height: 1.5, depth: 4 },
     layer: 'top',
   },
+  {
+    id: 'top-coral-far-left',
+    position: { x: -10, y: 4, z: -6 },
+    bounds: { width: 6, height: 1.5, depth: 4 },
+    layer: 'top',
+  },
+  {
+    id: 'top-cream-high',
+    position: { x: 5, y: 5.5, z: -5 },
+    bounds: { width: 5, height: 1.2, depth: 3 },
+    layer: 'top',
+  },
+  {
+    id: 'top-rose-wisp',
+    position: { x: -4, y: 6, z: -8 },
+    bounds: { width: 5, height: 1.3, depth: 3 },
+    layer: 'top',
+  },
+  {
+    id: 'top-mint-accent',
+    position: { x: 7, y: 3.5, z: -7 },
+    bounds: { width: 5, height: 1.4, depth: 3 },
+    layer: 'top',
+  },
 
-  // MIDDLE LAYER (z: -8 to -12)
+  // MIDDLE LAYER (z: -8 to -12) - 4 clouds
   {
     id: 'mid-peach-left',
     position: { x: -12, y: 2, z: -10 },
@@ -67,61 +92,35 @@ const CLOUD_CONFIGS: CloudConfig[] = [
   },
   {
     id: 'mid-mint-right',
-    position: { x: 12, y: 3, z: -11 },
+    position: { x: 12, y: 2, z: -11 },
     bounds: { width: 9, height: 1.8, depth: 5 },
     layer: 'middle',
   },
   {
     id: 'mid-rose-center',
-    position: { x: -3, y: 1, z: -9 },
+    position: { x: -2, y: 1, z: -9 },
     bounds: { width: 8, height: 1.5, depth: 4 },
     layer: 'middle',
   },
   {
-    id: 'mid-cream-far-left',
-    position: { x: -18, y: 0, z: -12 },
-    bounds: { width: 12, height: 1.5, depth: 7 },
+    id: 'mid-sage-right',
+    position: { x: 8, y: 0, z: -10 },
+    bounds: { width: 8, height: 1.5, depth: 5 },
     layer: 'middle',
   },
 
-  // BOTTOM LAYER (z: -12 to -15)
+  // BOTTOM LAYER (z: -12 to -15) - 2 clouds
   {
-    id: 'bottom-apricot-left',
-    position: { x: -14, y: -2, z: -13 },
-    bounds: { width: 14, height: 2, depth: 8 },
+    id: 'bottom-mist-left',
+    position: { x: -10, y: -2, z: -13 },
+    bounds: { width: 14, height: 1.5, depth: 8 },
     layer: 'bottom',
   },
   {
     id: 'bottom-blush-right',
-    position: { x: 14, y: -3, z: -14 },
+    position: { x: 10, y: -3, z: -14 },
     bounds: { width: 12, height: 1.5, depth: 7 },
     layer: 'bottom',
-  },
-  {
-    id: 'bottom-mist-center',
-    position: { x: 0, y: -4, z: -15 },
-    bounds: { width: 16, height: 1.5, depth: 9 },
-    layer: 'bottom',
-  },
-  {
-    id: 'bottom-lilac-far-right',
-    position: { x: 20, y: -1, z: -13 },
-    bounds: { width: 10, height: 1.8, depth: 6 },
-    layer: 'bottom',
-  },
-
-  // DETAIL CLOUDS
-  {
-    id: 'detail-coral-high',
-    position: { x: -10, y: 4, z: -7 },
-    bounds: { width: 6, height: 1.2, depth: 4 },
-    layer: 'top',
-  },
-  {
-    id: 'detail-sage-mid',
-    position: { x: 18, y: 1, z: -11 },
-    bounds: { width: 8, height: 1.5, depth: 5 },
-    layer: 'middle',
   },
 ];
 
