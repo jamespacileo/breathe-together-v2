@@ -59,8 +59,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const engineRef = useRef<AudioEngine | null>(null);
   const [state, setState] = useState<AudioState>(defaultState);
 
-  // Zustand store for cross-Canvas state sync
-  const audioStore = useAudioStore();
+  // Subscribe only to the toggle request flag from Zustand store
+  const toggleRequested = useAudioStore((s) => s._toggleRequested);
 
   // Ref to capture current state for use in callbacks without creating dependencies
   // This prevents setEnabled from recreating on every state change
@@ -87,114 +87,112 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   // Mark provider as ready on mount
   useEffect(() => {
-    audioStore._setProviderReady(true);
+    useAudioStore.getState()._setProviderReady(true);
     return () => {
-      audioStore._setProviderReady(false);
+      useAudioStore.getState()._setProviderReady(false);
     };
-  }, [audioStore]);
+  }, []);
 
   // Sync enabled state to Zustand store
   useEffect(() => {
-    audioStore._setEnabled(state.enabled);
-  }, [state.enabled, audioStore]);
+    useAudioStore.getState()._setEnabled(state.enabled);
+  }, [state.enabled]);
 
   // Enable/disable audio
   // Uses stateRef to read current state at call time without dependency recreation
-  const setEnabled = useCallback(
-    async (enabled: boolean) => {
-      if (enabled) {
-        // Initialize engine if not already
-        if (!engineRef.current) {
-          console.log(LOG_PREFIX, 'Initializing audio engine...');
+  const setEnabled = useCallback(async (enabled: boolean) => {
+    if (enabled) {
+      // Initialize engine if not already
+      if (!engineRef.current) {
+        console.log(LOG_PREFIX, 'Initializing audio engine...');
 
-          try {
-            // Read current state from ref to avoid stale closure
-            const currentState = stateRef.current;
-            const engine = new AudioEngine({
-              masterVolume: currentState.masterVolume,
-              ambientEnabled: currentState.ambientEnabled,
-              breathEnabled: currentState.breathEnabled,
-              natureSound: currentState.natureSound,
-              chimesEnabled: currentState.chimesEnabled,
-              syncIntensity: currentState.syncIntensity,
-              rampTime: currentState.rampTime,
-              categoryVolumes: currentState.categoryVolumes,
-            });
+        try {
+          // Read current state from ref to avoid stale closure
+          const currentState = stateRef.current;
+          const engine = new AudioEngine({
+            masterVolume: currentState.masterVolume,
+            ambientEnabled: currentState.ambientEnabled,
+            breathEnabled: currentState.breathEnabled,
+            natureSound: currentState.natureSound,
+            chimesEnabled: currentState.chimesEnabled,
+            syncIntensity: currentState.syncIntensity,
+            rampTime: currentState.rampTime,
+            categoryVolumes: currentState.categoryVolumes,
+          });
 
-            const loadingStates = await engine.init();
-            engineRef.current = engine;
+          const loadingStates = await engine.init();
+          engineRef.current = engine;
 
-            // Check if any sounds loaded successfully
-            const loadedSounds = Array.from(loadingStates.values()).filter((s) => s.loaded);
-            if (loadedSounds.length === 0) {
-              console.warn(LOG_PREFIX, 'No audio files loaded - audio unavailable');
-              audioStore._setUnavailable('No audio files could be loaded');
-              setState((s) => ({
-                ...s,
-                enabled: false,
-                ready: false,
-                loadingStates: Object.fromEntries(loadingStates),
-              }));
-              return;
-            }
-
-            // Clear any previous unavailable state
-            audioStore._setUnavailable(null);
-
-            // Start ambient sounds
-            engine.startAmbient();
-
-            // Start nature sound if set
-            if (currentState.natureSound) {
-              engine.setNatureSound(currentState.natureSound);
-            }
-
+          // Check if any sounds loaded successfully
+          const loadedSounds = Array.from(loadingStates.values()).filter((s) => s.loaded);
+          if (loadedSounds.length === 0) {
+            console.warn(LOG_PREFIX, 'No audio files loaded - audio unavailable');
+            useAudioStore.getState()._setUnavailable('No audio files could be loaded');
             setState((s) => ({
               ...s,
-              enabled: true,
-              ready: true,
+              enabled: false,
+              ready: false,
               loadingStates: Object.fromEntries(loadingStates),
             }));
-          } catch (error) {
-            console.error(LOG_PREFIX, 'Failed to initialize audio:', error);
-            const message =
-              error instanceof Error ? error.message : 'Failed to initialize audio system';
-            audioStore._setUnavailable(message);
-            setState((s) => ({ ...s, enabled: false, ready: false }));
+            return;
           }
-        } else {
-          // Resume existing engine
-          engineRef.current.resume();
-          engineRef.current.startAmbient();
-          setState((s) => ({ ...s, enabled: true }));
+
+          // Clear any previous unavailable state
+          useAudioStore.getState()._setUnavailable(null);
+
+          // Start ambient sounds
+          engine.startAmbient();
+
+          // Start nature sound if set
+          if (currentState.natureSound) {
+            engine.setNatureSound(currentState.natureSound);
+          }
+
+          setState((s) => ({
+            ...s,
+            enabled: true,
+            ready: true,
+            loadingStates: Object.fromEntries(loadingStates),
+          }));
+        } catch (error) {
+          console.error(LOG_PREFIX, 'Failed to initialize audio:', error);
+          const message =
+            error instanceof Error ? error.message : 'Failed to initialize audio system';
+          useAudioStore.getState()._setUnavailable(message);
+          setState((s) => ({ ...s, enabled: false, ready: false }));
         }
       } else {
-        // Disable audio
-        if (engineRef.current) {
-          engineRef.current.stopAll();
-        }
-        setState((s) => ({ ...s, enabled: false }));
+        // Resume existing engine
+        engineRef.current.resume();
+        engineRef.current.startAmbient();
+        setState((s) => ({ ...s, enabled: true }));
       }
-    },
-    [audioStore],
-  );
+    } else {
+      // Disable audio
+      if (engineRef.current) {
+        engineRef.current.stopAll();
+      }
+      setState((s) => ({ ...s, enabled: false }));
+    }
+  }, []);
 
   // Listen for toggle requests from Zustand store (from UI outside Canvas)
   useEffect(() => {
-    if (audioStore._toggleRequested) {
-      audioStore._clearToggleRequest();
+    if (toggleRequested) {
+      const store = useAudioStore.getState();
+      store._clearToggleRequest();
       // Toggle using the current state
       const newEnabled = !stateRef.current.enabled;
-      audioStore._setLoading(true);
+      store._setLoading(true);
       (async () => {
         try {
           await setEnabled(newEnabled);
         } finally {
-          audioStore._setLoading(false);
+          useAudioStore.getState()._setLoading(false);
         }
       })();
     }
-  }, [audioStore._toggleRequested, audioStore, setEnabled]);
+  }, [toggleRequested, setEnabled]);
 
   // Set master volume
   const setMasterVolume = useCallback((volume: number) => {
