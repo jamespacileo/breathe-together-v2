@@ -30,9 +30,6 @@ import {
   type User,
 } from './SlotManager';
 
-// Highlight color for current user's shard
-const SELF_HIGHLIGHT_COLOR = new THREE.Color(USER_TRACKING.SELF_HIGHLIGHT_COLOR);
-
 // Direct 1:1 mapping - each mood has exactly one color
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
   gratitude: new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
@@ -465,20 +462,12 @@ export function ParticleSwarm({
       }
 
       // Update instance colors based on slot moods
-      // Apply highlight color to the current user's shard
       const slots = slotManager.slots;
       for (let i = 0; i < slots.length && i < states.length; i++) {
         const slot = slots[i];
         const instanceState = states[i];
 
-        // Check if this is the current user's shard
-        const isSelfUser = slot.userId === USER_TRACKING.SELF_USER_ID;
-
-        if (isSelfUser) {
-          // Always use highlight color for self
-          mesh.setColorAt(i, SELF_HIGHLIGHT_COLOR);
-          instanceState.currentMood = slot.mood;
-        } else if (slot.mood && slot.mood !== instanceState.currentMood) {
+        if (slot.mood && slot.mood !== instanceState.currentMood) {
           const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
           mesh.setColorAt(i, color);
           instanceState.currentMood = slot.mood;

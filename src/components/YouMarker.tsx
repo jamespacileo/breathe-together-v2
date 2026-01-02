@@ -1,29 +1,34 @@
 /**
- * YouMarker - Holographic "YOU" label that tracks the current user's shard
+ * YouMarker - Holographic "YOU" label with outline that tracks the current user's shard
  *
- * Uses drei's Html component to render a CSS-styled label in 3D space.
- * The label follows the user's shard position and includes a connector line.
+ * Features:
+ * - Outline mesh using inverted hull technique (scaled backface)
+ * - Line from shard center to label
+ * - Label positioned outward from shard
  *
  * Architecture:
  * - Reads position from UserPositionContext (updated by ParticleSwarm)
  * - Uses useFrame to smoothly interpolate position
- * - Html component handles 3D-to-2D projection
- *
- * Styling:
- * - Holographic/frosted glass aesthetic matching Monument Valley style
- * - High contrast for readability over any background
- * - Animated glow effect synchronized with breathing
+ * - Outline mesh follows shard position/rotation/scale
  */
 
-import { Html } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
-import { useRef } from 'react';
+import { Html, Line } from '@react-three/drei';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { USER_TRACKING } from '../constants';
 import { useUserPosition } from '../contexts/UserPositionContext';
 
-// Offset for label position (slightly above and to the side of the shard)
-const LABEL_OFFSET = new THREE.Vector3(0.3, 0.5, 0);
+// Outline configuration
+const OUTLINE_SCALE = 1.15; // How much larger the outline is than the shard
+const OUTLINE_COLOR = USER_TRACKING.SELF_HIGHLIGHT_COLOR;
+
+// Line configuration
+const LINE_LENGTH = 1.2; // Length of line from shard center
+const LINE_WIDTH = 2;
+
+// Label offset from line end
+const LABEL_OFFSET = 0.15;
 
 // Smooth position tracking
 const POSITION_SMOOTHING = 8.0;
@@ -33,122 +38,153 @@ export interface YouMarkerProps {
   visible?: boolean;
   /** Label text @default "YOU" */
   label?: string;
-  /** Opacity of the marker (0-1) @default 1 */
-  opacity?: number;
 }
 
-export function YouMarker({ visible = true, label = 'YOU', opacity = 1 }: YouMarkerProps) {
+export function YouMarker({ visible = true, label = 'YOU' }: YouMarkerProps) {
   const { positionRef } = useUserPosition();
+  const { camera } = useThree();
+
+  // Refs for smooth animation
+  const outlineMeshRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
   const smoothedPosition = useRef(new THREE.Vector3());
+  const smoothedScale = useRef(1);
   const isInitialized = useRef(false);
 
-  // Smoothly interpolate position each frame
-  useFrame((_, delta) => {
-    if (!groupRef.current || !positionRef.current) return;
+  // Line points ref (updated each frame)
+  const linePointsRef = useRef<[THREE.Vector3, THREE.Vector3]>([
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+  ]);
+  const labelPositionRef = useRef(new THREE.Vector3());
+
+  // Create outline geometry (same as shard - icosahedron)
+  const outlineGeometry = useMemo(() => new THREE.IcosahedronGeometry(0.3, 0), []);
+
+  // Create outline material (backface only, flat color)
+  const outlineMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: OUTLINE_COLOR,
+        side: THREE.BackSide,
+        transparent: true,
+        opacity: 0.9,
+      }),
+    [],
+  );
+
+  // Cleanup geometry and material on unmount
+  useFrame(() => {
+    if (!positionRef.current || !groupRef.current) return;
 
     const userPos = positionRef.current;
 
     // Don't render if user is not visible
-    if (!userPos.isVisible) {
+    if (!userPos.isVisible || !visible) {
       groupRef.current.visible = false;
       return;
     }
 
-    groupRef.current.visible = visible;
+    groupRef.current.visible = true;
 
-    // Calculate target position (shard position + offset)
-    const targetX = userPos.position.x + LABEL_OFFSET.x;
-    const targetY = userPos.position.y + LABEL_OFFSET.y;
-    const targetZ = userPos.position.z + LABEL_OFFSET.z;
+    const delta = 1 / 60; // Approximate delta for smoothing
 
     // Initialize position on first frame
     if (!isInitialized.current) {
-      smoothedPosition.current.set(targetX, targetY, targetZ);
+      smoothedPosition.current.copy(userPos.position);
+      smoothedScale.current = userPos.scale;
       isInitialized.current = true;
     }
 
-    // Smooth interpolation
+    // Smooth interpolation for position
     const lerpFactor = 1 - Math.exp(-POSITION_SMOOTHING * delta);
-    smoothedPosition.current.x += (targetX - smoothedPosition.current.x) * lerpFactor;
-    smoothedPosition.current.y += (targetY - smoothedPosition.current.y) * lerpFactor;
-    smoothedPosition.current.z += (targetZ - smoothedPosition.current.z) * lerpFactor;
+    smoothedPosition.current.lerp(userPos.position, lerpFactor);
+    smoothedScale.current += (userPos.scale - smoothedScale.current) * lerpFactor;
 
-    groupRef.current.position.copy(smoothedPosition.current);
+    // Update outline mesh position and scale
+    if (outlineMeshRef.current) {
+      outlineMeshRef.current.position.copy(smoothedPosition.current);
+      // Scale outline slightly larger than the shard
+      const outlineScale = smoothedScale.current * OUTLINE_SCALE * 0.3; // 0.3 is base shard size
+      outlineMeshRef.current.scale.setScalar(outlineScale / 0.3); // Normalize to geometry size
+    }
+
+    // Calculate direction from shard center toward camera (for line direction)
+    const toCamera = new THREE.Vector3()
+      .subVectors(camera.position, smoothedPosition.current)
+      .normalize();
+
+    // Line starts at shard center
+    linePointsRef.current[0].copy(smoothedPosition.current);
+
+    // Line ends at offset toward camera (perpendicular to view, slightly up and toward camera)
+    const lineEnd = new THREE.Vector3()
+      .copy(smoothedPosition.current)
+      .addScaledVector(toCamera, LINE_LENGTH * 0.5) // Move toward camera
+      .add(new THREE.Vector3(0, LINE_LENGTH * 0.7, 0)); // Move up
+
+    linePointsRef.current[1].copy(lineEnd);
+
+    // Label position is at the end of the line, slightly further out
+    labelPositionRef.current.copy(lineEnd).addScaledVector(toCamera, LABEL_OFFSET);
   });
+
+  // Don't render if not visible (initial state)
+  if (!positionRef.current?.isVisible) {
+    return null;
+  }
 
   return (
     <group ref={groupRef}>
+      {/* Outline mesh - inverted hull technique */}
+      <mesh ref={outlineMeshRef} geometry={outlineGeometry} material={outlineMaterial} />
+
+      {/* Line from shard center to label */}
+      <Line
+        points={linePointsRef.current}
+        color={OUTLINE_COLOR}
+        lineWidth={LINE_WIDTH}
+        transparent
+        opacity={0.9}
+      />
+
+      {/* Label at end of line */}
       <Html
+        position={labelPositionRef.current}
         center
-        distanceFactor={10}
+        distanceFactor={8}
         style={{
-          opacity: opacity,
           pointerEvents: 'none',
           userSelect: 'none',
         }}
       >
-        <div className="you-marker">
-          {/* Connector line from label to shard */}
-          <div className="you-marker__line" />
-          {/* Label container */}
-          <div className="you-marker__label">
-            <span className="you-marker__text">{label}</span>
-          </div>
+        <div className="you-marker-label">
+          <span className="you-marker-text">{label}</span>
         </div>
 
-        {/* Inline styles for the marker */}
         <style>{`
-          .you-marker {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
-          }
-
-          .you-marker__line {
-            width: 2px;
-            height: 24px;
-            background: linear-gradient(
-              to bottom,
-              ${USER_TRACKING.SELF_HIGHLIGHT_COLOR},
-              ${USER_TRACKING.SELF_HIGHLIGHT_COLOR}80
-            );
-            border-radius: 1px;
-            box-shadow: 0 0 8px ${USER_TRACKING.SELF_HIGHLIGHT_COLOR}80;
-          }
-
-          .you-marker__label {
-            padding: 4px 12px;
-            background: rgba(0, 0, 0, 0.6);
+          .you-marker-label {
+            padding: 6px 14px;
+            background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
-            border: 1px solid ${USER_TRACKING.SELF_HIGHLIGHT_COLOR}60;
-            border-radius: 4px;
+            border: 1.5px solid ${OUTLINE_COLOR};
+            border-radius: 6px;
             box-shadow:
-              0 0 12px ${USER_TRACKING.SELF_HIGHLIGHT_COLOR}40,
-              inset 0 0 8px ${USER_TRACKING.SELF_HIGHLIGHT_COLOR}20;
+              0 0 16px ${OUTLINE_COLOR}60,
+              0 4px 12px rgba(0, 0, 0, 0.4);
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
           }
 
-          .you-marker__text {
+          .you-marker-text {
             font-family: system-ui, -apple-system, sans-serif;
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 0.1em;
-            color: ${USER_TRACKING.SELF_HIGHLIGHT_COLOR};
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: ${OUTLINE_COLOR};
             text-shadow:
-              0 0 8px ${USER_TRACKING.SELF_HIGHLIGHT_COLOR},
-              0 0 16px ${USER_TRACKING.SELF_HIGHLIGHT_COLOR}80;
-          }
-
-          /* Subtle pulse animation */
-          @keyframes you-marker-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.85; }
-          }
-
-          .you-marker__label {
-            animation: you-marker-pulse 4s ease-in-out infinite;
+              0 0 8px ${OUTLINE_COLOR},
+              0 0 16px ${OUTLINE_COLOR}80;
           }
         `}</style>
       </Html>
