@@ -10,6 +10,12 @@
  * - 10k users × 15min avg session = ~$8/month
  */
 
+import {
+  getSimulatedMoodCounts,
+  getSimulatedUserCount,
+  isSimulationEnabled,
+  mergeWithSimulatedUsers,
+} from './simulation';
 import type { MoodId, User } from './types';
 
 /** Active WebSocket session */
@@ -47,13 +53,13 @@ declare const WebSocketPair: {
 export class BreathingRoom {
   private sessions: Map<string, Session> = new Map();
   private state: DurableObjectState;
-  private broadcastIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(state: DurableObjectState) {
     this.state = state;
 
     // Broadcast presence every 5 seconds
-    this.broadcastIntervalId = setInterval(() => {
+    // Note: Durable Objects manage their own lifecycle, so we don't need to clear the interval
+    setInterval(() => {
       this.broadcastPresence();
     }, 5000);
   }
@@ -166,30 +172,43 @@ export class BreathingRoom {
 
   /**
    * Calculate current presence state
+   * Merges with simulated users when simulation is enabled
    */
   private calculatePresence(): PresenceBroadcast {
-    const moods: Record<MoodId, number> = {
+    const realMoods: Record<MoodId, number> = {
       gratitude: 0,
       presence: 0,
       release: 0,
       connection: 0,
     };
 
-    // Build users array sorted by ID for consistent ordering across clients
-    const users: User[] = [];
+    // Build real users array
+    const realUsers: User[] = [];
 
     for (const session of this.sessions.values()) {
-      moods[session.mood]++;
-      users.push({ id: session.id, mood: session.mood });
+      realMoods[session.mood]++;
+      realUsers.push({ id: session.id, mood: session.mood });
     }
 
     // Sort by ID for deterministic ordering (all clients see same positions)
-    users.sort((a, b) => a.id.localeCompare(b.id));
+    realUsers.sort((a, b) => a.id.localeCompare(b.id));
+
+    // Merge with simulated users if enabled
+    const users = mergeWithSimulatedUsers(realUsers);
+
+    // Calculate total count and moods (real + simulated)
+    const simulatedCount = isSimulationEnabled() ? getSimulatedUserCount() : 0;
+    const simMoods = getSimulatedMoodCounts();
 
     return {
       type: 'presence',
-      count: this.sessions.size,
-      moods,
+      count: this.sessions.size + simulatedCount,
+      moods: {
+        gratitude: realMoods.gratitude + simMoods.gratitude,
+        presence: realMoods.presence + simMoods.presence,
+        release: realMoods.release + simMoods.release,
+        connection: realMoods.connection + simMoods.connection,
+      },
       users,
       timestamp: Date.now(),
     };

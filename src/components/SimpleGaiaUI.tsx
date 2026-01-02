@@ -38,6 +38,8 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  /** Number of users currently breathing together (from backend) */
+  presenceCount?: number;
 }
 
 /**
@@ -73,6 +75,7 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  presenceCount = 0,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -230,20 +233,12 @@ export function SimpleGaiaUI({
     return () => cancelAnimationFrame(animationId);
   }, []);
 
-  // Presence count simulation - updates every 2 seconds with subtle variation
-  // Moved out of RAF loop to avoid 60 random number generations per second
+  // Update presence count from backend when it changes
   useEffect(() => {
-    const updatePresenceCount = () => {
-      if (presenceCountRef.current) {
-        const baseCount = 75;
-        const variation = Math.floor(Math.random() * 10) - 5;
-        presenceCountRef.current.textContent = `${baseCount + variation}`;
-      }
-    };
-
-    const intervalId = setInterval(updatePresenceCount, 2000);
-    return () => clearInterval(intervalId);
-  }, []);
+    if (presenceCountRef.current) {
+      presenceCountRef.current.textContent = `${presenceCount}`;
+    }
+  }, [presenceCount]);
 
   // Keyboard shortcut: Press 'T' to toggle tuning controls
   useEffect(() => {
@@ -1243,7 +1238,7 @@ export function SimpleGaiaUI({
             marginTop: '2px',
           }}
         >
-          <span ref={presenceCountRef}>75</span> breathing together
+          <span ref={presenceCountRef}>{presenceCount}</span> breathing together
         </div>
       </div>
 

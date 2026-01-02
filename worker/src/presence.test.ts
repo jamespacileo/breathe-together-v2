@@ -2,7 +2,16 @@
  * Tests for presence calculation logic
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Mock simulation module to disable simulated users during tests
+vi.mock('./simulation', () => ({
+  isSimulationEnabled: () => false,
+  getSimulatedUserCount: () => 0,
+  getSimulatedMoodCounts: () => ({ presence: 0, gratitude: 0, release: 0, connection: 0 }),
+  mergeWithSimulatedUsers: (users: unknown[]) => users,
+}));
+
 import {
   addSample,
   calculateMoodRatios,
@@ -10,7 +19,6 @@ import {
   createInitialState,
   estimateCount,
   hashSession,
-  PRESENCE_CONFIG,
   pruneStale,
   recalculate,
   toPresenceState,

@@ -5,6 +5,12 @@
  * All functions are pure and don't depend on Cloudflare APIs.
  */
 
+import {
+  getSimulatedMoodCounts,
+  getSimulatedUserCount,
+  isSimulationEnabled,
+  mergeWithSimulatedUsers,
+} from './simulation';
 import type { MoodId, PresenceState } from './types';
 
 /**
@@ -184,22 +190,32 @@ export function addSample(
 /**
  * Convert aggregate state to public presence response
  * Includes users array for synchronized slot-based rendering
+ * Merges with simulated users when simulation is enabled
  */
 export function toPresenceState(state: AggregateState): PresenceState {
-  const count = state.estimatedCount;
-
-  // Convert samples to users array (sorted by ID for consistent ordering)
-  const users = Object.entries(state.samples)
+  // Convert real samples to users array
+  const realUsers = Object.entries(state.samples)
     .map(([id, sample]) => ({ id, mood: sample.mood }))
     .sort((a, b) => a.id.localeCompare(b.id));
+
+  // Merge with simulated users if enabled
+  const users = mergeWithSimulatedUsers(realUsers);
+
+  // Calculate total count (real + simulated)
+  const simulatedCount = isSimulationEnabled() ? getSimulatedUserCount() : 0;
+  const count = state.estimatedCount + simulatedCount;
+
+  // Get simulated mood counts
+  const simMoods = getSimulatedMoodCounts();
 
   return {
     count,
     moods: {
-      gratitude: Math.round(count * state.moodRatios.gratitude),
-      presence: Math.round(count * state.moodRatios.presence),
-      release: Math.round(count * state.moodRatios.release),
-      connection: Math.round(count * state.moodRatios.connection),
+      gratitude: Math.round(state.estimatedCount * state.moodRatios.gratitude) + simMoods.gratitude,
+      presence: Math.round(state.estimatedCount * state.moodRatios.presence) + simMoods.presence,
+      release: Math.round(state.estimatedCount * state.moodRatios.release) + simMoods.release,
+      connection:
+        Math.round(state.estimatedCount * state.moodRatios.connection) + simMoods.connection,
     },
     users,
     timestamp: state.lastUpdate,

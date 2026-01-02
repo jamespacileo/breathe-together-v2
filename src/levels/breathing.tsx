@@ -127,7 +127,7 @@ export function BreathingLevel({
   // ==========================================
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users } = usePresence();
+  const { users, count: presenceCount } = usePresence();
 
   return (
     <ErrorBoundary>
@@ -221,6 +221,7 @@ export function BreathingLevel({
             onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
+            presenceCount={presenceCount}
           />
         </Html>
       </Suspense>
