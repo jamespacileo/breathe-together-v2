@@ -17,7 +17,8 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { BREATH_TOTAL_CYCLE, type MoodId } from '../../constants';
+import { BREATH_TOTAL_CYCLE, type MoodId, USER_TRACKING } from '../../constants';
+import { useUserPositionOptional } from '../../contexts/UserPositionContext';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -28,6 +29,9 @@ import {
   SlotManager,
   type User,
 } from './SlotManager';
+
+// Highlight color for current user's shard
+const SELF_HIGHLIGHT_COLOR = new THREE.Color(USER_TRACKING.SELF_HIGHLIGHT_COLOR);
 
 // Direct 1:1 mapping - each mood has exactly one color
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
@@ -254,6 +258,10 @@ export function ParticleSwarm({
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
+
+  // User position tracking for "YOU" marker
+  // Returns null if context is not available (e.g., in tests)
+  const userPositionContext = useUserPositionOptional();
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -514,12 +522,20 @@ export function ParticleSwarm({
       }
 
       // Update instance colors based on slot moods
+      // Apply highlight color to the current user's shard
       const slots = slotManager.slots;
       for (let i = 0; i < slots.length && i < states.length; i++) {
         const slot = slots[i];
         const instanceState = states[i];
 
-        if (slot.mood && slot.mood !== instanceState.currentMood) {
+        // Check if this is the current user's shard
+        const isSelfUser = slot.userId === USER_TRACKING.SELF_USER_ID;
+
+        if (isSelfUser) {
+          // Always use highlight color for self
+          mesh.setColorAt(i, SELF_HIGHLIGHT_COLOR);
+          instanceState.currentMood = slot.mood;
+        } else if (slot.mood && slot.mood !== instanceState.currentMood) {
           const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
           mesh.setColorAt(i, color);
           instanceState.currentMood = slot.mood;
@@ -630,6 +646,11 @@ export function ParticleSwarm({
       // Compose and set matrix
       _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
       mesh.setMatrixAt(i, _tempMatrix);
+
+      // Update position context for current user ("YOU" marker)
+      if (userPositionContext && slot?.userId === USER_TRACKING.SELF_USER_ID) {
+        userPositionContext.updatePosition(_tempPosition, slotScale > 0.1, slotScale, i);
+      }
     }
 
     // Update instance count for rendering optimization

@@ -6,6 +6,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
+import { YouMarker } from '../components/YouMarker';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
@@ -102,7 +103,11 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <>
+                <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
+                {/* "YOU" marker - tracks current user's shard position */}
+                <YouMarker />
+              </>
             )}
 
             {showParticles && (

@@ -101,3 +101,21 @@ export const HOLD_OSCILLATION = {
   /** Oscillation frequency - cycles per hold phase */
   FREQUENCY: 1.0,
 } as const;
+
+/**
+ * User Tracking Constants
+ *
+ * Used for identifying and highlighting the current user's shard
+ * in the ParticleSwarm visualization.
+ */
+export const USER_TRACKING = {
+  /** Special user ID for the current user (self) */
+  SELF_USER_ID: 'self',
+  /** Highlight color for the current user's shard (cyan for visibility) */
+  SELF_HIGHLIGHT_COLOR: '#00ffff',
+  /** localStorage keys for session persistence */
+  STORAGE_KEYS: {
+    SESSION_ID: 'breathe-together:sessionId',
+    MOOD: 'breathe-together:mood',
+  },
+} as const;
