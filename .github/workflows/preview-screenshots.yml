@@ -520,44 +520,43 @@ jobs:
                 { name: 'admin', label: 'Admin', description: 'Admin panel' },
               ];
 
-              // Device configurations
+              // Device configurations with thumbnail widths
               const devices = [
-                { name: 'Desktop', prefix: 'desktop', emoji: '🖥️', resolution: '1920×1080' },
-                { name: 'Tablet', prefix: 'tablet', emoji: '📱', resolution: '768×1024' },
-                { name: 'Mobile', prefix: 'mobile', emoji: '📱', resolution: '375×667' },
+                { name: 'Desktop', prefix: 'desktop', emoji: '🖥️', resolution: '1920×1080', thumbWidth: 280 },
+                { name: 'Tablet', prefix: 'tablet', emoji: '📱', resolution: '768×1024', thumbWidth: 200 },
+                { name: 'Mobile', prefix: 'mobile', emoji: '📱', resolution: '375×667', thumbWidth: 120 },
               ];
+
+              // Helper: Create clickable thumbnail HTML (small preview, click for full size)
+              const makeThumb = (url, alt, width) =>
+                `<a href="${url}"><img src="${url}" alt="${alt}" width="${width}" /></a>`;
 
               // Breathing phases section
               bodyParts.push('### 🫁 Breathing Phases', '');
+              bodyParts.push('*Click any image to view full size*', '');
 
               for (const device of devices) {
-                const breathingFiles = screens
-                  .filter(s => s.name !== 'admin')
-                  .map(s => `${device.prefix}-${s.name}.png`)
-                  .filter(f => screenshotFiles.includes(f));
+                const availableScreens = screens.filter(s =>
+                  s.name !== 'admin' && screenshotFiles.includes(`${device.prefix}-${s.name}.png`)
+                );
 
-                if (breathingFiles.length > 0) {
+                if (availableScreens.length > 0) {
                   bodyParts.push(`**${device.emoji} ${device.name}** (${device.resolution})`, '');
 
-                  // Create table header
-                  const availableScreens = screens.filter(s =>
-                    s.name !== 'admin' && screenshotFiles.includes(`${device.prefix}-${s.name}.png`)
+                  // Create HTML table for better control over image sizes
+                  const headers = availableScreens.map(s => s.label);
+                  const thumbs = availableScreens.map(s => {
+                    const url = `${rawBaseUrl}/${device.prefix}-${s.name}.png`;
+                    return makeThumb(url, `${device.name} - ${s.label}`, device.thumbWidth);
+                  });
+
+                  bodyParts.push(
+                    '<table>',
+                    `<tr>${headers.map(h => `<th align="center">${h}</th>`).join('')}</tr>`,
+                    `<tr>${thumbs.map(t => `<td align="center">${t}</td>`).join('')}</tr>`,
+                    '</table>',
+                    '',
                   );
-
-                  if (availableScreens.length > 0) {
-                    const headers = availableScreens.map(s => s.label);
-                    const dividers = availableScreens.map(() => ':---:');
-                    const images = availableScreens.map(s =>
-                      `![${s.label}](${rawBaseUrl}/${device.prefix}-${s.name}.png)`
-                    );
-
-                    bodyParts.push(
-                      `| ${headers.join(' | ')} |`,
-                      `| ${dividers.join(' | ')} |`,
-                      `| ${images.join(' | ')} |`,
-                      '',
-                    );
-                  }
                 }
               }
 
@@ -571,16 +570,22 @@ jobs:
                   '<details>',
                   '<summary>🔧 Admin Panel Screenshots</summary>',
                   '',
+                  '*Click any image to view full size*',
+                  '',
                 );
 
+                // Create horizontal layout for admin screenshots
+                bodyParts.push('<table><tr>');
                 for (const { device, file } of adminFiles) {
+                  const url = `${rawBaseUrl}/${file}`;
                   bodyParts.push(
-                    `**${device.emoji} ${device.name}**`,
-                    '',
-                    `![Admin - ${device.name}](${rawBaseUrl}/${file})`,
-                    '',
+                    `<td align="center">`,
+                    `<strong>${device.emoji} ${device.name}</strong><br/>`,
+                    makeThumb(url, `Admin - ${device.name}`, device.thumbWidth),
+                    `</td>`,
                   );
                 }
+                bodyParts.push('</tr></table>', '');
 
                 bodyParts.push('</details>', '');
               }
