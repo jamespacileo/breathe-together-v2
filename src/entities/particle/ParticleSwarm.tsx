@@ -328,6 +328,7 @@ export function ParticleSwarm({
   }, [performanceCap, baseRadius]);
 
   // Initialize the InstancedMesh with default matrices and colors
+  // biome-ignore lint/correctness/useExhaustiveDependencies: geometry/material MUST be dependencies because r3f recreates the InstancedMesh when args change, requiring re-initialization
   useEffect(() => {
     const mesh = instancedMeshRef.current;
     if (!mesh) return;
@@ -366,7 +367,7 @@ export function ParticleSwarm({
         }
       }
     }
-  }, [performanceCap, baseRadius, redistributePositions]);
+  }, [performanceCap, baseRadius, redistributePositions, geometry, material]);
 
   // Cleanup on unmount
   useEffect(() => {

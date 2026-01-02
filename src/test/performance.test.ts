@@ -533,3 +533,227 @@ describe('CI Performance Gates', () => {
     expect(metrics.geometries).toBeLessThanOrEqual(30);
   });
 });
+
+describe('Stress Tests - High Particle Counts', () => {
+  let scene: THREE.Scene;
+
+  beforeEach(() => {
+    scene = new THREE.Scene();
+  });
+
+  afterEach(() => {
+    scene.clear();
+  });
+
+  /**
+   * Builds a scene with configurable particle count using InstancedMesh
+   * Includes all base scene elements (globe, environment, etc.)
+   */
+  function buildSceneWithParticleCount(particleCount: number): void {
+    // === EarthGlobe ===
+    const globeRadius = 1.5;
+
+    // Main sphere
+    const mainGeometry = new THREE.SphereGeometry(globeRadius, 64, 64);
+    const mainMaterial = new THREE.MeshBasicMaterial({ color: 0x8b6f47 });
+    scene.add(new THREE.Mesh(mainGeometry, mainMaterial));
+
+    // Glow + Mist
+    const glowGeometry = new THREE.SphereGeometry(globeRadius * 1.02, 32, 32);
+    const mistGeometry = new THREE.SphereGeometry(globeRadius * 1.15, 32, 32);
+    const glowMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.25 });
+    const mistMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.15 });
+    scene.add(new THREE.Mesh(glowGeometry, glowMaterial));
+    scene.add(new THREE.Mesh(mistGeometry, mistMaterial));
+
+    // 3 atmosphere layers
+    const atmosphereGeometry = new THREE.SphereGeometry(globeRadius, 32, 32);
+    for (let i = 0; i < 3; i++) {
+      const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.05 });
+      scene.add(new THREE.Mesh(atmosphereGeometry, mat));
+    }
+
+    // Ring
+    const ringGeometry = new THREE.RingGeometry(globeRadius * 1.6, globeRadius * 1.65, 64);
+    const ringMaterial = new THREE.MeshBasicMaterial({ transparent: true });
+    scene.add(new THREE.Mesh(ringGeometry, ringMaterial));
+
+    // Globe sparkles (Points)
+    const globeSparklesGeometry = new THREE.BufferGeometry();
+    const sparklePositions = new Float32Array(60 * 3);
+    for (let i = 0; i < 60 * 3; i++) sparklePositions[i] = Math.random() * 10 - 5;
+    globeSparklesGeometry.setAttribute('position', new THREE.BufferAttribute(sparklePositions, 3));
+    scene.add(new THREE.Points(globeSparklesGeometry, new THREE.PointsMaterial({ size: 4 })));
+
+    // === ParticleSwarm (InstancedMesh) ===
+    const shardSize = 0.05;
+    const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const instancedMesh = new THREE.InstancedMesh(geometry, material, particleCount);
+
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < particleCount; i++) {
+      dummy.position.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
+      dummy.updateMatrix();
+      instancedMesh.setMatrixAt(i, dummy.matrix);
+    }
+    scene.add(instancedMesh);
+
+    // === AtmosphericParticles ===
+    const atmosphericGeometry = new THREE.BufferGeometry();
+    const atmosphericPositions = new Float32Array(100 * 3);
+    for (let i = 0; i < 100 * 3; i++) atmosphericPositions[i] = Math.random() * 20 - 10;
+    atmosphericGeometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(atmosphericPositions, 3),
+    );
+    scene.add(new THREE.Points(atmosphericGeometry, new THREE.PointsMaterial({ size: 2 })));
+
+    // === Environment ===
+    // Background plane
+    const bgGeometry = new THREE.PlaneGeometry(2, 2);
+    const bgMaterial = new THREE.MeshBasicMaterial({ color: 0xf5f0e8 });
+    scene.add(new THREE.Mesh(bgGeometry, bgMaterial));
+
+    // 5 clouds
+    for (let i = 0; i < 5; i++) {
+      const cloudGeometry = new THREE.SphereGeometry(2, 20, 20);
+      const cloudMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.3 });
+      const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
+      cloud.position.set((i - 2) * 10, 10 + Math.random() * 5, -30);
+      scene.add(cloud);
+    }
+
+    // Stars (Points)
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsPositions = new Float32Array(500 * 3);
+    for (let i = 0; i < 500 * 3; i++) starsPositions[i] = Math.random() * 200 - 100;
+    starsGeometry.setAttribute('position', new THREE.BufferAttribute(starsPositions, 3));
+    scene.add(new THREE.Points(starsGeometry, new THREE.PointsMaterial({ size: 1 })));
+  }
+
+  describe('200 particles stress test', () => {
+    it('should meet mobile targets with 200 particles', () => {
+      buildSceneWithParticleCount(200);
+
+      const sceneMetrics = analyzeScene(scene);
+      const metrics = getPerformanceMetrics(sceneMetrics);
+      const validation = validateMetrics(metrics, PERFORMANCE_TARGETS.mobile);
+
+      console.log('\n📊 200 Particles Stress Test:');
+      console.log(
+        `  Draw Calls: ${metrics.drawCalls} (target: <${PERFORMANCE_TARGETS.mobile.maxDrawCalls})`,
+      );
+      console.log(
+        `  Triangles: ${metrics.triangles.toLocaleString()} (target: <${PERFORMANCE_TARGETS.mobile.maxTriangles.toLocaleString()})`,
+      );
+      console.log(
+        `  Geometries: ${metrics.geometries} (target: <${PERFORMANCE_TARGETS.mobile.maxGeometries})`,
+      );
+      console.log(
+        `  Materials: ${metrics.materials} (target: <${PERFORMANCE_TARGETS.mobile.maxMaterials})`,
+      );
+      console.log(`  Status: ${validation.passed ? '✅ PASS' : '❌ FAIL'}`);
+
+      // With InstancedMesh, 200 particles should still be 1 draw call
+      expect(metrics.drawCalls).toBeLessThanOrEqual(PERFORMANCE_TARGETS.mobile.maxDrawCalls);
+      expect(metrics.triangles).toBeLessThanOrEqual(PERFORMANCE_TARGETS.mobile.maxTriangles);
+      expect(metrics.geometries).toBeLessThanOrEqual(PERFORMANCE_TARGETS.mobile.maxGeometries);
+      expect(metrics.materials).toBeLessThanOrEqual(PERFORMANCE_TARGETS.mobile.maxMaterials);
+      expect(validation.passed).toBe(true);
+    });
+
+    it('should have exactly 1 instanced mesh for particles', () => {
+      buildSceneWithParticleCount(200);
+
+      const sceneMetrics = analyzeScene(scene);
+      const metrics = getPerformanceMetrics(sceneMetrics);
+
+      expect(metrics.instancedMeshes).toBe(1);
+    });
+  });
+
+  describe('500 particles stress test', () => {
+    it('should meet mobile targets with 500 particles', () => {
+      buildSceneWithParticleCount(500);
+
+      const sceneMetrics = analyzeScene(scene);
+      const metrics = getPerformanceMetrics(sceneMetrics);
+      const validation = validateMetrics(metrics, PERFORMANCE_TARGETS.mobile);
+
+      console.log('\n📊 500 Particles Stress Test:');
+      console.log(
+        `  Draw Calls: ${metrics.drawCalls} (target: <${PERFORMANCE_TARGETS.mobile.maxDrawCalls})`,
+      );
+      console.log(
+        `  Triangles: ${metrics.triangles.toLocaleString()} (target: <${PERFORMANCE_TARGETS.mobile.maxTriangles.toLocaleString()})`,
+      );
+      console.log(
+        `  Geometries: ${metrics.geometries} (target: <${PERFORMANCE_TARGETS.mobile.maxGeometries})`,
+      );
+      console.log(
+        `  Materials: ${metrics.materials} (target: <${PERFORMANCE_TARGETS.mobile.maxMaterials})`,
+      );
+      console.log(`  Status: ${validation.passed ? '✅ PASS' : '❌ FAIL'}`);
+
+      // With InstancedMesh, 500 particles should still be 1 draw call
+      expect(metrics.drawCalls).toBeLessThanOrEqual(PERFORMANCE_TARGETS.mobile.maxDrawCalls);
+      expect(metrics.triangles).toBeLessThanOrEqual(PERFORMANCE_TARGETS.mobile.maxTriangles);
+      expect(metrics.geometries).toBeLessThanOrEqual(PERFORMANCE_TARGETS.mobile.maxGeometries);
+      expect(metrics.materials).toBeLessThanOrEqual(PERFORMANCE_TARGETS.mobile.maxMaterials);
+      expect(validation.passed).toBe(true);
+    });
+
+    it('should have exactly 1 instanced mesh for particles', () => {
+      buildSceneWithParticleCount(500);
+
+      const sceneMetrics = analyzeScene(scene);
+      const metrics = getPerformanceMetrics(sceneMetrics);
+
+      expect(metrics.instancedMeshes).toBe(1);
+    });
+
+    it('should calculate correct triangle count for 500 icosahedrons', () => {
+      buildSceneWithParticleCount(500);
+
+      const sceneMetrics = analyzeScene(scene);
+      const metrics = getPerformanceMetrics(sceneMetrics);
+
+      // Each icosahedron has 20 triangles
+      // 500 particles × 20 triangles = 10,000 triangles just for particles
+      // Plus globe, environment, etc.
+      expect(metrics.triangles).toBeGreaterThan(10000);
+      expect(metrics.triangles).toBeLessThan(50000); // Still under mobile limit
+    });
+  });
+
+  describe('Scaling comparison', () => {
+    it('should maintain constant draw calls regardless of particle count', () => {
+      const particleCounts = [100, 200, 300, 500];
+      const drawCallsPerCount: number[] = [];
+
+      console.log('\n📈 Draw Call Scaling Analysis:');
+      console.log('  Particle Count | Draw Calls | Instanced Meshes');
+      console.log('  -------------- | ---------- | ----------------');
+
+      for (const count of particleCounts) {
+        scene.clear();
+        buildSceneWithParticleCount(count);
+
+        const sceneMetrics = analyzeScene(scene);
+        const metrics = getPerformanceMetrics(sceneMetrics);
+        drawCallsPerCount.push(metrics.drawCalls);
+
+        console.log(
+          `  ${count.toString().padStart(14)} | ${metrics.drawCalls.toString().padStart(10)} | ${metrics.instancedMeshes.toString().padStart(16)}`,
+        );
+      }
+
+      // All should have the same draw call count (InstancedMesh doesn't add draw calls)
+      const baseDrawCalls = drawCallsPerCount[0];
+      for (const count of drawCallsPerCount) {
+        expect(count).toBe(baseDrawCalls);
+      }
+    });
+  });
+});
