@@ -12,18 +12,17 @@ All core features implemented and verified. Frontend is fully functional with Vi
 
 ### Verification Results:
 ```
-✓ 16-second cycle: 3s inhale → 5s hold → 5s exhale → 3s hold
-✓ Sphere scale: 0.6 (exhaled) → 1.4 (inhaled)
-✓ Orbit radius: 3.5 (particles expanded) → 1.5 (particles contracted)
-✓ Inverse motion: Particles contract when sphere expands ✓
-✓ Smooth easing: per-phase easing for natural motion
+✓ 19-second cycle: 4s inhale → 7s hold-in → 8s exhale → 0s hold-out
+✓ Orbit radius: 2.5 (contracted on inhale) → 6.0 (expanded on exhale)
+✓ Breathing synchronization: Globe and particles breathe in harmony
+✓ Smooth easing: Phase-specific easing (inhale, exhale, damped oscillation for holds)
 ✓ UTC synchronization: All users globally synced via Date.now()
 ```
 
 **Implementation:** `src/lib/breathCalc.ts` + `src/entities/breath/`
 - Pure calculation functions (no side effects)
-- Box breathing pattern following physiological guidelines
-- Crystallization effect during hold phases
+- 4-7-8 relaxation breathing pattern (Dr. Andrew Weil's technique)
+- Damped harmonic oscillator for hold phases creates subtle micro-movement
 
 ---
 
@@ -52,22 +51,36 @@ All core features implemented and verified. Frontend is fully functional with Vi
 
 ## 3. Visual Components ✅
 
-### BreathingSphere
+### EarthGlobe
 ```
-✓ Color: Cyan (#7ec8d4) - Triplex editable
-✓ Opacity: 0.15 - Triplex editable
-✓ Segments: 64 (adjustable 16-128)
-✓ Material: Double-sided MeshBasicMaterial with additive blending
-✓ Animation: maath easing for smooth interpolation
+✓ Central sphere: Warm brown earth tone (#8b6f47)
+✓ Frosted glass overlay: Refraction effects with Monument Valley aesthetic
+✓ Breathing animation: Synchronized scaling and rotation
+✓ Performance: Efficient rendering with proper GPU resource disposal
 ```
 
-**Implementation:** `src/entities/breathingSphere/index.tsx`
+**Implementation:** `src/entities/earthGlobe/index.tsx`
+
+### ParticleSwarm & AtmosphericParticles
+```
+✓ Icosahedral shard particles with refraction effects
+✓ InstancedMesh for efficient rendering
+✓ Mood-based coloring system
+✓ Atmospheric ambient particles for depth
+✓ Breathing-synchronized animations
+```
+
+**Implementation:**
+- `src/entities/particle/ParticleSwarm.tsx`
+- `src/entities/particle/AtmosphericParticles.tsx`
+- `src/entities/particle/RefractionPipeline.tsx`
 
 ### Triplex Integration
 ```
-✓ JSDoc annotations: @type color, @min/@max/@step present
-✓ Props interface: Fully documented with ranges
+✓ JSDoc annotations: @type, @min/@max/@step present across all components
+✓ Props interface: Fully documented with ranges and descriptions
 ✓ Real-time editing: Components ready for Triplex visual editor
+✓ Dev controls: Leva panel for runtime parameter tuning
 ```
 
 ---
@@ -253,8 +266,8 @@ totalCount: number    // @min 50 @max 1000 @step 50
 
 | Feature | Status | Tested | Notes |
 |---------|--------|--------|-------|
-| Breathing animations | ✅ | ✅ | 16s UTC-synced cycle |
-| Particle system | ✅ | ✅ | 300 particles, InstancedMesh |
+| Breathing animations | ✅ | ✅ | 19s UTC-synced 4-7-8 cycle |
+| Particle systems | ✅ | ✅ | Icosahedral shards, InstancedMesh, refraction |
 | Presence integration | ✅ | ✅ | Ready for API connection |
 | Visual components | ✅ | ✅ | Triplex-editable |
 | Koota ECS | ✅ | ✅ | Proper system ordering |

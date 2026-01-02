@@ -83,15 +83,25 @@ export interface ParticleSwarmProps {
   users?: User[] | Partial<Record<MoodId, number>>;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
-  /** Base size for shards @default 4.0 */
+  /**
+   * Base size for shards.
+   * Formula: shardSize = baseShardSize / sqrt(count), clamped to [min, max].
+   * @default 4.0
+   */
   baseShardSize?: number;
   /** Globe radius for minimum distance calculation @default 1.5 */
   globeRadius?: number;
   /** Buffer distance between shard surface and globe surface @default 0.3 */
   buffer?: number;
-  /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
+  /**
+   * Maximum shard size cap (prevents oversized shards at low counts).
+   * @default 0.6
+   */
   maxShardSize?: number;
-  /** Minimum shard size (prevents tiny shards at high counts) @default 0.15 */
+  /**
+   * Minimum shard size (prevents tiny shards at high counts).
+   * @default 0.15
+   */
   minShardSize?: number;
   /**
    * Performance safety cap - maximum shards to render
@@ -379,18 +389,43 @@ export function ParticleSwarm({
     console.log('[ParticleSwarm] pendingUsersRef updated:', normalizedUsers.length);
   }, [normalizedUsers]);
 
-  // Calculate minimum orbit radius based on globe + shard size
-  const minOrbitRadius = useMemo(
-    () => globeRadius + maxShardSize + buffer,
-    [globeRadius, maxShardSize, buffer],
-  );
-
   // Calculate shard size based on current user count
   const shardSize = useMemo(() => {
     const count = normalizedUsers.length || 1;
     const calculated = baseShardSize / Math.sqrt(count);
     return Math.min(Math.max(calculated, minShardSize), maxShardSize);
   }, [normalizedUsers.length, baseShardSize, minShardSize, maxShardSize]);
+
+  /**
+   * Calculate minimum orbit radius dynamically based on particle count and shard size.
+   *
+   * Two constraints must be satisfied:
+   * 1. Globe collision: radius > globeRadius + shardSize + buffer
+   * 2. Inter-particle spacing: For Fibonacci sphere with N particles at radius R,
+   *    minimum spacing ≈ R × 1.95 / sqrt(N). For no collision:
+   *    R × 1.95 / sqrt(N) > 2 × shardSize + wobbleMargin
+   *    R > (2 × shardSize + wobbleMargin) × sqrt(N) / 1.95
+   *
+   * The wobbleMargin accounts for PERPENDICULAR_AMPLITUDE and AMBIENT_SCALE motion
+   * that can temporarily bring particles closer together.
+   */
+  const minOrbitRadius = useMemo(() => {
+    const count = normalizedUsers.length || 1;
+
+    // Constraint 1: Globe collision prevention
+    const globeConstraint = globeRadius + shardSize + buffer;
+
+    // Constraint 2: Inter-particle spacing
+    // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
+    // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.22
+    const wobbleMargin = 0.22;
+    const fibonacciSpacingFactor = 1.95;
+    const requiredSpacing = 2 * shardSize + wobbleMargin;
+    const spacingConstraint = (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
+
+    // Use the more restrictive constraint
+    return Math.max(globeConstraint, spacingConstraint);
+  }, [normalizedUsers.length, globeRadius, shardSize, buffer]);
 
   // Create shared geometry (single geometry for all instances)
   const geometry = useMemo(() => {
