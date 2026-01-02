@@ -3,7 +3,6 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   useTransition,
@@ -15,6 +14,7 @@ import { MOOD_COLORS, PHASE_NAMES } from '../styles/designTokens';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
+import { Slider } from './ui/Slider';
 
 interface SimpleGaiaUIProps {
   /** Particle count (harmony) */
@@ -329,14 +329,6 @@ export function SimpleGaiaUI({
       }, 400);
     }
   }, [selectedMood]);
-
-  // Memoized input style for sliders (some dynamic properties still needed)
-  const inputStyle = useMemo(
-    () => ({
-      background: `linear-gradient(to right, var(--color-accent-gold)/40, var(--color-border))`,
-    }),
-    [],
-  );
 
   return (
     <div
@@ -725,77 +717,46 @@ export function SimpleGaiaUI({
 
             {/* VISUAL CONTROLS */}
             <div className="mb-4 pb-4 border-b border-border">
-              <label className="block mb-3.5">
-                <div className="flex justify-between text-[0.72rem] font-medium font-[small-caps] tracking-[0.08em] text-warm-gray mb-2">
-                  <span>Harmony</span>
-                  <span className="font-normal">{Math.round(harmony)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="12"
-                  max="200"
-                  step="1"
-                  value={harmony}
-                  onChange={(e) => setHarmony(parseInt(e.target.value, 10))}
-                  className="w-full cursor-pointer h-1.5 rounded-[3px] appearance-none outline-none
-                    transition-[background] duration-200 ease-smooth"
-                  style={inputStyle}
-                />
-              </label>
+              <Slider
+                label="Harmony"
+                value={harmony}
+                onValueChange={setHarmony}
+                min={12}
+                max={200}
+                step={1}
+                displayValue={Math.round(harmony)}
+              />
 
-              <label className="block mb-3.5">
-                <div className="flex justify-between text-[0.72rem] font-medium font-[small-caps] tracking-[0.08em] text-warm-gray mb-2">
-                  <span>Shard Size</span>
-                  <span className="font-normal">{shardSize.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="1.2"
-                  step="0.02"
-                  value={shardSize}
-                  onChange={(e) => setShardSize(parseFloat(e.target.value))}
-                  className="w-full cursor-pointer h-1.5 rounded-[3px] appearance-none outline-none
-                    transition-[background] duration-200 ease-smooth"
-                  style={inputStyle}
-                />
-              </label>
+              <Slider
+                label="Shard Size"
+                value={shardSize}
+                onValueChange={setShardSize}
+                min={0.1}
+                max={1.2}
+                step={0.02}
+                displayValue={shardSize.toFixed(2)}
+              />
 
-              <label className="block mb-3.5">
-                <div className="flex justify-between text-[0.72rem] font-medium font-[small-caps] tracking-[0.08em] text-warm-gray mb-2">
-                  <span>Breathing Space</span>
-                  <span className="font-normal">{orbitRadius.toFixed(1)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="2.0"
-                  max="8.0"
-                  step="0.1"
-                  value={orbitRadius}
-                  onChange={(e) => setOrbitRadius(parseFloat(e.target.value))}
-                  className="w-full cursor-pointer h-1.5 rounded-[3px] appearance-none outline-none
-                    transition-[background] duration-200 ease-smooth"
-                  style={inputStyle}
-                />
-              </label>
+              <Slider
+                label="Breathing Space"
+                value={orbitRadius}
+                onValueChange={setOrbitRadius}
+                min={2.0}
+                max={8.0}
+                step={0.1}
+                displayValue={orbitRadius.toFixed(1)}
+              />
 
-              <label className="block">
-                <div className="flex justify-between text-[0.72rem] font-medium font-[small-caps] tracking-[0.08em] text-warm-gray mb-2">
-                  <span>Atmosphere</span>
-                  <span className="font-normal">{Math.round(atmosphereDensity)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="300"
-                  step="10"
-                  value={atmosphereDensity}
-                  onChange={(e) => setAtmosphereDensity(parseInt(e.target.value, 10))}
-                  className="w-full cursor-pointer h-1.5 rounded-[3px] appearance-none outline-none
-                    transition-[background] duration-200 ease-smooth"
-                  style={inputStyle}
-                />
-              </label>
+              <Slider
+                label="Atmosphere"
+                value={atmosphereDensity}
+                onValueChange={setAtmosphereDensity}
+                min={0}
+                max={300}
+                step={10}
+                displayValue={Math.round(atmosphereDensity)}
+                className="mb-0"
+              />
             </div>
 
             {/* RESET BUTTON */}
