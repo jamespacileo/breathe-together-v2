@@ -8,6 +8,11 @@
  * predictable, meditative rhythm of 4-7-8 breathing.
  */
 
+export { AmbientGlowHalo, type AmbientGlowHaloProps } from './AmbientGlowHalo';
 export { BreathingBloom, type BreathingBloomProps } from './BreathingBloom';
-export { RippleEmitter, type RippleEmitterProps } from './RippleEmitter';
 export { ColorTemperature, type ColorTemperatureProps } from './ColorTemperature';
+
+// Holographic UI Components
+export { OrbitalProgressRing, type OrbitalProgressRingProps } from './OrbitalProgressRing';
+export { PhaseIndicatorDots, type PhaseIndicatorDotsProps } from './PhaseIndicatorDots';
+export { RippleEmitter, type RippleEmitterProps } from './RippleEmitter';

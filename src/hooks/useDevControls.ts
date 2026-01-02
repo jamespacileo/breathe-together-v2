@@ -131,6 +131,31 @@ export const TUNING_DEFAULTS = {
   dragTimeConstant: 0.325,
   dragVelocityMultiplier: 0.15,
   dragMinVelocity: 50,
+
+  // ==========================================
+  // HOLOGRAPHIC UI (3D breathing guides)
+  // ==========================================
+
+  // Orbital Progress Ring
+  enableProgressRing: true,
+  progressRingRadius: 3.5,
+  progressRingThickness: 0.03,
+  progressRingOpacity: 0.6,
+  progressRingShimmer: true,
+
+  // Ambient Glow Halo
+  enableGlowHalo: true,
+  glowHaloSize: 12,
+  glowHaloScaleMin: 0.85,
+  glowHaloScaleMax: 1.15,
+  glowHaloOpacity: 0.35,
+
+  // Phase Indicator Dots
+  enablePhaseDots: true,
+  phaseDotsRadius: 4.2,
+  phaseDotSizeActive: 0.15,
+  phaseDotSizeInactive: 0.08,
+  phaseDotsShowLabels: true,
 } as const;
 
 /**
@@ -260,6 +285,27 @@ export interface DevControlsState {
   dragTimeConstant: number;
   dragVelocityMultiplier: number;
   dragMinVelocity: number;
+
+  // Holographic UI - Progress Ring
+  enableProgressRing: boolean;
+  progressRingRadius: number;
+  progressRingThickness: number;
+  progressRingOpacity: number;
+  progressRingShimmer: boolean;
+
+  // Holographic UI - Glow Halo
+  enableGlowHalo: boolean;
+  glowHaloSize: number;
+  glowHaloScaleMin: number;
+  glowHaloScaleMax: number;
+  glowHaloOpacity: number;
+
+  // Holographic UI - Phase Dots
+  enablePhaseDots: boolean;
+  phaseDotsRadius: number;
+  phaseDotSizeActive: number;
+  phaseDotSizeInactive: number;
+  phaseDotsShowLabels: boolean;
 }
 
 /** Get default values for all dev controls */
@@ -332,6 +378,22 @@ function getDefaultDevControls(): DevControlsState {
     dragTimeConstant: TUNING_DEFAULTS.dragTimeConstant,
     dragVelocityMultiplier: TUNING_DEFAULTS.dragVelocityMultiplier,
     dragMinVelocity: TUNING_DEFAULTS.dragMinVelocity,
+    // Holographic UI
+    enableProgressRing: TUNING_DEFAULTS.enableProgressRing,
+    progressRingRadius: TUNING_DEFAULTS.progressRingRadius,
+    progressRingThickness: TUNING_DEFAULTS.progressRingThickness,
+    progressRingOpacity: TUNING_DEFAULTS.progressRingOpacity,
+    progressRingShimmer: TUNING_DEFAULTS.progressRingShimmer,
+    enableGlowHalo: TUNING_DEFAULTS.enableGlowHalo,
+    glowHaloSize: TUNING_DEFAULTS.glowHaloSize,
+    glowHaloScaleMin: TUNING_DEFAULTS.glowHaloScaleMin,
+    glowHaloScaleMax: TUNING_DEFAULTS.glowHaloScaleMax,
+    glowHaloOpacity: TUNING_DEFAULTS.glowHaloOpacity,
+    enablePhaseDots: TUNING_DEFAULTS.enablePhaseDots,
+    phaseDotsRadius: TUNING_DEFAULTS.phaseDotsRadius,
+    phaseDotSizeActive: TUNING_DEFAULTS.phaseDotSizeActive,
+    phaseDotSizeInactive: TUNING_DEFAULTS.phaseDotSizeInactive,
+    phaseDotsShowLabels: TUNING_DEFAULTS.phaseDotsShowLabels,
   };
 }
 
@@ -881,6 +943,140 @@ export function useDevControls(): DevControlsState {
               step: 1,
               label: 'Count',
               hint: 'Number of ripple rings per phase transition.',
+            },
+          },
+          { collapsed: true },
+        ),
+      },
+      { collapsed: false },
+    ),
+
+    // ==========================================
+    // HOLOGRAPHIC UI (3D breathing guides)
+    // ==========================================
+    'Holographic UI': folder(
+      {
+        // Orbital Progress Ring
+        'Progress Ring': folder(
+          {
+            enableProgressRing: {
+              value: TUNING_DEFAULTS.enableProgressRing,
+              label: 'Enable Ring',
+              hint: 'Toggle orbital progress ring. Shows breathing cycle progress around the globe.',
+            },
+            progressRingRadius: {
+              value: TUNING_DEFAULTS.progressRingRadius,
+              min: 2.0,
+              max: 6.0,
+              step: 0.1,
+              label: 'Radius',
+              hint: 'Distance from center. Should align with particle orbit for visual coherence.',
+            },
+            progressRingThickness: {
+              value: TUNING_DEFAULTS.progressRingThickness,
+              min: 0.01,
+              max: 0.1,
+              step: 0.005,
+              label: 'Thickness',
+              hint: 'Ring line thickness. Thinner = more minimal/elegant.',
+            },
+            progressRingOpacity: {
+              value: TUNING_DEFAULTS.progressRingOpacity,
+              min: 0.2,
+              max: 1.0,
+              step: 0.05,
+              label: 'Opacity',
+              hint: 'Ring transparency. Lower = more subtle integration.',
+            },
+            progressRingShimmer: {
+              value: TUNING_DEFAULTS.progressRingShimmer,
+              label: 'Shimmer',
+              hint: 'Enable holographic shimmer effect on the ring.',
+            },
+          },
+          { collapsed: false },
+        ),
+
+        // Ambient Glow Halo
+        'Glow Halo': folder(
+          {
+            enableGlowHalo: {
+              value: TUNING_DEFAULTS.enableGlowHalo,
+              label: 'Enable Halo',
+              hint: 'Toggle ambient glow that expands/contracts with breathing.',
+            },
+            glowHaloSize: {
+              value: TUNING_DEFAULTS.glowHaloSize,
+              min: 6,
+              max: 20,
+              step: 1,
+              label: 'Size',
+              hint: 'Base size of the glow plane. Larger = more dramatic backdrop.',
+            },
+            glowHaloScaleMin: {
+              value: TUNING_DEFAULTS.glowHaloScaleMin,
+              min: 0.5,
+              max: 1.0,
+              step: 0.05,
+              label: 'Scale Min',
+              hint: 'Minimum scale during exhale (contracted state).',
+            },
+            glowHaloScaleMax: {
+              value: TUNING_DEFAULTS.glowHaloScaleMax,
+              min: 1.0,
+              max: 1.5,
+              step: 0.05,
+              label: 'Scale Max',
+              hint: 'Maximum scale during inhale (expanded state).',
+            },
+            glowHaloOpacity: {
+              value: TUNING_DEFAULTS.glowHaloOpacity,
+              min: 0.1,
+              max: 0.7,
+              step: 0.05,
+              label: 'Opacity',
+              hint: 'Glow intensity. Subtle values (0.2-0.4) work best.',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // Phase Indicator Dots
+        'Phase Dots': folder(
+          {
+            enablePhaseDots: {
+              value: TUNING_DEFAULTS.enablePhaseDots,
+              label: 'Enable Dots',
+              hint: 'Toggle phase indicator dots around the globe.',
+            },
+            phaseDotsRadius: {
+              value: TUNING_DEFAULTS.phaseDotsRadius,
+              min: 3.0,
+              max: 6.0,
+              step: 0.1,
+              label: 'Radius',
+              hint: 'Distance from center for dot positions.',
+            },
+            phaseDotSizeActive: {
+              value: TUNING_DEFAULTS.phaseDotSizeActive,
+              min: 0.05,
+              max: 0.3,
+              step: 0.01,
+              label: 'Active Size',
+              hint: 'Size of the currently active phase dot.',
+            },
+            phaseDotSizeInactive: {
+              value: TUNING_DEFAULTS.phaseDotSizeInactive,
+              min: 0.03,
+              max: 0.15,
+              step: 0.01,
+              label: 'Inactive Size',
+              hint: 'Size of inactive phase dots.',
+            },
+            phaseDotsShowLabels: {
+              value: TUNING_DEFAULTS.phaseDotsShowLabels,
+              label: 'Show Labels',
+              hint: 'Display phase names (Inhale, Hold, Exhale) next to dots.',
             },
           },
           { collapsed: true },

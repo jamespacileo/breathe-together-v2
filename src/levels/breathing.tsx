@@ -8,7 +8,12 @@ import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
-import { RippleEmitter } from '../entities/effects';
+import {
+  AmbientGlowHalo,
+  OrbitalProgressRing,
+  PhaseIndicatorDots,
+  RippleEmitter,
+} from '../entities/effects';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
@@ -143,6 +148,34 @@ export function BreathingLevel({
               speed={devControls.rippleSpeed}
               opacity={devControls.rippleOpacity}
               count={devControls.rippleCount}
+            />
+
+            {/* Holographic UI - 3D breathing guides */}
+            {/* Ambient glow behind globe - expands/contracts with breathing */}
+            <AmbientGlowHalo
+              enabled={devControls.enableGlowHalo}
+              size={devControls.glowHaloSize}
+              scaleMin={devControls.glowHaloScaleMin}
+              scaleMax={devControls.glowHaloScaleMax}
+              opacity={devControls.glowHaloOpacity}
+            />
+
+            {/* Orbital progress ring - shows cycle progress */}
+            <OrbitalProgressRing
+              enabled={devControls.enableProgressRing}
+              radius={devControls.progressRingRadius}
+              thickness={devControls.progressRingThickness}
+              opacity={devControls.progressRingOpacity}
+              shimmer={devControls.progressRingShimmer}
+            />
+
+            {/* Phase indicator dots - shows current breathing phase */}
+            <PhaseIndicatorDots
+              enabled={devControls.enablePhaseDots}
+              radius={devControls.phaseDotsRadius}
+              dotSizeActive={devControls.phaseDotSizeActive}
+              dotSizeInactive={devControls.phaseDotSizeInactive}
+              showLabels={devControls.phaseDotsShowLabels}
             />
           </MomentumControls>
         </RefractionPipeline>
