@@ -7,6 +7,7 @@ import type {
   GlobalTextState,
   InspirationResponse,
   MessageBatch,
+  MessageDisplayHistory,
   UserTextOverride,
 } from './types/inspirational';
 
@@ -18,6 +19,7 @@ const GLOBAL_STATE_KEY = 'inspiration:state';
 const CURRENT_BATCH_KEY = 'inspiration:batch:current';
 const BATCH_PREFIX = 'inspiration:batch:';
 const OVERRIDE_PREFIX = 'inspiration:override:';
+const HISTORY_KEY = 'inspiration:history'; // Stores array of recent displays
 
 // ============================================================================
 // Defaults & Config
@@ -198,6 +200,40 @@ export async function setUserOverride(
 }
 
 // ============================================================================
+// Message History
+// ============================================================================
+
+async function getDisplayHistory(kv: KVNamespace): Promise<MessageDisplayHistory[]> {
+  const data = await kv.get(HISTORY_KEY, 'json');
+  if (!data) return [];
+  return (data as MessageDisplayHistory[]).sort((a, b) => b.displayedAt - a.displayedAt);
+}
+
+async function recordMessageDisplay(
+  kv: KVNamespace,
+  entityId: string,
+  durationSeconds: number,
+  source: 'preset' | 'llm' | 'manual',
+  theme?: string,
+): Promise<void> {
+  const history = await getDisplayHistory(kv);
+
+  const entry: MessageDisplayHistory = {
+    entityId,
+    entityType: 'message',
+    displayedAt: Date.now(),
+    durationSeconds,
+    source,
+    theme,
+    displayedAtISO: new Date().toISOString(),
+  };
+
+  // Keep only last 50 entries (for memory efficiency in KV)
+  const updated = [entry, ...history].slice(0, 50);
+  await kv.put(HISTORY_KEY, JSON.stringify(updated));
+}
+
+// ============================================================================
 // Message Rotation
 // ============================================================================
 
@@ -222,6 +258,18 @@ export async function rotateMessage(
     if (!currentBatch) {
       return { advanced: false, newState: state };
     }
+  }
+
+  // Record the message that's about to be replaced in history
+  const currentMessage = currentBatch.messages[state.currentMessageIndex];
+  if (currentMessage) {
+    await recordMessageDisplay(
+      kv,
+      currentMessage.id,
+      MESSAGE_DISPLAY_TIME_MS / 1000,
+      currentMessage.source,
+      currentMessage.metadata?.theme,
+    );
   }
 
   // Advance to next message
@@ -303,6 +351,40 @@ export async function getCurrentInspirationMessage(
     batchId: state.currentBatchId,
     nextRotationTime: state.nextRotationTime,
     cacheMaxAge,
+  };
+}
+
+// ============================================================================
+// Admin Batch State (with history and timing)
+// ============================================================================
+
+export async function getAdminBatchState(kv: KVNamespace): Promise<{
+  currentBatchId: string;
+  currentIndex: number;
+  nextRotationTimeISO: string;
+  timeUntilNextRotation: number;
+  totalEntities: number;
+  batchStartedAtISO: string;
+  recentHistory: MessageDisplayHistory[];
+  totalCycles: number;
+}> {
+  const state = await getGlobalState(kv);
+  const batch = await getBatch(kv, state.currentBatchId);
+  const history = await getDisplayHistory(kv);
+  const now = Date.now();
+
+  const nextRotationTime = state.nextRotationTime;
+  const timeUntilNextRotation = Math.max(0, nextRotationTime - now);
+
+  return {
+    currentBatchId: state.currentBatchId,
+    currentIndex: state.currentMessageIndex,
+    nextRotationTimeISO: new Date(nextRotationTime).toISOString(),
+    timeUntilNextRotation: Math.round(timeUntilNextRotation / 1000), // Convert to seconds
+    totalEntities: batch?.messages.length || 0,
+    batchStartedAtISO: new Date(state.batchStartTime).toISOString(),
+    recentHistory: history.slice(0, 20), // Last 20 for admin view
+    totalCycles: state.totalCycles,
   };
 }
 
