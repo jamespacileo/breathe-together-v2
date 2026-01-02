@@ -16,22 +16,10 @@ const IOS_DEFAULTS = {
   minVelocityThreshold: 50,
 };
 
-/** Exclusion zone definition for UI regions that should not trigger rotation */
-export interface ExclusionZone {
-  /** Position of the zone */
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-  /** Width of the zone in pixels */
-  width: number;
-  /** Height of the zone in pixels */
-  height: number;
-}
-
 interface MomentumControlsProps {
   /** Enable/disable the controls */
   enabled?: boolean;
-  /** Apply controls globally to the DOM element */
-  global?: boolean;
-  /** Show grab cursor */
+  /** Show grab cursor on the canvas */
   cursor?: boolean;
   /** Rotation speed multiplier (higher = faster response to drag) */
   speed?: number;
@@ -51,8 +39,6 @@ interface MomentumControlsProps {
   velocityMultiplier?: number;
   /** Minimum flick speed (px/s) to trigger momentum */
   minVelocityThreshold?: number;
-  /** Exclusion zones where rotation should not be triggered (for overlays like r3f-perf) */
-  exclusionZones?: ExclusionZone[];
   children?: React.ReactNode;
 }
 
@@ -63,10 +49,14 @@ interface MomentumControlsProps {
  * release velocity, then decelerates smoothly (like iPhone scrolling).
  *
  * Uses exponential decay: position = target - amplitude × e^(-t/timeConstant)
+ *
+ * Event handling:
+ * - Uses R3F's pointer events on the group element (not global DOM events)
+ * - Works with eventSource pattern on Canvas for proper HTML overlay support
+ * - Cursor is managed via canvas style when enabled
  */
 export function MomentumControls({
   enabled = true,
-  global = false,
   cursor = true,
   speed = 1.8,
   rotation = [0, 0, 0],
@@ -77,14 +67,12 @@ export function MomentumControls({
   timeConstant = IOS_DEFAULTS.timeConstant,
   velocityMultiplier = IOS_DEFAULTS.velocityMultiplier,
   minVelocityThreshold = IOS_DEFAULTS.minVelocityThreshold,
-  exclusionZones = [],
   children,
 }: MomentumControlsProps) {
-  const events = useThree((state) => state.events);
   const gl = useThree((state) => state.gl);
   const { size } = useThree();
 
-  const domElement = events.connected || gl.domElement;
+  const domElement = gl.domElement;
 
   // Calculate rotation limits
   const rPolar = React.useMemo(
@@ -115,146 +103,26 @@ export function MomentumControls({
   // Group ref for direct manipulation
   const ref = React.useRef<Group>(null);
 
-  // Track if currently dragging to prevent cursor flicker
-  const isDraggingRef = React.useRef(false);
-
   // Sync damping when prop changes (for Leva real-time updates)
   React.useEffect(() => {
     animation.current.damping = damping;
   }, [damping]);
 
-  // Check if coordinates are within an exclusion zone
-  const isInExclusionZone = React.useCallback(
-    (clientX: number, clientY: number): boolean => {
-      if (exclusionZones.length === 0) return false;
-
-      // Get canvas bounding rect to calculate relative positions
-      const rect = domElement.getBoundingClientRect();
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-      const canvasWidth = rect.width;
-      const canvasHeight = rect.height;
-
-      return exclusionZones.some((zone) => {
-        let zoneX: number;
-        let zoneY: number;
-
-        // Calculate zone position based on corner
-        switch (zone.position) {
-          case 'top-left':
-            zoneX = 0;
-            zoneY = 0;
-            break;
-          case 'top-right':
-            zoneX = canvasWidth - zone.width;
-            zoneY = 0;
-            break;
-          case 'bottom-left':
-            zoneX = 0;
-            zoneY = canvasHeight - zone.height;
-            break;
-          case 'bottom-right':
-            zoneX = canvasWidth - zone.width;
-            zoneY = canvasHeight - zone.height;
-            break;
-        }
-
-        // Check if point is within zone bounds (with some padding)
-        const padding = 10;
-        return (
-          x >= zoneX - padding &&
-          x <= zoneX + zone.width + padding &&
-          y >= zoneY - padding &&
-          y <= zoneY + zone.height + padding
-        );
-      });
-    },
-    [exclusionZones, domElement],
-  );
-
-  // Position-aware cursor management
-  // Only show grab cursor when NOT in exclusion zones (r3f-perf, Leva, etc.)
+  // Cursor management - simple approach via canvas style
   React.useEffect(() => {
-    if (!global || !cursor || !enabled) return;
+    if (!cursor || !enabled) return;
 
-    const handlePointerMove = (e: PointerEvent) => {
-      // Don't change cursor while actively dragging
-      if (isDraggingRef.current) return;
-
-      if (isInExclusionZone(e.clientX, e.clientY)) {
-        domElement.style.cursor = 'default';
-      } else {
-        domElement.style.cursor = 'grab';
-      }
-    };
-
-    // Initial cursor state (assume not in exclusion zone)
     domElement.style.cursor = 'grab';
-
-    // Listen on document to catch all pointer movements
-    document.addEventListener('pointermove', handlePointerMove);
-
     return () => {
-      document.removeEventListener('pointermove', handlePointerMove);
       domElement.style.cursor = 'default';
     };
-  }, [global, cursor, enabled, domElement, isInExclusionZone]);
-
-  // Check if event target is within UI overlay (Leva, modals, perf monitor, etc.)
-  const isUIElement = React.useCallback(
-    (event: PointerEvent | MouseEvent | TouchEvent) => {
-      const target = event.target as HTMLElement;
-
-      // First check exclusion zones by coordinates (for r3f-perf which uses portals)
-      if ('clientX' in event && 'clientY' in event) {
-        if (isInExclusionZone(event.clientX, event.clientY)) {
-          return true;
-        }
-      }
-
-      if (!target) return false;
-
-      // Check if click is on UI elements that should not trigger rotation
-      const uiSelectors = [
-        // Our UI components (data attributes for reliable detection)
-        '[data-ui]',
-        '.gaia-ui',
-        // Leva panel
-        '[class*="leva"]',
-        '[data-leva]',
-        // r3f-perf performance monitor (renders with specific class patterns)
-        '[class*="r3f-perf"]',
-        '[class*="perf"]',
-        // Interactive HTML elements
-        'button',
-        'input',
-        'select',
-        'textarea',
-        'label',
-        'a[href]',
-        // ARIA roles for accessibility
-        '[role="button"]',
-        '[role="slider"]',
-        '[role="dialog"]',
-        '[role="menu"]',
-        '[role="menuitem"]',
-        // Common modal/overlay patterns
-        '[class*="modal"]',
-        '[class*="Modal"]',
-        '[class*="overlay"]',
-        '[class*="Overlay"]',
-      ];
-
-      return uiSelectors.some(
-        (selector) => target.closest(selector) !== null || target.matches(selector),
-      );
-    },
-    [isInExclusionZone],
-  );
+  }, [cursor, enabled, domElement]);
 
   // Smooth animation loop
-  useFrame((_state, delta) => {
-    if (!ref.current) return;
+  useFrame((state, delta) => {
+    if (!ref.current || !enabled) return;
+
+    // Smoothly interpolate rotation toward target
     easing.dampE(ref.current.rotation, animation.current.target, animation.current.damping, delta);
   });
 
@@ -262,46 +130,18 @@ export function MomentumControls({
   const bind = useGesture(
     {
       onHover: ({ last }) => {
-        if (cursor && !global && enabled) {
-          domElement.style.cursor = last ? 'auto' : 'grab';
+        if (cursor && enabled) {
+          domElement.style.cursor = last ? 'grab' : 'grab';
         }
       },
-      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo, event, first, last }) => {
+      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo }) => {
         if (!enabled) return memo;
-
-        // Ignore events from UI elements (Leva, modals, buttons, etc.)
-        if (event && isUIElement(event as PointerEvent)) {
-          // Reset dragging state if we were somehow dragging
-          if (isDraggingRef.current) {
-            isDraggingRef.current = false;
-          }
-          return memo;
-        }
-
-        // Track dragging state for cursor management
-        if (first) {
-          isDraggingRef.current = true;
-        }
-        if (last) {
-          isDraggingRef.current = false;
-        }
 
         // Initialize memo with current rotation on drag start
         const [oldY, oldX] = memo || animation.current.target;
 
-        // Cursor management - only change if not in exclusion zone
         if (cursor) {
-          if (event && 'clientX' in event && 'clientY' in event) {
-            const inExclusion = isInExclusionZone(
-              (event as PointerEvent).clientX,
-              (event as PointerEvent).clientY,
-            );
-            if (!inExclusion) {
-              domElement.style.cursor = down ? 'grabbing' : 'grab';
-            }
-          } else {
-            domElement.style.cursor = down ? 'grabbing' : 'grab';
-          }
+          domElement.style.cursor = down ? 'grabbing' : 'grab';
         }
 
         // Calculate new rotation from drag delta
@@ -321,7 +161,6 @@ export function MomentumControls({
           const hasVerticalMomentum = Math.abs(vy) > minVelocityThreshold;
 
           // Project target position based on velocity
-          // iOS formula: target = current + velocity × timeConstant
           let targetX = newX;
           let targetY = newY;
 
@@ -352,15 +191,14 @@ export function MomentumControls({
       },
     },
     {
-      target: global ? domElement : undefined,
+      // No target means useGesture returns bind handlers for the element
+      // These are spread onto the group and work with R3F's pointer event system
     },
   );
 
   return (
-    <group ref={ref} {...(bind?.() || {})}>
+    <group ref={ref} {...(bind() || {})}>
       {children}
     </group>
   );
 }
-
-export default MomentumControls;
