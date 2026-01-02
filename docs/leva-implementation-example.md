@@ -1,10 +1,11 @@
-/**
- * Leva Reorganization - Implementation Example
- *
- * This file shows how the new hierarchical structure would look in code.
- * Compare with current src/hooks/useDevControls.ts
- */
+# Leva Reorganization - Implementation Example
 
+This file shows how the new hierarchical structure would look in code.
+Compare with current `src/hooks/useDevControls.ts`.
+
+## Code Example
+
+```typescript
 import { button, folder, useControls } from 'leva';
 
 // Example of NEW structure (simplified for clarity)
@@ -441,3 +442,4 @@ const [controls, set] = useControls(() => ({
 //    - Interaction: 2
 //    - Debug: 3
 //    - Audio: 100 (bottom, defined in useAudioDevControls)
+```
