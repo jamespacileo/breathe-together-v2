@@ -8,6 +8,7 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { useLevaSettings } from '../hooks/useLevaSettings';
 import { generateMockPresence } from '../lib/mockPresence';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
@@ -34,12 +35,14 @@ const TUNING_DEFAULTS = {
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
  */
 export function BreathingLevel({
-  particleDensity,
   // DEBUG-ONLY: Entity visibility toggles (all default true)
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
 }: Partial<BreathingLevelProps> = {}) {
+  // Leva developer controls (only in dev mode)
+  useLevaSettings();
+
   // Settings from centralized store (no prop drilling!)
   const { harmony, ior, glassDepth, orbitRadius, shardSize, atmosphereDensity } =
     useSettingsStore();
