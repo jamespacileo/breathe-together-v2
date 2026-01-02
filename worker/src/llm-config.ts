@@ -25,6 +25,15 @@ export interface GenerationRequest {
   intensity: 'subtle' | 'profound' | 'energetic';
   count: number; // Number of messages to generate (16-64)
   style?: 'poetic' | 'direct' | 'metaphorical';
+  type?: 'messages' | 'story'; // Generate individual messages or a story arc
+  recentMessageIds?: string[]; // Recent messages shown to avoid repetition
+  narrativeContext?: string; // Previous context for coherence
+}
+
+export interface StoryGenerationRequest extends GenerationRequest {
+  type: 'story';
+  messageCount: number; // Messages per story (3-12 typically)
+  storyType: 'complete-arc' | 'beginning' | 'middle' | 'end'; // Story structure
 }
 
 /**
@@ -79,28 +88,85 @@ export function loadLLMConfig(env: Record<string, string | undefined>): LLMConfi
 
 /**
  * System prompt for inspirational message generation
+ * Includes theme-specific guidance and examples
  */
-export function getSystemPrompt(theme: string, intensity: string): string {
-  return `You are a spiritual guide and wellness expert creating inspirational messages for a global meditation app called "Breathe Together".
+export function getSystemPrompt(
+  theme: string,
+  intensity: string,
+  context?: {
+    recentMessages?: string[];
+    storyType?: string;
+    messageCount?: number;
+  },
+): string {
+  const themeGuidance = getThemeGuidance(theme);
+  const intensityGuidance = getIntensityGuidance(intensity);
+  const avoidanceContext =
+    context?.recentMessages && context.recentMessages.length > 0
+      ? `\n\nRECENT MESSAGES (avoid repeating themes):\n${context.recentMessages.join('\n')}`
+      : '';
+  const storyContext = context?.storyType
+    ? `\n\nNARRATIVE STRUCTURE: Create a ${context.storyType} narrative arc with ${context.messageCount} messages. Each message should flow into the next.`
+    : '';
 
-Theme: ${theme}
-Intensity: ${intensity}
+  return `You are a contemplative writer and meditation guide creating inspirational messages for a global breathing meditation app called "Breathe Together".
 
-Requirements:
-- Messages should be 2-3 words each for the "top" line
-- Messages should be 2-4 words each for the "bottom" line
-- Keep language universal and accessible
-- No religious references, but can reference universal concepts
-- Should evoke calm, connection, and presence
-- Messages will be displayed one every 32 seconds (2 breathing cycles)
+THEME: ${theme}
+${themeGuidance}
 
-Format your response as a JSON array with exactly this structure (no markdown, just JSON):
+INTENSITY: ${intensity}
+${intensityGuidance}
+
+CORE REQUIREMENTS:
+- Top line: 2-3 words maximum (brief focal point)
+- Bottom line: 2-4 words maximum (supporting thought)
+- Language: Universal, non-religious, accessible to all cultures
+- Tone: Calming, grounding, present-moment focused
+- Display: Each message shown for 32 seconds (2 breathing cycles)
+${storyContext}${avoidanceContext}
+
+RESPONSE FORMAT: Valid JSON array only (no markdown, no explanation):
 [
   { "top": "word1 word2", "bottom": "word3 word4" },
   { "top": "word1 word2", "bottom": "word3 word4" }
-]
+]`;
+}
 
-Generate messages that complement deep breathing and meditation.`;
+/**
+ * Theme-specific guidance and few-shot examples
+ */
+function getThemeGuidance(theme: string): string {
+  const guidance: Record<string, string> = {
+    gratitude: `Focus on appreciation, acknowledgment, and thankfulness.
+Examples:
+  - Top: "I am grateful" Bottom: "For this breath"
+  - Top: "Blessings abound" Bottom: "In each moment"`,
+    presence: `Focus on being here now, awareness, and consciousness.
+Examples:
+  - Top: "Present now" Bottom: "Fully aware"
+  - Top: "Here, breathing" Bottom: "Centered within"`,
+    release: `Focus on letting go, surrendering, and acceptance.
+Examples:
+  - Top: "Release tension" Bottom: "Welcome peace"
+  - Top: "Let it go" Bottom: "Find stillness"`,
+    connection: `Focus on unity, interconnectedness, and belonging.
+Examples:
+  - Top: "We breathe together" Bottom: "One breath, many hearts"
+  - Top: "Connected always" Bottom: "In shared silence"`,
+  };
+  return guidance[theme] || '';
+}
+
+/**
+ * Intensity-specific guidance
+ */
+function getIntensityGuidance(intensity: string): string {
+  const guidance: Record<string, string> = {
+    subtle: `Keep messages gentle, whisper-soft, understated. Use simple, everyday language. Avoid bold statements.`,
+    profound: `Deliver deeper truths, philosophical depth, meaningful insight. Use more elaborate but accessible language.`,
+    energetic: `Bring vitality, brightness, and movement. Use active language and uplifting concepts.`,
+  };
+  return guidance[intensity] || '';
 }
 
 /**
@@ -136,14 +202,34 @@ export function validateLLMResponse(
 
 /**
  * Format a generation request into a user prompt
+ * Supports both individual messages and story arcs
  */
 export function formatGenerationPrompt(req: GenerationRequest): string {
-  const styleHint = req.style ? `\n\nStyle preference: ${req.style}` : '';
+  const isStory = req.type === 'story';
+  const count = isStory ? (req as StoryGenerationRequest).messageCount : req.count;
+  const styleHint = req.style ? `\nStyle: ${req.style}` : '';
+  const contextHint =
+    req.narrativeContext && isStory ? `\nPrevious context: ${req.narrativeContext}` : '';
 
-  return `Generate exactly ${req.count} inspirational message pairs for a meditation app.
+  const basePrompt = isStory
+    ? `Create a narrative story with exactly ${count} messages forming a ${(req as StoryGenerationRequest).storyType} arc.
 
 Theme: ${req.theme}
-Intensity: ${req.intensity}${styleHint}
+Intensity: ${req.intensity}${styleHint}${contextHint}
+
+The messages should:
+- Progress logically from one to the next
+- Build emotional or conceptual resonance
+- Form a complete arc or segment
+- Work together as a unified journey
+
+Return exactly ${count} message pairs as valid JSON array.`
+    : `Generate exactly ${req.count} inspirational message pairs for a meditation app.
+
+Theme: ${req.theme}
+Intensity: ${req.intensity}${styleHint}${contextHint}
 
 Return as valid JSON array of {top, bottom} objects.`;
+
+  return basePrompt;
 }

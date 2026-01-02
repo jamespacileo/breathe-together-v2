@@ -1,10 +1,15 @@
 /**
  * Admin panel for inspirational text management
- * View, edit, and generate inspirational messages
+ * View, edit, and generate messages and stories
+ * Shows message history with UTC timing, story support, and enhanced LLM generation
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { InspirationMessage, MessageBatch } from '../lib/types/inspirational';
+import type {
+  InspirationMessage,
+  MessageBatch,
+  MessageDisplayHistory,
+} from '../lib/types/inspirational';
 
 interface BatchState {
   currentBatchId: string;
@@ -12,6 +17,9 @@ interface BatchState {
   nextRotationTime: number;
   totalCycles: number;
   currentBatch: MessageBatch | null;
+  recentHistory?: MessageDisplayHistory[];
+  batchStartedAtISO?: string;
+  nextRotationTimeISO?: string;
 }
 
 interface GenerationState {
@@ -36,7 +44,7 @@ export function InspirationAdmin() {
   const apiBaseUrl = import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787';
 
   // Fetch current batch state
-  // biome-ignore lint/correctness/useExhaustiveDependencies: apiBaseUrl is constant (from env vars), not reactive
+  // biome-ignore lint/correctness/useExhaustiveDependencies: apiBaseUrl is build-time constant from environment
   const fetchBatchState = useCallback(async () => {
     try {
       const response = await fetch(`${apiBaseUrl}/admin/inspirational`);
@@ -88,14 +96,17 @@ export function InspirationAdmin() {
     setGenerationState({ loading: true, error: null, success: null });
 
     try {
+      const payload = {
+        theme,
+        intensity,
+        count,
+        recentMessageIds: batchState?.recentHistory?.map((h) => h.entityId) || [],
+      };
+
       const response = await fetch(`${apiBaseUrl}/admin/inspirational/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          theme,
-          intensity,
-          count,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) throw new Error('Generation failed');
