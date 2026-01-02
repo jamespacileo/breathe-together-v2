@@ -3,6 +3,7 @@ import { Perf } from 'r3f-perf';
 import { Suspense } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { FadeGroup } from '../components/FadeGroup';
 import { MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -13,6 +14,7 @@ import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles'
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useDevControls } from '../hooks/useDevControls';
+import { useSceneFadeIn } from '../hooks/useFadeIn';
 import { usePresence } from '../hooks/usePresence';
 import { useBreathingLevelStore } from '../stores/breathingLevelStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
@@ -32,12 +34,18 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
+  // Scene readiness for staggered fade-in
+  sceneReady = false,
 }: Partial<BreathingLevelProps> = {}) {
   // Shared state from Zustand store
   const { orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
 
   // Dev controls (Leva)
   const devControls = useDevControls();
+
+  // Staggered fade-in for cinematic reveal
+  // Only starts animating when sceneReady becomes true
+  const fadeIn = useSceneFadeIn(sceneReady);
 
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
@@ -74,17 +82,20 @@ export function BreathingLevel({
           maxBlur={devControls.maxBlur}
         >
           {/* Environment - clouds, lighting, fog */}
+          {/* Fades in first (delay: 0ms) - establishes scene mood */}
           {showEnvironment && (
-            <Environment
-              showClouds={devControls.showClouds}
-              showStars={devControls.showStars}
-              cloudOpacity={devControls.cloudOpacity}
-              cloudSpeed={devControls.cloudSpeed}
-              ambientLightColor={devControls.ambientLightColor}
-              ambientLightIntensity={devControls.ambientLightIntensity}
-              keyLightColor={devControls.keyLightColor}
-              keyLightIntensity={devControls.keyLightIntensity}
-            />
+            <FadeGroup opacity={fadeIn.environment} name="Environment Fade">
+              <Environment
+                showClouds={devControls.showClouds}
+                showStars={devControls.showStars}
+                cloudOpacity={devControls.cloudOpacity}
+                cloudSpeed={devControls.cloudSpeed}
+                ambientLightColor={devControls.ambientLightColor}
+                ambientLightIntensity={devControls.ambientLightIntensity}
+                keyLightColor={devControls.keyLightColor}
+                keyLightIntensity={devControls.keyLightIntensity}
+              />
+            </FadeGroup>
           )}
 
           {/* MomentumControls - iOS-style momentum scrolling for 3D rotation */}
@@ -99,20 +110,31 @@ export function BreathingLevel({
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
-            {showGlobe && <EarthGlobe />}
-
-            {showParticles && (
-              <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
+            {/* Globe fades in second (delay: 400ms) - central focal point */}
+            {showGlobe && (
+              <FadeGroup opacity={fadeIn.globe} name="Globe Fade">
+                <EarthGlobe />
+              </FadeGroup>
             )}
 
+            {/* Particles fade in third (delay: 800ms) - detail layer */}
             {showParticles && (
-              <AtmosphericParticles
-                count={Math.round(atmosphereDensity)}
-                size={devControls.atmosphereParticleSize}
-                baseOpacity={devControls.atmosphereBaseOpacity}
-                breathingOpacity={devControls.atmosphereBreathingOpacity}
-                color={devControls.atmosphereColor}
-              />
+              <FadeGroup opacity={fadeIn.particles} name="Particles Fade">
+                <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              </FadeGroup>
+            )}
+
+            {/* Atmospheric particles fade in last (delay: 1200ms) - ambient polish */}
+            {showParticles && (
+              <FadeGroup opacity={fadeIn.atmosphere} name="Atmosphere Fade">
+                <AtmosphericParticles
+                  count={Math.round(atmosphereDensity)}
+                  size={devControls.atmosphereParticleSize}
+                  baseOpacity={devControls.atmosphereBaseOpacity}
+                  breathingOpacity={devControls.atmosphereBreathingOpacity}
+                  color={devControls.atmosphereColor}
+                />
+              </FadeGroup>
             )}
           </MomentumControls>
         </RefractionPipeline>

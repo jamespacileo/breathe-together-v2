@@ -1,14 +1,18 @@
 import { Stats } from '@react-three/drei';
 import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
-import { lazy, Suspense, useMemo, useRef } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { LoadingOverlay } from './components/LoadingOverlay';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
 import { useViewport } from './hooks/useViewport';
 import { BreathingLevel, BreathingLevelUI } from './levels/breathing';
 import { KootaSystems } from './providers';
+
+// Preload assets before Canvas mounts (side-effect import)
+import './lib/preload';
 
 // Lazy load admin panel (only loads when needed)
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
@@ -40,6 +44,9 @@ export function App() {
   const path = useCurrentPath();
   const { isMobile, isTablet } = useViewport();
 
+  // Track scene readiness for smooth fade-in
+  const [sceneReady, setSceneReady] = useState(false);
+
   // Disable antialias on mobile/tablet for 5-10% performance improvement
   const glConfig = useMemo(
     () => ({
@@ -50,6 +57,36 @@ export function App() {
       pixelRatio: isMobile ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio,
     }),
     [isMobile, isTablet],
+  );
+
+  /**
+   * Handle Canvas creation - precompile shaders and mark scene ready.
+   *
+   * renderer.compile() forces shader compilation before first visible frame,
+   * preventing the stutter that occurs when shaders compile on-demand.
+   * After compilation, we mark the scene ready to trigger the fade-in.
+   */
+  const handleCanvasCreated = useCallback(
+    ({
+      gl,
+      scene,
+      camera,
+    }: {
+      gl: THREE.WebGLRenderer;
+      scene: THREE.Scene;
+      camera: THREE.Camera;
+    }) => {
+      // Precompile all shaders to eliminate first-frame stutter
+      gl.compile(scene, camera);
+
+      // Wait for next frame to ensure scene is fully rendered, then fade in
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setSceneReady(true);
+        });
+      });
+    },
+    [],
   );
 
   // Admin panel route
@@ -79,6 +116,9 @@ export function App() {
   // Main breathing app
   return (
     <ErrorBoundary>
+      {/* Loading overlay - visible during asset loading, fades out when ready */}
+      <LoadingOverlay />
+
       {/* Shared event source - both Canvas and HTML UI are children */}
       <div ref={containerRef} className="relative w-full h-full">
         {/* 3D Canvas - receives events via eventSource, has pointer-events: none */}
@@ -90,13 +130,18 @@ export function App() {
           gl={glConfig}
           dpr={isMobile ? [1, 2] : [1, 2]}
           className="!absolute inset-0"
+          onCreated={handleCanvasCreated}
+          style={{
+            opacity: sceneReady ? 1 : 0,
+            transition: 'opacity 600ms ease-out',
+          }}
         >
           {import.meta.env.DEV && <Stats />}
           <CameraRig />
           <KootaSystems breathSystemEnabled={true}>
             <AudioProvider>
               <BreathEntity />
-              <BreathingLevel />
+              <BreathingLevel sceneReady={sceneReady} />
             </AudioProvider>
           </KootaSystems>
         </Canvas>
