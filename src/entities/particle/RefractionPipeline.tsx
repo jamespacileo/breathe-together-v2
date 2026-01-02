@@ -166,7 +166,8 @@ void main() {
 }
 `;
 
-// Depth of Field fragment shader - bokeh-style blur based on depth
+// Depth of Field + Cinematic Effects fragment shader
+// Features: DOF, bloom, color grading, vignette, film grain, chromatic aberration
 const dofFragmentShader = `
 uniform sampler2D colorTexture;
 uniform sampler2D depthTexture;
@@ -176,8 +177,49 @@ uniform float maxBlur;          // Maximum blur radius
 uniform float cameraNear;
 uniform float cameraFar;
 uniform vec2 resolution;
+uniform float time;             // For breathing sync and grain animation
+
+// Cinematic effect uniforms
+uniform float bloomIntensity;
+uniform float bloomThreshold;
+uniform float vignetteIntensity;
+uniform float grainIntensity;
+uniform float chromaticAberration;
+uniform float colorTemperature;  // -1 = cool (blue), +1 = warm (orange)
 
 varying vec2 vUv;
+
+// === BREATHING CALCULATION (UTC-synced, same as JS) ===
+// 4-7-8 breathing: 4s inhale, 7s hold, 8s exhale = 19s cycle
+const float INHALE_DURATION = 4.0;
+const float HOLD_IN_DURATION = 7.0;
+const float EXHALE_DURATION = 8.0;
+const float TOTAL_CYCLE = 19.0;
+
+float getBreathPhase() {
+  float cycleTime = mod(time, TOTAL_CYCLE);
+
+  if (cycleTime < INHALE_DURATION) {
+    // Inhale: 0 → 1 with ease-in-out
+    float t = cycleTime / INHALE_DURATION;
+    return t * t * (3.0 - 2.0 * t); // smoothstep easing
+  } else if (cycleTime < INHALE_DURATION + HOLD_IN_DURATION) {
+    // Hold-in: stay near 1
+    return 1.0;
+  } else {
+    // Exhale: 1 → 0 with ease-in-out
+    float t = (cycleTime - INHALE_DURATION - HOLD_IN_DURATION) / EXHALE_DURATION;
+    return 1.0 - t * t * (3.0 - 2.0 * t);
+  }
+}
+
+// 0 = inhale, 1 = hold-in, 2 = exhale
+int getPhaseType() {
+  float cycleTime = mod(time, TOTAL_CYCLE);
+  if (cycleTime < INHALE_DURATION) return 0;
+  if (cycleTime < INHALE_DURATION + HOLD_IN_DURATION) return 1;
+  return 2;
+}
 
 // Convert depth buffer value to linear depth
 float linearizeDepth(float depth) {
@@ -185,54 +227,152 @@ float linearizeDepth(float depth) {
   return (2.0 * cameraNear * cameraFar) / (cameraFar + cameraNear - z * (cameraFar - cameraNear));
 }
 
-// Simple box blur kernel with variable radius
+// === BLUR FUNCTIONS ===
 vec3 boxBlur(vec2 uv, float radius) {
   vec3 color = vec3(0.0);
   float count = 0.0;
   vec2 texelSize = 1.0 / resolution;
 
-  // Sample in a circle pattern for smoother bokeh
   for (float x = -3.0; x <= 3.0; x += 1.0) {
     for (float y = -3.0; y <= 3.0; y += 1.0) {
       vec2 offset = vec2(x, y) * texelSize * radius;
-      // Circular mask for bokeh shape
       if (length(vec2(x, y)) <= 3.0) {
         color += texture2D(colorTexture, uv + offset).rgb;
         count += 1.0;
       }
     }
   }
-
   return color / count;
 }
 
+// Smaller blur for bloom
+vec3 smallBlur(vec2 uv, float radius) {
+  vec3 color = vec3(0.0);
+  float count = 0.0;
+  vec2 texelSize = 1.0 / resolution;
+
+  for (float x = -2.0; x <= 2.0; x += 1.0) {
+    for (float y = -2.0; y <= 2.0; y += 1.0) {
+      vec2 offset = vec2(x, y) * texelSize * radius;
+      color += texture2D(colorTexture, uv + offset).rgb;
+      count += 1.0;
+    }
+  }
+  return color / count;
+}
+
+// === FILM GRAIN ===
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float grain(vec2 uv, float t) {
+  return hash(uv * resolution + fract(t * 100.0)) * 2.0 - 1.0;
+}
+
+// === COLOR GRADING ===
+vec3 applyColorTemperature(vec3 color, float temp) {
+  // temp: -1 = cool blue, +1 = warm orange
+  vec3 cool = vec3(0.9, 0.95, 1.1);   // Blue shift
+  vec3 warm = vec3(1.1, 1.0, 0.9);    // Orange shift
+  vec3 tint = mix(cool, warm, temp * 0.5 + 0.5);
+  return color * tint;
+}
+
+// Subtle color grading synced to breathing
+vec3 colorGrade(vec3 color, float breathPhase) {
+  // Very subtle shadow lift during exhale (relaxation) - reduced
+  float shadowLift = mix(0.0, 0.008, 1.0 - breathPhase);
+  color = color + shadowLift * (1.0 - color);
+
+  // Minimal contrast adjustment - almost imperceptible
+  float contrast = mix(1.0, 0.98, 1.0 - breathPhase);
+  color = (color - 0.5) * contrast + 0.5;
+
+  return color;
+}
+
 void main() {
-  // Sample depth and convert to linear
+  float breathPhase = getBreathPhase();
+
+  // === CHROMATIC ABERRATION ===
+  // Subtle RGB split that increases slightly during transitions
+  float aberrationAmount = chromaticAberration * (1.0 + (1.0 - abs(breathPhase * 2.0 - 1.0)) * 0.3);
+  vec2 aberrationOffset = (vUv - 0.5) * aberrationAmount * 0.003;
+
+  // === DEPTH OF FIELD ===
   float depth = texture2D(depthTexture, vUv).r;
   float linearDepth = linearizeDepth(depth);
-
-  // Normalize depth to camera range
   float normalizedDepth = (linearDepth - cameraNear) / (cameraFar - cameraNear);
 
-  // Calculate circle of confusion (blur amount)
-  // Only blur objects FURTHER than focus distance (behind the focal plane)
-  // Objects closer to camera stay sharp
+  // DOF intensity varies slightly with breathing
+  float dynamicFocalRange = focalRange * mix(1.0, 1.15, 1.0 - breathPhase);
   float distanceBeyondFocus = max(0.0, normalizedDepth - focusDistance);
+  float coc = smoothstep(0.0, dynamicFocalRange, distanceBeyondFocus) * maxBlur;
 
-  // Smooth falloff - only applies to objects beyond focus
-  float coc = smoothstep(0.0, focalRange, distanceBeyondFocus) * maxBlur;
-
-  // Apply blur based on CoC
+  // Sample with chromatic aberration
   vec3 color;
   if (coc < 0.5) {
-    // Sharp - just sample directly
-    color = texture2D(colorTexture, vUv).rgb;
+    // Sharp with subtle chromatic aberration
+    float r = texture2D(colorTexture, vUv + aberrationOffset).r;
+    float g = texture2D(colorTexture, vUv).g;
+    float b = texture2D(colorTexture, vUv - aberrationOffset).b;
+    color = vec3(r, g, b);
   } else {
-    // Blur - apply box blur with radius based on CoC
-    color = boxBlur(vUv, coc);
+    // Blur - chromatic aberration baked into blur
+    vec3 blurred = boxBlur(vUv, coc);
+    float r = boxBlur(vUv + aberrationOffset, coc).r;
+    float b = boxBlur(vUv - aberrationOffset, coc).b;
+    color = vec3(r, blurred.g, b);
   }
 
-  gl_FragColor = vec4(color, 1.0);
+  // === BLOOM ===
+  // Extract only very bright areas and add subtle glow
+  vec3 bloomColor = smallBlur(vUv, 3.0);
+  float brightness = dot(bloomColor, vec3(0.299, 0.587, 0.114));
+  float bloomMask = smoothstep(bloomThreshold, bloomThreshold + 0.15, brightness);
+
+  // Bloom intensity pulses subtly with breathing
+  float dynamicBloom = bloomIntensity * mix(0.9, 1.1, breathPhase);
+  // Use screen blend instead of additive to prevent blowout
+  vec3 bloomContrib = bloomColor * bloomMask * dynamicBloom;
+  color = color + bloomContrib * (1.0 - color * 0.5);
+
+  // === COLOR TEMPERATURE ===
+  // Subtle warm during exhale, neutral during inhale
+  float breathTemp = mix(-0.05, 0.1, 1.0 - breathPhase); // Much subtler range
+  color = applyColorTemperature(color, colorTemperature + breathTemp);
+
+  // === COLOR GRADING ===
+  color = colorGrade(color, breathPhase);
+
+  // === VIGNETTE ===
+  // Cinematic dark edges that intensify during exhale
+  vec2 vignetteUv = vUv - 0.5;
+  float vignetteDist = length(vignetteUv * vec2(1.0, resolution.y / resolution.x));
+  float dynamicVignette = vignetteIntensity * mix(0.9, 1.1, 1.0 - breathPhase);
+  float vignette = 1.0 - smoothstep(0.3, 0.9, vignetteDist) * dynamicVignette;
+  color *= vignette;
+
+  // Subtle warm tint at edges (cinematic look)
+  vec3 vignetteColor = vec3(0.95, 0.9, 0.85);
+  color = mix(color, color * vignetteColor, (1.0 - vignette) * 0.3);
+
+  // === FILM GRAIN ===
+  // Organic texture that's subtle during inhale, slightly more visible during exhale
+  float dynamicGrain = grainIntensity * mix(0.7, 1.0, 1.0 - breathPhase);
+  float grainValue = grain(vUv, time) * dynamicGrain * 0.03;
+  color += grainValue;
+
+  // === FINAL OUTPUT ===
+  // Very subtle tone compression - preserves original colors
+  // Only compress extreme highlights to prevent blowout
+  vec3 compressed = color / (color * 0.15 + 1.0);
+  color = mix(color, compressed, 0.3); // Blend 30% compressed
+
+  gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }
 `;
 
@@ -267,6 +407,45 @@ interface RefractionPipelineProps {
    * @default 3
    */
   maxBlur?: number;
+
+  // === CINEMATIC EFFECTS ===
+  /**
+   * Bloom glow intensity. Adds ethereal, dreamy quality.
+   * @min 0 @max 1 @step 0.05
+   * @default 0.35
+   */
+  bloomIntensity?: number;
+  /**
+   * Brightness threshold for bloom extraction. Lower = more glow.
+   * @min 0.3 @max 0.9 @step 0.05
+   * @default 0.6
+   */
+  bloomThreshold?: number;
+  /**
+   * Vignette darkness at edges. Creates cinematic focus.
+   * @min 0 @max 1 @step 0.05
+   * @default 0.4
+   */
+  vignetteIntensity?: number;
+  /**
+   * Film grain intensity. Adds organic, analog texture.
+   * @min 0 @max 1 @step 0.05
+   * @default 0.3
+   */
+  grainIntensity?: number;
+  /**
+   * Chromatic aberration strength. Subtle lens effect.
+   * @min 0 @max 1 @step 0.05
+   * @default 0.2
+   */
+  chromaticAberration?: number;
+  /**
+   * Color temperature shift. Negative = cool, positive = warm.
+   * @min -1 @max 1 @step 0.1
+   * @default 0.1
+   */
+  colorTemperature?: number;
+
   /** Children meshes to render with refraction */
   children?: React.ReactNode;
 }
@@ -278,6 +457,13 @@ export function RefractionPipeline({
   focusDistance = 15,
   focalRange = 8,
   maxBlur = 3,
+  // Cinematic effects - tuned for subtlety
+  bloomIntensity = 0.15, // Reduced from 0.35
+  bloomThreshold = 0.75, // Raised from 0.6 (less bloom)
+  vignetteIntensity = 0.25, // Reduced from 0.4
+  grainIntensity = 0.15, // Reduced from 0.3
+  chromaticAberration = 0.1, // Reduced from 0.2
+  colorTemperature = 0.05, // Reduced from 0.1
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
@@ -314,7 +500,7 @@ export function RefractionPipeline({
     return { bgScene, orthoCamera, bgMesh };
   }, []);
 
-  // Create DoF scene for final composite
+  // Create DoF scene for final composite (includes cinematic effects)
   const { dofScene, dofMesh, dofMaterial } = useMemo(() => {
     const dofScene = new THREE.Scene();
 
@@ -328,6 +514,15 @@ export function RefractionPipeline({
         cameraNear: { value: perspCamera.near },
         cameraFar: { value: perspCamera.far },
         resolution: { value: new THREE.Vector2(size.width, size.height) },
+        // Time for breathing sync and grain animation
+        time: { value: 0 },
+        // Cinematic effects
+        bloomIntensity: { value: bloomIntensity },
+        bloomThreshold: { value: bloomThreshold },
+        vignetteIntensity: { value: vignetteIntensity },
+        grainIntensity: { value: grainIntensity },
+        chromaticAberration: { value: chromaticAberration },
+        colorTemperature: { value: colorTemperature },
       },
       vertexShader: dofVertexShader,
       fragmentShader: dofFragmentShader,
@@ -345,6 +540,12 @@ export function RefractionPipeline({
     focusDistance,
     focalRange,
     maxBlur,
+    bloomIntensity,
+    bloomThreshold,
+    vignetteIntensity,
+    grainIntensity,
+    chromaticAberration,
+    colorTemperature,
   ]);
 
   // Create materials
@@ -377,14 +578,34 @@ export function RefractionPipeline({
     refractionMaterial.uniforms.backfaceIntensity.value = backfaceIntensity;
   }, [ior, backfaceIntensity, refractionMaterial]);
 
-  // Update DoF uniforms when props change
+  // Update DoF and cinematic uniforms when props change
   useEffect(() => {
     dofMaterial.uniforms.focusDistance.value = focusDistance / perspCamera.far;
     dofMaterial.uniforms.focalRange.value = focalRange / perspCamera.far;
     dofMaterial.uniforms.maxBlur.value = maxBlur;
     dofMaterial.uniforms.cameraNear.value = perspCamera.near;
     dofMaterial.uniforms.cameraFar.value = perspCamera.far;
-  }, [focusDistance, focalRange, maxBlur, perspCamera.near, perspCamera.far, dofMaterial]);
+    // Cinematic effects
+    dofMaterial.uniforms.bloomIntensity.value = bloomIntensity;
+    dofMaterial.uniforms.bloomThreshold.value = bloomThreshold;
+    dofMaterial.uniforms.vignetteIntensity.value = vignetteIntensity;
+    dofMaterial.uniforms.grainIntensity.value = grainIntensity;
+    dofMaterial.uniforms.chromaticAberration.value = chromaticAberration;
+    dofMaterial.uniforms.colorTemperature.value = colorTemperature;
+  }, [
+    focusDistance,
+    focalRange,
+    maxBlur,
+    perspCamera.near,
+    perspCamera.far,
+    dofMaterial,
+    bloomIntensity,
+    bloomThreshold,
+    vignetteIntensity,
+    grainIntensity,
+    chromaticAberration,
+    colorTemperature,
+  ]);
 
   // Update resolution on resize
   useEffect(() => {
@@ -436,6 +657,9 @@ export function RefractionPipeline({
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Multi-pass refraction pipeline requires mesh detection, material swapping, 4 FBO passes, and DoF toggle - splitting would reduce readability of the sequential rendering logic
   useFrame(() => {
     frameCountRef.current++;
+
+    // Update time for breathing sync and cinematic effects (uses Date.now for UTC sync)
+    dofMaterial.uniforms.time.value = Date.now() / 1000;
 
     // Throttled mesh detection: only check every N frames to reduce scene traversal overhead
     // This reduces O(n) traversal from 60fps to ~2fps while still detecting dynamic additions
