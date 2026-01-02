@@ -1,7 +1,8 @@
-import { Html, PresentationControls } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import { Leva } from 'leva';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
@@ -180,13 +181,16 @@ export function BreathingLevel({
             />
           )}
 
-          {/* Wrap rotatable entities in PresentationControls */}
-          <PresentationControls
+          {/* Wrap rotatable entities in MomentumControls (iOS-style momentum scrolling) */}
+          <MomentumControls
             global
             cursor={true}
-            snap={false}
-            speed={1}
-            damping={0.3}
+            speed={devControls.dragSpeed}
+            damping={devControls.dragDamping}
+            momentum={devControls.dragMomentum}
+            timeConstant={devControls.dragTimeConstant}
+            velocityMultiplier={devControls.dragVelocityMultiplier}
+            minVelocityThreshold={devControls.dragMinVelocity}
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
@@ -205,7 +209,7 @@ export function BreathingLevel({
                 color={devControls.atmosphereColor}
               />
             )}
-          </PresentationControls>
+          </MomentumControls>
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
