@@ -1,4 +1,4 @@
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { createWorld } from 'koota';
 import { useWorld, WorldProvider } from 'koota/react';
 import { createContext, type ReactNode, use, useMemo } from 'react';
@@ -22,6 +22,7 @@ export function KootaSystems({
 }) {
   const isNested = use(NestedCheck);
   const world = useWorld();
+  const { invalidate } = useThree();
 
   useFrame((_state, delta) => {
     if (isNested) {
@@ -33,6 +34,9 @@ export function KootaSystems({
     try {
       if (breathSystemEnabled) {
         breathSystem(world, delta);
+        // Trigger re-render for on-demand frameloop
+        // This ensures continuous animation while breath system is active
+        invalidate();
       }
     } catch (error) {
       // Silently catch ECS errors during unmount/remount in Triplex

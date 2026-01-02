@@ -101,3 +101,25 @@ export const HOLD_OSCILLATION = {
   /** Oscillation frequency - cycles per hold phase */
   FREQUENCY: 1.0,
 } as const;
+
+/**
+ * THREE.js Render Layers for Selective Rendering
+ *
+ * Used by RefractionPipeline to render specific object groups per pass:
+ * - ENVIRONMENT (0): Static background, clouds, stars, lighting - cached when static
+ * - GLOBE (1): Central EarthGlobe - rendered in composite pass only
+ * - PARTICLES (2): ParticleSwarm shards - full refraction pipeline (all 4 passes)
+ * - EFFECTS (3): AtmosphericParticles, sparkles - composite pass only
+ *
+ * @see https://threejs.org/docs/#api/en/core/Layers
+ */
+export const RENDER_LAYERS = {
+  /** Default layer - static environment (background, clouds, stars, lights) */
+  ENVIRONMENT: 0,
+  /** Central globe - composite pass only */
+  GLOBE: 1,
+  /** Particle shards - full refraction pipeline */
+  PARTICLES: 2,
+  /** Atmospheric effects - composite pass only */
+  EFFECTS: 3,
+} as const;
