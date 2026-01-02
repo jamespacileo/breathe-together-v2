@@ -667,7 +667,11 @@ export function useDevControls(): DevControlsState {
               label: 'GPU Mode',
               hint: 'WebGL power preference hint. "High Performance" requests the discrete GPU (better for complex scenes). "Low Power" uses integrated GPU (saves battery). Changing this will briefly reload the 3D scene.\n\n**Note:** Actual behavior depends on hardware. On single-GPU systems, all options behave the same.',
               onChange: (value: PowerPreference) => {
-                useRendererStore.getState().setPowerPreference(value);
+                // Only update if value actually changed (prevents remount loop on init)
+                const current = useRendererStore.getState().powerPreference;
+                if (value !== current) {
+                  useRendererStore.getState().setPowerPreference(value);
+                }
               },
             },
             showPerfMonitor: {
