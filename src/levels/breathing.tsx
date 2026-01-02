@@ -193,7 +193,21 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm users={mockUsers} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <ParticleSwarm
+                users={mockUsers}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
+                // Trail configuration from dev controls
+                trailMode={devControls.trailMode}
+                trailLength={devControls.trailLength}
+                trailPointSize={devControls.trailPointSize}
+                trailColor={devControls.trailColor}
+                trailOpacity={devControls.trailOpacity}
+                trailMinDistance={devControls.trailMinDistance}
+                afterimageDecay={devControls.afterimageDecay}
+                ribbonWidth={devControls.ribbonWidth}
+                ribbonAttenuation={devControls.ribbonAttenuation}
+              />
             )}
 
             {showParticles && (

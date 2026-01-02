@@ -13,6 +13,7 @@
  * Rendered via RefractionPipeline 3-pass FBO system.
  */
 
+import { Trail } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -20,7 +21,9 @@ import * as THREE from 'three';
 import { BREATH_TOTAL_CYCLE, type MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
+import { AfterimageEffect } from './AfterimageEffect';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
+import { MotionTrails } from './MotionTrails';
 import {
   getBreathingCycleIndex,
   isHoldPhase,
@@ -138,6 +141,61 @@ export interface ParticleSwarmProps {
    * @default 1000
    */
   performanceCap?: number;
+
+  // === Motion Trail Props ===
+
+  /**
+   * Trail rendering mode
+   * - 'none': No trails
+   * - 'points': GPU-efficient point-based trails (polished)
+   * - 'afterimage': Post-process feedback effect (quick win)
+   * - 'ribbon': drei Trail mesh ribbons (hybrid)
+   * @default 'points'
+   */
+  trailMode?: 'none' | 'points' | 'afterimage' | 'ribbon';
+  /**
+   * Number of trail points per particle (trail length)
+   * Higher = longer trails, more memory
+   * @default 12
+   */
+  trailLength?: number;
+  /**
+   * Base size of trail points
+   * @default 0.04
+   */
+  trailPointSize?: number;
+  /**
+   * Trail color (teal matches Monument Valley aesthetic)
+   * @default '#7ec8d4'
+   */
+  trailColor?: string;
+  /**
+   * Trail opacity at head (fades to 0 at tail)
+   * @default 0.5
+   */
+  trailOpacity?: number;
+  /**
+   * Minimum distance before recording new trail point
+   * Higher = sparser trails
+   * @default 0.05
+   */
+  trailMinDistance?: number;
+  /**
+   * Frame decay rate for afterimage mode (0-1)
+   * Higher = longer persistence
+   * @default 0.92
+   */
+  afterimageDecay?: number;
+  /**
+   * Width of ribbon trails (drei Trail mode)
+   * @default 0.3
+   */
+  ribbonWidth?: number;
+  /**
+   * How much ribbon narrows toward tail (0-1)
+   * @default 0.5
+   */
+  ribbonAttenuation?: number;
 }
 
 interface ShardData {
@@ -255,6 +313,16 @@ export function ParticleSwarm({
   maxShardSize = 0.6,
   minShardSize = 0.15,
   performanceCap = 1000,
+  // Trail props
+  trailMode = 'points',
+  trailLength = 12,
+  trailPointSize = 0.04,
+  trailColor = '#7ec8d4',
+  trailOpacity = 0.5,
+  trailMinDistance = 0.05,
+  afterimageDecay = 0.92,
+  ribbonWidth = 0.3,
+  ribbonAttenuation = 0.5,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
@@ -602,7 +670,63 @@ export function ParticleSwarm({
     }
   });
 
-  return <group ref={groupRef} name="Particle Swarm" />;
+  // Render trail effect based on mode
+  const renderTrailEffect = () => {
+    switch (trailMode) {
+      case 'points':
+        return (
+          <MotionTrails
+            particleGroupRef={groupRef}
+            enabled={true}
+            trailLength={trailLength}
+            pointSize={trailPointSize}
+            color={trailColor}
+            opacity={trailOpacity}
+            minDistance={trailMinDistance}
+            maxParticles={Math.min(performanceCap, 200)}
+          />
+        );
+      case 'afterimage':
+        return <AfterimageEffect decay={afterimageDecay} enabled={true} />;
+      case 'ribbon':
+        // Ribbon trails wrap first few particles for performance
+        // (drei Trail has known FPS issues with many trails)
+        return null; // Rendered inline with meshes below
+      default:
+        return null;
+    }
+  };
+
+  // For ribbon mode, we need to wrap meshes with Trail components
+  // This is rendered separately since it needs to wrap the mesh
+  const ribbonTrailMeshes = useMemo(() => {
+    if (trailMode !== 'ribbon') return null;
+
+    // Only wrap first 5 particles to avoid performance issues
+    const maxRibbonTrails = 5;
+    const shards = shardsRef.current.slice(0, maxRibbonTrails);
+
+    return shards.map((shard) => (
+      <Trail
+        key={`ribbon-${shard.mesh.uuid}`}
+        width={ribbonWidth}
+        length={trailLength}
+        decay={1}
+        color={trailColor}
+        attenuation={(w) => w * (1 - ribbonAttenuation) + ribbonAttenuation * w * w}
+      >
+        <primitive object={shard.mesh} />
+      </Trail>
+    ));
+  }, [trailMode, trailLength, trailColor, ribbonWidth, ribbonAttenuation]);
+
+  return (
+    <>
+      <group ref={groupRef} name="Particle Swarm" />
+      {renderTrailEffect()}
+      {ribbonTrailMeshes}
+    </>
+  );
 }
 
 export default ParticleSwarm;

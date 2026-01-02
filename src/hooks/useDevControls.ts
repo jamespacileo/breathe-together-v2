@@ -71,6 +71,19 @@ export const TUNING_DEFAULTS = {
   showOrbitBounds: false,
   showPhaseMarkers: false,
   showTraitValues: false,
+
+  // Motion Trails (dev-only)
+  trailMode: 'points' as 'none' | 'points' | 'afterimage' | 'ribbon',
+  trailLength: 12,
+  trailPointSize: 0.04,
+  trailColor: '#7ec8d4',
+  trailOpacity: 0.5,
+  trailMinDistance: 0.05,
+  // Afterimage-specific
+  afterimageDecay: 0.92,
+  // Ribbon-specific (drei Trail)
+  ribbonWidth: 0.3,
+  ribbonAttenuation: 0.5,
 } as const;
 
 /**
@@ -144,6 +157,17 @@ export interface DevControlsState {
   showOrbitBounds: boolean;
   showPhaseMarkers: boolean;
   showTraitValues: boolean;
+
+  // Motion Trails
+  trailMode: 'none' | 'points' | 'afterimage' | 'ribbon';
+  trailLength: number;
+  trailPointSize: number;
+  trailColor: string;
+  trailOpacity: number;
+  trailMinDistance: number;
+  afterimageDecay: number;
+  ribbonWidth: number;
+  ribbonAttenuation: number;
 }
 
 /** Get default values for all dev controls */
@@ -175,6 +199,16 @@ function getDefaultDevControls(): DevControlsState {
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
+    // Motion Trails
+    trailMode: TUNING_DEFAULTS.trailMode,
+    trailLength: TUNING_DEFAULTS.trailLength,
+    trailPointSize: TUNING_DEFAULTS.trailPointSize,
+    trailColor: TUNING_DEFAULTS.trailColor,
+    trailOpacity: TUNING_DEFAULTS.trailOpacity,
+    trailMinDistance: TUNING_DEFAULTS.trailMinDistance,
+    afterimageDecay: TUNING_DEFAULTS.afterimageDecay,
+    ribbonWidth: TUNING_DEFAULTS.ribbonWidth,
+    ribbonAttenuation: TUNING_DEFAULTS.ribbonAttenuation,
   };
 }
 
@@ -504,6 +538,87 @@ export function useDevControls(): DevControlsState {
     ),
 
     // ==========================================
+    // MOTION TRAILS
+    // ==========================================
+    'Motion Trails': folder(
+      {
+        trailMode: {
+          value: TUNING_DEFAULTS.trailMode,
+          options: {
+            Off: 'none',
+            'Points (Polished)': 'points',
+            'Afterimage (Quick)': 'afterimage',
+            'Ribbon (drei Trail)': 'ribbon',
+          },
+          label: 'Trail Mode',
+          hint: 'Trail rendering approach. Points = GPU efficient dots. Afterimage = post-process feedback. Ribbon = drei Trail mesh ribbons.',
+        },
+        trailColor: {
+          value: TUNING_DEFAULTS.trailColor,
+          label: 'Trail Color',
+          hint: 'Color of motion trails. Monument Valley teal (#7ec8d4) is default.',
+        },
+        trailOpacity: {
+          value: TUNING_DEFAULTS.trailOpacity,
+          min: 0,
+          max: 1,
+          step: 0.05,
+          label: 'Trail Opacity',
+          hint: 'Opacity at trail head (fades to 0 at tail). Higher = more visible trails.',
+        },
+        trailLength: {
+          value: TUNING_DEFAULTS.trailLength,
+          min: 4,
+          max: 32,
+          step: 1,
+          label: 'Trail Length',
+          hint: 'Number of trail points per particle. Higher = longer trails, more memory.',
+        },
+        trailPointSize: {
+          value: TUNING_DEFAULTS.trailPointSize,
+          min: 0.01,
+          max: 0.2,
+          step: 0.005,
+          label: 'Point Size',
+          hint: 'Base size of trail points (Points mode). Smaller = more subtle.',
+        },
+        trailMinDistance: {
+          value: TUNING_DEFAULTS.trailMinDistance,
+          min: 0.01,
+          max: 0.2,
+          step: 0.01,
+          label: 'Min Distance',
+          hint: 'Minimum movement before recording new trail point. Higher = sparser trails.',
+        },
+        afterimageDecay: {
+          value: TUNING_DEFAULTS.afterimageDecay,
+          min: 0.8,
+          max: 0.98,
+          step: 0.01,
+          label: 'Afterimage Decay',
+          hint: 'Frame decay rate for afterimage mode. Higher = longer persistence (0.92 = 8% fade/frame).',
+        },
+        ribbonWidth: {
+          value: TUNING_DEFAULTS.ribbonWidth,
+          min: 0.05,
+          max: 1.0,
+          step: 0.05,
+          label: 'Ribbon Width',
+          hint: 'Width of ribbon trails (drei Trail mode). Wider = more visible.',
+        },
+        ribbonAttenuation: {
+          value: TUNING_DEFAULTS.ribbonAttenuation,
+          min: 0,
+          max: 1,
+          step: 0.1,
+          label: 'Ribbon Taper',
+          hint: 'How much ribbon narrows toward tail. 0 = constant width, 1 = full taper.',
+        },
+      },
+      { collapsed: false },
+    ),
+
+    // ==========================================
     // DEBUG
     // ==========================================
     Debug: folder(
@@ -565,5 +680,5 @@ export function useDevControls(): DevControlsState {
     return () => clearTimeout(timeout);
   }, [saveLastSettings]);
 
-  return controls;
+  return controls as unknown as DevControlsState;
 }
