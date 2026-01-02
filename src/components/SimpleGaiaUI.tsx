@@ -19,12 +19,6 @@ interface SimpleGaiaUIProps {
   /** Particle count (harmony) */
   harmony: number;
   setHarmony: (v: number) => void;
-  /** Index of Refraction - controls light bending through glass */
-  ior: number;
-  setIor: (v: number) => void;
-  /** Glass depth - controls backface normal blending/distortion */
-  glassDepth: number;
-  setGlassDepth: (v: number) => void;
   /** Orbit radius - how far particles orbit from center */
   orbitRadius: number;
   setOrbitRadius: (v: number) => void;
@@ -34,6 +28,8 @@ interface SimpleGaiaUIProps {
   /** Atmosphere density - number of ambient floating particles */
   atmosphereDensity: number;
   setAtmosphereDensity: (v: number) => void;
+  /** Apply preset values with smooth animation */
+  onApplyPreset: (preset: 'calm' | 'centered' | 'immersive') => void;
   /** Optional external control for tune controls visibility */
   showTuneControls?: boolean;
   /** Optional callback when tune controls visibility changes */
@@ -66,16 +62,13 @@ interface SimpleGaiaUIProps {
 export function SimpleGaiaUI({
   harmony,
   setHarmony,
-  ior,
-  setIor,
-  glassDepth,
-  setGlassDepth,
   orbitRadius,
   setOrbitRadius,
   shardSize,
   setShardSize,
   atmosphereDensity,
   setAtmosphereDensity,
+  onApplyPreset,
   showTuneControls: externalShowTuneControls,
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
@@ -988,27 +981,48 @@ export function SimpleGaiaUI({
               boxShadow: '0 20px 50px rgba(138, 131, 124, 0.08)',
             }}
           >
-            {/* PARTICLES SECTION */}
-            <div style={sectionStyle}>
+            {/* PRESETS ROW */}
+            <div style={{ marginBottom: '20px' }}>
               <div
                 style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
-                  color: colors.textDim,
-                  marginBottom: '12px',
-                  letterSpacing: '0.12em',
-                  fontVariant: 'small-caps',
-                  borderBottom: `1px solid ${colors.border}`,
-                  paddingBottom: '6px',
+                  display: 'flex',
+                  gap: '8px',
+                  justifyContent: 'space-between',
                 }}
               >
-                Particles
+                {(['calm', 'centered', 'immersive'] as const).map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => onApplyPreset(preset)}
+                    onPointerDown={stopPropagation}
+                    style={{
+                      flex: 1,
+                      padding: '10px 8px',
+                      background: colors.glass,
+                      border: `1px solid ${colors.border}`,
+                      borderRadius: '12px',
+                      fontSize: '0.6rem',
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: colors.text,
+                      cursor: 'pointer',
+                      transition: 'all 0.25s ease',
+                    }}
+                  >
+                    {preset}
+                  </button>
+                ))}
               </div>
+            </div>
 
+            {/* VISUAL CONTROLS */}
+            <div style={sectionStyle}>
               <label style={{ marginBottom: '14px', display: 'block' }}>
                 <div style={labelStyle}>
                   <span>Harmony</span>
-                  <span style={{ fontWeight: 400 }}>{harmony}</span>
+                  <span style={{ fontWeight: 400 }}>{Math.round(harmony)}</span>
                 </div>
                 <input
                   type="range"
@@ -1037,9 +1051,9 @@ export function SimpleGaiaUI({
                 />
               </label>
 
-              <label style={{ display: 'block' }}>
+              <label style={{ marginBottom: '14px', display: 'block' }}>
                 <div style={labelStyle}>
-                  <span>Orbit</span>
+                  <span>Breathing Space</span>
                   <span style={{ fontWeight: 400 }}>{orbitRadius.toFixed(1)}</span>
                 </div>
                 <input
@@ -1052,79 +1066,11 @@ export function SimpleGaiaUI({
                   style={inputStyle}
                 />
               </label>
-            </div>
-
-            {/* GLASS SECTION */}
-            <div style={sectionStyle}>
-              <div
-                style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
-                  color: colors.textDim,
-                  marginBottom: '12px',
-                  letterSpacing: '0.12em',
-                  fontVariant: 'small-caps',
-                  borderBottom: `1px solid ${colors.border}`,
-                  paddingBottom: '6px',
-                }}
-              >
-                Glass
-              </div>
-
-              <label style={{ marginBottom: '14px', display: 'block' }}>
-                <div style={labelStyle}>
-                  <span>Refraction</span>
-                  <span style={{ fontWeight: 400 }}>{ior.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="1.0"
-                  max="2.5"
-                  step="0.01"
-                  value={ior}
-                  onChange={(e) => setIor(parseFloat(e.target.value))}
-                  style={inputStyle}
-                />
-              </label>
 
               <label style={{ display: 'block' }}>
                 <div style={labelStyle}>
-                  <span>Depth</span>
-                  <span style={{ fontWeight: 400 }}>{glassDepth.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="1.0"
-                  step="0.01"
-                  value={glassDepth}
-                  onChange={(e) => setGlassDepth(parseFloat(e.target.value))}
-                  style={inputStyle}
-                />
-              </label>
-            </div>
-
-            {/* ATMOSPHERE SECTION */}
-            <div style={{ marginBottom: '16px' }}>
-              <div
-                style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
-                  color: colors.textDim,
-                  marginBottom: '12px',
-                  letterSpacing: '0.12em',
-                  fontVariant: 'small-caps',
-                  borderBottom: `1px solid ${colors.border}`,
-                  paddingBottom: '6px',
-                }}
-              >
-                Atmosphere
-              </div>
-
-              <label style={{ display: 'block' }}>
-                <div style={labelStyle}>
-                  <span>Density</span>
-                  <span style={{ fontWeight: 400 }}>{atmosphereDensity}</span>
+                  <span>Atmosphere</span>
+                  <span style={{ fontWeight: 400 }}>{Math.round(atmosphereDensity)}</span>
                 </div>
                 <input
                   type="range"
@@ -1136,6 +1082,31 @@ export function SimpleGaiaUI({
                   style={inputStyle}
                 />
               </label>
+            </div>
+
+            {/* RESET BUTTON */}
+            <div style={{ marginBottom: '16px' }}>
+              <button
+                type="button"
+                onClick={() => onApplyPreset('centered')}
+                onPointerDown={stopPropagation}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'transparent',
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: '12px',
+                  fontSize: '0.58rem',
+                  fontWeight: 500,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  color: colors.textDim,
+                  cursor: 'pointer',
+                  transition: 'all 0.25s ease',
+                }}
+              >
+                Reset to Defaults
+              </button>
             </div>
 
             {/* Mood Legend */}
