@@ -112,6 +112,8 @@ jobs:
 
             // Strategy 2: Search for PR by head SHA (works for fork PRs)
             const headSha = context.payload.workflow_run?.head_sha;
+            const headBranch = context.payload.workflow_run?.head_branch;
+
             if (!headSha) {
               core.setOutput('found', 'false');
               core.setFailed('Could not determine PR number');
@@ -119,34 +121,42 @@ jobs:
             }
             console.log(`Searching for PR with head SHA: ${headSha}`);
 
-            const { data: prs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-            });
+            // Paginate through all open PRs (handles repos with >30 open PRs)
+            let matchingPr = null;
+            let branchPr = null;
 
-            const matchingPr = prs.find(pr => pr.head.sha === headSha);
+            for await (const response of github.paginate.iterator(
+              github.rest.pulls.list,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                per_page: 100,
+              }
+            )) {
+              // Strategy 2a: Match by SHA (most reliable)
+              matchingPr = response.data.find(pr => pr.head.sha === headSha);
+              if (matchingPr) {
+                core.setOutput('number', matchingPr.number);
+                core.setOutput('found', 'true');
+                console.log(`Found PR #${matchingPr.number} by SHA match`);
+                return;
+              }
 
-            if (matchingPr) {
-              core.setOutput('number', matchingPr.number);
-              core.setOutput('found', 'true');
-              console.log(`Found PR #${matchingPr.number} by SHA match`);
-              return;
+              // Strategy 2b: Match by branch (same-repo PRs only, fallback)
+              if (!branchPr && headBranch) {
+                branchPr = response.data.find(pr =>
+                  pr.head.ref === headBranch &&
+                  pr.head.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`
+                );
+              }
             }
 
-            // Strategy 3: Search by branch name (same-repo PRs only)
-            const headBranch = context.payload.workflow_run?.head_branch;
-            console.log(`Searching for PR with head branch: ${headBranch}`);
-
-            const branchPr = prs.find(pr =>
-              pr.head.ref === headBranch &&
-              pr.head.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`
-            );
-
+            // Strategy 3: Use branch match if SHA match failed
             if (branchPr) {
               core.setOutput('number', branchPr.number);
               core.setOutput('found', 'true');
-              console.log(`Found PR #${branchPr.number} by branch match`);
+              console.log(`Found PR #${branchPr.number} by branch match (SHA mismatch - PR may have been updated)`);
               return;
             }
 
@@ -169,21 +179,29 @@ jobs:
         with:
           node-version: '20'
 
+      # Pin Playwright version for reproducible builds
+      # Update this when upgrading Playwright (also update cache key below)
       - name: Cache Playwright browsers
         if: steps.pr.outputs.found == 'true'
         uses: actions/cache@v4
         id: playwright-cache
+        env:
+          # IMPORTANT: Update this when changing Playwright version in Install step
+          PLAYWRIGHT_VERSION: '1.49.1'
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-chromium-${{ hashFiles('**/package-lock.json') }}
+          # Cache key includes Playwright version (not package-lock.json since PW is installed ad-hoc)
+          key: playwright-${{ runner.os }}-chromium-v${{ env.PLAYWRIGHT_VERSION }}
           restore-keys: |
             playwright-${{ runner.os }}-chromium-
 
       - name: Install Playwright
         if: steps.pr.outputs.found == 'true'
+        env:
+          # Pin version for reproducible builds (update cache key above when changing)
+          PLAYWRIGHT_VERSION: '1.49.1'
         run: |
-          # Skip npm init - not needed
-          npm install playwright@latest
+          npm install playwright@${PLAYWRIGHT_VERSION}
 
           # Only download browsers if cache miss
           if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
@@ -245,6 +263,7 @@ jobs:
           .github/scripts/push-screenshots.sh
 
       - name: Comment PR with screenshots
+        # Always run if PR was found (even if capture/push failed - to update status)
         if: steps.pr.outputs.found == 'true'
         uses: actions/github-script@v7
         env:
@@ -253,6 +272,8 @@ jobs:
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           HAS_SCREENSHOTS: ${{ steps.capture.outputs.has_screenshots }}
           CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+          # Track if push succeeded - if not, inline images won't work
+          PUSH_OUTCOME: ${{ steps.push_screenshots.outcome }}
           SCREENSHOTS_BRANCH: ${{ steps.push_screenshots.outputs.branch }}
           SCREENSHOTS_FOLDER: ${{ steps.push_screenshots.outputs.folder }}
         with:
@@ -263,14 +284,18 @@ jobs:
             const workflowRunId = process.env.WORKFLOW_RUN_ID;
             const hasScreenshots = process.env.HAS_SCREENSHOTS === 'true';
             const captureOutcome = process.env.CAPTURE_OUTCOME;
+            const pushOutcome = process.env.PUSH_OUTCOME;
+            const pushSucceeded = pushOutcome === 'success';
             const screenshotsBranch = process.env.SCREENSHOTS_BRANCH || 'screenshots';
             const screenshotsFolder = process.env.SCREENSHOTS_FOLDER || `pr-${prNumber}`;
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
             const artifactUrl = `${repoUrl}/actions/runs/${workflowRunId}`;
             const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
-            // Base URL for raw image access
-            const rawBaseUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${screenshotsBranch}/${screenshotsFolder}`;
+            // Base URL for raw image access (only valid if push succeeded)
+            const rawBaseUrl = pushSucceeded
+              ? `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${screenshotsBranch}/${screenshotsFolder}`
+              : null;
 
             // List captured screenshots from working directory
             let screenshotFiles = [];
@@ -286,9 +311,12 @@ jobs:
 
             // Build status indicator
             let statusEmoji, statusText;
-            if (hasScreenshots && captureOutcome === 'success') {
+            if (hasScreenshots && captureOutcome === 'success' && pushSucceeded) {
               statusEmoji = '✅';
               statusText = 'Screenshots captured successfully';
+            } else if (hasScreenshots && captureOutcome === 'success' && !pushSucceeded) {
+              statusEmoji = '⚠️';
+              statusText = 'Screenshots captured but push to branch failed - download artifact instead';
             } else if (hasScreenshots) {
               statusEmoji = '⚠️';
               statusText = 'Partial capture (some viewports may have failed)';
@@ -324,7 +352,7 @@ jobs:
               '',
             ];
 
-            if (hasScreenshots) {
+            if (hasScreenshots && pushSucceeded && rawBaseUrl) {
               // Breathing screens configuration
               const breathingScreens = [
                 { name: 'inhale', label: 'Inhale', description: 'Particles contracting' },
@@ -416,6 +444,17 @@ jobs:
                 `- [Browse on GitHub](${repoUrl}/tree/${screenshotsBranch}/${screenshotsFolder})`,
                 '',
                 '</details>',
+              );
+            } else if (hasScreenshots && !pushSucceeded) {
+              // Screenshots captured but push failed - show artifact-only download
+              bodyParts.push(
+                '### 📥 Download Screenshots',
+                '',
+                'Inline preview unavailable (git push failed). Download from artifact instead:',
+                '',
+                `**[Download Screenshots (${screenshotFiles.length} files)](${artifactUrl})**`,
+                '',
+                `Files captured: ${screenshotFiles.join(', ')}`,
               );
             }
 
