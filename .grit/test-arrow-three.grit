@@ -1,0 +1,8 @@
+// Test pattern: Detect THREE in arrow function
+`() => new THREE.$type($$$args)` where {
+  register_diagnostic(
+    span = $type,
+    message = "Found THREE constructor in arrow function: $type",
+    severity = "info"
+  )
+}
