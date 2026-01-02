@@ -112,6 +112,36 @@ export function MomentumControls({
     }
   }, [global, cursor, domElement, enabled]);
 
+  // Sync damping when prop changes (for Leva real-time updates)
+  React.useEffect(() => {
+    animation.current.damping = damping;
+  }, [damping]);
+
+  // Check if event target is within UI overlay (Leva, modals, etc.)
+  const isUIElement = React.useCallback((event: PointerEvent | MouseEvent | TouchEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target) return false;
+
+    // Check if click is on UI elements that should not trigger rotation
+    const uiSelectors = [
+      '.leva', // Leva panel
+      '[class*="leva"]', // Leva classes
+      '[data-leva]', // Leva data attributes
+      '.gaia-ui', // Our UI
+      '[class*="modal"]', // Modals
+      'button',
+      'input',
+      'select',
+      'textarea',
+      '[role="button"]',
+      '[role="slider"]',
+    ];
+
+    return uiSelectors.some(
+      (selector) => target.closest(selector) !== null || target.matches(selector),
+    );
+  }, []);
+
   // Smooth animation loop
   useFrame((_state, delta) => {
     if (!ref.current) return;
@@ -126,8 +156,13 @@ export function MomentumControls({
           domElement.style.cursor = last ? 'auto' : 'grab';
         }
       },
-      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo }) => {
+      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo, event }) => {
         if (!enabled) return memo;
+
+        // Ignore events from UI elements (Leva, modals, buttons, etc.)
+        if (event && isUIElement(event as PointerEvent)) {
+          return memo;
+        }
 
         // Initialize memo with current rotation on drag start
         const [oldY, oldX] = memo || animation.current.target;
