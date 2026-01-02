@@ -1,8 +1,9 @@
 import { memo, useEffect, useRef } from 'react';
+import { useMediaQuery } from 'react-responsive';
 import { useShallow } from 'zustand/shallow';
 import { AMBIENT_MESSAGES, WELCOME_INTRO } from '../config/inspirationalSequences';
 import { BREATH_TOTAL_CYCLE } from '../constants';
-import { useViewport } from '../hooks/useViewport';
+import { BREAKPOINTS } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { easeExhale, easeInhaleText } from '../lib/easing';
 import { useInspirationalTextStore } from '../stores/inspirationalTextStore';
@@ -54,7 +55,13 @@ function InspirationalTextComponent() {
   const topWrapperRef = useRef<HTMLDivElement>(null);
   const bottomWrapperRef = useRef<HTMLDivElement>(null);
   const prevPhaseRef = useRef(-1);
-  const { isMobile, isTablet } = useViewport();
+
+  // Responsive design using react-responsive
+  const isMobile = useMediaQuery({ maxWidth: BREAKPOINTS.mobile });
+  const isTablet = useMediaQuery({
+    minWidth: BREAKPOINTS.mobile + 1,
+    maxWidth: BREAKPOINTS.tablet,
+  });
 
   // Consolidated store selector - single subscription with shallow comparison
   // Reduces 7 separate subscriptions to 1, preventing multiple re-renders

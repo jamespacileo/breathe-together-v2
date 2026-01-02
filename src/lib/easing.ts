@@ -13,16 +13,19 @@
  * - src/components/InspirationalText.tsx (text fade in/out)
  */
 
+import { clamp } from 'lodash-es';
+
 /**
  * Clamp a value to the 0-1 range
  *
  * Common utility for normalizing progress values in easing functions.
+ * Uses lodash clamp for better performance and edge case handling.
  *
  * @param value The value to clamp
  * @returns Value clamped between 0 and 1
  */
 export function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
+  return clamp(value, 0, 1);
 }
 
 /**

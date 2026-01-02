@@ -99,6 +99,13 @@ export interface BreathingDebugProps {
    * @default false
    */
   showTraitValues?: boolean;
+
+  /**
+   * Show performance monitor (FPS, memory, drawcalls).
+   * @group "Debug"
+   * @default true
+   */
+  showPerformanceMonitor?: boolean;
 }
 
 export type BreathingDebugSceneProps = BreathingLevelProps & BreathingDebugProps;
