@@ -1,6 +1,6 @@
 import { Leva } from 'leva';
-import { Perf } from 'r3f-perf';
-import { Suspense, useMemo } from 'react';
+import { Suspense } from 'react';
+import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
@@ -12,7 +12,7 @@ import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles'
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useDevControls } from '../hooks/useDevControls';
-import { generateMockPresence } from '../lib/mockPresence';
+import { usePresence } from '../hooks/usePresence';
 import { useBreathingLevelStore } from '../stores/breathingLevelStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -33,56 +33,21 @@ export function BreathingLevel({
   showEnvironment = true,
 }: Partial<BreathingLevelProps> = {}) {
   // Shared state from Zustand store
-  const { harmony, orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
+  const { orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
 
   // Dev controls (Leva)
   const devControls = useDevControls();
 
-  // Mock presence data
-  const mockUsers = useMemo(() => {
-    const presence = generateMockPresence(Math.round(harmony));
-    const users: Array<{ id: string; mood: 'gratitude' | 'presence' | 'release' | 'connection' }> =
-      [];
-    for (const [mood, count] of Object.entries(presence.moods)) {
-      for (let i = 0; i < count; i++) {
-        users.push({
-          id: `${mood}-${i}`,
-          mood: mood as 'gratitude' | 'presence' | 'release' | 'connection',
-        });
-      }
-    }
-
-    // Shuffle users for visual variety
-    const seed = Math.round(harmony);
-    const seededRandom = (i: number) => {
-      const x = Math.sin(seed * 9999 + i * 1234) * 10000;
-      return x - Math.floor(x);
-    };
-
-    for (let i = users.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom(i) * (i + 1));
-      [users[i], users[j]] = [users[j], users[i]];
-    }
-
-    return users;
-  }, [harmony]);
+  // Presence API (synchronized user positions)
+  // Users array is sorted by ID on server, ensuring identical particle positions
+  // across all connected clients for a shared visual experience
+  const { users } = usePresence();
 
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
-        {/* Performance monitor (dev only) */}
-        {DEV_MODE_ENABLED && devControls.showPerfMonitor && (
-          <Perf
-            position={devControls.perfPosition}
-            minimal={devControls.perfMinimal}
-            showGraph={devControls.perfShowGraph}
-            logsPerSecond={devControls.perfLogsPerSecond}
-            antialias={devControls.perfAntialias}
-            overClock={devControls.perfOverClock}
-            deepAnalyze={devControls.perfDeepAnalyze}
-            matrixUpdate={devControls.perfMatrixUpdate}
-          />
-        )}
+        {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
+        <AudioDevControls />
 
         {/* 4-Pass FBO Refraction Pipeline */}
         <RefractionPipeline
@@ -122,7 +87,7 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm users={mockUsers} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
             )}
 
             {showParticles && (
@@ -168,6 +133,9 @@ export function BreathingLevelUI() {
     applyPreset,
   } = useBreathingLevelStore();
 
+  // Presence API for user count display
+  const { count: presenceCount } = usePresence();
+
   return (
     <div className="absolute inset-0 pointer-events-none">
       {/* Leva dev controls panel */}
@@ -203,6 +171,7 @@ export function BreathingLevelUI() {
         onShowTuneControlsChange={setShowTuneControls}
         showSettings={showSettings}
         onShowSettingsChange={setShowSettings}
+        presenceCount={presenceCount}
       />
     </div>
   );

@@ -18,7 +18,16 @@ import {
 } from 'react';
 import { AudioEngine } from './AudioEngine';
 import { audioSystem } from './audioSystem';
-import type { AudioContextValue, AudioState } from './types';
+import type { AudioContextValue, AudioState, CategoryVolumes, SoundCategory } from './types';
+
+// Default category volumes
+const DEFAULT_CATEGORY_VOLUMES: CategoryVolumes = {
+  ambient: 0.5,
+  breath: 0.6,
+  nature: 0.5,
+  chimes: 0.4,
+  ui: 0.3,
+};
 
 // Default state
 const defaultState: AudioState = {
@@ -30,6 +39,9 @@ const defaultState: AudioState = {
   natureSound: null,
   chimesEnabled: false,
   loadingStates: {},
+  categoryVolumes: DEFAULT_CATEGORY_VOLUMES,
+  syncIntensity: 1.0,
+  rampTime: 0.1,
 };
 
 // Create context (exported for direct useContext access when needed)
@@ -80,12 +92,14 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         // Read current state from ref to avoid stale closure
         const currentState = stateRef.current;
         const engine = new AudioEngine({
-          enabled: true,
           masterVolume: currentState.masterVolume,
           ambientEnabled: currentState.ambientEnabled,
           breathEnabled: currentState.breathEnabled,
           natureSound: currentState.natureSound,
           chimesEnabled: currentState.chimesEnabled,
+          syncIntensity: currentState.syncIntensity,
+          rampTime: currentState.rampTime,
+          categoryVolumes: currentState.categoryVolumes,
         });
 
         const loadingStates = await engine.init();
@@ -156,6 +170,27 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, chimesEnabled: enabled }));
   }, []);
 
+  // Set category volume
+  const setCategoryVolume = useCallback((category: SoundCategory, volume: number) => {
+    engineRef.current?.setCategoryVolume(category, volume);
+    setState((s) => ({
+      ...s,
+      categoryVolumes: { ...s.categoryVolumes, [category]: volume },
+    }));
+  }, []);
+
+  // Set sync intensity
+  const setSyncIntensity = useCallback((intensity: number) => {
+    engineRef.current?.setSyncIntensity(intensity);
+    setState((s) => ({ ...s, syncIntensity: intensity }));
+  }, []);
+
+  // Set ramp time
+  const setRampTime = useCallback((time: number) => {
+    engineRef.current?.setRampTime(time);
+    setState((s) => ({ ...s, rampTime: time }));
+  }, []);
+
   // Run audio system every frame (only when enabled)
   // Uses stateRef to avoid recreating callback on state changes
   useFrame((_, delta) => {
@@ -180,6 +215,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     setAmbientEnabled,
     setBreathEnabled,
     setChimesEnabled,
+    setCategoryVolume,
+    setSyncIntensity,
+    setRampTime,
   };
 
   return <AudioContext.Provider value={value}>{children}</AudioContext.Provider>;
