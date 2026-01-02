@@ -122,7 +122,6 @@ export function SimpleGaiaUI() {
     minWidth: BREAKPOINTS.mobile + 1,
     maxWidth: BREAKPOINTS.tablet,
   });
-  const isDesktop = useMediaQuery({ minWidth: BREAKPOINTS.tablet + 1 });
 
   // Responsive spacing values
   const edgePadding = isMobile ? 16 : isTablet ? 24 : 32; // Mobile: 16px, Tablet: 24px, Desktop: 32px
