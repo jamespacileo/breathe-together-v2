@@ -81,3 +81,23 @@ export const VISUALS = {
   /** Max orbit radius (exhale - particles farthest from globe) */
   PARTICLE_ORBIT_MAX: 6.0,
 } as const;
+
+/**
+ * Hold Phase Oscillation Parameters
+ *
+ * Creates subtle "breathing" during hold phases using underdamped harmonic oscillator.
+ * Nothing in nature is perfectly still - these parameters add organic micro-movement.
+ *
+ * Tuning history:
+ * - amplitude: 0.4% (reduced from 1.2% to avoid visible "bounce" before exhale)
+ * - damping: 0.6 (increased to settle faster during hold)
+ * - frequency: 1.0 (reduced from 1.5 for gentler rhythm)
+ */
+export const HOLD_OSCILLATION = {
+  /** Very subtle micro-movement amplitude (0.4%) */
+  AMPLITUDE: 0.004,
+  /** Damping factor - reduces amplitude over hold phase */
+  DAMPING: 0.6,
+  /** Oscillation frequency - cycles per hold phase */
+  FREQUENCY: 1.0,
+} as const;

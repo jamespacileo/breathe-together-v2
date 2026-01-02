@@ -52,6 +52,13 @@ export interface AtmosphericParticlesProps {
    * @max 1
    */
   breathingOpacity?: number;
+
+  /**
+   * Particle color (hex string).
+   *
+   * @default '#8c7b6c'
+   */
+  color?: string;
 }
 
 /**
@@ -68,6 +75,7 @@ export const AtmosphericParticles = memo(function AtmosphericParticlesComponent(
   size = 0.08,
   baseOpacity = 0.1,
   breathingOpacity = 0.15,
+  color = '#8c7b6c',
 }: AtmosphericParticlesProps = {}) {
   const sparklesRef = useRef<THREE.Points>(null);
   // Cache material reference to avoid repeated type casting in animation loop
@@ -83,9 +91,9 @@ export const AtmosphericParticles = memo(function AtmosphericParticlesComponent(
       materialRef.current = sparklesRef.current.material as THREE.PointsMaterial;
     }
 
-    const breathEntity = world?.queryFirst?.(breathPhase);
-    if (breathEntity && materialRef.current?.opacity !== undefined) {
-      const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
+    const breathEntity = world.queryFirst(breathPhase);
+    if (breathEntity && materialRef.current) {
+      const phase = breathEntity.get(breathPhase)?.value ?? 0;
       materialRef.current.opacity = baseOpacity + phase * breathingOpacity;
     }
   });
@@ -98,7 +106,7 @@ export const AtmosphericParticles = memo(function AtmosphericParticlesComponent(
       size={size}
       speed={0.5}
       opacity={baseOpacity}
-      color="#8c7b6c"
+      color={color}
     />
   );
 });

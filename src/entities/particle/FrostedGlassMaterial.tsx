@@ -13,7 +13,6 @@
  * 3. RefractionPipeline must be present in the scene tree
  */
 
-import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 
 // Vertex shader - passes normals and colors to fragment
@@ -72,32 +71,6 @@ void main() {
   gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
-
-interface FrostedGlassMaterialProps {
-  /** Base color for non-refraction fallback @default '#ffffff' */
-  color?: string;
-}
-
-export function FrostedGlassMaterial({ color = '#ffffff' }: FrostedGlassMaterialProps) {
-  // Simple placeholder material - actual rendering uses RefractionPipeline shaders
-  const material = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color,
-        vertexColors: true, // Enable per-vertex colors
-      }),
-    [color],
-  );
-
-  // GPU memory cleanup
-  useEffect(() => {
-    return () => {
-      material.dispose();
-    };
-  }, [material]);
-
-  return <primitive object={material} attach="material" />;
-}
 
 /**
  * Creates an enhanced frosted glass shader material for icosahedral shards

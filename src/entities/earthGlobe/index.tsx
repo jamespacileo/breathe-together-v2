@@ -22,7 +22,7 @@ import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
-import { useDisposeMaterials } from '../../hooks/useDisposeMaterials';
+import { useDisposeGeometries, useDisposeMaterials } from '../../hooks/useDisposeMaterials';
 import { breathPhase } from '../breath/traits';
 
 // Vertex shader for textured globe with fresnel
@@ -286,8 +286,42 @@ export function EarthGlobe({
     [],
   );
 
-  // Cleanup materials on unmount using helper hook
-  useDisposeMaterials([material, glowMaterial, mistMaterial]);
+  // Create memoized atmosphere geometries and materials to prevent GPU leaks
+  const atmosphereGeometry = useMemo(() => new THREE.SphereGeometry(radius, 32, 32), [radius]);
+
+  const atmosphereMaterials = useMemo(
+    () =>
+      ATMOSPHERE_LAYERS.map(
+        (layer) =>
+          new THREE.MeshBasicMaterial({
+            color: layer.color,
+            transparent: true,
+            opacity: layer.opacity,
+            side: THREE.BackSide,
+            depthWrite: false,
+          }),
+      ),
+    [],
+  );
+
+  // Create memoized ring material to prevent GPU leak
+  const ringMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: '#e8c4b8',
+        transparent: true,
+        opacity: 0.15,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    [],
+  );
+
+  // Cleanup all materials on unmount using helper hook
+  useDisposeMaterials([material, glowMaterial, mistMaterial, ...atmosphereMaterials, ringMaterial]);
+
+  // Cleanup geometries on unmount
+  useDisposeGeometries([atmosphereGeometry]);
 
   /**
    * Update globe scale, rotation, and shader uniforms
@@ -297,9 +331,9 @@ export function EarthGlobe({
 
     try {
       // Get breath phase for animation
-      const breathEntity = world?.queryFirst?.(breathPhase);
+      const breathEntity = world.queryFirst(breathPhase);
       if (breathEntity) {
-        const phase = breathEntity.get?.(breathPhase)?.value ?? 0;
+        const phase = breathEntity.get(breathPhase)?.value ?? 0;
         // Update shader uniforms
         material.uniforms.breathPhase.value = phase;
         glowMaterial.uniforms.breathPhase.value = phase;
@@ -320,11 +354,8 @@ export function EarthGlobe({
           }
         });
 
-        // Animate ring opacity with breathing
-        if (ringRef.current) {
-          const ringMaterial = ringRef.current.material as THREE.MeshBasicMaterial;
-          ringMaterial.opacity = 0.12 + phase * 0.08; // 12% to 20%
-        }
+        // Animate ring opacity with breathing (use memoized material directly)
+        ringMaterial.opacity = 0.12 + phase * 0.08; // 12% to 20%
       }
 
       // Slow rotation
@@ -355,16 +386,9 @@ export function EarthGlobe({
               atmosphereRefs.current[i] = el;
             }}
             scale={layer.scale}
-          >
-            <sphereGeometry args={[radius, 32, 32]} />
-            <meshBasicMaterial
-              color={layer.color}
-              transparent
-              opacity={layer.opacity}
-              side={THREE.BackSide}
-              depthWrite={false}
-            />
-          </mesh>
+            geometry={atmosphereGeometry}
+            material={atmosphereMaterials[i]}
+          />
         ))}
 
       {/* Inner glow - additive blended fresnel */}
@@ -391,15 +415,12 @@ export function EarthGlobe({
 
       {/* Subtle equator ring - rose gold accent */}
       {showRing && (
-        <Ring ref={ringRef} args={[radius * 1.6, radius * 1.65, 64]} rotation={[Math.PI / 2, 0, 0]}>
-          <meshBasicMaterial
-            color="#e8c4b8"
-            transparent
-            opacity={0.15}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-          />
-        </Ring>
+        <Ring
+          ref={ringRef}
+          args={[radius * 1.6, radius * 1.65, 64]}
+          rotation={[Math.PI / 2, 0, 0]}
+          material={ringMaterial}
+        />
       )}
     </group>
   );

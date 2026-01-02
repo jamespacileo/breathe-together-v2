@@ -14,6 +14,14 @@ interface EnvironmentProps {
   cloudOpacity?: number;
   /** Cloud speed multiplier @default 0.3 */
   cloudSpeed?: number;
+  /** Ambient light color @default '#fff5eb' */
+  ambientLightColor?: string;
+  /** Ambient light intensity @default 0.5 */
+  ambientLightIntensity?: number;
+  /** Key light color @default '#ffe4c4' */
+  keyLightColor?: string;
+  /** Key light intensity @default 0.8 */
+  keyLightIntensity?: number;
 }
 
 /**
@@ -32,6 +40,10 @@ export function Environment({
   showStars = true,
   cloudOpacity = 0.4,
   cloudSpeed = 0.3,
+  ambientLightColor = '#fff5eb',
+  ambientLightIntensity = 0.5,
+  keyLightColor = '#ffe4c4',
+  keyLightIntensity = 0.8,
 }: EnvironmentProps = {}) {
   const { scene } = useThree();
   const cloudsRef = useRef<THREE.Group>(null);
@@ -128,10 +140,15 @@ export function Environment({
       )}
 
       {/* Warm ambient light - fills shadows softly */}
-      <ambientLight intensity={0.5} color="#fff5eb" />
+      <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />
 
       {/* Key light - warm golden from upper right (sunrise/sunset feel) */}
-      <directionalLight position={[10, 15, 5]} intensity={0.8} color="#ffe4c4" castShadow={false} />
+      <directionalLight
+        position={[10, 15, 5]}
+        intensity={keyLightIntensity}
+        color={keyLightColor}
+        castShadow={false}
+      />
 
       {/* Fill light - cooler tone from left (sky bounce) */}
       <directionalLight position={[-8, 10, 3]} intensity={0.3} color="#e8f0ff" />

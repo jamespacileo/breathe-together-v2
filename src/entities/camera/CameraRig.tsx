@@ -42,8 +42,8 @@ export function CameraRig({
   // Internal constants for smoothing and movement
   const swayIntensity = 0.05;
   const breathZoomIntensity = 1.5;
-  const lerpSpeed = 1.5;
-  const dampingFactor = 0.03; // Smoother damping
+  const lerpSpeed = 3.0; // Faster camera tracking for snappier feel
+  const dampingFactor = 0.08; // Higher = more friction = quicker stop
 
   const { mouse } = useThree();
   const world = useWorld();
@@ -113,7 +113,7 @@ export function CameraRig({
       enableZoom={false}
       enablePan={false}
       enableRotate={enableRotation}
-      rotateSpeed={0.4}
+      rotateSpeed={0.7}
       minPolarAngle={Math.PI * 0.3}
       maxPolarAngle={Math.PI * 0.6}
       enableDamping={true}

@@ -8,7 +8,7 @@
  * as "crystalline/geometric" while being performant pure CSS.
  */
 
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo } from 'react';
 
 interface CSSIcosahedronProps {
   /** Color of the icosahedron */
@@ -59,8 +59,6 @@ function CSSIcosahedronComponent({
   glowIntensity = 0.4,
   className = '',
 }: CSSIcosahedronProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
   // Memoize brightness-adjusted colors to avoid recalculating on every render
   const { baseColor, lightColor, darkColor } = useMemo(
     () => ({
@@ -88,7 +86,6 @@ function CSSIcosahedronComponent({
 
   return (
     <div
-      ref={containerRef}
       className={className}
       style={{
         width: size,
