@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { InspirationAdmin } from '../components/InspirationAdmin';
 import { MOOD_COLORS } from '../styles/designTokens';
 
 // =============================================================================
@@ -242,6 +243,11 @@ export function AdminPanel() {
           </div>
         </div>
       )}
+
+      {/* Inspirational Text Manager */}
+      <div style={{ marginBottom: '24px' }}>
+        <InspirationAdmin />
+      </div>
 
       {/* Main Content Grid */}
       <div
