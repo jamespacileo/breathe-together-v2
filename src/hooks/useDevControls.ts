@@ -8,7 +8,6 @@
  * User-facing controls remain in SimpleGaiaUI.
  */
 import { folder, useControls } from 'leva';
-import { useEffect, useRef, useState } from 'react';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 
 /**
@@ -273,64 +272,4 @@ export function useDevControls(): DevControlsState {
   });
 
   return controls;
-}
-
-/**
- * Hook for smoothly animating between presets
- *
- * @param targetValues - Object with target values to animate towards
- * @param duration - Animation duration in ms (default 300)
- * @returns Current animated values
- */
-export function useAnimatedValues<T extends Record<string, number>>(
-  targetValues: T,
-  duration = 300,
-): T {
-  const [currentValues, setCurrentValues] = useState<T>(targetValues);
-  const animationRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const startValuesRef = useRef<T>(targetValues);
-
-  useEffect(() => {
-    // Cancel any existing animation
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-
-    // Store starting values
-    startValuesRef.current = { ...currentValues };
-    startTimeRef.current = performance.now();
-
-    const animate = (now: number) => {
-      const elapsed = now - startTimeRef.current;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Ease out cubic for smooth deceleration
-      const eased = 1 - Math.pow(1 - progress, 3);
-
-      // Interpolate all values
-      const newValues = {} as T;
-      for (const key in targetValues) {
-        const start = startValuesRef.current[key];
-        const end = targetValues[key];
-        newValues[key] = (start + (end - start) * eased) as T[typeof key];
-      }
-
-      setCurrentValues(newValues);
-
-      if (progress < 1) {
-        animationRef.current = requestAnimationFrame(animate);
-      }
-    };
-
-    animationRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [targetValues, duration]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return currentValues;
 }

@@ -40,7 +40,9 @@ export function BreathingLevel({
   );
   const [orbitRadius, setOrbitRadius] = useState<number>(TUNING_DEFAULTS.orbitRadius);
   const [shardSize, setShardSize] = useState<number>(TUNING_DEFAULTS.shardSize);
-  const [atmosphereDensity, setAtmosphereDensity] = useState<number>(TUNING_DEFAULTS.atmosphereDensity);
+  const [atmosphereDensity, setAtmosphereDensity] = useState<number>(
+    TUNING_DEFAULTS.atmosphereDensity,
+  );
 
   // Animation refs for smooth preset transitions
   const animationRef = useRef<number | null>(null);
@@ -77,10 +79,12 @@ export function BreathingLevel({
         const progress = Math.min(elapsed / duration, 1);
 
         // Ease out cubic for smooth deceleration
-        const eased = 1 - Math.pow(1 - progress, 3);
+        const eased = 1 - (1 - progress) ** 3;
 
         // Interpolate all values
-        setHarmony(Math.round(startValues.harmony + (preset.harmony - startValues.harmony) * eased));
+        setHarmony(
+          Math.round(startValues.harmony + (preset.harmony - startValues.harmony) * eased),
+        );
         setShardSize(startValues.shardSize + (preset.shardSize - startValues.shardSize) * eased);
         setOrbitRadius(
           startValues.orbitRadius + (preset.orbitRadius - startValues.orbitRadius) * eased,
@@ -164,10 +168,7 @@ export function BreathingLevel({
         >
           {/* Monument Valley inspired atmosphere - clouds, lighting, fog */}
           {showEnvironment && (
-            <Environment
-              showClouds={devControls.showClouds}
-              showStars={devControls.showStars}
-            />
+            <Environment showClouds={devControls.showClouds} showStars={devControls.showStars} />
           )}
 
           {/* Wrap rotatable entities in PresentationControls */}
