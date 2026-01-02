@@ -1,6 +1,6 @@
 import { Leva } from 'leva';
 import { Perf } from 'r3f-perf';
-import { Suspense } from 'react';
+import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
@@ -71,6 +71,11 @@ export function BreathingLevel({
   // across all connected clients for a shared visual experience
   const { users } = usePresence();
 
+  // React 19: Defer non-urgent updates to reduce stutter during state changes
+  // These values control particle counts which are expensive to update
+  const deferredAtmosphereDensity = useDeferredValue(atmosphereDensity);
+  const deferredUsers = useDeferredValue(users);
+
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
@@ -128,15 +133,19 @@ export function BreathingLevel({
           >
             {showGlobe && <EarthGlobe />}
 
-            {/* Particle shards - staggered reveal after joining */}
+            {/* Particle shards - staggered reveal after joining, with deferred updates for perf */}
             {showParticles && showParticlesNow && (
-              <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <ParticleSwarm
+                users={deferredUsers}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
+              />
             )}
 
             {/* Atmospheric particles - fade in after particles appear */}
             {showParticles && showAtmosphereNow && (
               <AtmosphericParticles
-                count={Math.round(atmosphereDensity)}
+                count={Math.round(deferredAtmosphereDensity)}
                 size={devControls.atmosphereParticleSize}
                 baseOpacity={devControls.atmosphereBaseOpacity * atmosphereOpacity}
                 breathingOpacity={devControls.atmosphereBreathingOpacity * atmosphereOpacity}

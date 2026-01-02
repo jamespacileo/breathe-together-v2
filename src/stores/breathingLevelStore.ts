@@ -46,6 +46,7 @@ export const useBreathingLevelStore = create<BreathingLevelState>((set, get) => 
   setShowSettings: (value) => set({ showSettings: value }),
 
   // Animated preset application
+  // Optimized: Updates every 2 frames to reduce re-renders while maintaining smooth animation
   applyPreset: (presetName) => {
     const preset = PRESETS[presetName];
     const state = get();
@@ -59,27 +60,35 @@ export const useBreathingLevelStore = create<BreathingLevelState>((set, get) => 
     };
     const startTime = performance.now();
     const duration = 300; // ms
+    let frameCount = 0;
 
     let animationId: number;
 
     const animate = (now: number) => {
+      frameCount++;
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
 
-      // Ease out cubic for smooth deceleration
-      const eased = 1 - (1 - progress) ** 3;
+      // Only update every 2 frames to reduce state updates (30fps instead of 60fps)
+      // Final frame always updates to ensure we hit target values exactly
+      const shouldUpdate = frameCount % 2 === 0 || progress >= 1;
 
-      // Interpolate all values
-      set({
-        harmony: Math.round(startValues.harmony + (preset.harmony - startValues.harmony) * eased),
-        shardSize: startValues.shardSize + (preset.shardSize - startValues.shardSize) * eased,
-        orbitRadius:
-          startValues.orbitRadius + (preset.orbitRadius - startValues.orbitRadius) * eased,
-        atmosphereDensity: Math.round(
-          startValues.atmosphereDensity +
-            (preset.atmosphereDensity - startValues.atmosphereDensity) * eased,
-        ),
-      });
+      if (shouldUpdate) {
+        // Ease out cubic for smooth deceleration
+        const eased = 1 - (1 - progress) ** 3;
+
+        // Interpolate all values in a single set() call
+        set({
+          harmony: Math.round(startValues.harmony + (preset.harmony - startValues.harmony) * eased),
+          shardSize: startValues.shardSize + (preset.shardSize - startValues.shardSize) * eased,
+          orbitRadius:
+            startValues.orbitRadius + (preset.orbitRadius - startValues.orbitRadius) * eased,
+          atmosphereDensity: Math.round(
+            startValues.atmosphereDensity +
+              (preset.atmosphereDensity - startValues.atmosphereDensity) * eased,
+          ),
+        });
+      }
 
       if (progress < 1) {
         animationId = requestAnimationFrame(animate);
