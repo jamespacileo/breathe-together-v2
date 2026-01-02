@@ -10,6 +10,7 @@
  * - 10k users × 15min avg session = ~$8/month
  */
 
+import { getEventStats, getRecentEvents, logJoin, logLeave, logMoodChange } from './events';
 import {
   getSimulatedMoodCounts,
   getSimulatedUserCount,
@@ -80,6 +81,17 @@ export class BreathingRoom {
       return this.handlePresenceRequest();
     }
 
+    // Admin endpoints
+    if (url.pathname === '/admin/users') {
+      return this.handleAdminUsersRequest();
+    }
+    if (url.pathname === '/admin/events') {
+      return this.handleAdminEventsRequest(url);
+    }
+    if (url.pathname === '/admin/stats') {
+      return this.handleAdminStatsRequest();
+    }
+
     return new Response('Not found', { status: 404 });
   }
 
@@ -113,6 +125,9 @@ export class BreathingRoom {
     };
     this.sessions.set(sessionId, session);
 
+    // Log join event
+    logJoin(sessionId, validMood);
+
     // Send initial presence
     this.sendPresenceTo(server);
 
@@ -136,6 +151,10 @@ export class BreathingRoom {
         const session = this.sessions.get(data.sessionId);
         const validMood = validateMood(data.mood);
         if (session) {
+          const previousMood = session.mood;
+          if (previousMood !== validMood) {
+            logMoodChange(session.id, previousMood, validMood);
+          }
           session.mood = validMood;
           // Broadcast updated presence immediately on mood change
           this.broadcastPresence();
@@ -155,6 +174,7 @@ export class BreathingRoom {
     // Find and remove session
     for (const [id, session] of this.sessions) {
       if (session.webSocket === ws) {
+        logLeave(id, session.mood);
         this.sessions.delete(id);
         break;
       }
@@ -252,5 +272,82 @@ export class BreathingRoom {
         'Cache-Control': 'no-cache',
       },
     });
+  }
+
+  /**
+   * Admin endpoint: Get current users with order and connection time
+   */
+  private handleAdminUsersRequest(): Response {
+    const users = Array.from(this.sessions.values())
+      .map((session, index) => ({
+        order: index + 1,
+        id: session.id,
+        mood: session.mood,
+        connectedAt: session.connectedAt,
+        durationMs: Date.now() - session.connectedAt,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    return new Response(
+      JSON.stringify({
+        count: users.length,
+        users,
+        timestamp: Date.now(),
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      },
+    );
+  }
+
+  /**
+   * Admin endpoint: Get recent events
+   */
+  private handleAdminEventsRequest(url: URL): Response {
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100);
+    const events = getRecentEvents(limit);
+
+    return new Response(
+      JSON.stringify({
+        count: events.length,
+        events,
+        timestamp: Date.now(),
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      },
+    );
+  }
+
+  /**
+   * Admin endpoint: Get event statistics
+   */
+  private handleAdminStatsRequest(): Response {
+    const stats = getEventStats();
+    const presence = this.calculatePresence();
+
+    return new Response(
+      JSON.stringify({
+        ...stats,
+        currentUsers: this.sessions.size,
+        presence,
+        timestamp: Date.now(),
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      },
+    );
   }
 }
