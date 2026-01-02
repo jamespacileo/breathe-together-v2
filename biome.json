@@ -54,7 +54,9 @@
         "noUndeclaredVariables": "error",
         "noChildrenProp": "error",
         "noVoidElementsWithChildren": "error",
-        "noInvalidUseBeforeDeclaration": "error"
+        "noInvalidUseBeforeDeclaration": "error",
+        "noUnusedPrivateClassMembers": "warn",
+        "noConstantMathMinMaxClamp": "warn"
       },
       "suspicious": {
         "noExplicitAny": "error",
@@ -63,10 +65,16 @@
         "noConsole": {
           "level": "off",
           "options": {
-            "allow": ["log"]
+            "allow": ["log", "warn", "error"]
           }
         },
-        "noEmptyBlockStatements": "off"
+        "noEmptyBlockStatements": "off",
+        "noArrayIndexKey": "warn",
+        "noAssignInExpressions": "warn",
+        "noCommentText": "warn",
+        "noDuplicateJsxProps": "error",
+        "noMisleadingInstantiator": "error",
+        "noUnsafeDeclarationMerging": "error"
       },
       "style": {
         "useConst": "error",
@@ -78,7 +86,13 @@
         "useNodejsImportProtocol": "warn",
         "useArrayLiterals": "warn",
         "useForOf": "warn",
-        "useSelfClosingElements": "warn"
+        "useSelfClosingElements": "warn",
+        "useDefaultParameterLast": "warn",
+        "useExponentiationOperator": "warn",
+        "useFragmentSyntax": "warn",
+        "useNumberNamespace": "warn",
+        "useShorthandFunctionType": "warn",
+        "useConsistentArrayType": "warn"
       },
       "complexity": {
         "noExcessiveCognitiveComplexity": {
@@ -88,17 +102,38 @@
           }
         },
         "noForEach": "off",
-        "noUselessFragments": "warn"
+        "noUselessFragments": "warn",
+        "noUselessLoneBlockStatements": "warn",
+        "noUselessTernary": "warn",
+        "useOptionalChain": "error"
       },
       "a11y": {
-        "recommended": true
+        "recommended": true,
+        "noAccessKey": "warn",
+        "noAriaHiddenOnFocusable": "error",
+        "useAltText": "error",
+        "useAnchorContent": "error",
+        "useButtonType": "error",
+        "useHeadingContent": "error",
+        "useValidAriaValues": "error",
+        "useValidAnchor": "error"
       },
       "performance": {
         "recommended": true,
-        "noAccumulatingSpread": "warn"
+        "noAccumulatingSpread": "warn",
+        "noBarrelFile": "off",
+        "noReExportAll": "warn"
       },
       "security": {
-        "recommended": true
+        "recommended": true,
+        "noDangerouslySetInnerHtml": "error",
+        "noDangerouslySetInnerHtmlWithChildren": "error",
+        "noGlobalEval": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "warn",
+        "noMisusedPromises": "warn",
+        "useAwaitThenable": "warn"
       }
     }
   },
@@ -110,7 +145,7 @@
       "semicolons": "always",
       "arrowParentheses": "always"
     },
-    "globals": []
+    "globals": ["THREE"]
   },
   "json": {
     "formatter": {
@@ -119,5 +154,27 @@
       "indentWidth": 2,
       "lineWidth": 100
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/entities/**/*.tsx", "src/components/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "noFloatingPromises": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "warn"
+          }
+        }
+      }
+    }
+  ]
 }
