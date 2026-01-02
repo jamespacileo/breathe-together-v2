@@ -52,6 +52,13 @@ export interface AtmosphericParticlesProps {
    * @max 1
    */
   breathingOpacity?: number;
+
+  /**
+   * Particle color (hex string).
+   *
+   * @default '#8c7b6c'
+   */
+  color?: string;
 }
 
 /**
@@ -68,6 +75,7 @@ export const AtmosphericParticles = memo(function AtmosphericParticlesComponent(
   size = 0.08,
   baseOpacity = 0.1,
   breathingOpacity = 0.15,
+  color = '#8c7b6c',
 }: AtmosphericParticlesProps = {}) {
   const sparklesRef = useRef<THREE.Points>(null);
   // Cache material reference to avoid repeated type casting in animation loop
@@ -98,7 +106,7 @@ export const AtmosphericParticles = memo(function AtmosphericParticlesComponent(
       size={size}
       speed={0.5}
       opacity={baseOpacity}
-      color="#8c7b6c"
+      color={color}
     />
   );
 });
