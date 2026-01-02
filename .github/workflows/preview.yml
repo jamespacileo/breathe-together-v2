@@ -265,6 +265,170 @@ jobs:
               ]
             }
 
+  # Capture screenshots after preview is deployed
+  screenshots:
+    needs: deploy-preview
+    runs-on: ubuntu-latest
+    name: Capture Screenshots
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PREVIEW_URL: https://breathe-together-v2-pr-${{ github.event.pull_request.number }}.palladio-registry.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-v1.49.1
+
+      - name: Install Playwright
+        run: |
+          npm install playwright@1.49.1
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install chromium --with-deps
+          else
+            npx playwright install-deps chromium
+          fi
+
+      - name: Wait for preview to be ready
+        run: node .github/scripts/wait-for-preview.mjs
+
+      - name: Capture screenshots
+        id: capture
+        run: |
+          node .github/scripts/screenshot.mjs
+          if [ -d "./screenshots" ] && [ "$(ls -A ./screenshots/*.png 2>/dev/null | wc -l)" -gt 0 ]; then
+            echo "has_screenshots=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_screenshots=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Upload screenshots as artifact
+        if: steps.capture.outputs.has_screenshots == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-screenshots-pr-${{ env.PR_NUMBER }}
+          path: screenshots/
+          retention-days: 30
+
+      - name: Push screenshots to branch
+        if: steps.capture.outputs.has_screenshots == 'true'
+        id: push
+        run: |
+          chmod +x .github/scripts/push-screenshots.sh
+          .github/scripts/push-screenshots.sh
+
+      - name: Comment PR with screenshots
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          HAS_SCREENSHOTS: ${{ steps.capture.outputs.has_screenshots }}
+          PUSH_OUTCOME: ${{ steps.push.outcome }}
+          SCREENSHOTS_BRANCH: ${{ steps.push.outputs.branch }}
+          SCREENSHOTS_FOLDER: ${{ steps.push.outputs.folder }}
+        with:
+          script: |
+            const fs = require('fs');
+            const prNumber = parseInt(process.env.PR_NUMBER);
+            const previewUrl = process.env.PREVIEW_URL;
+            const hasScreenshots = process.env.HAS_SCREENSHOTS === 'true';
+            const pushSucceeded = process.env.PUSH_OUTCOME === 'success';
+            const screenshotsBranch = process.env.SCREENSHOTS_BRANCH || 'screenshots';
+            const screenshotsFolder = process.env.SCREENSHOTS_FOLDER || `pr-${prNumber}`;
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            const artifactUrl = `${repoUrl}/actions/runs/${context.runId}`;
+            const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+            const rawBaseUrl = pushSucceeded
+              ? `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${screenshotsBranch}/${screenshotsFolder}`
+              : null;
+
+            let screenshotFiles = [];
+            try {
+              if (fs.existsSync('./screenshots')) {
+                screenshotFiles = fs.readdirSync('./screenshots').filter(f => f.endsWith('.png'));
+              }
+            } catch (e) { /* ignore */ }
+
+            const statusEmoji = hasScreenshots && pushSucceeded ? '✅' : hasScreenshots ? '⚠️' : '❌';
+            const statusText = hasScreenshots && pushSucceeded
+              ? 'Screenshots captured successfully'
+              : hasScreenshots
+              ? 'Screenshots captured but push failed - download artifact'
+              : 'Screenshot capture failed';
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            const botComment = comments.find(c => c.body.includes('<!-- preview-screenshots-comment -->'));
+
+            const bodyParts = [
+              '<!-- preview-screenshots-comment -->',
+              '## 📸 Preview Screenshots',
+              '',
+              `${statusEmoji} ${statusText}`,
+              '',
+              `From [preview deployment](${previewUrl})`,
+              '',
+            ];
+
+            if (hasScreenshots && pushSucceeded && rawBaseUrl) {
+              const devices = [
+                { name: 'Desktop', prefix: 'desktop', emoji: '🖥️', width: 280 },
+                { name: 'Tablet', prefix: 'tablet', emoji: '📱', width: 200 },
+                { name: 'Mobile', prefix: 'mobile', emoji: '📱', width: 140 },
+              ];
+              const phases = ['inhale', 'hold', 'exhale'];
+
+              for (const device of devices) {
+                const available = phases.filter(p => screenshotFiles.includes(`${device.prefix}-${p}.png`));
+                if (available.length > 0) {
+                  bodyParts.push(`**${device.emoji} ${device.name}**`, '');
+                  bodyParts.push('<table><tr>');
+                  bodyParts.push(available.map(p => `<th>${p}</th>`).join(''));
+                  bodyParts.push('</tr><tr>');
+                  bodyParts.push(available.map(p => {
+                    const url = `${rawBaseUrl}/${device.prefix}-${p}.png`;
+                    return `<td><a href="${url}"><img src="${url}" width="${device.width}"/></a></td>`;
+                  }).join(''));
+                  bodyParts.push('</tr></table>', '');
+                }
+              }
+            }
+
+            bodyParts.push(`[📥 Download Artifact](${artifactUrl})`, '');
+            bodyParts.push('---', `<sub>Last run: ${timestamp}</sub>`);
+
+            const body = bodyParts.join('\n');
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
+
   # Notify when validation checks pass
   notify-validation-success:
     needs: validate
