@@ -34,17 +34,17 @@ export interface CollisionTestConfig {
 /**
  * Default configuration matching ParticleSwarm props
  *
- * baseShardSize and maxShardSize are tuned to prevent collisions:
- * - For Fibonacci sphere with N particles at radius R, min spacing ≈ 2 × R × sqrt(π/N) × 0.55
- * - Wobble/ambient motion can reduce spacing by ~0.24 units worst-case
- * - Using baseShardSize=1.0 with safety margin for worst-case wobble alignment up to 500 particles
+ * Collision prevention uses dynamic minimum orbit radius:
+ * - For Fibonacci sphere with N particles at radius R, min spacing ≈ R × 1.95 / sqrt(N)
+ * - For collision-free: R > (2 × shardSize + wobbleMargin) × sqrt(N) / 1.95
+ * - minOrbitRadius = max(globeConstraint, spacingConstraint)
  */
 export const DEFAULT_CONFIG: CollisionTestConfig = {
   particleCount: 42,
   globeRadius: 1.5,
-  baseShardSize: 1.0,
-  maxShardSize: 0.22,
-  minShardSize: 0.04,
+  baseShardSize: 4.0,
+  maxShardSize: 0.6,
+  minShardSize: 0.15,
   buffer: 0.3,
   time: 0,
 };
@@ -137,6 +137,29 @@ function createParticleState(index: number, total: number): ParticleState {
 }
 
 /**
+ * Calculate dynamic minimum orbit radius based on particle count and shard size.
+ * Matches the logic in ParticleSwarm component.
+ */
+export function calculateDynamicMinOrbitRadius(config: CollisionTestConfig): number {
+  const { particleCount, globeRadius, buffer } = config;
+  const shardSize = calculateShardSize(config);
+
+  // Constraint 1: Globe collision prevention
+  const globeConstraint = globeRadius + shardSize + buffer;
+
+  // Constraint 2: Inter-particle spacing
+  // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
+  // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.22
+  const wobbleMargin = 0.22;
+  const fibonacciSpacingFactor = 1.95;
+  const requiredSpacing = 2 * shardSize + wobbleMargin;
+  const spacingConstraint = (requiredSpacing * Math.sqrt(particleCount)) / fibonacciSpacingFactor;
+
+  // Use the more restrictive constraint
+  return Math.max(globeConstraint, spacingConstraint);
+}
+
+/**
  * Calculate single particle position at given breath phase and time
  *
  * This is the core position calculation extracted from ParticleSwarm's animation loop.
@@ -147,13 +170,13 @@ export function calculateParticlePosition(
   breathPhase: number,
   config: CollisionTestConfig,
 ): THREE.Vector3 {
-  const { globeRadius, maxShardSize, buffer, time } = config;
+  const { time } = config;
 
-  // Calculate base orbit radius
+  // Calculate base orbit radius from breath phase
   const baseOrbitRadius = calculateOrbitRadius(breathPhase);
 
-  // Min orbit radius (collision prevention floor)
-  const minOrbitRadius = globeRadius + maxShardSize + buffer;
+  // Dynamic min orbit radius (collision prevention floor)
+  const minOrbitRadius = calculateDynamicMinOrbitRadius(config);
 
   // Apply phase offset for wave effect
   const baseRadius = VISUALS.PARTICLE_ORBIT_MAX; // Used for offset calculation
