@@ -138,7 +138,11 @@ export function useDisposeRenderTargets(
  * ```
  */
 export function useDispose(
-  resources: (({ dispose?: () => void } | null | undefined)[] | { dispose?: () => void } | null | undefined),
+  resources:
+    | ({ dispose?: () => void } | null | undefined)[]
+    | { dispose?: () => void }
+    | null
+    | undefined,
   disposeMethod: string = 'dispose',
 ): void {
   useEffect(() => {

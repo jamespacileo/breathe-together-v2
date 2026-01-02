@@ -101,7 +101,7 @@ export function AudioControls({
               max="1"
               step="0.05"
               value={state.masterVolume}
-              onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
+              onChange={(e) => setMasterVolume(Number.parseFloat(e.target.value))}
               onPointerDown={stopPropagation}
               style={inputStyle}
             />

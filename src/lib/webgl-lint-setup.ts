@@ -15,14 +15,16 @@
 
 if (import.meta.env.DEV) {
   // Dynamically import webgl-lint only in development
-  import('webgl-lint').then((webglLint) => {
-    if (webglLint.default) {
-      // Enable WebGL linting with default configuration
-      console.log('[WebGL Lint] Enabled - Monitoring WebGL API usage');
-    }
-  }).catch((error) => {
-    console.warn('[WebGL Lint] Failed to load:', error);
-  });
+  import('webgl-lint')
+    .then((webglLint) => {
+      if (webglLint.default) {
+        // Enable WebGL linting with default configuration
+        console.log('[WebGL Lint] Enabled - Monitoring WebGL API usage');
+      }
+    })
+    .catch((error) => {
+      console.warn('[WebGL Lint] Failed to load:', error);
+    });
 }
 
 export {};

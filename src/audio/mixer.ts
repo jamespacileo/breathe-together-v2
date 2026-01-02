@@ -14,7 +14,7 @@ const LOG_PREFIX = '[Audio:Mixer]';
  * Convert linear gain (0-1) to decibels
  */
 export function gainToDb(gain: number): number {
-  if (gain <= 0) return -Infinity;
+  if (gain <= 0) return Number.NEGATIVE_INFINITY;
   return 20 * Math.log10(gain);
 }
 
@@ -22,7 +22,7 @@ export function gainToDb(gain: number): number {
  * Convert decibels to linear gain (0-1)
  */
 export function dbToGain(db: number): number {
-  if (db <= -Infinity) return 0;
+  if (db <= Number.NEGATIVE_INFINITY) return 0;
   return 10 ** (db / 20);
 }
 

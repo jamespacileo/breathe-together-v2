@@ -413,9 +413,14 @@ export function runComprehensiveCollisionTest(
     }
   }
 
+  // Phases array always has at least one element (phaseCount + 1), so these must be set
+  if (!worstParticle || !worstGlobe) {
+    throw new Error('Collision test failed: no results computed (phases array was empty)');
+  }
+
   return {
-    particle: { ...worstParticle!, worstPhase: worstParticlePhase },
-    globe: { ...worstGlobe!, worstPhase: worstGlobePhase },
+    particle: { ...worstParticle, worstPhase: worstParticlePhase },
+    globe: { ...worstGlobe, worstPhase: worstGlobePhase },
     phases,
     config: fullConfig,
   };
@@ -447,5 +452,10 @@ export function runTimeVaryingCollisionTest(
     }
   }
 
-  return { worst: worstResult!, worstTime };
+  // Loop always executes at least once (timePoints default = 20), so worstResult must be set
+  if (!worstResult) {
+    throw new Error('Time-varying collision test failed: no results computed');
+  }
+
+  return { worst: worstResult, worstTime };
 }

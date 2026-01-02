@@ -230,10 +230,12 @@ export function usePresence(): UsePresenceResult {
   const startPolling = useCallback(() => {
     if (pollingIntervalRef.current) return;
 
-    maybeSendHeartbeat(mood, true);
+    // Fire-and-forget heartbeat - errors handled internally
+    void maybeSendHeartbeat(mood, true);
 
     pollingIntervalRef.current = setInterval(() => {
-      maybeSendHeartbeat(mood);
+      // Fire-and-forget heartbeat - errors handled internally
+      void maybeSendHeartbeat(mood);
     }, configRef.current.heartbeatIntervalMs);
 
     setConnectionType('polling');
@@ -251,7 +253,8 @@ export function usePresence(): UsePresenceResult {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         sendMoodUpdate(newMood);
       } else {
-        maybeSendHeartbeat(newMood, true);
+        // Fire-and-forget heartbeat - errors handled internally
+        void maybeSendHeartbeat(newMood, true);
       }
     },
     [sendMoodUpdate, maybeSendHeartbeat],
@@ -288,7 +291,8 @@ export function usePresence(): UsePresenceResult {
       }
     };
 
-    init();
+    // Fire-and-forget initialization - errors handled internally
+    void init();
 
     return () => {
       mounted = false;

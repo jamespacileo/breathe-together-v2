@@ -11,6 +11,7 @@ async function startApp() {
   // Start MSW in development mode when VITE_USE_MSW=true
   if (import.meta.env.DEV && import.meta.env.VITE_USE_MSW === 'true') {
     const { startMSW } = await import('./mocks/browser');
+    // biome-ignore lint/nursery/useAwaitThenable: startMSW() is async (calls worker.start() which returns Promise)
     await startMSW();
   }
 
@@ -28,4 +29,5 @@ async function startApp() {
   );
 }
 
-startApp();
+// Fire-and-forget async initialization - errors logged internally
+void startApp();

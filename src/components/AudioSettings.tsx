@@ -66,6 +66,7 @@ export function AudioSettings({ stopPropagation }: AudioSettingsProps) {
     if (!audio) return;
     setIsLoading(true);
     try {
+      // biome-ignore lint/nursery/useAwaitThenable: AudioProvider.setEnabled() is async (returns Promise<void>)
       await audio.setEnabled(!audio.state.enabled);
     } finally {
       setIsLoading(false);

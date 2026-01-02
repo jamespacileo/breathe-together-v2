@@ -76,6 +76,7 @@ export class PresenceApiClient {
    */
   async getConfig(): Promise<ServerConfig> {
     const response = await this.fetch('/api/config');
+    // biome-ignore lint/nursery/useAwaitThenable: Response.json() returns Promise<any> per Fetch API spec
     const data = await response.json();
     return ServerConfigSchema.parse(data);
   }
@@ -85,6 +86,7 @@ export class PresenceApiClient {
    */
   async getPresence(): Promise<PresenceState> {
     const response = await this.fetch('/api/presence');
+    // biome-ignore lint/nursery/useAwaitThenable: Response.json() returns Promise<any> per Fetch API spec
     const data = await response.json();
     return PresenceStateSchema.parse(data);
   }
@@ -102,6 +104,7 @@ export class PresenceApiClient {
       body: JSON.stringify(validated),
     });
 
+    // biome-ignore lint/nursery/useAwaitThenable: Response.json() returns Promise<any> per Fetch API spec
     const data = await response.json();
     return PresenceStateSchema.parse(data);
   }
