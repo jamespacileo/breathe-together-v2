@@ -64,15 +64,17 @@ You'll see: `VITE v5.x.x ready in XXX ms` → Server is running on **http://loca
 The following files are editable in Triplex (inside the main scene):
 
 **Main Level:**
-- `src/levels/breathing.tsx` — Main breathing scene with lighting setup
+- `src/levels/breathing.tsx` — Main breathing scene with frosted glass refraction pipeline
 
 **3D Components:**
-- `src/entities/breathingSphere/index.tsx` — Central sphere (color, opacity, detail)
-- `src/entities/particle/index.tsx` — Particle orbit system (particle count, size, color)
-- `src/entities/environment/index.tsx` — Sky stars, floor, and lighting
+- `src/entities/earthGlobe/index.tsx` — Central globe with breathing animation
+- `src/entities/particle/ParticleSwarm.tsx` — Icosahedral shard particles
+- `src/entities/particle/AtmosphericParticles.tsx` — Ambient atmospheric particles
+- `src/entities/environment/index.tsx` — Clouds, stars, lighting
 
 **UI Components:**
-- `src/components/BreathingHUD.tsx` — Breathing phase display and timer
+- `src/components/SimpleGaiaUI.tsx` — Main UI with breathing phase, inspirational text, controls
+- `src/components/InspirationalText.tsx` — Breathing-synchronized messages
 
 ### Method 1: CodeLens (Easiest)
 1. Open any editable file above in VSCode
@@ -80,7 +82,7 @@ The following files are editable in Triplex (inside the main scene):
 3. Click it → Triplex editor opens in a sidebar panel
 
 **Example:**
-Open `src/entities/breathingSphere/index.tsx` and click the CodeLens link above `export function BreathingSphere()`
+Open `src/entities/earthGlobe/index.tsx` and click the CodeLens link above `export function EarthGlobe()`
 
 ### Method 2: Command Palette
 1. Press **Cmd+Shift+P** (Mac) or **Ctrl+Shift+P** (Windows/Linux)
@@ -89,23 +91,22 @@ Open `src/entities/breathingSphere/index.tsx` and click the CodeLens link above 
 
 ## ✏️ Step 5: Make Your First Edit (2 min)
 
-### Edit the Breathing Sphere Color
+### Edit Visual Parameters with Dev Controls
 
-1. Open `src/entities/breathingSphere/index.tsx`
+1. Open `src/levels/breathing.tsx`
 2. Click **"Open in Triplex"** link
-3. You'll see the **BreathingSphere** component in the editor with props:
-   - `color` — Current cyan color
-   - `opacity` — How transparent (0-1)
-   - `segments` — Geometry detail
+3. Look for the **Leva dev controls panel** (appears in dev mode)
+4. Try adjusting parameters:
+   - Orbit radius (breathing space)
+   - Shard size
+   - Atmosphere density
+   - Glass refraction (IOR, depth)
+   - Environment settings (clouds, stars, lighting)
 
-4. **Change the color:**
-   - Click the color swatch next to `color`
-   - Pick a new color (try purple: `#bd10e0`)
-   - Watch the sphere change **instantly** in the 3D viewport
-
-5. **Verify auto-save:**
-   - The file `src/entities/breathingSphere/index.tsx` is updated automatically
-   - Reload the page → color persists ✅
+5. **See changes instantly:**
+   - All changes update in real-time in the 3D viewport
+   - No page reload needed
+   - Changes persist in scene configuration
 
 ## 📖 How to Edit Components in Triplex
 
@@ -116,11 +117,11 @@ Open `src/entities/breathingSphere/index.tsx` and click the CodeLens link above 
 1. **Open the main level:** `src/levels/breathing.tsx`
 2. Click the **"Open in Triplex"** link above `export function BreathingLevel()`
 3. **Navigate in the component tree** (left sidebar):
-   - Expand `BreathingSphere` → See sphere meshes and props
-   - Expand `ParticleRenderer` → See particle instance mesh
-   - Expand `Environment` → See stars, floor, lights
-4. **Select a component** → Props appear in the sidebar
-5. **Edit props** → Changes appear instantly in the 3D viewport
+   - Expand `EarthGlobe` → See globe mesh and frosted glass overlay
+   - Expand `ParticleSwarm` → See icosahedral shard instances
+   - Expand `Environment` → See clouds, stars, lights
+4. **Select a component** → Props and dev controls appear
+5. **Edit parameters** → Changes appear instantly in the 3D viewport
 
 **Why this approach?**
 - Full scene context: All lights, environment, and animations active
@@ -131,136 +132,81 @@ Open `src/entities/breathingSphere/index.tsx` and click the CodeLens link above 
 
 **If you want to edit a single component in isolation:**
 
-1. Open an entity file: e.g., `src/entities/breathingSphere/index.tsx`
+1. Open an entity file: e.g., `src/entities/earthGlobe/index.tsx`
 2. Click the **"Open in Triplex"** link above the component
-3. Edit props in the sidebar
+3. Use dev controls (Leva panel) to adjust parameters
 4. Changes save automatically
 
 **Limitations:**
-- No lights or environment context
-- No breathing animation (unless breathSystem is enabled)
-- May appear dark or incomplete
-- Good for fine-tuning individual props
+- May not have full scene context
+- Refraction pipeline requires full scene
+- Better to edit via main level for complete visual feedback
 
 ---
 
 ## 🎭 Editing Scene Components (Step-by-Step Guides)
 
-### 1️⃣ Edit the Breathing Sphere
+### 1️⃣ Edit the Earth Globe & Visual Parameters
 
-**File:** `src/entities/breathingSphere/index.tsx`
+**File:** `src/levels/breathing.tsx` (use Leva dev controls)
 
-The central sphere pulses with breathing. You can customize:
+The central globe and particles create a Monument Valley inspired meditation environment.
 
-1. **Open in Triplex** — Click "Open in Triplex" in the file
-2. **Change Color:**
-   - Find `color` prop
-   - Click the color swatch
-   - Pick a new color (default: cyan `#4dd9e8`)
-3. **Change Opacity (Transparency):**
-   - Find `opacity` prop
-   - Drag the slider 0-1 (default: 0.15)
-   - Lower = more transparent, Higher = more opaque
-4. **Change Detail Level:**
-   - Find `segments` prop
-   - Adjust slider 16-128 (default: 64)
-   - Higher = smoother sphere, Lower = angular facets
-5. **Watch the preview** — Changes appear instantly in the 3D viewport
+1. **Open Triplex** — Open breathing.tsx in Triplex
+2. **Open Leva Panel** — Dev controls panel (appears in dev mode)
+3. **Adjust Visual Parameters:**
+   - **Orbit Radius** (2.5-8.0): Breathing space - how far particles expand
+   - **Shard Size** (0.3-1.5): Size of icosahedral particles
+   - **Atmosphere Density** (0-300): Number of ambient atmospheric particles
+4. **Adjust Glass Effects:**
+   - **IOR** (1.0-2.5): Index of refraction for frosted glass
+   - **Glass Depth** (0-1): Intensity of glass depth effect
+5. **Watch the preview** — All changes update in real-time
 
-**Visual result:** Sphere scales with breathing cycle, colors shift from cyan (inhale) to dark blue (exhale).
+**Visual result:** Globe and particles breathe in harmony with frosted glass refraction effects.
 
 ---
 
-### 2️⃣ Edit the Particle System (User Presence)
+### 2️⃣ Edit Environment Settings
 
-**File:** `src/entities/particle/index.tsx`
+**File:** `src/levels/breathing.tsx` (use Leva dev controls - Environment folder)
 
-300+ particles represent users breathing together. Customize the particle behavior:
+Control the atmospheric environment - clouds, stars, and lighting:
 
-1. **Open in Triplex** — Click "Open in Triplex" in the file
-2. **Change Particle Count:**
-   - Find `totalCount` prop
-   - Drag slider 50-500 (default: 300)
-   - More particles = more visual presence
-   - Try 500 for a dense cloud
-3. **Change Particle Size:**
-   - Find `particleSize` prop
-   - Drag slider 0.02-0.3 (default: 0.05)
-   - Larger particles = more visible
-4. **Change Filler Color (Empty User Spots):**
-   - Find `fillerColor` prop
-   - Click the color swatch
-   - This color fills empty particle slots when fewer users are present
-5. **Watch the preview** — Particles orbit in a sphere pattern, contracting on exhale and expanding on inhale
+1. **Open Triplex** — Open breathing.tsx in Triplex
+2. **Find Environment Controls** — In Leva panel, expand "Environment" folder
+3. **Adjust Clouds:**
+   - **Show Clouds**: Toggle cloud visibility
+   - **Cloud Opacity** (0-1): Cloud transparency
+   - **Cloud Speed** (0-2): Animation speed
+4. **Adjust Stars:**
+   - **Show Stars**: Toggle star field visibility
+5. **Adjust Lighting:**
+   - **Ambient Light Intensity** (0-1): Overall scene brightness
+   - **Ambient Light Color**: Background light color
+   - **Key Light Intensity** (0-2): Main directional light strength
+   - **Key Light Color**: Main light color
 
-**Visual result:** Particles pulse with the breathing cycle, shifting colors based on user moods.
+**Visual result:** Creates the atmospheric mood - from cosmic starfield to minimal meditation space.
 
 ---
 
-### 3️⃣ Edit the Environment (Stars, Floor, Lighting)
+### 3️⃣ Quick Tips for Tuning the Experience
 
-**File:** `src/entities/environment/index.tsx`
+**Use the Momentum Controls:**
+- Drag to rotate the scene
+- iOS-style momentum scrolling for natural feel
+- Adjust damping and speed in dev controls
 
-Controls the space background and atmospheric lighting.
+**Performance Tuning:**
+- Reduce shard count if FPS drops
+- Lower atmosphere density for better performance
+- Disable depth-of-field for faster rendering
 
-1. **Open in Triplex** — Click "Open in Triplex" in the file
-
-2. **Edit the Stars (Background):**
-   - Find the `<Stars>` component with these props:
-     - `radius` — How far away stars appear (default: 100)
-     - `depth` — Depth of star layer (default: 50)
-     - `count` — How many stars (default: 5000, try 2000 for sparse sky)
-     - `factor` — Star size multiplier (default: 4)
-     - `saturation` — Color saturation 0-1 (default: 0 = grayscale)
-
-3. **Edit the Floor (Ground Plane):**
-   - Find the `<mesh>` with `planeGeometry`
-   - The mesh has `rotation={[-Math.PI / 2, 0, 0]}` and `position={[0, -4, 0]}`
-   - Modify `position[1]` (the `-4`) to move floor up/down
-   - Try `-2` to bring floor closer to center
-
-4. **Watch the preview** — Stars twinkle in the background, floor gives sense of scale and horizon
-
----
-
-### 4️⃣ Edit Lighting in the Main Level
-
-**File:** `src/levels/breathing.tsx`
-
-Control the three-light setup (key, fill, rim lights):
-
-1. **Open in Triplex** — Click "Open in Triplex" above `export function BreathingLevel()`
-
-2. **Background Color:**
-   - Find `<color attach="background" args={[VISUALS.BG_COLOR]} />`
-   - Value is from `src/constants.ts` (default: `#0a0816` = dark purple)
-   - To edit directly in Triplex: Change would need constant update
-
-3. **Ambient Light (Overall Brightness):**
-   - Find `<ambientLight intensity={...} />`
-   - Try values like 0.5-1.0 for brighter scene
-   - Default is 0.3
-
-4. **Key Light (Main Direction Light):**
-   - Find first `<directionalLight>` at position `[2, 3, 5]`
-   - Adjust `intensity` from default range
-   - Try position `[5, 5, 5]` for different angle
-
-5. **Watch the preview** — Lighting shifts across the sphere and particles
-
----
-
-### ❌ Camera Position (Read-Only in Triplex)
-
-**File:** `src/entities/camera/CameraRig.tsx`
-
-The camera is **NOT directly editable in Triplex** because it's controlled entirely by logic (follows mouse position and breathing phase). To edit:
-
-- You must modify the TypeScript code directly
-- Find lines like `targetPosition.current.set(mouse.x * 0.5, mouse.y * 0.5, 10 - zoomOffset)`
-- Default position: `[0, 0, 10]` (10 units away on Z axis)
-- To move camera further back, increase the `10` to `15`
-- To disable mouse follow, comment out the mouse calculation line
+**Audio Integration:**
+- Audio settings in Leva panel (dev mode)
+- Synchronized with breathing cycle
+- Ambient drones and breath tones
 
 ---
 
@@ -329,29 +275,26 @@ code --enable-coi
 
 ### Quick Wins (1-2 minutes each)
 
-1. **Edit ParticleRenderer Density:**
-   - Open `src/entities/particle/index.tsx` in Triplex
-   - Change `totalCount` from 300 to 500
-   - Watch the particle cloud become denser
-   - Reset to 300 when done
-
-2. **Change Environment Stars:**
-   - Open `src/entities/environment/index.tsx` in Triplex
-   - Find `<Stars>` component
-   - Change `count` from 5000 to 2000
-   - Watch the night sky become sparser
-   - Try `count={10000}` for a dense star field
-
-3. **Adjust Lighting:**
+1. **Adjust Breathing Space:**
    - Open `src/levels/breathing.tsx` in Triplex
-   - Find `<ambientLight>`
-   - Change `intensity` from 0.3 to 0.6
-   - Watch the entire scene brighten
+   - Open Leva panel
+   - Change "Orbit Radius" from 4.5 to 6.0
+   - Watch particles expand further during exhale
 
-4. **Make Particles Bigger:**
-   - Open `src/entities/particle/index.tsx` in Triplex
-   - Change `particleSize` from 0.05 to 0.1
-   - Particles become twice as large
+2. **Increase Shard Size:**
+   - In Leva panel
+   - Change "Shard Size" from 0.6 to 1.0
+   - Watch particles become more prominent
+
+3. **Add More Atmosphere:**
+   - In Leva panel
+   - Change "Atmosphere Density" from 100 to 200
+   - Watch more ambient particles appear
+
+4. **Adjust Glass Effect:**
+   - In Leva panel → "Glass" folder
+   - Change "IOR" from 1.5 to 2.2
+   - Watch the refraction effect intensify
 
 ### Deeper Exploration
 

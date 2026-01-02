@@ -2,7 +2,7 @@
 
 <!-- Test comment for CI/CD verification -->
 
-A 3D interactive breathing meditation application that synchronizes users globally using UTC time to breathe together in a box breathing pattern (4 phases: inhale, hold, exhale, hold).
+A 3D interactive breathing meditation application that synchronizes users globally using UTC time to breathe together in a 4-7-8 relaxation breathing pattern (4 seconds inhale, 7 seconds hold, 8 seconds exhale).
 
 ## Quick Start
 

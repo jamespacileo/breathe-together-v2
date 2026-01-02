@@ -49,16 +49,17 @@ Systems run in this sequence each frame (see `src/providers.tsx`):
 src/
 ├── entities/              # ECS entities (React components + trait spawning)
 │   ├── breath/           # Central breathing state (traits + breathSystem)
-│   ├── breathingSphere/  # Visual 3D sphere (scales with breathing phase)
-│   ├── particle/         # Presence particles (mood colors)
+│   ├── earthGlobe/       # Central globe with frosted glass effect
+│   ├── particle/         # Particle systems (ParticleSwarm, AtmosphericParticles)
+│   ├── environment/      # Environment, lighting, stars, floor
 │   └── camera/           # CameraRig (non-ECS)
-├── levels/               # "Level" scenes (breathing.tsx is main, debug.tsx for testing)
-├── components/           # React UI components (BreathingHUD overlay)
-├── hooks/               # usePresence — simulated presence data
+├── levels/               # "Level" scenes (breathing.tsx is main, breathing.debug.scene.tsx for testing)
+├── components/           # React UI components (SimpleGaiaUI, InspirationalText, BreathCycleIndicator)
+├── hooks/               # usePresence, useViewport, useDevControls
 ├── shared/
 │   └── traits.tsx       # Common traits (Position, Velocity, etc.)
 ├── lib/
-│   ├── breathCalc.ts    # Pure breath calculation (returns phase, radius, scale)
+│   ├── breathCalc.ts    # Pure breath calculation (returns phase, radius)
 │   ├── fibonacciSphere.ts  # Even particle distribution on sphere
 │   ├── colors.ts        # Maps mood ID to color
 │   └── mockPresence.ts  # Simulated user data (when API is unavailable)
@@ -82,11 +83,10 @@ Located in `src/lib/breathCalc.ts`, this is a pure function that returns the cur
 - (No hold-out - immediate transition to next inhale)
 
 **Outputs:**
-- `breathPhase` (0-1): Position in current phase
+- `breathPhase` (0-1): Normalized breathing position (0 = fully exhaled, 1 = fully inhaled)
 - `phaseType` (0-3): Which phase (0=inhale, 1=hold-in, 2=exhale, 3=hold-out)
-- `orbitRadius`: Particle orbit radius (shrinks on exhale, grows on inhale)
-- `sphereScale`: Central sphere scale (inverse of particles)
-- `crystallization`: Shader parameter for visual effect
+- `rawProgress` (0-1): Raw progress within current phase (before easing)
+- `orbitRadius`: Particle orbit radius (expands on exhale, contracts on inhale)
 
 **Key detail:** Uses `Date.now()` so all users globally see the same phase at the same time.
 
@@ -370,47 +370,53 @@ See `docs/triplex/06-composition-patterns.md` for comprehensive guide with decis
 All breathing state is derived from `Date.now()` % cycle length. This ensures every user breathes in sync globally without needing real-time communication.
 
 ### Easing
-Box breathing uses `easeInOutQuad` for smooth, natural-feeling transitions. See `src/lib/breathCalc.ts`.
+4-7-8 relaxation breathing uses custom easing functions for each phase:
+- `easeInhale`: Gentle acceleration for natural filling sensation
+- `easeExhale`: Viscous damping for controlled release
+- Hold phases: Underdamped harmonic oscillator for subtle micro-movement
+See `src/lib/easing.ts` and `src/lib/breathCalc.ts`.
 
 ### Instanced Rendering
-ParticleRenderer uses two instanced meshes (user + filler) for 2 draw calls.
+ParticleSwarm uses InstancedMesh for efficient rendering of thousands of icosahedral shards with individual transforms and colors.
 
-### Fresnel Shader
-BreathingSphere uses Three.js `Fresnel` shader for edge glow that intensifies during inhale.
+### Refraction Pipeline
+3-pass FBO (Framebuffer Object) pipeline creates Monument Valley style frosted glass effects:
+1. Scene render
+2. Backface render for glass depth
+3. Refraction calculation with depth-of-field
+See `src/entities/particle/RefractionPipeline.tsx`.
 
-### HUD Architecture (Updated Dec 2024)
+### UI Architecture (Updated January 2026)
 
-The HUD uses **@react-three/uikit** for native 3D UI components inside the Canvas.
+The UI uses **HTML overlays** rendered as siblings of the Canvas element (not inside the Canvas).
 
-**Components:**
-- `src/components/BreathingHUD3D.tsx` - Main uikit HUD component (bottom bar layout)
-- `src/hooks/useBreathPhaseDisplay3D.ts` - RAF loop for 60fps updates
+**Main UI Component:** `BreathingLevelUI` (exported from `src/levels/breathing.tsx`)
 
-**Layout:** Bottom bar showing phase name, timer, progress bar, and user count
-- Phase name (e.g., "Inhale") updates on transitions
-- Timer counts down each second
-- Progress bar reflects position in 16s breathing cycle (0-100%)
-- User count from `usePresence()` hook
+**UI Components:**
+- `src/components/SimpleGaiaUI.tsx` - Main UI with breathing phase display, inspirational text, and modal controls
+- `src/components/TopRightControls.tsx` - Top-right control icons (settings, tune controls)
+- `src/components/InspirationalText.tsx` - Inspirational messages that appear during breathing
+- `src/components/BreathCycleIndicator.tsx` - Breathing cycle indicator component
+- `src/components/AudioSettings.tsx` - Audio settings modal
+- Leva (dev mode only) - Dev controls panel
 
-**Performance Pattern:**
-- Same RAF loop as legacy HTML overlay
-- Updates uikit components via refs (no React re-renders)
-- GPU-accelerated 3D UI meshes
-- Target: 60fps with <1ms overhead per frame
-- Requires `gl={{ localClippingEnabled: true }}` on Canvas for uikit clipping planes
+**Layout Pattern (EventSource):**
+```tsx
+<div ref={containerRef}>
+  <Canvas eventSource={containerRef} eventPrefix="client">
+    {/* 3D content */}
+  </Canvas>
+  <BreathingLevelUI /> {/* HTML UI as sibling */}
+</div>
+```
+
+This pattern ensures proper event handling - HTML elements naturally receive pointer events without conflicting with 3D scene interactions.
 
 **Visual Style:**
-- Subtle/transparent (minimalist): 45% opacity background
-- Colors: warm white (#fffef7), teal (#7ec8d4), warm gray (#b8a896)
-- Fonts: DM Sans (primary), Crimson Pro (phase name)
-- Spacing: Fibonacci values (8, 13, 21, 34px)
-- Responsive: Adjusts font sizes and padding on mobile
-
-**Legacy Files (Deprecated):**
-- `src/components/RadialBreathingHUD.legacy.tsx` - Old HTML overlay (circular ring)
-- `src/components/BreathingHUD.legacy.tsx` - Old HTML overlay (corner panels)
-- `src/hooks/useBreathPhaseDisplay.legacy.ts` - Old DOM ref pattern
-Kept for reference only. Use BreathingHUD3D.tsx instead.
+- Monument Valley inspired aesthetic
+- Frosted glass effects with refraction pipeline
+- Colors: warm white, teal, soft gold, warm gray
+- Responsive: Adapts to mobile, tablet, and desktop viewports
 
 ### Mobile Responsiveness (December 2024)
 
@@ -424,13 +430,7 @@ All UI/HUD components now adapt to mobile, tablet, and desktop viewports for opt
 
 **Responsive Components:**
 
-1. **BreathingHUD3D** (`src/components/BreathingHUD3D.tsx`)
-   - Adaptive padding: 16px (mobile) → 32px (tablet) → 60px (desktop)
-   - Adaptive font sizes: Smaller on mobile for better fit
-   - Progress bar width: 80px (mobile) → 120px (desktop)
-   - All spacing scales proportionally with viewport
-
-2. **SimpleGaiaUI** (`src/components/SimpleGaiaUI.tsx`)
+1. **SimpleGaiaUI** (`src/components/SimpleGaiaUI.tsx`)
    - Edge padding: 16px (mobile) → 24px (tablet) → 32px (desktop)
    - Modal padding: 24px (mobile) → 32px (tablet) → 40px (desktop)
    - Controls panel: Full width on mobile, fixed 260px on desktop
@@ -461,13 +461,12 @@ const fontSize = getResponsiveFontSize(deviceType, 0.875, 1, 1.125);
 - Test viewports: 320px (iPhone SE), 375px (iPhone), 768px (iPad)
 - Verify: No horizontal overflow, readable text, accessible touch targets
 
-## Git Status
+## Git Workflow
 
-Branch: `main` (no uncommitted changes in tracked files)
-
-Modified but staged changes:
-- `src/entities/breathingSphere/index.tsx`
-- `src/entities/particle/index.tsx`
+Development happens on feature branches prefixed with `claude/`. Always:
+- Create a new branch for each feature or fix
+- Make descriptive commit messages
+- Push to the designated branch (never force push to main)
 
 ## Common Development Patterns
 
@@ -735,7 +734,7 @@ const value = obj && obj.prop && obj.prop.nested; // ❌ Verbose, same result
 - ✅ ParticleSwarm: White icosahedral shards orbiting Earth
 - ✅ AtmosphericParticles: Cyan floating dots with breathing synchronization
 - ✅ Environment: Light cream background with proper lighting
-- ✅ BreathingHUD3D: Breathing timer and user count
+- ✅ SimpleGaiaUI: Breathing phase display, inspirational text, and user controls
 - ✅ All entities synchronized via UTC-based breathing cycle
 
 ### Code Cleanup
