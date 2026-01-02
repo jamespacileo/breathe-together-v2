@@ -22,14 +22,26 @@ export interface TutorialTourCallbacks {
  * 3. User's presence visualization
  * 4. Breathing practice guidance
  * 5. Social reveal - others breathing together
+ *
+ * Known Driver.js gotchas addressed:
+ * - onDestroyed receives empty state (use refs for callbacks)
+ * - Both onDestroyStarted and onDestroyed can fire (dedupe with flag)
+ * - Invalid step handling destroys tour (validate before moveTo)
  */
 export function useTutorialTour(callbacks: TutorialTourCallbacks = {}) {
   const driverRef = useRef<Driver | null>(null);
   const callbacksRef = useRef(callbacks);
   callbacksRef.current = callbacks;
 
+  // Track if we've already called completion to prevent double-firing
+  // Driver.js bug: both onDestroyStarted and onDestroyed can fire
+  const hasCalledCompleteRef = useRef(false);
+
   // Initialize driver instance
   useEffect(() => {
+    // Reset completion flag on each mount
+    hasCalledCompleteRef.current = false;
+
     const steps: DriveStep[] = [
       {
         popover: {
@@ -129,6 +141,13 @@ export function useTutorialTour(callbacks: TutorialTourCallbacks = {}) {
       },
     ];
 
+    // Helper to safely call completion callbacks (prevents double-firing)
+    const handleTourEnd = () => {
+      if (hasCalledCompleteRef.current) return;
+      hasCalledCompleteRef.current = true;
+      callbacksRef.current.onComplete?.();
+    };
+
     driverRef.current = driver({
       showProgress: true,
       progressText: '{{current}} of {{total}}',
@@ -141,31 +160,57 @@ export function useTutorialTour(callbacks: TutorialTourCallbacks = {}) {
       stageRadius: 8,
       popoverClass: 'tutorial-popover',
       steps,
+      // Driver.js gotcha: onDestroyStarted fires BEFORE destruction
+      // We use this for onDestroy callback (user skipped/closed)
       onDestroyStarted: () => {
-        // Call onDestroy callback - driver handles its own destruction
         callbacksRef.current.onDestroy?.();
       },
+      // Driver.js gotcha: onDestroyed fires AFTER destruction
+      // At this point state is empty, so we use refs
+      // We dedupe with hasCalledCompleteRef to prevent double-firing
       onDestroyed: () => {
-        callbacksRef.current.onComplete?.();
+        handleTourEnd();
       },
     });
 
     return () => {
-      driverRef.current?.destroy();
+      // Clean up driver on unmount
+      if (driverRef.current?.isActive()) {
+        driverRef.current.destroy();
+      }
       driverRef.current = null;
     };
   }, []);
 
   const start = useCallback(() => {
-    driverRef.current?.drive();
+    if (driverRef.current && !driverRef.current.isActive()) {
+      // Reset completion flag when starting a new tour
+      hasCalledCompleteRef.current = false;
+      driverRef.current.drive();
+    }
   }, []);
 
   const moveNext = useCallback(() => {
-    driverRef.current?.moveNext();
+    if (driverRef.current?.isActive()) {
+      driverRef.current.moveNext();
+    }
+  }, []);
+
+  const movePrev = useCallback(() => {
+    if (driverRef.current?.isActive()) {
+      // Driver.js gotcha: left arrow on first step closes tour
+      // Check if we're not on the first step before moving back
+      const activeIndex = driverRef.current.getActiveIndex();
+      if (activeIndex !== undefined && activeIndex > 0) {
+        driverRef.current.movePrevious();
+      }
+    }
   }, []);
 
   const destroy = useCallback(() => {
-    driverRef.current?.destroy();
+    if (driverRef.current?.isActive()) {
+      driverRef.current.destroy();
+    }
   }, []);
 
   const isActive = useCallback(() => {
@@ -175,6 +220,7 @@ export function useTutorialTour(callbacks: TutorialTourCallbacks = {}) {
   return {
     start,
     moveNext,
+    movePrev,
     destroy,
     isActive,
   };

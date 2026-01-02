@@ -7,6 +7,10 @@ import { useCinematicTimeline } from './useCinematicTimeline';
 interface CinematicIntroProps extends CinematicConfig {
   /** Children to render - receives phase state for 3D integration */
   children: React.ReactNode | ((phase: IntroPhase, progress: number) => React.ReactNode);
+  /** Callback when user wants to start tutorial directly from intro */
+  onTutorial?: () => void;
+  /** Callback when user wants to see About modal */
+  onAbout?: () => void;
 }
 
 /**
@@ -26,6 +30,8 @@ export function CinematicIntro({
   speedMultiplier = 1,
   onComplete,
   onJoin,
+  onTutorial,
+  onAbout,
 }: CinematicIntroProps) {
   // Always start with intro not complete - we want everyone to see it
   const [introComplete, setIntroComplete] = useState(false);
@@ -94,8 +100,14 @@ export function CinematicIntro({
             pointerEvents: phase === 'cta' ? 'auto' : 'none',
           }}
         >
-          {/* Title and CTA */}
-          <TitleReveal phase={phase} progress={progress} onJoin={handleJoin} />
+          {/* Title and CTAs */}
+          <TitleReveal
+            phase={phase}
+            progress={progress}
+            onJoin={handleJoin}
+            onTutorial={onTutorial}
+            onAbout={onAbout}
+          />
 
           {/* Letterbox bars - visible during reveal, retract during cta */}
           <Letterbox phase={phase} retracting={isRetracting} />

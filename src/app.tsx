@@ -3,6 +3,7 @@ import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type * as THREE from 'three';
 import { AudioProvider } from './audio';
+import { AboutModal } from './components/AboutModal';
 import { CinematicFog, CinematicIntro } from './components/cinematic';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TutorialPromptModal } from './components/TutorialPromptModal';
@@ -101,6 +102,9 @@ export function App() {
   // Welcome modal visibility (shown when first entering breathing phase)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
+  // About modal visibility
+  const [showAboutModal, setShowAboutModal] = useState(false);
+
   // Layered reveal progress (0→1 over 3s after entering breathing phase)
   // Shared with CameraRig and BreathingLevel for coordinated transitions
   const [joinProgress, setJoinProgress] = useState(0);
@@ -175,6 +179,16 @@ export function App() {
     setAppPhase('tutorial-prompt');
   }, []);
 
+  // Handle direct tutorial start from intro screen
+  const handleDirectTutorial = useCallback(() => {
+    setAppPhase('tutorial');
+  }, []);
+
+  // Handle about button from intro screen
+  const handleAbout = useCallback(() => {
+    setShowAboutModal(true);
+  }, []);
+
   // Handle tutorial prompt: user wants tutorial
   const handleStartTutorial = useCallback(() => {
     setAppPhase('tutorial');
@@ -196,6 +210,14 @@ export function App() {
 
   // Handle welcome modal dismissal
   const handleWelcomeDismiss = useCallback(() => {
+    setShowWelcomeModal(false);
+  }, []);
+
+  // Handle back to main menu from breathing screen
+  const handleBackToMenu = useCallback(() => {
+    setAppPhase('intro');
+    setJoinProgress(0);
+    setSelectedMood(undefined);
     setShowWelcomeModal(false);
   }, []);
 
@@ -227,7 +249,7 @@ export function App() {
   return (
     <ErrorBoundary>
       {/* CinematicIntro handles ALL users - the beautiful intro is always shown */}
-      <CinematicIntro onJoin={handleJoin}>
+      <CinematicIntro onJoin={handleJoin} onTutorial={handleDirectTutorial} onAbout={handleAbout}>
         {(phase, progress) => (
           /* Shared event source - both Canvas and HTML UI are children */
           <div ref={containerRef} className="relative w-full h-full">
@@ -287,6 +309,50 @@ export function App() {
                   shouldRunOnboarding={shouldRunOnboarding}
                   shouldPlayText={shouldPlayText}
                 />
+
+                {/* Back to Menu button */}
+                <button
+                  type="button"
+                  onClick={handleBackToMenu}
+                  aria-label="Back to menu"
+                  style={{
+                    position: 'fixed',
+                    top: '24px',
+                    left: '24px',
+                    background: 'rgba(253, 251, 247, 0.8)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(160, 140, 120, 0.2)',
+                    borderRadius: '24px',
+                    padding: '10px 20px',
+                    fontSize: '0.7rem',
+                    fontWeight: 500,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: '#6a5a4a',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.06)',
+                    zIndex: 100,
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  Menu
+                </button>
               </div>
             )}
           </div>
@@ -304,6 +370,9 @@ export function App() {
 
       {/* Welcome modal - appears when entering breathing phase */}
       {showWelcomeModal && <WelcomeModal onDismiss={handleWelcomeDismiss} />}
+
+      {/* About modal */}
+      <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
     </ErrorBoundary>
   );
 }
