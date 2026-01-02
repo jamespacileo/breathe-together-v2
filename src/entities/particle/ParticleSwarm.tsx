@@ -21,6 +21,7 @@ import { BREATH_TOTAL_CYCLE, type MoodId } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
+import { MotionTrails } from './MotionTrails';
 import {
   getBreathingCycleIndex,
   isHoldPhase,
@@ -138,6 +139,36 @@ export interface ParticleSwarmProps {
    * @default 1000
    */
   performanceCap?: number;
+
+  // === Motion Trail Props ===
+
+  /**
+   * Enable motion trails behind particles
+   * Creates subtle comet-tail effect showing movement direction
+   * @default true
+   */
+  enableTrails?: boolean;
+  /**
+   * Number of trail points per particle (trail length)
+   * Higher = longer trails, more memory
+   * @default 12
+   */
+  trailLength?: number;
+  /**
+   * Base size of trail points
+   * @default 0.04
+   */
+  trailPointSize?: number;
+  /**
+   * Trail color (teal matches Monument Valley aesthetic)
+   * @default '#7ec8d4'
+   */
+  trailColor?: string;
+  /**
+   * Trail opacity at head (fades to 0 at tail)
+   * @default 0.5
+   */
+  trailOpacity?: number;
 }
 
 interface ShardData {
@@ -255,6 +286,12 @@ export function ParticleSwarm({
   maxShardSize = 0.6,
   minShardSize = 0.15,
   performanceCap = 1000,
+  // Trail props
+  enableTrails = true,
+  trailLength = 12,
+  trailPointSize = 0.04,
+  trailColor = '#7ec8d4',
+  trailOpacity = 0.5,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
@@ -602,7 +639,20 @@ export function ParticleSwarm({
     }
   });
 
-  return <group ref={groupRef} name="Particle Swarm" />;
+  return (
+    <>
+      <group ref={groupRef} name="Particle Swarm" />
+      <MotionTrails
+        particleGroupRef={groupRef}
+        enabled={enableTrails}
+        trailLength={trailLength}
+        pointSize={trailPointSize}
+        color={trailColor}
+        opacity={trailOpacity}
+        maxParticles={Math.min(performanceCap, 200)}
+      />
+    </>
+  );
 }
 
 export default ParticleSwarm;
