@@ -83,15 +83,28 @@ export interface ParticleSwarmProps {
   users?: User[] | Partial<Record<MoodId, number>>;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
-  /** Base size for shards @default 4.0 */
+  /**
+   * Base size for shards.
+   * Formula: shardSize = baseShardSize / sqrt(count), clamped to [min, max].
+   * Tuned to prevent collisions at minimum orbit radius up to 500 particles,
+   * including worst-case wobble alignment.
+   * @default 1.0
+   */
   baseShardSize?: number;
   /** Globe radius for minimum distance calculation @default 1.5 */
   globeRadius?: number;
   /** Buffer distance between shard surface and globe surface @default 0.3 */
   buffer?: number;
-  /** Maximum shard size cap (prevents oversized shards at low counts) @default 0.6 */
+  /**
+   * Maximum shard size cap (prevents oversized shards at low counts).
+   * Tuned based on Fibonacci sphere spacing at min orbit radius.
+   * @default 0.22
+   */
   maxShardSize?: number;
-  /** Minimum shard size (prevents tiny shards at high counts) @default 0.15 */
+  /**
+   * Minimum shard size (prevents tiny shards at high counts).
+   * @default 0.04
+   */
   minShardSize?: number;
   /**
    * Performance safety cap - maximum shards to render
@@ -234,11 +247,11 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
 export function ParticleSwarm({
   users,
   baseRadius = 4.5,
-  baseShardSize = 4.0,
+  baseShardSize = 1.0,
   globeRadius = 1.5,
   buffer = 0.3,
-  maxShardSize = 0.6,
-  minShardSize = 0.15,
+  maxShardSize = 0.22,
+  minShardSize = 0.04,
   performanceCap = 1000,
 }: ParticleSwarmProps) {
   const world = useWorld();
