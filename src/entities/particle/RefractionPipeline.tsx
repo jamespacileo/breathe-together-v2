@@ -13,11 +13,21 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 // Backface vertex shader - renders normals from back faces
+// Supports both regular meshes and InstancedMesh via THREE.js instancing defines
 const backfaceVertexShader = `
 varying vec3 vNormal;
 void main() {
-  vNormal = normalize(normalMatrix * normal);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  // Apply instance transform if using InstancedMesh
+  #ifdef USE_INSTANCING
+    vec3 transformedNormal = mat3(normalMatrix) * mat3(instanceMatrix) * normal;
+    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+  #else
+    vec3 transformedNormal = normalMatrix * normal;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  #endif
+
+  vNormal = normalize(transformedNormal);
+  gl_Position = projectionMatrix * mvPosition;
 }
 `;
 
@@ -30,18 +40,37 @@ void main() {
 `;
 
 // Refraction vertex shader - passes color and calculates eye/normal vectors
+// Supports both regular meshes and InstancedMesh via THREE.js instancing defines
 const refractionVertexShader = `
-attribute vec3 color;
 varying vec3 vColor;
 varying vec3 eyeVector;
 varying vec3 worldNormal;
 
 void main() {
-  vColor = color;
-  vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+  // Use instanceColor if available (InstancedMesh), otherwise fallback to white
+  #ifdef USE_INSTANCING_COLOR
+    vColor = instanceColor;
+  #else
+    vColor = vec3(0.85, 0.75, 0.65); // Warm neutral fallback
+  #endif
+
+  // Apply instance transform if using InstancedMesh
+  #ifdef USE_INSTANCING
+    vec4 worldPosition = modelMatrix * instanceMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = mat3(modelViewMatrix) * mat3(instanceMatrix) * normal;
+  #else
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = mat3(modelViewMatrix) * normal;
+  #endif
+
   eyeVector = normalize(worldPosition.xyz - cameraPosition);
-  worldNormal = normalize(modelViewMatrix * vec4(normal, 0.0)).xyz;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  worldNormal = normalize(transformedNormal);
+
+  #ifdef USE_INSTANCING
+    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+  #else
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  #endif
 }
 `;
 

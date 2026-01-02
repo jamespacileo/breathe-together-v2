@@ -425,13 +425,29 @@ export function ParticleSwarm({
     frameCountRef.current++;
     if (frameCountRef.current % 120 === 1) {
       const nonEmptySlots = slotManager.slots.filter((s) => s.state !== 'empty');
+      // Find first slot with scale > 0
+      const firstVisibleSlot = slotManager.slots.find((s) => s.scale > 0.01);
+      const firstVisibleIndex = firstVisibleSlot ? slotManager.slots.indexOf(firstVisibleSlot) : -1;
+      // Get corresponding instance state
+      const firstVisibleState = firstVisibleIndex >= 0 ? states[firstVisibleIndex] : null;
+
       console.log('[ParticleSwarm] Frame update:', {
         frame: frameCountRef.current,
         stableCount: slotManager.stableCount,
         nonEmptySlots: nonEmptySlots.length,
         pendingUsers: pendingUsersRef.current.length,
         meshCount: mesh.count,
-        sampleSlot: nonEmptySlots[0],
+        slotsArrayLength: slotManager.slots.length,
+        firstVisibleIndex,
+        firstVisibleSlot: firstVisibleSlot
+          ? { state: firstVisibleSlot.state, scale: firstVisibleSlot.scale }
+          : null,
+        firstVisibleState: firstVisibleState
+          ? {
+              direction: firstVisibleState.direction.toArray(),
+              currentRadius: firstVisibleState.currentRadius,
+            }
+          : null,
       });
     }
 
