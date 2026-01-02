@@ -7,16 +7,28 @@ on:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
-    name: Delete Preview Worker
+    name: Delete Preview Workers
     steps:
-      - name: Delete Preview Worker
+      - name: Delete Frontend Preview Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           WORKER_NAME="breathe-together-v2-pr-${{ github.event.pull_request.number }}"
-          echo "Deleting worker: $WORKER_NAME"
+          echo "Deleting frontend worker: $WORKER_NAME"
           curl -s -X DELETE \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$WORKER_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" || echo "Worker may not exist, skipping deletion"
+            -H "Content-Type: application/json" || echo "Frontend worker may not exist, skipping deletion"
+
+      - name: Delete Presence API Preview Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          WORKER_NAME="breathe-together-presence-pr-${{ github.event.pull_request.number }}"
+          echo "Deleting presence worker: $WORKER_NAME"
+          curl -s -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$WORKER_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" || echo "Presence worker may not exist, skipping deletion"

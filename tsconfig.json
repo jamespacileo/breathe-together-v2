@@ -16,5 +16,5 @@
     "types": ["vite/client", "@react-three/fiber"]
   },
   "include": [".", ".triplex/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "worker"]
 }

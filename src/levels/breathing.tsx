@@ -1,6 +1,6 @@
 import { Html } from '@react-three/drei';
 import { Leva } from 'leva';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
@@ -13,7 +13,7 @@ import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles'
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { PRESETS, type PresetName, TUNING_DEFAULTS, useDevControls } from '../hooks/useDevControls';
-import { generateMockPresence } from '../lib/mockPresence';
+import { usePresence } from '../hooks/usePresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
@@ -124,37 +124,11 @@ export function BreathingLevel({
   const [showSettings, setShowSettings] = useState(false);
 
   // ==========================================
-  // MOCK PRESENCE DATA
+  // PRESENCE API (synchronized user positions)
   // ==========================================
-  const mockUsers = useMemo(() => {
-    const presence = generateMockPresence(Math.round(harmony));
-    // Convert aggregate mood counts to individual users
-    const users: Array<{ id: string; mood: 'gratitude' | 'presence' | 'release' | 'connection' }> =
-      [];
-    for (const [mood, count] of Object.entries(presence.moods)) {
-      for (let i = 0; i < count; i++) {
-        users.push({
-          id: `${mood}-${i}`,
-          mood: mood as 'gratitude' | 'presence' | 'release' | 'connection',
-        });
-      }
-    }
-
-    // Shuffle users for visual variety (colors distributed across sphere)
-    // Use Fisher-Yates shuffle with seeded random for consistency within session
-    const seed = Math.round(harmony); // Same count = same shuffle
-    const seededRandom = (i: number) => {
-      const x = Math.sin(seed * 9999 + i * 1234) * 10000;
-      return x - Math.floor(x);
-    };
-
-    for (let i = users.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom(i) * (i + 1));
-      [users[i], users[j]] = [users[j], users[i]];
-    }
-
-    return users;
-  }, [harmony]);
+  // Users array is sorted by ID on server, ensuring identical particle positions
+  // across all connected clients for a shared visual experience
+  const { users, count: presenceCount } = usePresence();
 
   return (
     <ErrorBoundary>
@@ -201,7 +175,7 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
-              <ParticleSwarm users={mockUsers} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
             )}
 
             {showParticles && (
@@ -251,6 +225,7 @@ export function BreathingLevel({
             onShowTuneControlsChange={setShowTuneControls}
             showSettings={showSettings}
             onShowSettingsChange={setShowSettings}
+            presenceCount={presenceCount}
           />
         </Html>
       </Suspense>
