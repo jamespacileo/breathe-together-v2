@@ -12,6 +12,7 @@
  * - Inspect entity behavior in isolation
  */
 
+import { Perf } from 'r3f-perf';
 import { BreathDebugPanel } from '../components/BreathDebugPanel';
 import type { BreathingDebugSceneProps } from '../types/sceneProps';
 import { BreathingLevel } from './breathing';
@@ -87,11 +88,20 @@ export function BreathingDebugScene({
    */
   showTraitValues = false,
 
+  /**
+   * Show performance monitor (FPS, memory, drawcalls).
+   * @group "Debug Visuals"
+   * @default true
+   */
+  showPerformanceMonitor = true,
+
   // All other props are passed through to BreathingLevel
   ...breathingLevelProps
 }: Partial<BreathingDebugSceneProps> = {}) {
   return (
     <group>
+      {showPerformanceMonitor && <Perf position="top-left" />}
+
       <BreathingLevel {...breathingLevelProps} />
 
       <BreathDebugPanel

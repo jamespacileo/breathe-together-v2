@@ -10,39 +10,11 @@ import {
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
+import { useSettingsStore } from '../stores/settingsStore';
 import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
-
-interface SimpleGaiaUIProps {
-  /** Particle count (harmony) */
-  harmony: number;
-  setHarmony: (v: number) => void;
-  /** Index of Refraction - controls light bending through glass */
-  ior: number;
-  setIor: (v: number) => void;
-  /** Glass depth - controls backface normal blending/distortion */
-  glassDepth: number;
-  setGlassDepth: (v: number) => void;
-  /** Orbit radius - how far particles orbit from center */
-  orbitRadius: number;
-  setOrbitRadius: (v: number) => void;
-  /** Shard size - maximum size of glass shards */
-  shardSize: number;
-  setShardSize: (v: number) => void;
-  /** Atmosphere density - number of ambient floating particles */
-  atmosphereDensity: number;
-  setAtmosphereDensity: (v: number) => void;
-  /** Optional external control for tune controls visibility */
-  showTuneControls?: boolean;
-  /** Optional callback when tune controls visibility changes */
-  onShowTuneControlsChange?: (show: boolean) => void;
-  /** Optional external control for settings modal visibility */
-  showSettings?: boolean;
-  /** Optional callback when settings modal visibility changes */
-  onShowSettingsChange?: (show: boolean) => void;
-}
 
 /**
  * SimpleGaiaUI - Simplified breathing meditation interface for first-time users
@@ -61,26 +33,30 @@ interface SimpleGaiaUIProps {
  * - Touch-friendly controls with minimum 44px touch targets
  * - Stacks elements vertically on narrow screens
  * - Adjusts modal sizing for small viewports
+ *
+ * Settings: Uses centralized settings store (no prop drilling!)
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: UI component manages multiple modal states (tune controls, settings, mood selection, welcome, hints) and phase animation loops - refactoring would reduce readability by splitting cohesive UI state management
-export function SimpleGaiaUI({
-  harmony,
-  setHarmony,
-  ior,
-  setIor,
-  glassDepth,
-  setGlassDepth,
-  orbitRadius,
-  setOrbitRadius,
-  shardSize,
-  setShardSize,
-  atmosphereDensity,
-  setAtmosphereDensity,
-  showTuneControls: externalShowTuneControls,
-  onShowTuneControlsChange,
-  showSettings: externalShowSettings,
-  onShowSettingsChange,
-}: SimpleGaiaUIProps) {
+export function SimpleGaiaUI() {
+  // Get all settings from centralized store
+  const {
+    harmony,
+    setHarmony,
+    ior,
+    setIor,
+    glassDepth,
+    setGlassDepth,
+    orbitRadius,
+    setOrbitRadius,
+    shardSize,
+    setShardSize,
+    atmosphereDensity,
+    setAtmosphereDensity,
+    showTuneControls: externalShowTuneControls,
+    setShowTuneControls: onShowTuneControlsChange,
+    showSettings: externalShowSettings,
+    setShowSettings: onShowSettingsChange,
+  } = useSettingsStore();
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);

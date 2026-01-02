@@ -9,16 +9,12 @@
 import { useCallback, useContext, useMemo } from 'react';
 import { AudioContext } from '../audio/AudioProvider';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
+import { useSettingsStore } from '../stores/settingsStore';
 import { UI_COLORS, Z_INDEX } from '../styles/designTokens';
 
-interface TopRightControlsProps {
-  /** Callback to open tune/animation controls */
-  onOpenTuneControls: () => void;
-  /** Callback to open settings/mood modal */
-  onOpenSettings: () => void;
-}
-
-export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRightControlsProps) {
+export function TopRightControls() {
+  // Get settings actions from store (no prop drilling!)
+  const { setShowTuneControls, setShowSettings } = useSettingsStore();
   // Use useContext directly to avoid throwing error when provider is missing
   // This allows the component to render gracefully without audio controls
   const audio = useContext(AudioContext);
@@ -185,7 +181,7 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
       <button
         type="button"
         title="Tune Animation"
-        onClick={onOpenTuneControls}
+        onClick={() => setShowTuneControls(true)}
         onPointerDown={stopPropagation}
         style={buttonStyle}
         onMouseEnter={handleMouseEnter}
@@ -214,7 +210,7 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
       <button
         type="button"
         title="Settings & Mood"
-        onClick={onOpenSettings}
+        onClick={() => setShowSettings(true)}
         onPointerDown={stopPropagation}
         style={buttonStyle}
         onMouseEnter={handleMouseEnter}

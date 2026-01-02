@@ -1,5 +1,5 @@
 import { Html, PresentationControls } from '@react-three/drei';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -9,6 +9,7 @@ import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles'
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { generateMockPresence } from '../lib/mockPresence';
+import { useSettingsStore } from '../stores/settingsStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
@@ -39,29 +40,15 @@ export function BreathingLevel({
   showParticles = true,
   showEnvironment = true,
 }: Partial<BreathingLevelProps> = {}) {
-  // UI State for tuning the aesthetic
-  const [harmony, setHarmony] = useState(
-    particleDensity === 'sparse'
-      ? TUNING_DEFAULTS.particleCounts.sparse
-      : particleDensity === 'dense'
-        ? TUNING_DEFAULTS.particleCounts.dense
-        : TUNING_DEFAULTS.particleCounts.normal,
-  );
-  const [ior, setIor] = useState(TUNING_DEFAULTS.ior);
-  const [glassDepth, setGlassDepth] = useState(TUNING_DEFAULTS.backfaceIntensity);
-  const [orbitRadius, setOrbitRadius] = useState(TUNING_DEFAULTS.orbitRadius);
-  const [shardSize, setShardSize] = useState(TUNING_DEFAULTS.shardSize);
-  const [atmosphereDensity, setAtmosphereDensity] = useState(TUNING_DEFAULTS.atmosphereDensity);
+  // Settings from centralized store (no prop drilling!)
+  const { harmony, ior, glassDepth, orbitRadius, shardSize, atmosphereDensity } =
+    useSettingsStore();
 
   // Depth of Field settings - constants (not exposed to UI currently)
   const enableDepthOfField = TUNING_DEFAULTS.enableDepthOfField;
   const focusDistance = TUNING_DEFAULTS.focusDistance;
   const focalRange = TUNING_DEFAULTS.focalRange;
   const maxBlur = TUNING_DEFAULTS.maxBlur;
-
-  // UI modal states (controlled by TopRightControls)
-  const [showTuneControls, setShowTuneControls] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
 
   // Generate mock users with randomized order for visual variety
   const mockUsers = useMemo(() => {
@@ -139,30 +126,10 @@ export function BreathingLevel({
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
           {/* Top-right control icons (audio + tune + settings) */}
-          <TopRightControls
-            onOpenTuneControls={() => setShowTuneControls(true)}
-            onOpenSettings={() => setShowSettings(true)}
-          />
+          <TopRightControls />
 
           {/* Main UI with breathing phase, inspirational text, and modals */}
-          <SimpleGaiaUI
-            harmony={harmony}
-            setHarmony={setHarmony}
-            ior={ior}
-            setIor={setIor}
-            glassDepth={glassDepth}
-            setGlassDepth={setGlassDepth}
-            orbitRadius={orbitRadius}
-            setOrbitRadius={setOrbitRadius}
-            shardSize={shardSize}
-            setShardSize={setShardSize}
-            atmosphereDensity={atmosphereDensity}
-            setAtmosphereDensity={setAtmosphereDensity}
-            showTuneControls={showTuneControls}
-            onShowTuneControlsChange={setShowTuneControls}
-            showSettings={showSettings}
-            onShowSettingsChange={setShowSettings}
-          />
+          <SimpleGaiaUI />
         </Html>
       </Suspense>
     </ErrorBoundary>
