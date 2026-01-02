@@ -117,24 +117,40 @@ export function MomentumControls({
     animation.current.damping = damping;
   }, [damping]);
 
-  // Check if event target is within UI overlay (Leva, modals, etc.)
+  // Check if event target is within UI overlay (Leva, modals, perf monitor, etc.)
   const isUIElement = React.useCallback((event: PointerEvent | MouseEvent | TouchEvent) => {
     const target = event.target as HTMLElement;
     if (!target) return false;
 
     // Check if click is on UI elements that should not trigger rotation
     const uiSelectors = [
-      '.leva', // Leva panel
-      '[class*="leva"]', // Leva classes
-      '[data-leva]', // Leva data attributes
-      '.gaia-ui', // Our UI
-      '[class*="modal"]', // Modals
+      // Our UI components (data attributes for reliable detection)
+      '[data-ui]',
+      '.gaia-ui',
+      // Leva panel
+      '[class*="leva"]',
+      '[data-leva]',
+      // r3f-perf performance monitor (renders with specific class patterns)
+      '[class*="r3f-perf"]',
+      '[class*="perf"]',
+      // Interactive HTML elements
       'button',
       'input',
       'select',
       'textarea',
+      'label',
+      'a[href]',
+      // ARIA roles for accessibility
       '[role="button"]',
       '[role="slider"]',
+      '[role="dialog"]',
+      '[role="menu"]',
+      '[role="menuitem"]',
+      // Common modal/overlay patterns
+      '[class*="modal"]',
+      '[class*="Modal"]',
+      '[class*="overlay"]',
+      '[class*="Overlay"]',
     ];
 
     return uiSelectors.some(

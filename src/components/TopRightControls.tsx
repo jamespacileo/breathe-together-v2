@@ -54,6 +54,7 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
 
   return (
     <div
+      data-ui="top-right-controls"
       className="absolute z-[200] flex flex-row items-center pointer-events-auto"
       style={{
         top: `${edgePadding}px`,
