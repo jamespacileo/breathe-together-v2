@@ -1,12 +1,13 @@
 import { Stats } from '@react-three/drei';
 import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
-import { BreathingLevel } from './levels/breathing';
+import { useViewport } from './hooks/useViewport';
+import { BreathingLevel, BreathingLevelUI } from './levels/breathing';
 import { KootaSystems } from './providers';
 
 // Lazy load admin panel (only loads when needed)
@@ -22,8 +23,34 @@ function useCurrentPath(): string {
   return typeof window !== 'undefined' ? window.location.pathname : '/';
 }
 
+/**
+ * App - Root component with proper event handling architecture.
+ *
+ * Uses the R3F recommended eventSource pattern:
+ * - Canvas receives events via shared parent (eventSource)
+ * - Canvas automatically gets pointer-events: none
+ * - HTML UI renders as siblings, naturally receiving events
+ * - No need for exclusion zones or complex cursor management
+ *
+ * @see https://r3f.docs.pmnd.rs/api/canvas#extracting-events
+ */
 export function App() {
+  // biome-ignore lint/style/noNonNullAssertion: R3F eventSource requires non-null ref; ref is always assigned before Canvas renders
+  const containerRef = useRef<HTMLDivElement>(null!);
   const path = useCurrentPath();
+  const { isMobile, isTablet } = useViewport();
+
+  // Disable antialias on mobile/tablet for 5-10% performance improvement
+  const glConfig = useMemo(
+    () => ({
+      antialias: !isMobile && !isTablet,
+      alpha: true,
+      localClippingEnabled: true,
+      // Reduce pixel ratio on mobile for better performance
+      pixelRatio: isMobile ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio,
+    }),
+    [isMobile, isTablet],
+  );
 
   // Admin panel route
   if (path === '/admin') {
@@ -52,20 +79,31 @@ export function App() {
   // Main breathing app
   return (
     <ErrorBoundary>
-      <Canvas
-        shadows={false}
-        camera={{ position: [0, 0, 10], fov: 45 }}
-        gl={{ antialias: true, alpha: true, localClippingEnabled: true }}
-      >
-        {import.meta.env.DEV && <Stats />}
-        <CameraRig />
-        <KootaSystems breathSystemEnabled={true}>
-          <AudioProvider>
-            <BreathEntity />
-            <BreathingLevel />
-          </AudioProvider>
-        </KootaSystems>
-      </Canvas>
+      {/* Shared event source - both Canvas and HTML UI are children */}
+      <div ref={containerRef} className="relative w-full h-full">
+        {/* 3D Canvas - receives events via eventSource, has pointer-events: none */}
+        <Canvas
+          eventSource={containerRef}
+          eventPrefix="client"
+          shadows={false}
+          camera={{ position: [0, 0, 10], fov: 45 }}
+          gl={glConfig}
+          dpr={isMobile ? [1, 2] : [1, 2]}
+          className="!absolute inset-0"
+        >
+          {import.meta.env.DEV && <Stats />}
+          <CameraRig />
+          <KootaSystems breathSystemEnabled={true}>
+            <AudioProvider>
+              <BreathEntity />
+              <BreathingLevel />
+            </AudioProvider>
+          </KootaSystems>
+        </Canvas>
+
+        {/* HTML UI - siblings of Canvas, naturally receive pointer events */}
+        <BreathingLevelUI />
+      </div>
     </ErrorBoundary>
   );
 }

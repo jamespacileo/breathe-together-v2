@@ -1,6 +1,6 @@
-import { Html } from '@react-three/drei';
 import { Leva } from 'leva';
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Perf } from 'r3f-perf';
+import { Suspense } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
@@ -13,131 +13,59 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
-import { PRESETS, type PresetName, TUNING_DEFAULTS, useDevControls } from '../hooks/useDevControls';
+import { useDevControls } from '../hooks/useDevControls';
 import { usePresence } from '../hooks/usePresence';
+import { useBreathingLevelStore } from '../stores/breathingLevelStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
- * BreathingLevel - Core meditation environment.
+ * BreathingLevel - Core 3D meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
  *
- * User controls: Harmony, Shard Size, Breathing Space, Atmosphere (via SimpleGaiaUI)
+ * This component handles ONLY the 3D scene content.
+ * HTML UI is rendered separately via BreathingLevelUI (outside Canvas).
+ *
+ * User controls: Harmony, Shard Size, Breathing Space, Atmosphere (via Zustand store)
  * Dev controls: Glass effect, DoF, Environment, Debug (via Leva panel)
  */
 export function BreathingLevel({
-  particleDensity,
   // DEBUG-ONLY: Entity visibility toggles (all default true)
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
 }: Partial<BreathingLevelProps> = {}) {
-  // ==========================================
-  // USER-FACING STATE (SimpleGaiaUI controls)
-  // ==========================================
-  const [harmony, setHarmony] = useState<number>(
-    particleDensity === 'sparse'
-      ? PRESETS.calm.harmony
-      : particleDensity === 'dense'
-        ? PRESETS.immersive.harmony
-        : PRESETS.centered.harmony,
-  );
-  const [orbitRadius, setOrbitRadius] = useState<number>(TUNING_DEFAULTS.orbitRadius);
-  const [shardSize, setShardSize] = useState<number>(TUNING_DEFAULTS.shardSize);
-  const [atmosphereDensity, setAtmosphereDensity] = useState<number>(
-    TUNING_DEFAULTS.atmosphereDensity,
-  );
+  // Shared state from Zustand store
+  const { orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
 
-  // Animation refs for smooth preset transitions
-  const animationRef = useRef<number | null>(null);
-
-  // ==========================================
-  // DEV-ONLY STATE (Leva controls)
-  // ==========================================
+  // Dev controls (Leva)
   const devControls = useDevControls();
 
-  // ==========================================
-  // PRESET ANIMATION
-  // ==========================================
-  const applyPreset = useCallback(
-    (presetName: PresetName) => {
-      const preset = PRESETS[presetName];
-
-      // Cancel any existing animation
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-
-      // Store starting values
-      const startValues = {
-        harmony,
-        shardSize,
-        orbitRadius,
-        atmosphereDensity,
-      };
-      const startTime = performance.now();
-      const duration = 300; // ms
-
-      const animate = (now: number) => {
-        const elapsed = now - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Ease out cubic for smooth deceleration
-        const eased = 1 - (1 - progress) ** 3;
-
-        // Interpolate all values
-        setHarmony(
-          Math.round(startValues.harmony + (preset.harmony - startValues.harmony) * eased),
-        );
-        setShardSize(startValues.shardSize + (preset.shardSize - startValues.shardSize) * eased);
-        setOrbitRadius(
-          startValues.orbitRadius + (preset.orbitRadius - startValues.orbitRadius) * eased,
-        );
-        setAtmosphereDensity(
-          Math.round(
-            startValues.atmosphereDensity +
-              (preset.atmosphereDensity - startValues.atmosphereDensity) * eased,
-          ),
-        );
-
-        if (progress < 1) {
-          animationRef.current = requestAnimationFrame(animate);
-        }
-      };
-
-      animationRef.current = requestAnimationFrame(animate);
-    },
-    [harmony, shardSize, orbitRadius, atmosphereDensity],
-  );
-
-  // Cleanup animation on unmount
-  useEffect(() => {
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, []);
-
-  // ==========================================
-  // UI MODAL STATES
-  // ==========================================
-  const [showTuneControls, setShowTuneControls] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-
-  // ==========================================
-  // PRESENCE API (synchronized user positions)
-  // ==========================================
+  // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users, count: presenceCount } = usePresence();
+  const { users } = usePresence();
 
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
+        {/* Performance monitor (dev only) */}
+        {DEV_MODE_ENABLED && devControls.showPerfMonitor && (
+          <Perf
+            position={devControls.perfPosition}
+            minimal={devControls.perfMinimal}
+            showGraph={devControls.perfShowGraph}
+            logsPerSecond={devControls.perfLogsPerSecond}
+            antialias={devControls.perfAntialias}
+            overClock={devControls.perfOverClock}
+            deepAnalyze={devControls.perfDeepAnalyze}
+            matrixUpdate={devControls.perfMatrixUpdate}
+          />
+        )}
+
         {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
         <AudioDevControls />
 
-        {/* 4-Pass FBO Refraction Pipeline handles background + refraction + depth of field rendering */}
+        {/* 4-Pass FBO Refraction Pipeline */}
         <RefractionPipeline
           ior={devControls.ior}
           backfaceIntensity={devControls.glassDepth}
@@ -146,7 +74,7 @@ export function BreathingLevel({
           focalRange={devControls.focalRange}
           maxBlur={devControls.maxBlur}
         >
-          {/* Monument Valley inspired atmosphere - clouds, lighting, fog */}
+          {/* Environment - clouds, lighting, fog */}
           {showEnvironment && (
             <Environment
               showClouds={devControls.showClouds}
@@ -160,9 +88,8 @@ export function BreathingLevel({
             />
           )}
 
-          {/* Wrap rotatable entities in MomentumControls (iOS-style momentum scrolling) */}
+          {/* MomentumControls - iOS-style momentum scrolling for 3D rotation */}
           <MomentumControls
-            global
             cursor={true}
             speed={devControls.dragSpeed}
             damping={devControls.dragDamping}
@@ -222,47 +149,80 @@ export function BreathingLevel({
 
         {/* NOTE: Bloom and ColorTemperature effects removed - they conflict with RefractionPipeline */}
         {/* The remaining effects (wobbly globe, curl noise, ripples, particle animation) work well */}
-
-        {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
-        <Html fullscreen>
-          {/* Leva dev controls panel - only renders when DEV_MODE_ENABLED */}
-          <Leva
-            hidden={!DEV_MODE_ENABLED}
-            collapsed={true}
-            titleBar={{ title: 'Dev Controls' }}
-            theme={{
-              sizes: {
-                rootWidth: '280px',
-              },
-            }}
-          />
-
-          {/* Top-right control icons (audio + tune + settings) */}
-          <TopRightControls
-            onOpenTuneControls={() => setShowTuneControls(true)}
-            onOpenSettings={() => setShowSettings(true)}
-          />
-
-          {/* Main UI with breathing phase, inspirational text, and modals */}
-          <SimpleGaiaUI
-            harmony={harmony}
-            setHarmony={setHarmony}
-            orbitRadius={orbitRadius}
-            setOrbitRadius={setOrbitRadius}
-            shardSize={shardSize}
-            setShardSize={setShardSize}
-            atmosphereDensity={atmosphereDensity}
-            setAtmosphereDensity={setAtmosphereDensity}
-            onApplyPreset={applyPreset}
-            showTuneControls={showTuneControls}
-            onShowTuneControlsChange={setShowTuneControls}
-            showSettings={showSettings}
-            onShowSettingsChange={setShowSettings}
-            presenceCount={presenceCount}
-          />
-        </Html>
+        {/* UI is rendered separately via BreathingLevelUI (outside Canvas) */}
       </Suspense>
     </ErrorBoundary>
+  );
+}
+
+/**
+ * BreathingLevelUI - HTML UI overlay for the breathing meditation.
+ *
+ * Rendered OUTSIDE the Canvas as a sibling element.
+ * This ensures proper event handling - HTML elements naturally receive
+ * pointer events without conflicting with 3D scene interactions.
+ *
+ * Uses eventSource pattern on Canvas (see app.tsx).
+ */
+export function BreathingLevelUI() {
+  // Shared state from Zustand store
+  const {
+    harmony,
+    setHarmony,
+    orbitRadius,
+    setOrbitRadius,
+    shardSize,
+    setShardSize,
+    atmosphereDensity,
+    setAtmosphereDensity,
+    showTuneControls,
+    setShowTuneControls,
+    showSettings,
+    setShowSettings,
+    applyPreset,
+  } = useBreathingLevelStore();
+
+  // Presence API for user count display
+  const { count: presenceCount } = usePresence();
+
+  return (
+    <>
+      {/* Leva dev controls panel - renders via portal to document.body */}
+      <Leva
+        hidden={!DEV_MODE_ENABLED}
+        collapsed={true}
+        titleBar={{ title: 'Dev Controls' }}
+        theme={{
+          sizes: {
+            rootWidth: '280px',
+          },
+        }}
+      />
+
+      {/* Top-right control icons */}
+      <TopRightControls
+        onOpenTuneControls={() => setShowTuneControls(true)}
+        onOpenSettings={() => setShowSettings(true)}
+      />
+
+      {/* Main UI with breathing phase, inspirational text, and modals */}
+      <SimpleGaiaUI
+        harmony={harmony}
+        setHarmony={setHarmony}
+        orbitRadius={orbitRadius}
+        setOrbitRadius={setOrbitRadius}
+        shardSize={shardSize}
+        setShardSize={setShardSize}
+        atmosphereDensity={atmosphereDensity}
+        setAtmosphereDensity={setAtmosphereDensity}
+        onApplyPreset={applyPreset}
+        showTuneControls={showTuneControls}
+        onShowTuneControlsChange={setShowTuneControls}
+        showSettings={showSettings}
+        onShowSettingsChange={setShowSettings}
+        presenceCount={presenceCount}
+      />
+    </>
   );
 }
 
