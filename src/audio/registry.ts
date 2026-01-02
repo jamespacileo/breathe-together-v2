@@ -29,7 +29,7 @@ export const SOUNDS = {
   // Files: public/audio/ambient/
   // ─────────────────────────────────────────────────────
   'ambient/warm-pad': {
-    path: '/audio/ambient/warm-pad.mp3',
+    path: '/audio/ambient/warm-pad.opt.mp3',
     category: 'ambient',
     loop: true,
     baseVolume: -12,
@@ -38,7 +38,7 @@ export const SOUNDS = {
   },
 
   'ambient/high-shimmer': {
-    path: '/audio/ambient/high-shimmer.mp3',
+    path: '/audio/ambient/high-shimmer.opt.mp3',
     category: 'ambient',
     loop: true,
     baseVolume: -15,
@@ -52,7 +52,7 @@ export const SOUNDS = {
   // Files: public/audio/breath/
   // ─────────────────────────────────────────────────────
   'breath/inhale': {
-    path: '/audio/breath/inhale.mp3',
+    path: '/audio/breath/inhale.opt.mp3',
     category: 'breath',
     triggerPhase: 0,
     baseVolume: -6,
@@ -80,7 +80,7 @@ export const SOUNDS = {
   },
 
   'breath/exhale': {
-    path: '/audio/breath/exhale.mp3',
+    path: '/audio/breath/exhale.opt.mp3',
     category: 'breath',
     triggerPhase: 2,
     baseVolume: -6,
@@ -127,7 +127,7 @@ export const SOUNDS = {
   },
 
   'nature/forest': {
-    path: '/audio/nature/forest.mp3',
+    path: '/audio/nature/forest.opt.mp3',
     category: 'nature',
     loop: true,
     baseVolume: -15,
@@ -169,7 +169,7 @@ export const SOUNDS = {
   },
 
   'nature/night': {
-    path: '/audio/nature/night.mp3',
+    path: '/audio/nature/night.opt.mp3',
     category: 'nature',
     loop: true,
     baseVolume: -15,
@@ -197,7 +197,7 @@ export const SOUNDS = {
   },
 
   'chimes/exhale-bell': {
-    path: '/audio/chimes/exhale-bell.mp3',
+    path: '/audio/chimes/exhale-bell.opt.mp3',
     category: 'chimes',
     triggerPhase: 2,
     baseVolume: -9,
