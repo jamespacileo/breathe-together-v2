@@ -1,6 +1,6 @@
 import { Leva } from 'leva';
 import { Perf } from 'r3f-perf';
-import { Suspense } from 'react';
+import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { FadeGroup } from '../components/FadeGroup';
@@ -51,6 +51,11 @@ export function BreathingLevel({
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
   const { users } = usePresence();
+
+  // React 19: Defer non-urgent updates to reduce stutter during state changes
+  // These values control particle counts which are expensive to update
+  const deferredAtmosphereDensity = useDeferredValue(atmosphereDensity);
+  const deferredUsers = useDeferredValue(users);
 
   return (
     <ErrorBoundary>
@@ -118,17 +123,23 @@ export function BreathingLevel({
             )}
 
             {/* Particles fade in third (delay: 800ms) - detail layer */}
+            {/* Uses deferred users for React 19 concurrent rendering optimization */}
             {showParticles && (
               <FadeGroup opacity={fadeIn.particles} name="Particles Fade">
-                <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
+                <ParticleSwarm
+                  users={deferredUsers}
+                  baseRadius={orbitRadius}
+                  maxShardSize={shardSize}
+                />
               </FadeGroup>
             )}
 
             {/* Atmospheric particles fade in last (delay: 1200ms) - ambient polish */}
+            {/* Uses deferred density for React 19 concurrent rendering optimization */}
             {showParticles && (
               <FadeGroup opacity={fadeIn.atmosphere} name="Atmosphere Fade">
                 <AtmosphericParticles
-                  count={Math.round(atmosphereDensity)}
+                  count={Math.round(deferredAtmosphereDensity)}
                   size={devControls.atmosphereParticleSize}
                   baseOpacity={devControls.atmosphereBaseOpacity}
                   breathingOpacity={devControls.atmosphereBreathingOpacity}
