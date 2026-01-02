@@ -1,6 +1,7 @@
-import { Html, PresentationControls } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import { Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { EarthGlobe } from '../entities/earthGlobe';
@@ -109,13 +110,13 @@ export function BreathingLevel({
           {/* Monument Valley inspired atmosphere - clouds, lighting, fog */}
           {showEnvironment && <Environment showClouds={true} showStars={true} />}
 
-          {/* Wrap rotatable entities in PresentationControls */}
-          <PresentationControls
+          {/* Wrap rotatable entities in MomentumControls (iOS-style momentum scrolling) */}
+          <MomentumControls
             global
             cursor={true}
-            snap={false}
             speed={1.8}
             damping={0.12}
+            momentum={1}
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
@@ -133,7 +134,7 @@ export function BreathingLevel({
                 breathingOpacity={0.15}
               />
             )}
-          </PresentationControls>
+          </MomentumControls>
         </RefractionPipeline>
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
