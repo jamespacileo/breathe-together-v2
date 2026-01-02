@@ -30,10 +30,12 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-  deploy:
+  deploy-worker:
     needs: build
     runs-on: ubuntu-latest
-    name: Deploy
+    name: Deploy Worker
+    outputs:
+      worker-url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,13 +48,249 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Configure KV Namespace IDs
+        run: |
+          sed -i "s/YOUR_KV_NAMESPACE_ID/${{ secrets.PRESENCE_KV_ID }}/" worker/wrangler.toml
+          sed -i "s/YOUR_PREVIEW_KV_NAMESPACE_ID/${{ secrets.PRESENCE_KV_PREVIEW_ID }}/" worker/wrangler.toml
 
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy Presence Worker
+        id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Use stable wrangler version (4.55.0/4.56.0 have opennextjs-cloudflare delegation bug)
+          workingDirectory: worker
           wranglerVersion: "4.54.0"
+          # Explicit --config to avoid picking up root wrangler.json (which has assets.directory for frontend)
+          command: deploy --config wrangler.toml
+
+  deploy-frontend:
+    needs: deploy-worker
+    runs-on: ubuntu-latest
+    name: Deploy Frontend
+    outputs:
+      frontend-url: ${{ steps.get-urls.outputs.frontend-url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for commit comparison
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with API URL
+        run: npm run build
+        env:
+          VITE_PRESENCE_API_URL: https://breathe-together-presence.palladio-registry.workers.dev
+
+      - name: Deploy Frontend to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.54.0"
+
+      - name: Get deployment URLs
+        id: get-urls
+        run: |
+          echo "frontend-url=https://breathe-together-v2.palladio-registry.workers.dev" >> $GITHUB_OUTPUT
+
+  notify-deployment:
+    needs: [deploy-worker, deploy-frontend]
+    if: success()
+    runs-on: ubuntu-latest
+    name: Notify Deployment Success
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50  # Fetch recent history for changelog
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the last deployment commit (previous main push)
+          PREVIOUS_SHA=$(git log --skip=1 --max-count=1 --format=%H)
+          CURRENT_SHA=${{ github.sha }}
+
+          # Generate compact changelog
+          CHANGELOG=$(git log ${PREVIOUS_SHA}..${CURRENT_SHA} --pretty=format:"• %s (%an)" --max-count=10)
+
+          # Escape for JSON
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+
+          echo "changelog=${CHANGELOG}" >> $GITHUB_OUTPUT
+
+          # Count commits
+          COMMIT_COUNT=$(git rev-list --count ${PREVIOUS_SHA}..${CURRENT_SHA})
+          echo "commit-count=${COMMIT_COUNT}" >> $GITHUB_OUTPUT
+
+      - name: Notify Slack - Production Deployment
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_CI_CD }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Production Deployment (main)",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n`main`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commits:*\n${{ steps.changelog.outputs.commit-count }} new commits"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Frontend:*\n<${{ needs.deploy-frontend.outputs.frontend-url }}|breathe-together-v2>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Worker:*\n<${{ needs.deploy-worker.outputs.worker-url }}|breathe-together-presence>"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Changes:*\n${{ steps.changelog.outputs.changelog }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "🌐 Open App",
+                        "emoji": true
+                      },
+                      "url": "${{ needs.deploy-frontend.outputs.frontend-url }}",
+                      "style": "primary"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "📊 Cloudflare Dashboard",
+                        "emoji": true
+                      },
+                      "url": "https://dash.cloudflare.com/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers-and-pages"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "⚙️ Workflow Run",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Deployed via GitHub Actions • Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|`${{ github.sha }}`>"
+                    }
+                  ]
+                }
+              ]
+            }
+
+  notify-failure:
+    needs: [build, deploy-worker, deploy-frontend]
+    if: failure()
+    runs-on: ubuntu-latest
+    name: Notify Deployment Failure
+    steps:
+      - name: Notify Slack - Deployment Failed
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_CI_CD }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Production Deployment Failed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n`main`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|`${{ github.sha }}`>"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "⚠️ *Failed Jobs:*\n${{ needs.build.result == 'failure' && '• Build\n' || '' }}${{ needs.deploy-worker.result == 'failure' && '• Deploy Worker\n' || '' }}${{ needs.deploy-frontend.result == 'failure' && '• Deploy Frontend\n' || '' }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "🔍 View Logs",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "style": "danger"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Check workflow logs for details • ${{ github.repository }}"
+                    }
+                  ]
+                }
+              ]
+            }

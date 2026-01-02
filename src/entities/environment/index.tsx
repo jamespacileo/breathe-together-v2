@@ -2,6 +2,7 @@ import { Cloud, Clouds, Stars } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { useViewport } from '../../hooks/useViewport';
 import { BackgroundGradient } from './BackgroundGradient';
 
 interface EnvironmentProps {
@@ -47,6 +48,10 @@ export function Environment({
 }: EnvironmentProps = {}) {
   const { scene } = useThree();
   const cloudsRef = useRef<THREE.Group>(null);
+  const { isMobile, isTablet } = useViewport();
+
+  // Reduce star count on mobile/tablet for better performance
+  const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
 
   // Clear any scene background - let BackgroundGradient handle it
   useEffect(() => {
@@ -141,8 +146,17 @@ export function Environment({
       )}
 
       {/* Subtle distant stars - very faint for dreamy atmosphere */}
+      {/* Count is responsive: 150 (mobile) / 300 (tablet) / 500 (desktop) */}
       {showStars && (
-        <Stars radius={100} depth={50} count={500} factor={2} saturation={0} fade speed={0.5} />
+        <Stars
+          radius={100}
+          depth={50}
+          count={starsCount}
+          factor={2}
+          saturation={0}
+          fade
+          speed={0.5}
+        />
       )}
 
       {/* Warm ambient light - fills shadows softly */}

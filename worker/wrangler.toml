@@ -1,0 +1,51 @@
+# Cloudflare Worker configuration for Breathe Together presence API
+# See: https://developers.cloudflare.com/workers/wrangler/configuration/
+
+name = "breathe-together-presence"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Development settings
+[dev]
+port = 8787
+local_protocol = "http"
+
+# KV Namespace for presence data (used for KV-based mode)
+# Create with: wrangler kv:namespace create PRESENCE_KV
+[[kv_namespaces]]
+binding = "PRESENCE_KV"
+id = "7add79fd08af412b9cc1dc509b629040"
+preview_id = "2fc40a001ffd49128837dd0a53de63d9"
+
+# Durable Objects for WebSocket-based presence (used for scale)
+# This enables real-time presence at 10k+ users for <$10/month
+[durable_objects]
+bindings = [
+  { name = "BREATHING_ROOM", class_name = "BreathingRoom" }
+]
+
+# Migrations for Durable Objects
+[[migrations]]
+tag = "v1"
+new_classes = ["BreathingRoom"]
+
+# Scheduled cleanup task - runs every minute
+[triggers]
+crons = ["* * * * *"]
+
+# ============================================================================
+# Cost Comparison (see COST_ANALYSIS.md for details)
+# ============================================================================
+#
+# KV-based mode (default):
+#   - Uses probabilistic sampling (3% of users report)
+#   - Good for <1000 users
+#   - Cost: ~$30/month at 1000 users
+#
+# Durable Objects mode (WebSocket):
+#   - Real-time push updates
+#   - Good for 1000+ users
+#   - Cost: ~$8/month at 10000 users
+#
+# Frontend auto-detects and uses WebSocket when available.
+# ============================================================================

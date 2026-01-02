@@ -19,9 +19,7 @@ const IOS_DEFAULTS = {
 interface MomentumControlsProps {
   /** Enable/disable the controls */
   enabled?: boolean;
-  /** Apply controls globally to the DOM element */
-  global?: boolean;
-  /** Show grab cursor */
+  /** Show grab cursor on the canvas */
   cursor?: boolean;
   /** Rotation speed multiplier (higher = faster response to drag) */
   speed?: number;
@@ -51,10 +49,14 @@ interface MomentumControlsProps {
  * release velocity, then decelerates smoothly (like iPhone scrolling).
  *
  * Uses exponential decay: position = target - amplitude × e^(-t/timeConstant)
+ *
+ * Event handling:
+ * - Uses R3F's pointer events on the group element (not global DOM events)
+ * - Works with eventSource pattern on Canvas for proper HTML overlay support
+ * - Cursor is managed via canvas style when enabled
  */
 export function MomentumControls({
   enabled = true,
-  global = false,
   cursor = true,
   speed = 1.8,
   rotation = [0, 0, 0],
@@ -67,11 +69,10 @@ export function MomentumControls({
   minVelocityThreshold = IOS_DEFAULTS.minVelocityThreshold,
   children,
 }: MomentumControlsProps) {
-  const events = useThree((state) => state.events);
   const gl = useThree((state) => state.gl);
   const { size } = useThree();
 
-  const domElement = events.connected || gl.domElement;
+  const domElement = gl.domElement;
 
   // Calculate rotation limits
   const rPolar = React.useMemo(
@@ -102,49 +103,26 @@ export function MomentumControls({
   // Group ref for direct manipulation
   const ref = React.useRef<Group>(null);
 
-  // Cursor management
-  React.useEffect(() => {
-    if (global && cursor && enabled) {
-      domElement.style.cursor = 'grab';
-      return () => {
-        domElement.style.cursor = 'default';
-      };
-    }
-  }, [global, cursor, domElement, enabled]);
-
   // Sync damping when prop changes (for Leva real-time updates)
   React.useEffect(() => {
     animation.current.damping = damping;
   }, [damping]);
 
-  // Check if event target is within UI overlay (Leva, modals, etc.)
-  const isUIElement = React.useCallback((event: PointerEvent | MouseEvent | TouchEvent) => {
-    const target = event.target as HTMLElement;
-    if (!target) return false;
+  // Cursor management - simple approach via canvas style
+  React.useEffect(() => {
+    if (!cursor || !enabled) return;
 
-    // Check if click is on UI elements that should not trigger rotation
-    const uiSelectors = [
-      '.leva', // Leva panel
-      '[class*="leva"]', // Leva classes
-      '[data-leva]', // Leva data attributes
-      '.gaia-ui', // Our UI
-      '[class*="modal"]', // Modals
-      'button',
-      'input',
-      'select',
-      'textarea',
-      '[role="button"]',
-      '[role="slider"]',
-    ];
-
-    return uiSelectors.some(
-      (selector) => target.closest(selector) !== null || target.matches(selector),
-    );
-  }, []);
+    domElement.style.cursor = 'grab';
+    return () => {
+      domElement.style.cursor = 'default';
+    };
+  }, [cursor, enabled, domElement]);
 
   // Smooth animation loop
   useFrame((_state, delta) => {
-    if (!ref.current) return;
+    if (!ref.current || !enabled) return;
+
+    // Smoothly interpolate rotation toward target
     easing.dampE(ref.current.rotation, animation.current.target, animation.current.damping, delta);
   });
 
@@ -152,17 +130,12 @@ export function MomentumControls({
   const bind = useGesture(
     {
       onHover: ({ last }) => {
-        if (cursor && !global && enabled) {
-          domElement.style.cursor = last ? 'auto' : 'grab';
+        if (cursor && enabled) {
+          domElement.style.cursor = last ? 'grab' : 'grab';
         }
       },
-      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo, event }) => {
+      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo }) => {
         if (!enabled) return memo;
-
-        // Ignore events from UI elements (Leva, modals, buttons, etc.)
-        if (event && isUIElement(event as PointerEvent)) {
-          return memo;
-        }
 
         // Initialize memo with current rotation on drag start
         const [oldY, oldX] = memo || animation.current.target;
@@ -188,7 +161,6 @@ export function MomentumControls({
           const hasVerticalMomentum = Math.abs(vy) > minVelocityThreshold;
 
           // Project target position based on velocity
-          // iOS formula: target = current + velocity × timeConstant
           let targetX = newX;
           let targetY = newY;
 
@@ -219,15 +191,14 @@ export function MomentumControls({
       },
     },
     {
-      target: global ? domElement : undefined,
+      // No target means useGesture returns bind handlers for the element
+      // These are spread onto the group and work with R3F's pointer event system
     },
   );
 
   return (
-    <group ref={ref} {...(bind?.() || {})}>
+    <group ref={ref} {...(bind() || {})}>
       {children}
     </group>
   );
 }
-
-export default MomentumControls;

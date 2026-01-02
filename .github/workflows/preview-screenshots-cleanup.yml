@@ -1,0 +1,89 @@
+name: Cleanup PR Screenshots
+
+# Runs when PRs are closed to remove screenshots from the screenshots branch
+# Prevents unbounded growth of the screenshots branch
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    name: Remove PR Screenshots
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check if screenshots branch exists
+        id: check_branch
+        run: |
+          if git ls-remote --heads origin screenshots | grep -q screenshots; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Screenshots branch exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  Screenshots branch does not exist yet, nothing to clean up"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check_branch.outputs.exists == 'true'
+        with:
+          ref: screenshots
+          fetch-depth: 1
+
+      - name: Remove PR screenshots folder
+        if: steps.check_branch.outputs.exists == 'true'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PR_FOLDER="pr-${PR_NUMBER}"
+
+          echo "=== Cleaning up screenshots for PR #${PR_NUMBER} ==="
+
+          if [ ! -d "${PR_FOLDER}" ]; then
+            echo "ℹ️  No screenshots found for this PR (${PR_FOLDER} doesn't exist)"
+            exit 0
+          fi
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Remove folder
+          rm -rf "${PR_FOLDER}"
+          echo "✅ Removed ${PR_FOLDER}/"
+
+          # Commit and push
+          git add -A
+          if git diff --cached --quiet; then
+            echo "ℹ️  No changes to commit"
+          else
+            git commit -m "Remove screenshots for closed PR #${PR_NUMBER}"
+
+            # Retry logic (matches preview.yml pattern)
+            MAX_ATTEMPTS=4
+            ATTEMPT=0
+            WAIT_TIME=2
+
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              ATTEMPT=$((ATTEMPT + 1))
+              echo "Pushing (attempt ${ATTEMPT}/${MAX_ATTEMPTS})..."
+
+              if git push origin screenshots; then
+                echo "✅ Cleanup complete!"
+                exit 0
+              fi
+
+              if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                echo "⚠️  Push failed, retrying in ${WAIT_TIME}s..."
+                sleep ${WAIT_TIME}
+                WAIT_TIME=$((WAIT_TIME * 2))
+              fi
+            done
+
+            echo "❌ Failed to push after ${MAX_ATTEMPTS} attempts"
+            exit 1
+          fi

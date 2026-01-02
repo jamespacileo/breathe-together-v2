@@ -1,0 +1,361 @@
+name: Release Deployment
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags (e.g., v1.0.0, v1.2.3)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for release notes
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Biome checks
+        run: npm run check:ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Type check
+        run: npm run typecheck
+
+  deploy-worker:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Deploy Worker
+    outputs:
+      worker-url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure KV Namespace IDs
+        run: |
+          sed -i "s/YOUR_KV_NAMESPACE_ID/${{ secrets.PRESENCE_KV_ID }}/" worker/wrangler.toml
+          sed -i "s/YOUR_PREVIEW_KV_NAMESPACE_ID/${{ secrets.PRESENCE_KV_PREVIEW_ID }}/" worker/wrangler.toml
+
+      - name: Deploy Presence Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          wranglerVersion: "4.54.0"
+          command: deploy --config wrangler.toml
+
+  deploy-frontend:
+    needs: deploy-worker
+    runs-on: ubuntu-latest
+    name: Deploy Frontend
+    outputs:
+      frontend-url: ${{ steps.get-urls.outputs.frontend-url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with API URL
+        run: npm run build
+        env:
+          VITE_PRESENCE_API_URL: https://breathe-together-presence.palladio-registry.workers.dev
+
+      - name: Deploy Frontend to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.54.0"
+
+      - name: Get deployment URLs
+        id: get-urls
+        run: |
+          echo "frontend-url=https://breathe-together-v2.palladio-registry.workers.dev" >> $GITHUB_OUTPUT
+
+  create-release:
+    needs: [deploy-worker, deploy-frontend]
+    runs-on: ubuntu-latest
+    name: Create GitHub Release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for release notes
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Get previous tag
+        id: previous-tag
+        run: |
+          PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+          echo "previous-tag=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PREVIOUS_TAG="${{ steps.previous-tag.outputs.previous-tag }}"
+
+          # Create release notes file
+          {
+            echo "## 🎉 What's Changed"
+            echo ""
+
+            if [ -n "$PREVIOUS_TAG" ]; then
+              # Get commits since previous tag
+              git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%an)" --no-merges
+            else
+              # First release - get all commits
+              git log --pretty=format:"- %s (%an)" --no-merges --max-count=20
+            fi
+
+            echo ""
+            echo ""
+            echo "## 🔗 Deployment Links"
+            echo ""
+            echo "- **Frontend**: https://breathe-together-v2.palladio-registry.workers.dev"
+            echo "- **Worker API**: https://breathe-together-presence.palladio-registry.workers.dev"
+            echo ""
+            echo "## 📊 Stats"
+            echo ""
+
+            if [ -n "$PREVIOUS_TAG" ]; then
+              COMMIT_COUNT=$(git rev-list --count ${PREVIOUS_TAG}..HEAD)
+              FILES_CHANGED=$(git diff --name-only ${PREVIOUS_TAG}..HEAD | wc -l)
+              echo "- **Commits**: $COMMIT_COUNT"
+              echo "- **Files Changed**: $FILES_CHANGED"
+            fi
+
+            echo ""
+            echo "---"
+            echo ""
+            echo "_Deployed via GitHub Actions on $(date -u +'%Y-%m-%d %H:%M:%S UTC')_"
+          } > release_notes.md
+
+          # Output for Slack (compact version)
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"• %s" --no-merges --max-count=10)
+          else
+            CHANGELOG=$(git log --pretty=format:"• %s" --no-merges --max-count=10)
+          fi
+
+          # Escape for JSON
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+
+          echo "slack-changelog=${CHANGELOG}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Slack - Release Published
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🎉 New Release: ${{ steps.version.outputs.version }}",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Version:*\n`${{ steps.version.outputs.version }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Released:*\n<!date^${{ github.event.head_commit.timestamp }}^{date_short_pretty} at {time}|${{ github.event.head_commit.timestamp }}>"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*What's New:*\n${{ steps.release-notes.outputs.slack-changelog }}"
+                  }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Frontend:*\n<${{ needs.deploy-frontend.outputs.frontend-url }}|breathe-together-v2.palladio-registry.workers.dev>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Worker API:*\n<${{ needs.deploy-worker.outputs.worker-url }}|breathe-together-presence.palladio-registry.workers.dev>"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "🌐 Open App",
+                        "emoji": true
+                      },
+                      "url": "${{ needs.deploy-frontend.outputs.frontend-url }}",
+                      "style": "primary"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "📝 Release Notes",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "📊 Cloudflare Dashboard",
+                        "emoji": true
+                      },
+                      "url": "https://dash.cloudflare.com/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers-and-pages"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "🚀 Deployed successfully to production • <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow>"
+                    }
+                  ]
+                }
+              ]
+            }
+
+  notify-failure:
+    needs: [build, deploy-worker, deploy-frontend, create-release]
+    if: failure()
+    runs-on: ubuntu-latest
+    name: Notify Release Failure
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Notify Slack - Release Failed
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Release Deployment Failed: ${{ steps.version.outputs.version }}",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Version:*\n`${{ steps.version.outputs.version }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Tag:*\n`${{ github.ref }}`"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "⚠️ *Failed Jobs:*\n${{ needs.build.result == 'failure' && '• Build\n' || '' }}${{ needs.deploy-worker.result == 'failure' && '• Deploy Worker\n' || '' }}${{ needs.deploy-frontend.result == 'failure' && '• Deploy Frontend\n' || '' }}${{ needs.create-release.result == 'failure' && '• Create Release\n' || '' }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "🔍 View Logs",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "style": "danger"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "⚠️ Check workflow logs for details • ${{ github.repository }}"
+                    }
+                  ]
+                }
+              ]
+            }

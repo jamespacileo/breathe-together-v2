@@ -11,6 +11,7 @@ import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../con
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES } from '../styles/designTokens';
+import { AudioSettings } from './AudioSettings';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
@@ -44,6 +45,8 @@ interface SimpleGaiaUIProps {
   shouldRunOnboarding?: boolean;
   /** Whether inspirational text should play */
   shouldPlayText?: boolean;
+  /** Number of users currently breathing together (from backend) */
+  presenceCount?: number;
 }
 
 /**
@@ -96,6 +99,7 @@ export function SimpleGaiaUI({
   // Scene readiness flags
   shouldRunOnboarding = true,
   shouldPlayText = true,
+  presenceCount = 0,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -264,20 +268,12 @@ export function SimpleGaiaUI({
     return () => cancelAnimationFrame(animationId);
   }, []);
 
-  // Presence count simulation - updates every 2 seconds with subtle variation
-  // Moved out of RAF loop to avoid 60 random number generations per second
+  // Update presence count from backend when it changes
   useEffect(() => {
-    const updatePresenceCount = () => {
-      if (presenceCountRef.current) {
-        const baseCount = 75;
-        const variation = Math.floor(Math.random() * 10) - 5;
-        presenceCountRef.current.textContent = `${baseCount + variation}`;
-      }
-    };
-
-    const intervalId = setInterval(updatePresenceCount, 2000);
-    return () => clearInterval(intervalId);
-  }, []);
+    if (presenceCountRef.current) {
+      presenceCountRef.current.textContent = `${presenceCount}`;
+    }
+  }, [presenceCount]);
 
   // Keyboard shortcut: Press 'T' to toggle tuning controls
   useEffect(() => {
@@ -364,6 +360,7 @@ export function SimpleGaiaUI({
 
   return (
     <div
+      data-ui="gaia-ui"
       className={`absolute inset-0 pointer-events-none text-warm-gray font-sans z-100
         transition-opacity duration-1200 ease-smooth
         ${isVisible ? 'opacity-100' : 'opacity-0'}`}
@@ -423,6 +420,14 @@ export function SimpleGaiaUI({
             >
               Settings
             </h2>
+
+            {/* Audio Settings Section */}
+            <div className="mb-6 pb-6 border-b border-border">
+              <div className="text-[0.7rem] uppercase tracking-[0.1em] text-warm-gray mb-3">
+                Sound
+              </div>
+              <AudioSettings stopPropagation={stopPropagation} />
+            </div>
 
             {/* Current Mood - with icosahedron preview */}
             <div className="mb-6">
@@ -906,7 +911,7 @@ export function SimpleGaiaUI({
           className={`uppercase text-warm-gray opacity-65 mt-0.5
             ${isMobile ? 'text-[0.68rem] font-medium tracking-[0.12em]' : 'text-[0.6rem] font-normal tracking-[0.12em]'}`}
         >
-          <span ref={presenceCountRef}>75</span> breathing together
+          <span ref={presenceCountRef}>{presenceCount}</span> breathing together
         </div>
       </div>
 

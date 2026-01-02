@@ -311,7 +311,7 @@ export function EarthGlobe({
         color: '#e8c4b8',
         transparent: true,
         opacity: 0.15,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide, // Ring only viewed from above, no backface needed
         depthWrite: false,
       }),
     [],
@@ -375,7 +375,7 @@ export function EarthGlobe({
   return (
     <group ref={groupRef} name="Earth Globe">
       {/* Core textured globe */}
-      <Sphere args={[radius, resolution, resolution]} material={material} frustumCulled={false} />
+      <Sphere args={[radius, resolution, resolution]} material={material} />
 
       {/* Layered atmosphere halo - soft pastel glow rings */}
       {showAtmosphere &&
@@ -392,14 +392,10 @@ export function EarthGlobe({
         ))}
 
       {/* Inner glow - additive blended fresnel */}
-      {showGlow && (
-        <Sphere args={[radius * 1.02, 32, 32]} material={glowMaterial} frustumCulled={false} />
-      )}
+      {showGlow && <Sphere args={[radius * 1.02, 32, 32]} material={glowMaterial} />}
 
       {/* Mist layer - animated noise haze */}
-      {showMist && (
-        <Sphere args={[radius * 1.15, 32, 32]} material={mistMaterial} frustumCulled={false} />
-      )}
+      {showMist && <Sphere args={[radius * 1.15, 32, 32]} material={mistMaterial} />}
 
       {/* Soft sparkle aura - floating dust particles (more visible) */}
       {showSparkles && (
