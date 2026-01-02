@@ -13,6 +13,7 @@
  */
 
 import {
+  getAdminBatchState,
   getCurrentInspirationMessage,
   initializeInspirational,
   rotateInspirationalOnSchedule,
@@ -194,13 +195,50 @@ async function handleCreateTextOverride(request: Request, env: Env): Promise<Res
 
 async function handleGenerateInspirationalMessages(request: Request, env: Env): Promise<Response> {
   try {
-    const body = (await request.json()) as GenerationRequest;
+    // biome-ignore lint/suspicious/noExplicitAny: Request body can contain various generation types (messages or story)
+    const body = (await request.json()) as any;
 
-    const { theme, intensity, count } = body;
+    const { theme, intensity, type, recentMessageIds, narrativeContext } = body;
 
-    // Validate request
-    if (!theme || !intensity || !count || count < 1 || count > 64) {
-      return new Response(JSON.stringify({ error: 'Invalid generation request' }), {
+    // Extract count based on generation type
+    let count: number;
+    let messageCount: number | undefined;
+    let storyType: string | undefined;
+
+    if (type === 'story') {
+      messageCount = body.messageCount;
+      storyType = body.storyType;
+      count = messageCount || 6; // Default to 6 messages per story
+
+      // Validate story-specific params
+      if (!messageCount || messageCount < 3 || messageCount > 12) {
+        return new Response(JSON.stringify({ error: 'Invalid messageCount for story (3-12)' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!['complete-arc', 'beginning', 'middle', 'end'].includes(storyType)) {
+        return new Response(JSON.stringify({ error: 'Invalid storyType' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    } else {
+      count = body.count || 32;
+
+      // Validate message count
+      if (!count || count < 1 || count > 64) {
+        return new Response(JSON.stringify({ error: 'Invalid count for messages (1-64)' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // Validate common params
+    if (!theme || !intensity) {
+      return new Response(JSON.stringify({ error: 'Missing theme or intensity' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -209,12 +247,26 @@ async function handleGenerateInspirationalMessages(request: Request, env: Env): 
     // Load LLM config
     const llmConfig = loadLLMConfig(env);
 
-    // Generate messages
-    const batch = await generateInspirationalMessages(llmConfig, {
+    // Build generation request with context
+    const generationRequest: GenerationRequest = {
       theme,
       intensity,
       count,
-    });
+      type: type || 'messages',
+      recentMessageIds: Array.isArray(recentMessageIds) ? recentMessageIds : undefined,
+      narrativeContext: typeof narrativeContext === 'string' ? narrativeContext : undefined,
+    };
+
+    // Add story-specific params if applicable
+    if (type === 'story') {
+      // biome-ignore lint/suspicious/noExplicitAny: messageCount and storyType only on StoryGenerationRequest
+      (generationRequest as any).messageCount = messageCount;
+      // biome-ignore lint/suspicious/noExplicitAny: messageCount and storyType only on StoryGenerationRequest
+      (generationRequest as any).storyType = storyType;
+    }
+
+    // Generate messages
+    const batch = await generateInspirationalMessages(llmConfig, generationRequest);
 
     // Store batch in KV for future use
     const batchKey = `inspiration:batch:${batch.id}`;
@@ -234,24 +286,24 @@ async function handleGenerateInspirationalMessages(request: Request, env: Env): 
 
 async function handleGetInspirationBatches(env: Env): Promise<Response> {
   try {
-    const currentBatchData = await env.PRESENCE_KV.get('inspiration:batch:current', 'json');
-    const currentBatchId = (currentBatchData as { id?: string })?.id || 'preset:intro';
+    const adminState = await getAdminBatchState(env.PRESENCE_KV);
 
-    const stateData = await env.PRESENCE_KV.get('inspiration:state', 'json');
-    const state = stateData as {
-      currentMessageIndex?: number;
-      nextRotationTime?: number;
-      totalCycles?: number;
-    };
-
-    const currentBatch = await env.PRESENCE_KV.get(`inspiration:batch:${currentBatchId}`, 'json');
+    // Fetch the current batch for the "currentBatch" field
+    const currentBatch = await env.PRESENCE_KV.get(
+      `inspiration:batch:${adminState.currentBatchId}`,
+      'json',
+    );
 
     return new Response(
       JSON.stringify({
-        currentBatchId,
-        currentMessageIndex: state?.currentMessageIndex || 0,
-        nextRotationTime: state?.nextRotationTime || Date.now(),
-        totalCycles: state?.totalCycles || 0,
+        currentBatchId: adminState.currentBatchId,
+        currentMessageIndex: adminState.currentIndex,
+        nextRotationTime: new Date(adminState.nextRotationTimeISO).getTime(),
+        nextRotationTimeISO: adminState.nextRotationTimeISO,
+        timeUntilNextRotation: adminState.timeUntilNextRotation,
+        totalCycles: adminState.totalCycles,
+        batchStartedAtISO: adminState.batchStartedAtISO,
+        recentHistory: adminState.recentHistory,
         currentBatch: currentBatch || null,
       }),
       {

@@ -11,8 +11,7 @@
  * 3. Set LLM_API_KEY and LLM_PROVIDER
  */
 
-import type { GenerationRequest, LLMConfig } from './llm-config';
-import { formatGenerationPrompt, getSystemPrompt, validateLLMResponse } from './llm-config';
+import type { GenerationRequest } from './llm-config';
 import type { InspirationMessage, MessageBatch } from './types/inspirational';
 
 /**
@@ -52,6 +51,7 @@ export async function generateInspirationalMessages(
 
 /**
  * Mock generation for testing without LLM
+ * Supports both individual messages and story arcs
  */
 function generateMockMessages(request: GenerationRequest): MessageBatch {
   const messageTemplates = {
@@ -127,13 +127,18 @@ function generateMockMessages(request: GenerationRequest): MessageBatch {
 
   const intensity = request.intensity as keyof (typeof messageTemplates)['gratitude'];
   const templates = messageTemplates[request.theme][intensity];
+  const now = Date.now();
+  const isStory = request.type === 'story';
 
   // Generate requested number of messages by cycling through templates
   const messages: InspirationMessage[] = [];
-  const now = Date.now();
 
   for (let i = 0; i < request.count; i++) {
     const template = templates[i % templates.length];
+    const storyId = isStory ? `story-${request.theme}-${now}` : undefined;
+    const storyPosition = isStory ? i + 1 : undefined;
+    const storyTotal = isStory ? request.count : undefined;
+
     messages.push({
       id: `generated-${request.theme}-${i}`,
       top: template.top,
@@ -141,16 +146,27 @@ function generateMockMessages(request: GenerationRequest): MessageBatch {
       cyclesPerMessage: 2,
       authoredAt: now,
       source: 'llm',
+      storyId,
+      storyPosition,
+      storyTotal,
       metadata: {
         theme: request.theme,
         intensity: request.intensity,
+        // biome-ignore lint/suspicious/noExplicitAny: storyType only exists on StoryGenerationRequest variant
+        narrativeType: isStory ? (request as any).storyType || 'complete-arc' : undefined,
       },
     });
   }
 
+  const themeLabel = request.theme.charAt(0).toUpperCase() + request.theme.slice(1);
+  const batchName = isStory
+    ? // biome-ignore lint/suspicious/noExplicitAny: storyType only exists on StoryGenerationRequest variant
+      `${themeLabel} Story - ${(request as any).storyType || 'complete-arc'} (${request.intensity})`
+    : `${themeLabel} Messages (${request.intensity})`;
+
   return {
-    id: `batch-${request.theme}-${Date.now()}`,
-    name: `${request.theme.charAt(0).toUpperCase() + request.theme.slice(1)} Messages (${request.intensity})`,
+    id: `batch-${request.theme}-${now}`,
+    name: batchName,
     messages,
     source: 'llm',
     createdAt: now,
