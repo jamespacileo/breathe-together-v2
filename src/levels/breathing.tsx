@@ -1,6 +1,6 @@
 import { Leva } from 'leva';
 import { Perf } from 'r3f-perf';
-import { Suspense } from 'react';
+import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
@@ -44,6 +44,11 @@ export function BreathingLevel({
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
   const { users } = usePresence();
+
+  // React 19: Defer non-urgent updates to reduce stutter during state changes
+  // These values control particle counts which are expensive to update
+  const deferredAtmosphereDensity = useDeferredValue(atmosphereDensity);
+  const deferredUsers = useDeferredValue(users);
 
   return (
     <ErrorBoundary>
@@ -104,7 +109,11 @@ export function BreathingLevel({
 
             {showParticles && (
               <>
-                <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
+                <ParticleSwarm
+                  users={deferredUsers}
+                  baseRadius={orbitRadius}
+                  maxShardSize={shardSize}
+                />
                 {/* "YOU" marker - tracks current user's shard position */}
                 <YouMarker />
               </>
@@ -112,7 +121,7 @@ export function BreathingLevel({
 
             {showParticles && (
               <AtmosphericParticles
-                count={Math.round(atmosphereDensity)}
+                count={Math.round(deferredAtmosphereDensity)}
                 size={devControls.atmosphereParticleSize}
                 baseOpacity={devControls.atmosphereBaseOpacity}
                 breathingOpacity={devControls.atmosphereBreathingOpacity}
