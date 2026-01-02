@@ -10,8 +10,9 @@
  * - 10k users × 15min avg session = ~$8/month
  */
 
-import type { MoodId } from './types';
+import type { MoodId, User } from './types';
 
+/** Active WebSocket session */
 interface Session {
   id: string;
   mood: MoodId;
@@ -19,14 +20,24 @@ interface Session {
   connectedAt: number;
 }
 
+/** Presence broadcast message */
 interface PresenceBroadcast {
   type: 'presence';
   count: number;
   moods: Record<MoodId, number>;
+  users: User[];
   timestamp: number;
 }
 
-const VALID_MOODS: MoodId[] = ['gratitude', 'presence', 'release', 'connection'];
+const VALID_MOODS: readonly MoodId[] = ['gratitude', 'presence', 'release', 'connection'];
+
+/** Validate mood, defaulting to 'presence' for invalid values */
+function validateMood(mood: unknown): MoodId {
+  if (typeof mood === 'string' && VALID_MOODS.includes(mood as MoodId)) {
+    return mood as MoodId;
+  }
+  return 'presence';
+}
 
 // Cloudflare Workers global (not in standard DOM types)
 declare const WebSocketPair: {
@@ -36,12 +47,13 @@ declare const WebSocketPair: {
 export class BreathingRoom {
   private sessions: Map<string, Session> = new Map();
   private state: DurableObjectState;
+  private broadcastIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(state: DurableObjectState) {
     this.state = state;
 
     // Broadcast presence every 5 seconds
-    setInterval(() => {
+    this.broadcastIntervalId = setInterval(() => {
       this.broadcastPresence();
     }, 5000);
   }
@@ -71,13 +83,13 @@ export class BreathingRoom {
   private handleWebSocket(request: Request): Response {
     const url = new URL(request.url);
     const sessionId = url.searchParams.get('sessionId');
-    const mood = url.searchParams.get('mood') as MoodId;
+    const moodParam = url.searchParams.get('mood');
 
     if (!sessionId) {
       return new Response('Missing sessionId', { status: 400 });
     }
 
-    const validMood = VALID_MOODS.includes(mood) ? mood : 'presence';
+    const validMood = validateMood(moodParam);
 
     // Create WebSocket pair
     const pair = new WebSocketPair();
@@ -105,13 +117,20 @@ export class BreathingRoom {
    * Handle WebSocket messages
    */
   async webSocketMessage(ws: WebSocket, message: string): Promise<void> {
+    let data: { type?: string; mood?: string; sessionId?: string };
     try {
-      const data = JSON.parse(message) as { type: string; mood?: string; sessionId?: string };
+      data = JSON.parse(message);
+    } catch {
+      console.error('WebSocket: invalid JSON message');
+      return;
+    }
 
+    try {
       if (data.type === 'mood' && data.sessionId) {
         const session = this.sessions.get(data.sessionId);
-        if (session && VALID_MOODS.includes(data.mood as MoodId)) {
-          session.mood = data.mood as MoodId;
+        const validMood = validateMood(data.mood);
+        if (session) {
+          session.mood = validMood;
           // Broadcast updated presence immediately on mood change
           this.broadcastPresence();
         }
@@ -156,14 +175,22 @@ export class BreathingRoom {
       connection: 0,
     };
 
+    // Build users array sorted by ID for consistent ordering across clients
+    const users: User[] = [];
+
     for (const session of this.sessions.values()) {
       moods[session.mood]++;
+      users.push({ id: session.id, mood: session.mood });
     }
+
+    // Sort by ID for deterministic ordering (all clients see same positions)
+    users.sort((a, b) => a.id.localeCompare(b.id));
 
     return {
       type: 'presence',
       count: this.sessions.size,
       moods,
+      users,
       timestamp: Date.now(),
     };
   }
@@ -174,8 +201,8 @@ export class BreathingRoom {
   private sendPresenceTo(ws: WebSocket): void {
     try {
       ws.send(JSON.stringify(this.calculatePresence()));
-    } catch (_e) {
-      // Connection might be closed
+    } catch {
+      // Connection might be closed, will be cleaned up on close event
     }
   }
 
@@ -189,8 +216,8 @@ export class BreathingRoom {
     for (const session of this.sessions.values()) {
       try {
         session.webSocket.send(message);
-      } catch (_e) {
-        // Will be cleaned up on close
+      } catch {
+        // Will be cleaned up on close event
       }
     }
   }

@@ -94,9 +94,13 @@ export function usePresence(): UsePresenceResult {
 
   const sessionIdRef = useRef<string>(getSessionId());
   const configRef = useRef<ServerConfig>(DEFAULT_CONFIG);
+  const moodRef = useRef<MoodId>(mood); // Ref to avoid reconnect on mood change
   const wsRef = useRef<WebSocket | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Keep moodRef in sync with state
+  moodRef.current = mood;
 
   /**
    * Handle incoming presence update
@@ -117,12 +121,13 @@ export function usePresence(): UsePresenceResult {
 
   /**
    * Connect via WebSocket
+   * Uses moodRef to avoid recreating callback on mood changes
    */
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
-      const wsUrl = presenceApi.getWsUrl(sessionIdRef.current, mood);
+      const wsUrl = presenceApi.getWsUrl(sessionIdRef.current, moodRef.current);
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -154,7 +159,7 @@ export function usePresence(): UsePresenceResult {
     } catch {
       // WebSocket failed, will fall back to polling in init()
     }
-  }, [mood, handlePresenceUpdate]);
+  }, [handlePresenceUpdate]);
 
   /**
    * Send mood update via WebSocket

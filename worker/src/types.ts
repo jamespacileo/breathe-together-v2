@@ -20,16 +20,6 @@ export interface User {
 }
 
 /**
- * Individual user session stored in KV
- */
-export interface PresenceSession {
-  /** User's current mood */
-  mood: MoodId;
-  /** Unix timestamp of last heartbeat */
-  lastSeen: number;
-}
-
-/**
  * Aggregated presence state returned by API
  */
 export interface PresenceState {
