@@ -353,9 +353,14 @@ export function ParticleSwarm({
     }
 
     // Initial reconciliation
+    // NOTE: Use normalizedUsers directly here, NOT pendingUsersRef.current
+    // pendingUsersRef is updated in a separate useEffect that may not have run yet
+    // This ensures the initial render has the correct number of particles
     const slotManager = slotManagerRef.current;
+    const usersForInit =
+      pendingUsersRef.current.length > 0 ? pendingUsersRef.current : normalizedUsers;
     if (slotManager) {
-      slotManager.reconcile(pendingUsersRef.current);
+      slotManager.reconcile(usersForInit);
       const stableCount = slotManager.stableCount;
       prevActiveCountRef.current = stableCount;
 
