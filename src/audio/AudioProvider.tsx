@@ -16,6 +16,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useAudioStore } from '../stores/audioStore';
 import { AudioEngine } from './AudioEngine';
 import { audioSystem } from './audioSystem';
 import type { AudioContextValue, AudioState, CategoryVolumes, SoundCategory } from './types';
@@ -58,6 +59,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const engineRef = useRef<AudioEngine | null>(null);
   const [state, setState] = useState<AudioState>(defaultState);
 
+  // Zustand store for cross-Canvas state sync
+  const audioStore = useAudioStore();
+
   // Ref to capture current state for use in callbacks without creating dependencies
   // This prevents setEnabled from recreating on every state change
   const stateRef = useRef(state);
@@ -80,6 +84,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
+
+  // Mark provider as ready on mount
+  useEffect(() => {
+    audioStore._setProviderReady(true);
+    return () => {
+      audioStore._setProviderReady(false);
+    };
+  }, [audioStore]);
+
+  // Sync enabled state to Zustand store
+  useEffect(() => {
+    audioStore._setEnabled(state.enabled);
+  }, [state.enabled, audioStore]);
 
   // Enable/disable audio
   // Uses stateRef to read current state at call time without dependency recreation
@@ -133,6 +150,23 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       setState((s) => ({ ...s, enabled: false }));
     }
   }, []);
+
+  // Listen for toggle requests from Zustand store (from UI outside Canvas)
+  useEffect(() => {
+    if (audioStore._toggleRequested) {
+      audioStore._clearToggleRequest();
+      // Toggle using the current state
+      const newEnabled = !stateRef.current.enabled;
+      audioStore._setLoading(true);
+      (async () => {
+        try {
+          await setEnabled(newEnabled);
+        } finally {
+          audioStore._setLoading(false);
+        }
+      })();
+    }
+  }, [audioStore._toggleRequested, audioStore, setEnabled]);
 
   // Set master volume
   const setMasterVolume = useCallback((volume: number) => {

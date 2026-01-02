@@ -11,9 +11,9 @@
  */
 
 import { Settings, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
-import { useCallback, useContext, useMemo } from 'react';
-import { AudioContext } from '../audio/AudioProvider';
+import { useCallback, useMemo } from 'react';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
+import { useAudioStore } from '../stores/audioStore';
 
 interface TopRightControlsProps {
   /** Callback to open tune/animation controls */
@@ -23,9 +23,8 @@ interface TopRightControlsProps {
 }
 
 export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRightControlsProps) {
-  // Use useContext directly to avoid throwing error when provider is missing
-  // This allows the component to render gracefully without audio controls
-  const audio = useContext(AudioContext);
+  // Use Zustand store for cross-Canvas audio state
+  const { enabled, isLoading, providerReady, requestToggle } = useAudioStore();
   const { deviceType, isMobile } = useViewport();
 
   // Match SimpleGaiaUI's edge padding for vertical alignment
@@ -63,26 +62,31 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
       }}
     >
       {/* Audio Toggle Icon - only render if AudioProvider is available */}
-      {audio && (
+      {providerReady && (
         <button
           type="button"
           title={
-            audio.state.enabled ? 'Audio On (click to disable)' : 'Audio Off (click to enable)'
+            isLoading
+              ? 'Loading audio...'
+              : enabled
+                ? 'Audio On (click to disable)'
+                : 'Audio Off (click to enable)'
           }
-          onClick={() => {
-            audio.setEnabled(!audio.state.enabled);
-          }}
+          onClick={requestToggle}
           onPointerDown={stopPropagation}
+          disabled={isLoading}
           className={buttonClasses}
           style={{
             width: `${buttonSize}px`,
             height: `${buttonSize}px`,
             minWidth: `${buttonSize}px`,
             minHeight: `${buttonSize}px`,
-            color: audio.state.enabled ? 'var(--color-accent-gold)' : undefined,
+            color: enabled ? 'var(--color-accent-gold)' : undefined,
+            opacity: isLoading ? 0.6 : 1,
+            cursor: isLoading ? 'wait' : 'pointer',
           }}
         >
-          {audio.state.enabled ? (
+          {enabled ? (
             <Volume2 size={iconSize} strokeWidth={1.5} aria-label="Audio enabled" />
           ) : (
             <VolumeX size={iconSize} strokeWidth={1.5} aria-label="Audio disabled" />
