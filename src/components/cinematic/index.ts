@@ -11,6 +11,7 @@ export {
 } from './CinematicContext';
 export { CinematicFog } from './CinematicFog';
 export { CinematicIntro } from './CinematicIntro';
+export { IntroEffects } from './IntroEffects';
 export { Letterbox } from './Letterbox';
 export { TitleReveal } from './TitleReveal';
 export type { CinematicConfig, IntroPhase } from './types';

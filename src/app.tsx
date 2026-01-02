@@ -4,13 +4,13 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { AboutModal } from './components/AboutModal';
-import { CinematicFog, CinematicIntro } from './components/cinematic';
+import { CinematicFog, CinematicIntro, IntroEffects } from './components/cinematic';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { TutorialPromptModal } from './components/TutorialPromptModal';
 import { WelcomeModal } from './components/WelcomeModal';
 import type { MoodId } from './constants';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
+import { usePresence } from './hooks/usePresence';
 import { useViewport } from './hooks/useViewport';
 import { BreathingLevel, BreathingLevelUI } from './levels/breathing';
 import { TutorialLevel } from './levels/tutorial';
@@ -31,12 +31,11 @@ function useCurrentPath(): string {
 
 /**
  * App state machine phases:
- * - intro: CinematicIntro (letterbox + title + mood selection)
- * - tutorial-prompt: TutorialPromptModal asking if user wants guidance
+ * - intro: CinematicIntro (letterbox + title)
  * - tutorial: TutorialLevel with step-by-step introduction
  * - breathing: Full BreathingLevel experience
  */
-type AppPhase = 'intro' | 'tutorial-prompt' | 'tutorial' | 'breathing';
+type AppPhase = 'intro' | 'tutorial' | 'breathing';
 
 /**
  * Check if user is returning (has joined before)
@@ -77,8 +76,7 @@ export function resetReturningUser(): void {
  * - No need for exclusion zones or complex cursor management
  *
  * App state machine phases:
- * - intro: CinematicIntro (letterbox + title + mood selection)
- * - tutorial-prompt: TutorialPromptModal asking if user wants guidance
+ * - intro: CinematicIntro (letterbox + title)
  * - tutorial: TutorialLevel with step-by-step introduction
  * - breathing: Full BreathingLevel experience
  *
@@ -93,11 +91,11 @@ export function App() {
   // App state machine
   const [appPhase, setAppPhase] = useState<AppPhase>('intro');
 
-  // User's selected mood (from intro mood selection)
+  // User's selected mood (for tutorial)
   const [selectedMood, setSelectedMood] = useState<MoodId | undefined>(undefined);
 
-  // Whether user is returning (affects tutorial prompt copy)
-  const [returningUser] = useState(() => isReturningUser());
+  // Presence data for user count
+  const { count: presenceCount } = usePresence();
 
   // Welcome modal visibility (shown when first entering breathing phase)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -168,15 +166,16 @@ export function App() {
     };
   }, [isInBreathingPhase]);
 
-  // Handle mood selection from CinematicIntro → show tutorial prompt
+  // Handle Join from CinematicIntro → go directly to breathing
   const handleJoin = useCallback((mood?: string) => {
     setSelectedMood(mood as MoodId | undefined);
     // Store mood for persistence
     if (mood) {
       localStorage.setItem('breathe-together-selected-mood', mood);
     }
-    // Show tutorial prompt instead of going directly to breathing
-    setAppPhase('tutorial-prompt');
+    markUserJoined();
+    setAppPhase('breathing');
+    setShowWelcomeModal(true);
   }, []);
 
   // Handle direct tutorial start from intro screen
@@ -187,18 +186,6 @@ export function App() {
   // Handle about button from intro screen
   const handleAbout = useCallback(() => {
     setShowAboutModal(true);
-  }, []);
-
-  // Handle tutorial prompt: user wants tutorial
-  const handleStartTutorial = useCallback(() => {
-    setAppPhase('tutorial');
-  }, []);
-
-  // Handle tutorial prompt: user skips tutorial
-  const handleSkipTutorial = useCallback(() => {
-    markUserJoined();
-    setAppPhase('breathing');
-    setShowWelcomeModal(true);
   }, []);
 
   // Handle tutorial completion → transition to full breathing experience
@@ -268,6 +255,9 @@ export function App() {
               {/* Cinematic fog - clears as intro progresses, removed after leaving intro */}
               {!hasLeftIntro && <CinematicFog phase={phase} progress={progress} />}
 
+              {/* Intro effects - beautiful sparkles and floating elements during intro */}
+              {!hasLeftIntro && <IntroEffects visible={true} />}
+
               <CameraRig
                 introMode={!hasLeftIntro}
                 introProgress={phase === 'complete' ? 1 : progress}
@@ -310,37 +300,38 @@ export function App() {
                   shouldPlayText={shouldPlayText}
                 />
 
-                {/* Back to Menu button */}
+                {/* Leave button - bottom left, away from main UI */}
                 <button
                   type="button"
                   onClick={handleBackToMenu}
-                  aria-label="Back to menu"
+                  aria-label="Leave the sphere"
                   style={{
                     position: 'fixed',
-                    top: '24px',
+                    bottom: '24px',
                     left: '24px',
-                    background: 'rgba(253, 251, 247, 0.8)',
+                    background: 'rgba(253, 251, 247, 0.6)',
                     backdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(160, 140, 120, 0.2)',
-                    borderRadius: '24px',
-                    padding: '10px 20px',
-                    fontSize: '0.7rem',
+                    border: '1px solid rgba(160, 140, 120, 0.15)',
+                    borderRadius: '20px',
+                    padding: '8px 16px',
+                    fontSize: '0.65rem',
                     fontWeight: 500,
-                    letterSpacing: '0.1em',
+                    letterSpacing: '0.08em',
                     textTransform: 'uppercase',
-                    color: '#6a5a4a',
+                    color: '#8a7a6a',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: '6px',
                     transition: 'all 0.2s ease',
-                    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.06)',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
                     zIndex: 100,
+                    opacity: 0.8,
                   }}
                 >
                   <svg
-                    width="14"
-                    height="14"
+                    width="12"
+                    height="12"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -351,7 +342,7 @@ export function App() {
                   >
                     <path d="M19 12H5M12 19l-7-7 7-7" />
                   </svg>
-                  Menu
+                  Leave
                 </button>
               </div>
             )}
@@ -359,17 +350,10 @@ export function App() {
         )}
       </CinematicIntro>
 
-      {/* Tutorial prompt modal - appears after mood selection */}
-      {appPhase === 'tutorial-prompt' && (
-        <TutorialPromptModal
-          onStartTutorial={handleStartTutorial}
-          onSkipTutorial={handleSkipTutorial}
-          isReturningUser={returningUser}
-        />
-      )}
-
       {/* Welcome modal - appears when entering breathing phase */}
-      {showWelcomeModal && <WelcomeModal onDismiss={handleWelcomeDismiss} />}
+      {showWelcomeModal && (
+        <WelcomeModal userCount={presenceCount} onDismiss={handleWelcomeDismiss} />
+      )}
 
       {/* About modal */}
       <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
