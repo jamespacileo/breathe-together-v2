@@ -168,7 +168,16 @@ export function BreathingLevel({
         >
           {/* Monument Valley inspired atmosphere - clouds, lighting, fog */}
           {showEnvironment && (
-            <Environment showClouds={devControls.showClouds} showStars={devControls.showStars} />
+            <Environment
+              showClouds={devControls.showClouds}
+              showStars={devControls.showStars}
+              cloudOpacity={devControls.cloudOpacity}
+              cloudSpeed={devControls.cloudSpeed}
+              ambientLightColor={devControls.ambientLightColor}
+              ambientLightIntensity={devControls.ambientLightIntensity}
+              keyLightColor={devControls.keyLightColor}
+              keyLightIntensity={devControls.keyLightIntensity}
+            />
           )}
 
           {/* Wrap rotatable entities in PresentationControls */}
@@ -193,6 +202,7 @@ export function BreathingLevel({
                 size={devControls.atmosphereParticleSize}
                 baseOpacity={devControls.atmosphereBaseOpacity}
                 breathingOpacity={devControls.atmosphereBreathingOpacity}
+                color={devControls.atmosphereColor}
               />
             )}
           </PresentationControls>
