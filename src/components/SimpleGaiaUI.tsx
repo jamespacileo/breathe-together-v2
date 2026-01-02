@@ -1,3 +1,4 @@
+import { Check, X } from 'lucide-react';
 import {
   type SetStateAction,
   useCallback,
@@ -10,7 +11,7 @@ import {
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
-import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
+import { MOOD_COLORS, PHASE_NAMES } from '../styles/designTokens';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
@@ -57,6 +58,10 @@ interface SimpleGaiaUIProps {
  * - Touch-friendly controls with minimum 44px touch targets
  * - Stacks elements vertically on narrow screens
  * - Adjusts modal sizing for small viewports
+ *
+ * Uses:
+ * - Tailwind CSS for styling
+ * - lucide-react for iconography
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: UI component manages multiple modal states (tune controls, settings, mood selection, welcome, hints) and phase animation loops - refactoring would reduce readability by splitting cohesive UI state management
 export function SimpleGaiaUI({
@@ -136,9 +141,8 @@ export function SimpleGaiaUI({
   const { deviceType, isMobile, isTablet } = useViewport();
 
   // Responsive spacing values
-  const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32); // Mobile: 16px, Tablet: 24px, Desktop: 32px
-  const modalPadding = getResponsiveSpacing(deviceType, 24, 32, 40); // Mobile: 24px, Tablet: 32px, Desktop: 40px
-  const controlsPanelWidth = isMobile ? '100%' : '260px'; // Full width on mobile
+  const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32);
+  const modalPadding = getResponsiveSpacing(deviceType, 24, 32, 40);
 
   // Entrance animation
   useEffect(() => {
@@ -285,59 +289,6 @@ export function SimpleGaiaUI({
     };
   }, [isControlsOpen]);
 
-  // Design Tokens - memoized to prevent object recreation on every render
-  const colors = useMemo(
-    () => ({
-      text: UI_COLORS.text.secondary,
-      textDim: UI_COLORS.text.muted,
-      textGlow: UI_COLORS.accent.textGlow,
-      border: UI_COLORS.border.default,
-      glass: UI_COLORS.surface.glass,
-      accent: UI_COLORS.accent.gold,
-      accentGlow: UI_COLORS.accent.goldGlow,
-    }),
-    [],
-  );
-
-  // Memoized style objects to prevent recreation on every render
-  const labelStyle: React.CSSProperties = useMemo(
-    () => ({
-      fontSize: '0.72rem',
-      fontWeight: 500,
-      fontVariant: 'small-caps',
-      letterSpacing: '0.08em',
-      color: colors.text,
-      marginBottom: '8px',
-      display: 'flex',
-      justifyContent: 'space-between',
-    }),
-    [colors.text],
-  );
-
-  const inputStyle: React.CSSProperties = useMemo(
-    () => ({
-      width: '100%',
-      cursor: 'pointer',
-      height: '6px',
-      borderRadius: '3px',
-      appearance: 'none',
-      WebkitAppearance: 'none',
-      background: `linear-gradient(to right, ${colors.accent}40, ${colors.border})`,
-      outline: 'none',
-      transition: 'background 0.2s ease',
-    }),
-    [colors.accent, colors.border],
-  );
-
-  const sectionStyle: React.CSSProperties = useMemo(
-    () => ({
-      marginBottom: '16px',
-      paddingBottom: '16px',
-      borderBottom: `1px solid ${colors.border}`,
-    }),
-    [colors.border],
-  );
-
   // Stop pointer/touch events from propagating to PresentationControls
   // Memoized to maintain stable reference
   const stopPropagation = useCallback(
@@ -379,50 +330,40 @@ export function SimpleGaiaUI({
     }
   }, [selectedMood]);
 
+  // Memoized input style for sliders (some dynamic properties still needed)
+  const inputStyle = useMemo(
+    () => ({
+      background: `linear-gradient(to right, var(--color-accent-gold)/40, var(--color-border))`,
+    }),
+    [],
+  );
+
   return (
     <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',
-        color: colors.text,
-        fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
-        zIndex: 100,
-        opacity: isVisible ? 1 : 0,
-        transition: 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
-      }}
+      className={`absolute inset-0 pointer-events-none text-warm-gray font-sans z-100
+        transition-opacity duration-1200 ease-smooth
+        ${isVisible ? 'opacity-100' : 'opacity-0'}`}
     >
       {/* Inspirational Text - Above & Beyond style messages */}
       <InspirationalText />
 
       {/* Top-Left: App Branding + Settings */}
       <div
+        className={`absolute flex items-center pointer-events-auto
+          transition-all duration-800 ease-entrance
+          ${hasEntered ? 'opacity-85 translate-y-0' : 'opacity-0 -translate-y-2'}`}
         style={{
-          position: 'absolute',
           top: `${edgePadding}px`,
           left: `${edgePadding}px`,
-          display: 'flex',
-          alignItems: 'center',
           gap: isMobile ? '8px' : '16px',
-          pointerEvents: 'auto',
-          opacity: hasEntered ? 0.85 : 0,
-          transform: `translateY(${hasEntered ? 0 : -8}px)`,
-          transition: 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         }}
       >
         {/* App Name */}
         <div>
           <h1
-            style={{
-              fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: isMobile ? '1.2rem' : isTablet ? '1.25rem' : '1.4rem',
-              fontWeight: isMobile ? 400 : 300,
-              margin: 0,
-              letterSpacing: isMobile ? '0.08em' : '0.15em',
-              textTransform: 'uppercase',
-              color: colors.text,
-              textShadow: isMobile ? '0 1px 8px rgba(255, 252, 245, 0.8)' : 'none',
-            }}
+            className={`font-serif m-0 uppercase text-warm-gray
+              ${isMobile ? 'text-[1.2rem] font-normal tracking-[0.08em]' : isTablet ? 'text-[1.25rem] font-light tracking-[0.15em]' : 'text-[1.4rem] font-light tracking-[0.15em]'}
+              ${isMobile ? 'drop-shadow-[0_1px_8px_rgba(255,252,245,0.8)]' : ''}`}
           >
             Breathe Together
           </h1>
@@ -434,18 +375,9 @@ export function SimpleGaiaUI({
         // biome-ignore lint/a11y/noStaticElementInteractions: Modal backdrop overlay requires onClick for dismissal; role="presentation" indicates non-interactive semantics
         <div
           role="presentation"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: settingsAnimated ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 300,
-            pointerEvents: 'auto',
-            transition: 'background 0.4s ease-out',
-          }}
+          className={`absolute inset-0 backdrop-blur-[8px] flex items-center justify-center z-300 pointer-events-auto
+            transition-[background] duration-400 ease-out
+            ${settingsAnimated ? 'bg-black/30' : 'bg-black/0'}`}
           onClick={() => setShowSettings(false)}
           onPointerDown={stopPropagation}
         >
@@ -454,46 +386,22 @@ export function SimpleGaiaUI({
             role="presentation"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={stopPropagation}
-            style={{
-              background: colors.glass,
-              backdropFilter: 'blur(40px)',
-              borderRadius: isMobile ? '20px' : '32px',
-              border: `1px solid ${colors.border}`,
-              padding: `${modalPadding}px`,
-              maxWidth: isMobile ? '90%' : '420px',
-              width: isMobile ? '90%' : '420px',
-              opacity: settingsAnimated ? 1 : 0,
-              transform: settingsAnimated
-                ? 'scale(1) translateY(0)'
-                : 'scale(0.97) translateY(12px)',
-              transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }}
+            className={`bg-glass backdrop-blur-[40px] border border-border
+              transition-all duration-400 ease-bounce
+              ${isMobile ? 'rounded-[20px] w-[90%] max-w-[90%]' : 'rounded-[32px] w-[420px] max-w-[420px]'}
+              ${settingsAnimated ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[0.97] translate-y-3'}`}
+            style={{ padding: `${modalPadding}px` }}
           >
             <h2
-              style={{
-                fontFamily: "'Cormorant Garamond', Georgia, serif",
-                fontSize: isMobile ? '1.4rem' : '1.8rem',
-                fontWeight: 300,
-                margin: '0 0 24px 0',
-                letterSpacing: isMobile ? '0.1em' : '0.15em',
-                textTransform: 'uppercase',
-                color: colors.text,
-              }}
+              className={`font-serif font-light m-0 mb-6 uppercase text-warm-gray
+                ${isMobile ? 'text-[1.4rem] tracking-[0.1em]' : 'text-[1.8rem] tracking-[0.15em]'}`}
             >
               Settings
             </h2>
 
             {/* Current Mood - with icosahedron preview */}
-            <div style={{ marginBottom: '24px' }}>
-              <div
-                style={{
-                  fontSize: '0.7rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: colors.textDim,
-                  marginBottom: '12px',
-                }}
-              >
+            <div className="mb-6">
+              <div className="text-[0.7rem] uppercase tracking-[0.1em] text-warm-gray mb-3">
                 Your Presence
               </div>
               <button
@@ -503,24 +411,16 @@ export function SimpleGaiaUI({
                   setTimeout(() => setShowMoodSelect(true), 150);
                 }}
                 onPointerDown={stopPropagation}
+                className="w-full text-left flex items-center gap-3.5 p-[14px_18px] rounded-[20px]
+                  cursor-pointer transition-all duration-250 ease-smooth
+                  text-[0.85rem] text-warm-gray"
                 style={{
                   background: selectedMood
                     ? `linear-gradient(135deg, ${getMoodColor(selectedMood)}12 0%, rgba(255,255,255,0.5) 100%)`
-                    : colors.glass,
+                    : 'var(--color-glass)',
                   border: selectedMood
                     ? `2px solid ${getMoodColor(selectedMood)}30`
-                    : `1px solid ${colors.border}`,
-                  padding: '14px 18px',
-                  borderRadius: '20px',
-                  fontSize: '0.85rem',
-                  color: colors.text,
-                  cursor: 'pointer',
-                  width: '100%',
-                  textAlign: 'left',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '14px',
-                  transition: 'all 0.25s ease',
+                    : '1px solid var(--color-border)',
                 }}
               >
                 {/* Icosahedron indicator */}
@@ -533,51 +433,23 @@ export function SimpleGaiaUI({
                 />
 
                 {/* Mood info */}
-                <div style={{ flex: 1 }}>
+                <div className="flex-1">
                   {selectedMood ? (
                     <>
-                      <div
-                        style={{
-                          fontSize: '0.9rem',
-                          fontWeight: 500,
-                          color: '#4a3f35',
-                          marginBottom: '2px',
-                        }}
-                      >
+                      <div className="text-[0.9rem] font-medium text-warm-brown mb-0.5">
                         {MOOD_METADATA[selectedMood].label}
                       </div>
-                      <div
-                        style={{
-                          fontSize: '0.7rem',
-                          color: '#9a8a7a',
-                          fontStyle: 'italic',
-                        }}
-                      >
+                      <div className="text-[0.7rem] text-warm-gray italic">
                         {MOOD_METADATA[selectedMood].description}
                       </div>
                     </>
                   ) : (
-                    <div
-                      style={{
-                        fontSize: '0.85rem',
-                        color: '#9a8a7a',
-                      }}
-                    >
-                      Tap to choose your mood
-                    </div>
+                    <div className="text-[0.85rem] text-warm-gray">Tap to choose your mood</div>
                   )}
                 </div>
 
                 {/* Change indicator */}
-                <div
-                  style={{
-                    fontSize: '0.65rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    color: '#9a8a7a',
-                    opacity: 0.8,
-                  }}
-                >
+                <div className="text-[0.65rem] uppercase tracking-[0.08em] text-warm-gray opacity-80">
                   Change
                 </div>
               </button>
@@ -588,20 +460,12 @@ export function SimpleGaiaUI({
               type="button"
               onClick={() => setShowSettings(false)}
               onPointerDown={stopPropagation}
-              style={{
-                background: colors.accent,
-                color: '#fff',
-                border: 'none',
-                padding: '12px 28px',
-                borderRadius: '24px',
-                fontSize: '0.7rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.12em',
-                fontWeight: 600,
-                cursor: 'pointer',
-                width: '100%',
-              }}
+              className="w-full bg-accent-gold text-white border-none p-[12px_28px] rounded-3xl
+                text-[0.7rem] uppercase tracking-[0.12em] font-semibold cursor-pointer
+                flex items-center justify-center gap-2
+                hover:bg-accent-gold-light transition-colors duration-200"
             >
+              <X size={14} strokeWidth={2} />
               Close
             </button>
           </div>
@@ -613,18 +477,9 @@ export function SimpleGaiaUI({
         // biome-ignore lint/a11y/noStaticElementInteractions: Modal backdrop overlay requires onClick for dismissal; role="presentation" indicates non-interactive semantics
         <div
           role="presentation"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: moodSelectAnimated ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0)',
-            backdropFilter: 'blur(12px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 300,
-            pointerEvents: 'auto',
-            transition: 'background 0.4s ease-out',
-          }}
+          className={`absolute inset-0 backdrop-blur-[12px] flex items-center justify-center z-300 pointer-events-auto
+            transition-[background] duration-400 ease-out
+            ${moodSelectAnimated ? 'bg-black/25' : 'bg-black/0'}`}
           onClick={() => setShowMoodSelect(false)}
           onPointerDown={stopPropagation}
         >
@@ -633,59 +488,26 @@ export function SimpleGaiaUI({
             role="presentation"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={stopPropagation}
-            style={{
-              background: 'rgba(253, 251, 247, 0.85)',
-              backdropFilter: 'blur(40px)',
-              borderRadius: isMobile ? '24px' : '32px',
-              border: '1px solid rgba(160, 140, 120, 0.15)',
-              padding: isMobile ? '28px 24px' : '40px 36px',
-              maxWidth: isMobile ? '92%' : '420px',
-              width: isMobile ? '92%' : '420px',
-              opacity: moodSelectAnimated ? 1 : 0,
-              transform: moodSelectAnimated
-                ? 'scale(1) translateY(0)'
-                : 'scale(0.97) translateY(16px)',
-              transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.12)',
-            }}
+            className={`bg-[rgba(253,251,247,0.85)] backdrop-blur-[40px] border border-[rgba(160,140,120,0.15)]
+              shadow-modal transition-all duration-500 ease-bounce
+              ${isMobile ? 'rounded-3xl w-[92%] max-w-[92%] p-[28px_24px]' : 'rounded-[32px] w-[420px] max-w-[420px] p-[40px_36px]'}
+              ${moodSelectAnimated ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[0.97] translate-y-4'}`}
           >
             {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: isMobile ? '24px' : '32px' }}>
+            <div className={`text-center ${isMobile ? 'mb-6' : 'mb-8'}`}>
               <h2
-                style={{
-                  fontFamily: "'Cormorant Garamond', Georgia, serif",
-                  fontSize: isMobile ? '1.5rem' : '1.75rem',
-                  fontWeight: 400,
-                  margin: '0 0 8px 0',
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: '#4a3f35',
-                }}
+                className={`font-serif font-normal m-0 mb-2 uppercase text-warm-brown
+                  ${isMobile ? 'text-[1.5rem] tracking-[0.12em]' : 'text-[1.75rem] tracking-[0.12em]'}`}
               >
                 How are you?
               </h2>
-              <p
-                style={{
-                  fontSize: '0.8rem',
-                  color: '#8b7a6a',
-                  margin: 0,
-                  lineHeight: 1.5,
-                  letterSpacing: '0.02em',
-                }}
-              >
+              <p className="text-[0.8rem] text-warm-tan m-0 leading-relaxed tracking-[0.02em]">
                 Your presence joins others in the breathing space
               </p>
             </div>
 
             {/* Mood Options - Single level, clean cards */}
-            <div
-              className="modal-stagger"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: isMobile ? '10px' : '12px',
-              }}
-            >
+            <div className={`modal-stagger flex flex-col ${isMobile ? 'gap-2.5' : 'gap-3'}`}>
               {/* biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Mood button render with conditional styles for responsive design - complexity from inline style conditionals */}
               {MOOD_IDS.map((moodId) => {
                 const metadata = MOOD_METADATA[moodId];
@@ -698,22 +520,17 @@ export function SimpleGaiaUI({
                     type="button"
                     onClick={() => handleMoodSelect(moodId)}
                     onPointerDown={stopPropagation}
+                    className={`flex items-center text-left cursor-pointer rounded-[18px]
+                      transition-all duration-250 ease-smooth
+                      ${isMobile ? 'gap-3.5 p-[16px_18px]' : 'gap-4 p-[18px_22px]'}
+                      ${isSelected ? 'scale-[1.02]' : 'scale-100'}`}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: isMobile ? '14px' : '16px',
-                      padding: isMobile ? '16px 18px' : '18px 22px',
                       background: isSelected
                         ? `linear-gradient(135deg, ${color}18 0%, ${color}08 100%)`
                         : 'rgba(255, 255, 255, 0.5)',
-                      borderRadius: '18px',
                       border: isSelected
                         ? `2px solid ${color}50`
                         : '2px solid rgba(255, 255, 255, 0.4)',
-                      cursor: 'pointer',
-                      transition: 'all 0.25s ease',
-                      textAlign: 'left',
-                      transform: isSelected ? 'scale(1.02)' : 'scale(1)',
                       boxShadow: isSelected
                         ? `0 4px 20px ${color}25, 0 0 0 1px ${color}15`
                         : '0 2px 8px rgba(0, 0, 0, 0.04)',
@@ -729,25 +546,17 @@ export function SimpleGaiaUI({
                     />
 
                     {/* Text content */}
-                    <div style={{ flex: 1 }}>
+                    <div className="flex-1">
                       <div
-                        style={{
-                          fontSize: isMobile ? '0.95rem' : '1rem',
-                          fontWeight: isSelected ? 600 : 500,
-                          color: isSelected ? '#3d3229' : '#5a4d42',
-                          letterSpacing: '0.03em',
-                          marginBottom: '2px',
-                        }}
+                        className={`tracking-[0.03em] mb-0.5
+                          ${isMobile ? 'text-[0.95rem]' : 'text-base'}
+                          ${isSelected ? 'font-semibold text-[#3d3229]' : 'font-medium text-warm-brown-light'}`}
                       >
                         {metadata.label}
                       </div>
                       <div
-                        style={{
-                          fontSize: '0.72rem',
-                          color: isSelected ? '#6a5d52' : '#9a8a7a',
-                          letterSpacing: '0.02em',
-                          fontStyle: 'italic',
-                        }}
+                        className={`text-[0.72rem] tracking-[0.02em] italic
+                          ${isSelected ? 'text-[#6a5d52]' : 'text-warm-gray'}`}
                       >
                         {metadata.description}
                       </div>
@@ -756,14 +565,14 @@ export function SimpleGaiaUI({
                     {/* Selection indicator */}
                     {isSelected && (
                       <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center"
                         style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
                           background: color,
                           boxShadow: `0 0 8px ${color}80`,
                         }}
-                      />
+                      >
+                        <Check size={12} strokeWidth={3} className="text-white" />
+                      </div>
                     )}
                   </button>
                 );
@@ -773,12 +582,8 @@ export function SimpleGaiaUI({
             {/* Preview - shows what you'll become */}
             {selectedMood && (
               <div
-                style={{
-                  marginTop: '24px',
-                  opacity: moodSelectAnimated ? 1 : 0,
-                  transform: moodSelectAnimated ? 'translateY(0)' : 'translateY(8px)',
-                  transition: 'all 0.4s ease 0.2s',
-                }}
+                className={`mt-6 transition-all duration-400 ease-smooth delay-200
+                  ${moodSelectAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
               >
                 <MiniIcosahedronPreview color={getMoodColor(selectedMood)} label="Your presence" />
               </div>
@@ -789,20 +594,9 @@ export function SimpleGaiaUI({
               type="button"
               onClick={() => setShowMoodSelect(false)}
               onPointerDown={stopPropagation}
-              style={{
-                background: 'transparent',
-                color: '#9a8a7a',
-                border: 'none',
-                padding: '14px',
-                fontSize: '0.68rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-                cursor: 'pointer',
-                width: '100%',
-                marginTop: '16px',
-                opacity: 0.8,
-                transition: 'opacity 0.2s ease',
-              }}
+              className="w-full mt-4 bg-transparent text-warm-gray border-none p-3.5
+                text-[0.68rem] uppercase tracking-[0.1em] cursor-pointer opacity-80
+                hover:opacity-100 transition-opacity duration-200"
             >
               Skip for now
             </button>
@@ -816,25 +610,12 @@ export function SimpleGaiaUI({
         <div
           role="button"
           tabIndex={0}
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            padding: isMobile ? '24px 32px' : '32px 48px',
-            background: colors.glass,
-            backdropFilter: 'blur(40px)',
-            borderRadius: isMobile ? '20px' : '32px',
-            border: `1px solid ${colors.border}`,
-            textAlign: 'center',
-            maxWidth: isMobile ? '90%' : '440px',
-            width: isMobile ? '90%' : 'auto',
-            pointerEvents: 'auto',
-            opacity: hasEntered ? 0.95 : 0,
-            transition: 'opacity 1s ease-out',
-            zIndex: 200,
-            cursor: 'pointer',
-          }}
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+            bg-glass backdrop-blur-[40px] border border-border text-center
+            pointer-events-auto z-200 cursor-pointer
+            transition-opacity duration-1000 ease-out
+            ${isMobile ? 'p-[24px_32px] rounded-[20px] w-[90%] max-w-[90%]' : 'p-[32px_48px] rounded-[32px] w-auto max-w-[440px]'}
+            ${hasEntered ? 'opacity-95' : 'opacity-0'}`}
           onClick={() => setShowWelcome(false)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -844,27 +625,12 @@ export function SimpleGaiaUI({
           onPointerDown={stopPropagation}
         >
           <h2
-            style={{
-              fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: isMobile ? '1.4rem' : '1.8rem',
-              fontWeight: 300,
-              margin: '0 0 16px 0',
-              letterSpacing: isMobile ? '0.1em' : '0.15em',
-              textTransform: 'uppercase',
-              color: colors.text,
-            }}
+            className={`font-serif font-light m-0 mb-4 uppercase text-warm-gray
+              ${isMobile ? 'text-[1.4rem] tracking-[0.1em]' : 'text-[1.8rem] tracking-[0.15em]'}`}
           >
             Welcome
           </h2>
-          <p
-            style={{
-              fontSize: '0.95rem',
-              lineHeight: 1.8,
-              margin: '0 0 20px 0',
-              color: colors.textDim,
-              letterSpacing: '0.02em',
-            }}
-          >
+          <p className="text-[0.95rem] leading-[1.8] m-0 mb-5 text-warm-gray tracking-[0.02em]">
             Breathe with the Earth. Follow the rhythm:
             <br />
             <strong>Inhale → Hold → Exhale → Hold</strong>
@@ -873,19 +639,10 @@ export function SimpleGaiaUI({
             type="button"
             onClick={handleBeginClick}
             onPointerDown={stopPropagation}
-            style={{
-              background: colors.accent,
-              color: '#fff',
-              border: 'none',
-              padding: '10px 24px',
-              borderRadius: '20px',
-              fontSize: '0.7rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.12em',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-            }}
+            className="bg-accent-gold text-white border-none p-[10px_24px] rounded-[20px]
+              text-[0.7rem] uppercase tracking-[0.12em] font-semibold cursor-pointer
+              transition-all duration-300 ease-smooth
+              hover:bg-accent-gold-light hover:scale-105"
           >
             Begin
           </button>
@@ -895,47 +652,29 @@ export function SimpleGaiaUI({
       {/* Keyboard Hint - Appears after 30s */}
       {showKeyHint && !isControlsOpen && (
         <div
+          className={`absolute p-[12px_20px] bg-glass backdrop-blur-3xl rounded-[20px] border border-border
+            text-[0.65rem] uppercase tracking-[0.1em] text-warm-gray opacity-80
+            pointer-events-none animate-fade-in-out
+            ${isMobile ? 'bottom-20 right-1/2 translate-x-1/2' : ''}`}
           style={{
-            position: 'absolute',
-            bottom: isMobile ? '80px' : '100px',
-            right: isMobile ? '50%' : `${edgePadding}px`,
-            transform: isMobile ? 'translateX(50%)' : 'none',
-            padding: '12px 20px',
-            background: colors.glass,
-            backdropFilter: 'blur(24px)',
-            borderRadius: '20px',
-            border: `1px solid ${colors.border}`,
-            fontSize: '0.65rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            color: colors.textDim,
-            opacity: 0.8,
-            pointerEvents: 'none',
-            animation: 'fadeInOut 4s ease-in-out forwards',
+            bottom: isMobile ? undefined : '100px',
+            right: isMobile ? undefined : `${edgePadding}px`,
           }}
         >
-          Press <strong style={{ color: colors.accent }}>T</strong> to tune
+          Press <strong className="text-accent-gold">T</strong> to tune
         </div>
       )}
 
       {/* Bottom-Right (Desktop) / Bottom-Center (Mobile): Collapsible Advanced Controls */}
       {isControlsOpen && (
         <div
+          className={`absolute pointer-events-auto flex flex-col gap-3
+            transition-opacity duration-600 ease-smooth
+            ${isMobile ? 'items-center w-[90%] max-w-[400px] left-1/2 -translate-x-1/2' : 'items-end w-auto'}
+            ${hasEntered ? 'opacity-100' : 'opacity-0'}`}
           style={{
-            position: 'absolute',
             bottom: `${edgePadding}px`,
-            right: isMobile ? '50%' : `${edgePadding}px`,
-            left: isMobile ? '50%' : 'auto',
-            transform: isMobile ? 'translateX(-50%)' : 'none',
-            pointerEvents: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: isMobile ? 'center' : 'flex-end',
-            gap: '12px',
-            opacity: hasEntered ? 1 : 0,
-            transition: 'opacity 0.6s ease',
-            width: isMobile ? '90%' : 'auto',
-            maxWidth: isMobile ? '400px' : 'none',
+            right: isMobile ? undefined : `${edgePadding}px`,
           }}
         >
           {/* Close Button */}
@@ -943,21 +682,13 @@ export function SimpleGaiaUI({
             type="button"
             onClick={() => setIsControlsOpen(false)}
             onPointerDown={stopPropagation}
-            style={{
-              background: colors.glass,
-              border: `1px solid ${colors.border}`,
-              padding: '9px 18px',
-              borderRadius: '24px',
-              fontSize: '0.6rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.12em',
-              fontWeight: 500,
-              color: colors.text,
-              cursor: 'pointer',
-              backdropFilter: 'blur(24px)',
-              transition: 'all 0.4s ease',
-            }}
+            className="bg-glass border border-border p-[9px_18px] rounded-3xl backdrop-blur-3xl
+              text-[0.6rem] uppercase tracking-[0.12em] font-medium text-warm-gray
+              cursor-pointer transition-all duration-400 ease-smooth
+              flex items-center gap-1.5
+              hover:bg-glass-hover"
           >
+            <X size={12} strokeWidth={2} />
             Close
           </button>
 
@@ -969,47 +700,22 @@ export function SimpleGaiaUI({
             onTouchStart={stopPropagation}
             onTouchMove={stopPropagation}
             onTouchEnd={stopPropagation}
-            style={{
-              background: colors.glass,
-              backdropFilter: 'blur(40px)',
-              padding: isMobile ? '20px' : '24px',
-              borderRadius: isMobile ? '20px' : '24px',
-              border: `1px solid ${colors.border}`,
-              width: controlsPanelWidth,
-              maxHeight: isMobile ? '70vh' : '600px',
-              overflow: 'auto',
-              boxShadow: '0 20px 50px rgba(138, 131, 124, 0.08)',
-            }}
+            className={`bg-glass backdrop-blur-[40px] border border-border shadow-soft overflow-auto
+              ${isMobile ? 'p-5 rounded-[20px] w-full max-h-[70vh]' : 'p-6 rounded-3xl w-[260px] max-h-[600px]'}`}
           >
             {/* PRESETS ROW */}
-            <div style={{ marginBottom: '20px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '8px',
-                  justifyContent: 'space-between',
-                }}
-              >
+            <div className="mb-5">
+              <div className="flex gap-2 justify-between">
                 {(['calm', 'centered', 'immersive'] as const).map((preset) => (
                   <button
                     key={preset}
                     type="button"
                     onClick={() => onApplyPreset(preset)}
                     onPointerDown={stopPropagation}
-                    style={{
-                      flex: 1,
-                      padding: '10px 8px',
-                      background: colors.glass,
-                      border: `1px solid ${colors.border}`,
-                      borderRadius: '12px',
-                      fontSize: '0.6rem',
-                      fontWeight: 500,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      color: colors.text,
-                      cursor: 'pointer',
-                      transition: 'all 0.25s ease',
-                    }}
+                    className="flex-1 p-[10px_8px] bg-glass border border-border rounded-xl
+                      text-[0.6rem] font-medium uppercase tracking-[0.08em] text-warm-gray
+                      cursor-pointer transition-all duration-250 ease-smooth
+                      hover:bg-glass-hover hover:border-accent-gold/30"
                   >
                     {preset}
                   </button>
@@ -1018,11 +724,11 @@ export function SimpleGaiaUI({
             </div>
 
             {/* VISUAL CONTROLS */}
-            <div style={sectionStyle}>
-              <label style={{ marginBottom: '14px', display: 'block' }}>
-                <div style={labelStyle}>
+            <div className="mb-4 pb-4 border-b border-border">
+              <label className="block mb-3.5">
+                <div className="flex justify-between text-[0.72rem] font-medium font-[small-caps] tracking-[0.08em] text-warm-gray mb-2">
                   <span>Harmony</span>
-                  <span style={{ fontWeight: 400 }}>{Math.round(harmony)}</span>
+                  <span className="font-normal">{Math.round(harmony)}</span>
                 </div>
                 <input
                   type="range"
@@ -1031,14 +737,16 @@ export function SimpleGaiaUI({
                   step="1"
                   value={harmony}
                   onChange={(e) => setHarmony(parseInt(e.target.value, 10))}
+                  className="w-full cursor-pointer h-1.5 rounded-[3px] appearance-none outline-none
+                    transition-[background] duration-200 ease-smooth"
                   style={inputStyle}
                 />
               </label>
 
-              <label style={{ marginBottom: '14px', display: 'block' }}>
-                <div style={labelStyle}>
+              <label className="block mb-3.5">
+                <div className="flex justify-between text-[0.72rem] font-medium font-[small-caps] tracking-[0.08em] text-warm-gray mb-2">
                   <span>Shard Size</span>
-                  <span style={{ fontWeight: 400 }}>{shardSize.toFixed(2)}</span>
+                  <span className="font-normal">{shardSize.toFixed(2)}</span>
                 </div>
                 <input
                   type="range"
@@ -1047,14 +755,16 @@ export function SimpleGaiaUI({
                   step="0.02"
                   value={shardSize}
                   onChange={(e) => setShardSize(parseFloat(e.target.value))}
+                  className="w-full cursor-pointer h-1.5 rounded-[3px] appearance-none outline-none
+                    transition-[background] duration-200 ease-smooth"
                   style={inputStyle}
                 />
               </label>
 
-              <label style={{ marginBottom: '14px', display: 'block' }}>
-                <div style={labelStyle}>
+              <label className="block mb-3.5">
+                <div className="flex justify-between text-[0.72rem] font-medium font-[small-caps] tracking-[0.08em] text-warm-gray mb-2">
                   <span>Breathing Space</span>
-                  <span style={{ fontWeight: 400 }}>{orbitRadius.toFixed(1)}</span>
+                  <span className="font-normal">{orbitRadius.toFixed(1)}</span>
                 </div>
                 <input
                   type="range"
@@ -1063,14 +773,16 @@ export function SimpleGaiaUI({
                   step="0.1"
                   value={orbitRadius}
                   onChange={(e) => setOrbitRadius(parseFloat(e.target.value))}
+                  className="w-full cursor-pointer h-1.5 rounded-[3px] appearance-none outline-none
+                    transition-[background] duration-200 ease-smooth"
                   style={inputStyle}
                 />
               </label>
 
-              <label style={{ display: 'block' }}>
-                <div style={labelStyle}>
+              <label className="block">
+                <div className="flex justify-between text-[0.72rem] font-medium font-[small-caps] tracking-[0.08em] text-warm-gray mb-2">
                   <span>Atmosphere</span>
-                  <span style={{ fontWeight: 400 }}>{Math.round(atmosphereDensity)}</span>
+                  <span className="font-normal">{Math.round(atmosphereDensity)}</span>
                 </div>
                 <input
                   type="range"
@@ -1079,66 +791,38 @@ export function SimpleGaiaUI({
                   step="10"
                   value={atmosphereDensity}
                   onChange={(e) => setAtmosphereDensity(parseInt(e.target.value, 10))}
+                  className="w-full cursor-pointer h-1.5 rounded-[3px] appearance-none outline-none
+                    transition-[background] duration-200 ease-smooth"
                   style={inputStyle}
                 />
               </label>
             </div>
 
             {/* RESET BUTTON */}
-            <div style={{ marginBottom: '16px' }}>
+            <div className="mb-4">
               <button
                 type="button"
                 onClick={() => onApplyPreset('centered')}
                 onPointerDown={stopPropagation}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: 'transparent',
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: '12px',
-                  fontSize: '0.58rem',
-                  fontWeight: 500,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: colors.textDim,
-                  cursor: 'pointer',
-                  transition: 'all 0.25s ease',
-                }}
+                className="w-full p-2.5 bg-transparent border border-border rounded-xl
+                  text-[0.58rem] font-medium uppercase tracking-[0.1em] text-warm-gray
+                  cursor-pointer transition-all duration-250 ease-smooth
+                  hover:border-accent-gold/30 hover:text-warm-brown"
               >
                 Reset to Defaults
               </button>
             </div>
 
             {/* Mood Legend */}
-            <div
-              style={{
-                paddingTop: '16px',
-                borderTop: `1px solid ${colors.border}`,
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '10px',
-              }}
-            >
+            <div className="pt-4 border-t border-border grid grid-cols-2 gap-2.5">
               {Object.entries(MOOD_COLORS).map(([name, color]) => (
                 <div
                   key={name}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.55rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    opacity: 0.8,
-                  }}
+                  className="flex items-center gap-2 text-[0.55rem] uppercase tracking-[0.05em] opacity-80"
                 >
                   <div
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      background: color,
-                    }}
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: color }}
                   />
                   {name}
                 </div>
@@ -1150,54 +834,36 @@ export function SimpleGaiaUI({
 
       {/* Centered Phase Indicator - ALWAYS VISIBLE */}
       <div
+        className={`absolute left-1/2 pointer-events-none flex flex-col items-center
+          transition-all duration-1000 ease-entrance
+          ${hasEntered ? 'opacity-95 translate-y-0' : 'opacity-0 translate-y-4'}`}
         style={{
-          position: 'absolute',
           bottom: isMobile
             ? `max(${edgePadding + 16}px, env(safe-area-inset-bottom, 24px))`
             : '44px',
-          left: '50%',
           transform: `translateX(-50%) translateY(${hasEntered ? 0 : 16}px)`,
-          opacity: hasEntered ? 0.95 : 0,
-          transition: 'all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-          pointerEvents: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
           gap: isMobile ? '10px' : '12px',
         }}
       >
         {/* Phase Name + Timer Row */}
         <div
-          style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            gap: isMobile ? '10px' : '12px',
-          }}
+          className="flex items-baseline"
+          style={{ gap: isMobile ? '10px' : '12px' }}
         >
           <span
             ref={phaseNameRef}
+            className={`font-serif font-light uppercase text-warm-gray
+              ${isMobile ? 'text-[1.75rem] tracking-[0.12em]' : isTablet ? 'text-[1.5rem] tracking-[0.18em]' : 'text-[1.5rem] tracking-[0.18em]'}`}
             style={{
-              fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: isMobile ? '1.75rem' : isTablet ? '1.5rem' : '1.5rem',
-              fontWeight: 300,
-              letterSpacing: isMobile ? '0.12em' : '0.18em',
-              textTransform: 'uppercase',
-              color: colors.text,
-              textShadow: `0 2px 20px ${colors.accentGlow}, 0 1px 6px rgba(0, 0, 0, 0.15)`,
+              textShadow: '0 2px 20px var(--color-accent-gold-glow), 0 1px 6px rgba(0, 0, 0, 0.15)',
             }}
           >
             Inhale
           </span>
           <span
             ref={timerRef}
-            style={{
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              fontSize: isMobile ? '1.1rem' : '0.95rem',
-              fontWeight: 400,
-              color: colors.textDim,
-              minWidth: '1.2em',
-              textAlign: 'center',
-            }}
+            className={`font-sans font-normal text-warm-gray min-w-[1.2em] text-center
+              ${isMobile ? 'text-[1.1rem]' : 'text-[0.95rem]'}`}
           >
             4
           </span>
@@ -1209,39 +875,26 @@ export function SimpleGaiaUI({
         {/* Progress Bar */}
         <div
           ref={progressContainerRef}
+          className="bg-border rounded-[1px] overflow-hidden transition-shadow duration-300 ease-smooth"
           style={{
             width: isMobile ? '120px' : '140px',
             height: isMobile ? '2px' : '1.5px',
-            background: colors.border,
-            borderRadius: '1px',
-            overflow: 'hidden',
-            boxShadow: `0 0 8px ${colors.accentGlow}`,
-            transition: 'box-shadow 0.3s ease',
+            boxShadow: '0 0 8px var(--color-accent-gold-glow)',
           }}
         >
           <div
             ref={progressRef}
+            className="h-full w-0 rounded-[1px] transition-[width] duration-[80ms] linear"
             style={{
-              height: '100%',
-              width: '0%',
-              background: `linear-gradient(90deg, ${colors.accent}, ${colors.textGlow})`,
-              borderRadius: '1px',
-              transition: 'width 0.08s linear',
+              background: 'linear-gradient(90deg, var(--color-accent-gold), var(--color-text-glow))',
             }}
           />
         </div>
 
         {/* Presence Count */}
         <div
-          style={{
-            fontSize: isMobile ? '0.68rem' : '0.6rem',
-            fontWeight: isMobile ? 500 : 400,
-            color: colors.textDim,
-            opacity: 0.65,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            marginTop: '2px',
-          }}
+          className={`uppercase text-warm-gray opacity-65 mt-0.5
+            ${isMobile ? 'text-[0.68rem] font-medium tracking-[0.12em]' : 'text-[0.6rem] font-normal tracking-[0.12em]'}`}
         >
           <span ref={presenceCountRef}>75</span> breathing together
         </div>
