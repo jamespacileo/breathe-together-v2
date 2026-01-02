@@ -14,8 +14,8 @@ local_protocol = "http"
 # Create with: wrangler kv:namespace create PRESENCE_KV
 [[kv_namespaces]]
 binding = "PRESENCE_KV"
-id = "YOUR_KV_NAMESPACE_ID"
-preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
+id = "7add79fd08af412b9cc1dc509b629040"
+preview_id = "2fc40a001ffd49128837dd0a53de63d9"
 
 # Durable Objects for WebSocket-based presence (used for scale)
 # This enables real-time presence at 10k+ users for <$10/month
