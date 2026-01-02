@@ -732,22 +732,29 @@ export function useDevControls(): DevControlsState {
     }
   }, [set]);
 
+  // Ref to capture current controls for auto-save without dependency recreation
+  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
+  const controlsRef = useRef(controls);
+  controlsRef.current = controls;
+
   // Auto-save current settings as "__last__" on change
+  // Uses controlsRef to avoid callback recreation on every controls change
   // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   const saveLastSettings = useCallback(() => {
     const presets = loadSavedPresets();
-    // Save current control values
-    const currentValues = { ...controls } as Partial<DevControlsState>;
+    // Read from ref to get current values without dependency
+    const currentValues = { ...controlsRef.current } as Partial<DevControlsState>;
     presets.__last__ = currentValues;
     savePresetsToStorage(presets);
-  }, [controls]);
+  }, []);
 
   // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
+  // biome-ignore lint/correctness/useExhaustiveDependencies: controls dependency is intentional - triggers effect when any control changes to debounce-save settings
   useEffect(() => {
-    // Debounce saves
+    // Debounce saves - triggers when controls change but callback is stable
     const timeout = setTimeout(saveLastSettings, 500);
     return () => clearTimeout(timeout);
-  }, [saveLastSettings]);
+  }, [controls, saveLastSettings]);
 
   // Cast needed because Leva's options return string, but we know it's one of our union values
   return controls as unknown as DevControlsState;

@@ -515,48 +515,52 @@ export function RefractionPipeline({
     gl.clear();
     gl.render(scene, camera);
 
-    // Pass 3: Render composite to compositeFBO (with depth for DoF)
-    // First render background
-    gl.setRenderTarget(compositeFBO);
-    gl.clear();
-    gl.render(bgScene, orthoCamera);
-
     // Update refraction material uniforms with FBO textures
     refractionMaterial.uniforms.envMap.value = envFBO.texture;
     refractionMaterial.uniforms.backfaceMap.value = backfaceFBO.texture;
 
-    // Swap to refraction material and render scene
+    // Swap to refraction material
     for (const mesh of meshes) {
       mesh.material = refractionMaterial;
     }
-    gl.clearDepth();
-    gl.render(scene, camera);
-
-    // Restore original materials (for next frame's scene graph consistency)
-    for (const mesh of meshes) {
-      const original = meshDataRef.current.get(mesh);
-      if (original) {
-        mesh.material = original;
-      }
-    }
-
-    // Pass 4: Apply depth of field and render to screen
-    gl.setRenderTarget(null);
-    gl.clear();
 
     if (enableDepthOfField) {
-      // Update DoF material with composite textures
+      // Pass 3: Render composite to compositeFBO (with depth for DoF)
+      gl.setRenderTarget(compositeFBO);
+      gl.clear();
+      gl.render(bgScene, orthoCamera);
+      gl.clearDepth();
+      gl.render(scene, camera);
+
+      // Restore original materials
+      for (const mesh of meshes) {
+        const original = meshDataRef.current.get(mesh);
+        if (original) {
+          mesh.material = original;
+        }
+      }
+
+      // Pass 4: Apply depth of field and render to screen
+      gl.setRenderTarget(null);
+      gl.clear();
       dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
       dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
       gl.render(dofScene, orthoCamera);
     } else {
-      // Skip DoF, render composite directly
-      // Create a simple passthrough if needed, or just render the composite
-      dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
-      dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
-      dofMaterial.uniforms.maxBlur.value = 0; // Disable blur
-      gl.render(dofScene, orthoCamera);
-      dofMaterial.uniforms.maxBlur.value = maxBlur; // Restore
+      // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
+      gl.setRenderTarget(null);
+      gl.clear();
+      gl.render(bgScene, orthoCamera);
+      gl.clearDepth();
+      gl.render(scene, camera);
+
+      // Restore original materials
+      for (const mesh of meshes) {
+        const original = meshDataRef.current.get(mesh);
+        if (original) {
+          mesh.material = original;
+        }
+      }
     }
   }, 1); // Priority 1 to run before default render
 

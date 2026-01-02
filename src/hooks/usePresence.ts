@@ -86,11 +86,6 @@ export interface UsePresenceResult {
 export function usePresence(): UsePresenceResult {
   const [presence, setPresence] = useState<PresenceState>(() => {
     const mockData = generateMockPresence(42);
-    console.log('[usePresence] Initial mock data:', {
-      count: mockData.count,
-      usersLength: mockData.users.length,
-      sampleUser: mockData.users[0],
-    });
     return {
       ...mockData,
       timestamp: Date.now(),
@@ -324,16 +319,6 @@ export function usePresence(): UsePresenceResult {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [connectWebSocket]);
-
-  // Debug: Log presence state periodically
-  useEffect(() => {
-    console.log('[usePresence] Returning presence:', {
-      count: presence.count,
-      usersLength: presence.users.length,
-      connectionType,
-      isConnected,
-    });
-  }, [presence, connectionType, isConnected]);
 
   return {
     count: presence.count,
