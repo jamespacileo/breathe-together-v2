@@ -89,6 +89,6 @@ export function createFrostedGlassMaterial(): THREE.ShaderMaterial {
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,
     vertexColors: true,
-    side: THREE.DoubleSide, // Render both faces so shapes don't appear flat from certain angles
+    side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
   });
 }

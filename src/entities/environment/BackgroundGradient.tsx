@@ -51,13 +51,12 @@ float snoise(vec2 v) {
   return 130.0 * dot(m, g);
 }
 
+// Optimized FBM with 2 octaves (was 4) - 50% cheaper, nearly identical visual
 float fbm(vec2 p) {
   float f = 0.0;
   f += 0.5000 * snoise(p); p *= 2.02;
-  f += 0.2500 * snoise(p); p *= 2.03;
-  f += 0.1250 * snoise(p); p *= 2.01;
-  f += 0.0625 * snoise(p);
-  return f / 0.9375;
+  f += 0.2500 * snoise(p);
+  return f / 0.75;
 }
 
 void main() {
