@@ -270,9 +270,20 @@ async function captureScreenshots() {
           }
 
           // Capture screenshot
+          // For canvas pages, wait for fonts with timeout to avoid indefinite hang
+          if (isCanvasPage) {
+            await page.evaluate(() => {
+              return Promise.race([
+                document.fonts.ready,
+                new Promise(resolve => setTimeout(resolve, 5000))
+              ]);
+            });
+          }
+
           await page.screenshot({
             path: `${SCREENSHOTS_DIR}/${filename}`,
             fullPage: false,
+            timeout: 60000,
           });
           console.log(`   ✅ Saved: ${filename}`);
 
