@@ -820,10 +820,7 @@ export function SimpleGaiaUI({
                   key={name}
                   className="flex items-center gap-2 text-[0.55rem] uppercase tracking-[0.05em] opacity-80"
                 >
-                  <div
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: color }}
-                  />
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
                   {name}
                 </div>
               ))}
@@ -846,10 +843,7 @@ export function SimpleGaiaUI({
         }}
       >
         {/* Phase Name + Timer Row */}
-        <div
-          className="flex items-baseline"
-          style={{ gap: isMobile ? '10px' : '12px' }}
-        >
+        <div className="flex items-baseline" style={{ gap: isMobile ? '10px' : '12px' }}>
           <span
             ref={phaseNameRef}
             className={`font-serif font-light uppercase text-warm-gray
@@ -886,7 +880,8 @@ export function SimpleGaiaUI({
             ref={progressRef}
             className="h-full w-0 rounded-[1px] transition-[width] duration-[80ms] linear"
             style={{
-              background: 'linear-gradient(90deg, var(--color-accent-gold), var(--color-text-glow))',
+              background:
+                'linear-gradient(90deg, var(--color-accent-gold), var(--color-text-glow))',
             }}
           />
         </div>
