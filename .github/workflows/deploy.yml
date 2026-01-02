@@ -61,6 +61,8 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
           wranglerVersion: "4.54.0"
+          # Explicit --config to avoid picking up root wrangler.json (which has assets.directory for frontend)
+          command: deploy --config wrangler.toml
 
   deploy-frontend:
     needs: deploy-worker

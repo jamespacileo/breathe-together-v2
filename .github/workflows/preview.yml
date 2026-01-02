@@ -63,7 +63,8 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
           wranglerVersion: "4.54.0"
-          command: deploy --name breathe-together-presence-pr-${{ github.event.pull_request.number }}
+          # Explicit --config to avoid picking up root wrangler.json (which has assets.directory for frontend)
+          command: deploy --config wrangler.toml --name breathe-together-presence-pr-${{ github.event.pull_request.number }}
 
   # Preview deployment (depends on worker preview)
   deploy-preview:
