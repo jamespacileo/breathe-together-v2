@@ -4,18 +4,21 @@
  * Features subtle visual effects that users won't consciously notice but will feel:
  * - Soft fresnel rim glow (edge lighting like the globe)
  * - Breathing luminosity pulse (subtle brightness variation)
- * - Per-vertex mood colors with gentle saturation boost
+ * - Per-instance mood colors with gentle saturation boost
  * - Subtle inner glow on exhale phase
  *
  * For the refraction effect to work:
  * 1. Mesh must have userData.useRefraction = true
- * 2. Mesh geometry must have a 'color' attribute with per-vertex mood colors
+ * 2. InstancedMesh must have instanceColor attribute set
  * 3. RefractionPipeline must be present in the scene tree
+ *
+ * Performance: Uses InstancedMesh for single draw call (300+ particles = 1 draw call)
  */
 
 import * as THREE from 'three';
 
-// Vertex shader - passes normals and colors to fragment
+// Vertex shader - passes normals and instance colors to fragment
+// Uses THREE.js built-in instanceColor attribute for per-instance colors
 const shardVertexShader = `
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -23,7 +26,14 @@ varying vec3 vColor;
 
 void main() {
   vNormal = normalize(normalMatrix * normal);
-  vColor = color;
+
+  // Use instance color from InstancedMesh (set via setColorAt)
+  #ifdef USE_INSTANCING_COLOR
+    vColor = instanceColor;
+  #else
+    vColor = vec3(0.85, 0.75, 0.65); // Fallback warm neutral
+  #endif
+
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   vViewPosition = -mvPosition.xyz;
   gl_Position = projectionMatrix * mvPosition;
@@ -78,9 +88,11 @@ void main() {
  * Returns a ShaderMaterial with:
  * - Fresnel rim glow (soft edge lighting)
  * - Breathing luminosity (synced brightness pulse)
- * - Per-vertex color support
+ * - Per-instance color support (via USE_INSTANCING_COLOR define)
+ *
+ * @param instanced - Whether to enable instancing color support (default: true)
  */
-export function createFrostedGlassMaterial(): THREE.ShaderMaterial {
+export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       breathPhase: { value: 0 },
@@ -88,7 +100,7 @@ export function createFrostedGlassMaterial(): THREE.ShaderMaterial {
     },
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,
-    vertexColors: true,
+    defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
     side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
   });
 }
