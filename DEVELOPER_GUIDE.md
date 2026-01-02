@@ -56,22 +56,21 @@ BreathingSphere & ParticleRenderer read state via useFrame
 Pure functions for breathing state. No dependencies on React/Three.js.
 
 ```typescript
-// 16-second cycle with asymmetric phases (3/5/5/3)
+// 19-second cycle - 4-7-8 relaxation breathing pattern
 const state = calculateBreathState(elapsedTime);
 
 // Returns:
 {
   breathPhase: 0-1,        // 0=exhaled, 1=inhaled
-  phaseType: 0-3,          // Which phase (inhale/hold/exhale/hold)
-  orbitRadius: 1.2-2.8,    // Particle orbit radius
-  sphereScale: 0.6-1.4,    // Central sphere scale
-  crystallization: 0-1     // Stillness during holds
+  phaseType: 0-3,          // Which phase (inhale/hold-in/exhale/hold-out)
+  rawProgress: 0-1,        // Raw progress within current phase
+  orbitRadius: 2.5-6.0,    // Particle orbit radius (contracts on inhale, expands on exhale)
 }
 ```
 
 **Key Constants:**
-- Cycle time: 16 seconds
-- Easing: easeInOutQuad
+- Cycle time: 19 seconds (4s inhale, 7s hold-in, 8s exhale, 0s hold-out)
+- Easing: Phase-specific easing (easeInhale, easeExhale, damped oscillation for holds)
 - Global sync: Uses `Date.now() / 1000`
 
 ### 2. Breath Entity (`src/entities/breath/`)
@@ -115,33 +114,32 @@ export function breathSystem(world: World, delta: number) {
 
 ## Components
 
-### BreathingSphere
-**File:** `src/entities/breathingSphere/index.tsx`
-
-**Props:**
-- `color: string` - Hex color (Triplex editable)
-- `opacity: number` - 0-1 (Triplex editable)
-- `segments: number` - Geometry detail (Triplex editable)
-
-**Animation:**
-- Reads `sphereScale` from breath entity
-- maath easing smooths transitions
-- Double-sided material for visibility
-- Additive blending for glow effect
-
-### ParticleRenderer + ParticleSpawner
-**File:** `src/entities/particle/index.tsx`
-
-**Props:**
-- `totalCount: number` - Particle count (Triplex editable)
-- `particleSize: number` - Scale multiplier (Triplex editable)
-- `fillerColor: string` - Color when no users (Triplex editable)
+### EarthGlobe
+**File:** `src/entities/earthGlobe/index.tsx`
 
 **Features:**
-- InstancedMesh for 60fps performance
-- Fibonacci sphere distribution
+- Central sphere with frosted glass overlay
+- Warm brown earth tone (#8b6f47)
+- Breathing-synchronized scaling and rotation
+- Monument Valley inspired aesthetic
+
+### ParticleSwarm
+**File:** `src/entities/particle/ParticleSwarm.tsx`
+
+**Features:**
+- Icosahedral shard particles orbiting the globe
+- InstancedMesh for efficient rendering
 - Mood-based particle coloring
-- Orbit animation synced to breath entity
+- Orbit animation synced to breath cycle
+- Refraction effects through frosted glass material
+
+### AtmosphericParticles
+**File:** `src/entities/particle/AtmosphericParticles.tsx`
+
+**Features:**
+- Floating ambient particles
+- Breathing-synchronized opacity
+- Adds atmospheric depth to the scene
 
 ---
 
@@ -175,8 +173,9 @@ const { moods } = usePresence({ userCount: 75 });
 
 1. **Open Triplex in VSCode** (if installed)
 2. **Navigate to a component:**
-   - `BreathingSphere` in `src/entities/breathingSphere/index.tsx`
-- `ParticleRenderer` / `ParticleSpawner` in `src/entities/particle/index.tsx`
+   - `EarthGlobe` in `src/entities/earthGlobe/index.tsx`
+   - `ParticleSwarm` in `src/entities/particle/ParticleSwarm.tsx`
+   - `Environment` in `src/entities/environment/index.tsx`
 3. **Edit props in the UI:**
    - Props appear as controls based on JSDoc annotations
    - Changes update live in the viewport
@@ -331,13 +330,13 @@ dist/                          # Build output
 Edit `src/constants.ts`:
 ```typescript
 export const BREATH_PHASES = {
-  INHALE: 3,
-  HOLD_IN: 5,
-  EXHALE: 5,
-  HOLD_OUT: 3,
+  INHALE: 4,
+  HOLD_IN: 7,
+  EXHALE: 8,
+  HOLD_OUT: 0,
 } as const;
 
-export const BREATH_TOTAL_CYCLE = 16; // seconds
+export const BREATH_TOTAL_CYCLE = 19; // seconds (derived from phase durations)
 ```
 
 ### Add New Mood Color
@@ -355,21 +354,15 @@ export const MOOD_METADATA = {
 };
 ```
 
-### Adjust Particle Count
+### Adjust Visual Parameters
 
-Props are Triplex-editable, but for default:
-Edit `src/levels/breathing.tsx`:
-```typescript
-<ParticleRenderer totalCount={500} />  // Was 300
-```
+Use the Zustand store or dev controls (Leva panel) to adjust:
+- Orbit radius (breathing space)
+- Shard size
+- Atmosphere density
+- Glass refraction effects
 
-### Change Sphere Color
-
-Props are Triplex-editable, but for default:
-Edit `src/levels/breathing.tsx`:
-```typescript
-<BreathingSphere color="#ff00ff" />  // Was #7ec8d4
-```
+Or edit scene defaults in `src/levels/breathing.tsx`
 
 ---
 
