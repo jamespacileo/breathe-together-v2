@@ -190,6 +190,7 @@ export function BreathingLevel({
     <ErrorBoundary>
       <Suspense fallback={null}>
         {/* Performance monitor - controlled via Leva "Performance Monitor" folder */}
+        {/* Uses high z-index to ensure it's above gesture capture layers */}
         {DEV_MODE_ENABLED && devControls.showPerfMonitor && (
           <Perf
             position={devControls.perfPosition}
@@ -200,6 +201,10 @@ export function BreathingLevel({
             overClock={devControls.perfOverClock}
             deepAnalyze={devControls.perfDeepAnalyze}
             matrixUpdate={devControls.perfMatrixUpdate}
+            style={{
+              zIndex: 2000,
+              pointerEvents: 'auto',
+            }}
           />
         )}
 

@@ -269,3 +269,51 @@ button:focus-visible {
     transform: scale(0.85);
   }
 }
+
+/* =============================================================================
+   R3F-PERF PERFORMANCE MONITOR STYLES
+   ============================================================================= */
+
+/**
+ * Ensure r3f-perf panels are fully interactive
+ * The panel renders via portal and needs explicit pointer-events
+ * to override any parent pointer-events: none on overlay layers
+ */
+.r3f-perf,
+[class*="r3f-perf"] {
+  pointer-events: auto !important;
+  cursor: default !important;
+}
+
+/**
+ * Interactive elements within the perf panel
+ * Buttons, inputs, and clickable elements need pointer cursor
+ */
+.r3f-perf button,
+.r3f-perf input,
+.r3f-perf select,
+.r3f-perf [role="button"],
+[class*="r3f-perf"] button,
+[class*="r3f-perf"] input {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/**
+ * Leva dev panel - ensure interactivity
+ * Leva uses data attributes and class patterns
+ */
+[data-leva],
+[class*="leva-"] {
+  pointer-events: auto !important;
+  cursor: default !important;
+}
+
+[data-leva] button,
+[data-leva] input,
+[data-leva] select,
+[class*="leva-"] button,
+[class*="leva-"] input {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}

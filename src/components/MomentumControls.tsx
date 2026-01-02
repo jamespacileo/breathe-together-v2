@@ -115,15 +115,8 @@ export function MomentumControls({
   // Group ref for direct manipulation
   const ref = React.useRef<Group>(null);
 
-  // Cursor management
-  React.useEffect(() => {
-    if (global && cursor && enabled) {
-      domElement.style.cursor = 'grab';
-      return () => {
-        domElement.style.cursor = 'default';
-      };
-    }
-  }, [global, cursor, domElement, enabled]);
+  // Track if currently dragging to prevent cursor flicker
+  const isDraggingRef = React.useRef(false);
 
   // Sync damping when prop changes (for Leva real-time updates)
   React.useEffect(() => {
@@ -178,6 +171,34 @@ export function MomentumControls({
     },
     [exclusionZones, domElement],
   );
+
+  // Position-aware cursor management
+  // Only show grab cursor when NOT in exclusion zones (r3f-perf, Leva, etc.)
+  React.useEffect(() => {
+    if (!global || !cursor || !enabled) return;
+
+    const handlePointerMove = (e: PointerEvent) => {
+      // Don't change cursor while actively dragging
+      if (isDraggingRef.current) return;
+
+      if (isInExclusionZone(e.clientX, e.clientY)) {
+        domElement.style.cursor = 'default';
+      } else {
+        domElement.style.cursor = 'grab';
+      }
+    };
+
+    // Initial cursor state (assume not in exclusion zone)
+    domElement.style.cursor = 'grab';
+
+    // Listen on document to catch all pointer movements
+    document.addEventListener('pointermove', handlePointerMove);
+
+    return () => {
+      document.removeEventListener('pointermove', handlePointerMove);
+      domElement.style.cursor = 'default';
+    };
+  }, [global, cursor, enabled, domElement, isInExclusionZone]);
 
   // Check if event target is within UI overlay (Leva, modals, perf monitor, etc.)
   const isUIElement = React.useCallback(
@@ -245,19 +266,42 @@ export function MomentumControls({
           domElement.style.cursor = last ? 'auto' : 'grab';
         }
       },
-      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo, event }) => {
+      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo, event, first, last }) => {
         if (!enabled) return memo;
 
         // Ignore events from UI elements (Leva, modals, buttons, etc.)
         if (event && isUIElement(event as PointerEvent)) {
+          // Reset dragging state if we were somehow dragging
+          if (isDraggingRef.current) {
+            isDraggingRef.current = false;
+          }
           return memo;
+        }
+
+        // Track dragging state for cursor management
+        if (first) {
+          isDraggingRef.current = true;
+        }
+        if (last) {
+          isDraggingRef.current = false;
         }
 
         // Initialize memo with current rotation on drag start
         const [oldY, oldX] = memo || animation.current.target;
 
+        // Cursor management - only change if not in exclusion zone
         if (cursor) {
-          domElement.style.cursor = down ? 'grabbing' : 'grab';
+          if (event && 'clientX' in event && 'clientY' in event) {
+            const inExclusion = isInExclusionZone(
+              (event as PointerEvent).clientX,
+              (event as PointerEvent).clientY,
+            );
+            if (!inExclusion) {
+              domElement.style.cursor = down ? 'grabbing' : 'grab';
+            }
+          } else {
+            domElement.style.cursor = down ? 'grabbing' : 'grab';
+          }
         }
 
         // Calculate new rotation from drag delta
