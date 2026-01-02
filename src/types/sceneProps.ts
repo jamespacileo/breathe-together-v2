@@ -36,6 +36,34 @@ export interface BreathingLevelProps {
    * @default true
    */
   showEnvironment?: boolean;
+
+  // ============================================================================
+  // VISUAL EFFECTS (Breathing-Reactive Visualizer Effects)
+  // ============================================================================
+
+  /**
+   * Show Aurora Bands - ethereal rings around the globe that pulse with breathing.
+   * Inspired by music visualizer concentric ring effects.
+   * @group "Visual Effects"
+   * @default true
+   */
+  showAuroraBands?: boolean;
+
+  /**
+   * Show Phase Transition Pulse - ripple waves emitted on breath phase changes.
+   * Each transition (inhale→hold, hold→exhale, etc.) creates a unique colored pulse.
+   * @group "Visual Effects"
+   * @default true
+   */
+  showPhaseTransitionPulse?: boolean;
+
+  /**
+   * Show Particle Trails - comet-like tails following the orbiting shards.
+   * Trails are more visible during movement phases (inhale/exhale).
+   * @group "Visual Effects"
+   * @default true
+   */
+  showParticleTrails?: boolean;
 }
 
 // ============================================================================
