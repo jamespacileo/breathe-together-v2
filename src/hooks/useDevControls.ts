@@ -72,6 +72,17 @@ export const TUNING_DEFAULTS = {
   showPhaseMarkers: false,
   showTraitValues: false,
 
+  // Performance monitoring (dev-only)
+  showPerfMonitor: false,
+  perfPosition: 'top-left' as 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right',
+  perfMinimal: false,
+  perfShowGraph: true,
+  perfLogsPerSecond: 10,
+  perfAntialias: true,
+  perfOverClock: false,
+  perfDeepAnalyze: false,
+  perfMatrixUpdate: false,
+
   // Drag & Rotate (dev-only) - iOS-style momentum scrolling
   dragSpeed: 1.8,
   dragDamping: 0.12,
@@ -153,6 +164,17 @@ export interface DevControlsState {
   showPhaseMarkers: boolean;
   showTraitValues: boolean;
 
+  // Performance monitoring
+  showPerfMonitor: boolean;
+  perfPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  perfMinimal: boolean;
+  perfShowGraph: boolean;
+  perfLogsPerSecond: number;
+  perfAntialias: boolean;
+  perfOverClock: boolean;
+  perfDeepAnalyze: boolean;
+  perfMatrixUpdate: boolean;
+
   // Drag & Rotate
   dragSpeed: number;
   dragDamping: number;
@@ -191,6 +213,15 @@ function getDefaultDevControls(): DevControlsState {
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
+    showPerfMonitor: TUNING_DEFAULTS.showPerfMonitor,
+    perfPosition: TUNING_DEFAULTS.perfPosition,
+    perfMinimal: TUNING_DEFAULTS.perfMinimal,
+    perfShowGraph: TUNING_DEFAULTS.perfShowGraph,
+    perfLogsPerSecond: TUNING_DEFAULTS.perfLogsPerSecond,
+    perfAntialias: TUNING_DEFAULTS.perfAntialias,
+    perfOverClock: TUNING_DEFAULTS.perfOverClock,
+    perfDeepAnalyze: TUNING_DEFAULTS.perfDeepAnalyze,
+    perfMatrixUpdate: TUNING_DEFAULTS.perfMatrixUpdate,
     dragSpeed: TUNING_DEFAULTS.dragSpeed,
     dragDamping: TUNING_DEFAULTS.dragDamping,
     dragMomentum: TUNING_DEFAULTS.dragMomentum,
@@ -605,6 +636,64 @@ export function useDevControls(): DevControlsState {
       },
       { collapsed: true },
     ),
+
+    // ==========================================
+    // PERFORMANCE MONITORING (r3f-perf)
+    // ==========================================
+    'Performance Monitor': folder(
+      {
+        showPerfMonitor: {
+          value: TUNING_DEFAULTS.showPerfMonitor,
+          label: 'Show FPS Monitor',
+          hint: 'Toggle r3f-perf overlay showing FPS, memory, and GPU stats.',
+        },
+        perfPosition: {
+          value: TUNING_DEFAULTS.perfPosition,
+          options: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+          label: 'Position',
+          hint: 'Corner position of the performance monitor overlay.',
+        },
+        perfMinimal: {
+          value: TUNING_DEFAULTS.perfMinimal,
+          label: 'Minimal Mode',
+          hint: 'Show only FPS number without graphs or detailed stats.',
+        },
+        perfShowGraph: {
+          value: TUNING_DEFAULTS.perfShowGraph,
+          label: 'Show Graph',
+          hint: 'Display FPS history graph. Useful for spotting frame drops over time.',
+        },
+        perfLogsPerSecond: {
+          value: TUNING_DEFAULTS.perfLogsPerSecond,
+          min: 1,
+          max: 60,
+          step: 1,
+          label: 'Log Rate',
+          hint: 'How often to sample stats per second. Higher = more accurate but more CPU.',
+        },
+        perfAntialias: {
+          value: TUNING_DEFAULTS.perfAntialias,
+          label: 'Antialias',
+          hint: 'Apply antialiasing to the monitor text. Disable for sharper pixels.',
+        },
+        perfOverClock: {
+          value: TUNING_DEFAULTS.perfOverClock,
+          label: 'Overclock',
+          hint: 'Run monitoring at higher frequency for more precise measurements.',
+        },
+        perfDeepAnalyze: {
+          value: TUNING_DEFAULTS.perfDeepAnalyze,
+          label: 'Deep Analyze',
+          hint: 'Enable detailed GPU analysis. May impact performance slightly.',
+        },
+        perfMatrixUpdate: {
+          value: TUNING_DEFAULTS.perfMatrixUpdate,
+          label: 'Matrix Updates',
+          hint: 'Show matrix update count (how many objects moved this frame).',
+        },
+      },
+      { collapsed: true },
+    ),
   }));
 
   // Store set function in ref for preset buttons
@@ -644,5 +733,6 @@ export function useDevControls(): DevControlsState {
     return () => clearTimeout(timeout);
   }, [saveLastSettings]);
 
-  return controls;
+  // Cast needed because Leva's options return string, but we know it's one of our union values
+  return controls as unknown as DevControlsState;
 }

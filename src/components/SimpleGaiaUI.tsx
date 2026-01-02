@@ -328,6 +328,7 @@ export function SimpleGaiaUI({
 
   return (
     <div
+      data-ui="gaia-ui"
       className={`absolute inset-0 pointer-events-none text-warm-gray font-sans z-100
         transition-opacity duration-1200 ease-smooth
         ${isVisible ? 'opacity-100' : 'opacity-0'}`}
