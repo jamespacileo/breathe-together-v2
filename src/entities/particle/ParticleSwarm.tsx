@@ -263,9 +263,19 @@ export function ParticleSwarm({
   // Normalize users input
   const normalizedUsers = useMemo(() => normalizeUsers(users), [users]);
 
+  // Debug: Log when users prop changes
+  useEffect(() => {
+    console.log('[ParticleSwarm] users prop changed:', {
+      rawUsersLength: Array.isArray(users) ? users.length : 'not array',
+      normalizedLength: normalizedUsers.length,
+      sampleUser: normalizedUsers[0],
+    });
+  }, [users, normalizedUsers]);
+
   // Update pending users when props change
   useEffect(() => {
     pendingUsersRef.current = normalizedUsers;
+    console.log('[ParticleSwarm] pendingUsersRef updated:', normalizedUsers.length);
   }, [normalizedUsers]);
 
   // Calculate minimum orbit radius based on globe + shard size
@@ -359,10 +369,25 @@ export function ParticleSwarm({
     const slotManager = slotManagerRef.current;
     const usersForInit =
       pendingUsersRef.current.length > 0 ? pendingUsersRef.current : normalizedUsers;
+
+    console.log('[ParticleSwarm] Init effect running:', {
+      pendingUsersLength: pendingUsersRef.current.length,
+      normalizedUsersLength: normalizedUsers.length,
+      usersForInitLength: usersForInit.length,
+      meshExists: !!mesh,
+      slotManagerExists: !!slotManager,
+    });
+
     if (slotManager) {
       slotManager.reconcile(usersForInit);
       const stableCount = slotManager.stableCount;
       prevActiveCountRef.current = stableCount;
+
+      console.log('[ParticleSwarm] After reconcile:', {
+        stableCount,
+        slotsLength: slotManager.slots.length,
+        firstSlot: slotManager.slots[0],
+      });
 
       if (stableCount > 0) {
         redistributePositions(stableCount);
@@ -382,6 +407,9 @@ export function ParticleSwarm({
     };
   }, [geometry, material]);
 
+  // Debug frame counter for throttled logging
+  const frameCountRef = useRef(0);
+
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation requires multiple force calculations and slot lifecycle management
   useFrame((state, delta) => {
@@ -392,6 +420,20 @@ export function ParticleSwarm({
 
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
+
+    // Throttled debug log (every 120 frames ~2 seconds at 60fps)
+    frameCountRef.current++;
+    if (frameCountRef.current % 120 === 1) {
+      const nonEmptySlots = slotManager.slots.filter((s) => s.state !== 'empty');
+      console.log('[ParticleSwarm] Frame update:', {
+        frame: frameCountRef.current,
+        stableCount: slotManager.stableCount,
+        nonEmptySlots: nonEmptySlots.length,
+        pendingUsers: pendingUsersRef.current.length,
+        meshCount: mesh.count,
+        sampleSlot: nonEmptySlots[0],
+      });
+    }
 
     // Get breathing state from ECS
     let targetRadius = baseRadius;
