@@ -8,6 +8,12 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import {
+  BreathAmbientGlow,
+  BreathPulseRings,
+  BreathWaveform,
+  PhaseTransitionBurst,
+} from '../entities/visualizer';
 import { generateMockPresence } from '../lib/mockPresence';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
@@ -133,6 +139,19 @@ export function BreathingLevel({
                 breathingOpacity={0.15}
               />
             )}
+
+            {/* Music Visualizer-Inspired Effects */}
+            {/* Concentric rings that pulse outward on phase transitions */}
+            <BreathPulseRings enabled={true} scale={1.0} opacityMultiplier={0.7} />
+
+            {/* Particle bursts triggered on breath phase changes */}
+            <PhaseTransitionBurst enabled={true} intensity={0.8} opacity={0.6} />
+
+            {/* Flowing ribbon showing breath history like audio waveform */}
+            <BreathWaveform enabled={true} opacity={0.5} radius={5.0} />
+
+            {/* Ambient light that shifts color with breathing */}
+            <BreathAmbientGlow enabled={true} intensity={0.3} />
           </PresentationControls>
         </RefractionPipeline>
 
