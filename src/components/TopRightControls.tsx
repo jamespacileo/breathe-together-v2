@@ -8,12 +8,14 @@
  * Uses:
  * - lucide-react for consistent iconography
  * - Tailwind CSS for styling
+ * - Radix UI Tooltip for unavailable state feedback
  */
 
 import { Settings, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { useAudioStore } from '../stores/audioStore';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/Tooltip';
 
 interface TopRightControlsProps {
   /** Callback to open tune/animation controls */
@@ -24,8 +26,12 @@ interface TopRightControlsProps {
 
 export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRightControlsProps) {
   // Use Zustand store for cross-Canvas audio state
-  const { enabled, isLoading, providerReady, requestToggle } = useAudioStore();
+  const { enabled, isLoading, providerReady, isUnavailable, unavailableReason, requestToggle } =
+    useAudioStore();
   const { deviceType, isMobile } = useViewport();
+
+  // Determine if button should be disabled
+  const isDisabled = isLoading || isUnavailable || !providerReady;
 
   // Match SimpleGaiaUI's edge padding for vertical alignment
   const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32);
@@ -61,38 +67,55 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
         gap: `${buttonGap}px`,
       }}
     >
-      {/* Audio Toggle Icon - only render if AudioProvider is available */}
-      {providerReady && (
-        <button
-          type="button"
-          title={
-            isLoading
-              ? 'Loading audio...'
-              : enabled
-                ? 'Audio On (click to disable)'
-                : 'Audio Off (click to enable)'
-          }
-          onClick={requestToggle}
-          onPointerDown={stopPropagation}
-          disabled={isLoading}
-          className={buttonClasses}
-          style={{
-            width: `${buttonSize}px`,
-            height: `${buttonSize}px`,
-            minWidth: `${buttonSize}px`,
-            minHeight: `${buttonSize}px`,
-            color: enabled ? 'var(--color-accent-gold)' : undefined,
-            opacity: isLoading ? 0.6 : 1,
-            cursor: isLoading ? 'wait' : 'pointer',
-          }}
-        >
-          {enabled ? (
-            <Volume2 size={iconSize} strokeWidth={1.5} aria-label="Audio enabled" />
-          ) : (
-            <VolumeX size={iconSize} strokeWidth={1.5} aria-label="Audio disabled" />
+      {/* Audio Toggle Icon - always visible, disabled with tooltip when unavailable */}
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              title={
+                isDisabled
+                  ? undefined // Let tooltip handle it
+                  : enabled
+                    ? 'Audio On (click to disable)'
+                    : 'Audio Off (click to enable)'
+              }
+              onClick={isDisabled ? undefined : requestToggle}
+              onPointerDown={stopPropagation}
+              disabled={isDisabled}
+              className={buttonClasses}
+              style={{
+                width: `${buttonSize}px`,
+                height: `${buttonSize}px`,
+                minWidth: `${buttonSize}px`,
+                minHeight: `${buttonSize}px`,
+                color: enabled && !isDisabled ? 'var(--color-accent-gold)' : undefined,
+                opacity: isDisabled ? 0.4 : 1,
+                cursor: isLoading ? 'wait' : isDisabled ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {enabled && !isUnavailable ? (
+                <Volume2 size={iconSize} strokeWidth={1.5} aria-label="Audio enabled" />
+              ) : (
+                <VolumeX size={iconSize} strokeWidth={1.5} aria-label="Audio disabled" />
+              )}
+            </button>
+          </TooltipTrigger>
+          {isDisabled && (
+            <TooltipContent side="bottom" align="end">
+              <div className="max-w-[200px]">
+                {isLoading ? (
+                  <span>Loading audio...</span>
+                ) : isUnavailable ? (
+                  <span>{unavailableReason || 'Audio is not available'}</span>
+                ) : !providerReady ? (
+                  <span>Audio system initializing...</span>
+                ) : null}
+              </div>
+            </TooltipContent>
           )}
-        </button>
-      )}
+        </Tooltip>
+      </TooltipProvider>
 
       {/* Tune/Animation Controls Icon */}
       <button

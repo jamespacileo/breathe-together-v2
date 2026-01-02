@@ -20,6 +20,10 @@ interface AudioStoreState {
   isLoading: boolean;
   /** Whether the AudioProvider is mounted and ready */
   providerReady: boolean;
+  /** Whether audio is unavailable (e.g., missing files, browser doesn't support) */
+  isUnavailable: boolean;
+  /** Reason why audio is unavailable (shown in tooltip) */
+  unavailableReason: string | null;
 
   // Actions (called from UI)
   /** Request to toggle audio - AudioProvider listens and handles */
@@ -36,12 +40,16 @@ interface AudioStoreState {
   _toggleRequested: boolean;
   /** Clear the toggle request */
   _clearToggleRequest: () => void;
+  /** Mark audio as unavailable with a reason */
+  _setUnavailable: (reason: string | null) => void;
 }
 
-export const useAudioStore = create<AudioStoreState>((set, get) => ({
+export const useAudioStore = create<AudioStoreState>((set) => ({
   enabled: false,
   isLoading: false,
   providerReady: false,
+  isUnavailable: false,
+  unavailableReason: null,
   _toggleRequested: false,
 
   requestToggle: () => {
@@ -53,4 +61,5 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
   _setLoading: (loading) => set({ isLoading: loading }),
   _setProviderReady: (ready) => set({ providerReady: ready }),
   _clearToggleRequest: () => set({ _toggleRequested: false }),
+  _setUnavailable: (reason) => set({ isUnavailable: reason !== null, unavailableReason: reason }),
 }));
