@@ -10,14 +10,13 @@
  * Uses @react-three/postprocessing with selective bloom for performance.
  */
 
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { useFrame } from '@react-three/fiber';
+import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import { useWorld } from 'koota/react';
-import { useRef } from 'react';
-import { breathPhase } from '../breath/traits';
-
 // Import Bloom effect type for ref
 import type { BloomEffect } from 'postprocessing';
+import { useRef } from 'react';
+import { breathPhase } from '../breath/traits';
 
 export interface BreathingBloomProps {
   /** Enable/disable the bloom effect @default true */

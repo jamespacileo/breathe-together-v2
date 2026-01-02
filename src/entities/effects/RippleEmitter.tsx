@@ -13,10 +13,11 @@
 import { Ring } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { breathPhase, phaseType } from '../breath/traits';
 import { useDisposeMaterials } from '../../hooks/useDisposeMaterials';
+import { breathPhase, phaseType } from '../breath/traits';
 
 export interface RippleEmitterProps {
   /** Enable/disable ripple effect @default true */
@@ -41,6 +42,65 @@ interface RippleState {
   opacity: number;
   direction: 'inward' | 'outward';
   active: boolean;
+}
+
+/** Create new ripples for a phase transition */
+function createRipples(
+  count: number,
+  direction: 'inward' | 'outward',
+  opacity: number,
+  startRadius: number,
+  maxRadius: number,
+  idRef: React.MutableRefObject<number>,
+): RippleState[] {
+  const newRipples: RippleState[] = [];
+  for (let i = 0; i < count; i++) {
+    newRipples.push({
+      id: idRef.current++,
+      radius: direction === 'outward' ? startRadius : maxRadius * 0.6,
+      opacity: opacity * (1 - i * 0.2), // Stagger opacity
+      direction,
+      active: true,
+    });
+  }
+  return newRipples;
+}
+
+/** Animate a single ripple and return updated state */
+function animateRipple(
+  ripple: RippleState,
+  delta: number,
+  speed: number,
+  opacity: number,
+  startRadius: number,
+  maxRadius: number,
+): RippleState {
+  if (!ripple.active) return ripple;
+
+  let newRadius = ripple.radius;
+  let newOpacity = ripple.opacity;
+
+  if (ripple.direction === 'outward') {
+    newRadius += speed * delta;
+    const progress = (newRadius - startRadius) / (maxRadius - startRadius);
+    newOpacity = opacity * (1 - progress);
+  } else {
+    newRadius -= speed * delta * 0.7;
+    const progress = 1 - newRadius / (maxRadius * 0.6);
+    newOpacity = opacity * (1 - progress);
+  }
+
+  const shouldDeactivate =
+    newOpacity <= 0.01 ||
+    (ripple.direction === 'outward' && newRadius >= maxRadius) ||
+    (ripple.direction === 'inward' && newRadius <= startRadius * 0.5);
+
+  return {
+    ...ripple,
+    radius: newRadius,
+    opacity: Math.max(0, newOpacity),
+    active: !shouldDeactivate,
+  };
 }
 
 /**
@@ -89,26 +149,22 @@ export function RippleEmitter({
 
       const currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
 
-      // Detect phase transitions
-      if (prevPhaseTypeRef.current !== -1 && prevPhaseTypeRef.current !== currentPhaseType) {
-        // Inhale start (0) or Exhale start (2) triggers ripples
-        if (currentPhaseType === 0 || currentPhaseType === 2) {
-          const direction = currentPhaseType === 0 ? 'inward' : 'outward';
+      // Detect phase transitions - inhale (0) or exhale (2) triggers ripples
+      const isPhaseTransition =
+        prevPhaseTypeRef.current !== -1 && prevPhaseTypeRef.current !== currentPhaseType;
+      const isRippleTrigger = currentPhaseType === 0 || currentPhaseType === 2;
 
-          // Spawn multiple ripples with staggered timing
-          const newRipples: RippleState[] = [];
-          for (let i = 0; i < count; i++) {
-            newRipples.push({
-              id: rippleIdRef.current++,
-              radius: direction === 'outward' ? startRadius : maxRadius * 0.6,
-              opacity: opacity * (1 - i * 0.2), // Stagger opacity
-              direction,
-              active: true,
-            });
-          }
-
-          setRipples((prev) => [...prev.filter((r) => r.active), ...newRipples]);
-        }
+      if (isPhaseTransition && isRippleTrigger) {
+        const direction = currentPhaseType === 0 ? 'inward' : 'outward';
+        const newRipples = createRipples(
+          count,
+          direction,
+          opacity,
+          startRadius,
+          maxRadius,
+          rippleIdRef,
+        );
+        setRipples((prev) => [...prev.filter((r) => r.active), ...newRipples]);
       }
 
       prevPhaseTypeRef.current = currentPhaseType;
@@ -123,39 +179,7 @@ export function RippleEmitter({
 
     setRipples((prev) =>
       prev
-        .map((ripple) => {
-          if (!ripple.active) return ripple;
-
-          let newRadius = ripple.radius;
-          let newOpacity = ripple.opacity;
-
-          if (ripple.direction === 'outward') {
-            // Expand outward
-            newRadius += speed * delta;
-            // Fade as it expands
-            const progress = (newRadius - startRadius) / (maxRadius - startRadius);
-            newOpacity = opacity * (1 - progress);
-          } else {
-            // Contract inward
-            newRadius -= speed * delta * 0.7; // Slower inward
-            // Fade as it contracts
-            const progress = 1 - newRadius / (maxRadius * 0.6);
-            newOpacity = opacity * (1 - progress);
-          }
-
-          // Mark inactive when fully faded or out of bounds
-          const shouldDeactivate =
-            newOpacity <= 0.01 ||
-            (ripple.direction === 'outward' && newRadius >= maxRadius) ||
-            (ripple.direction === 'inward' && newRadius <= startRadius * 0.5);
-
-          return {
-            ...ripple,
-            radius: newRadius,
-            opacity: Math.max(0, newOpacity),
-            active: !shouldDeactivate,
-          };
-        })
+        .map((ripple) => animateRipple(ripple, delta, speed, opacity, startRadius, maxRadius))
         .filter((r) => r.active || r.opacity > 0.01),
     );
   });

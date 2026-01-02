@@ -15,6 +15,52 @@ const PHASES = [
   { name: 'Exhale', angle: 150, index: 2, color: '#d4847e' }, // Bottom-left
 ];
 
+/** Update a single dot's appearance based on active state */
+function updateDot(
+  dot: THREE.Mesh,
+  mat: THREE.MeshBasicMaterial,
+  isActive: boolean,
+  time: number,
+  dotSizeActive: number,
+  dotSizeInactive: number,
+  opacityActive: number,
+  opacityInactive: number,
+  phaseProgress: number,
+) {
+  // Animate size
+  const targetSize = isActive ? dotSizeActive : dotSizeInactive;
+  const currentSize = dot.scale.x;
+  const newSize = THREE.MathUtils.lerp(currentSize, targetSize, 0.15);
+
+  // Add pulse effect for active dot
+  const pulseAmount = isActive ? Math.sin(time * 4) * 0.02 : 0;
+  dot.scale.setScalar(newSize + pulseAmount);
+
+  // Animate opacity
+  const targetOpacity = isActive ? opacityActive : opacityInactive;
+  mat.opacity = THREE.MathUtils.lerp(mat.opacity, targetOpacity, 0.15);
+
+  // Add glow effect for active dot (scale inner white core)
+  if (isActive && phaseProgress < 0.1) {
+    // Brief "pop" at phase start
+    const popScale = 1 + (0.1 - phaseProgress) * 3;
+    dot.scale.multiplyScalar(popScale);
+  }
+}
+
+/** Update label opacity based on active state */
+function updateLabel(label: THREE.Object3D, isActive: boolean) {
+  const labelTargetOpacity = isActive ? 1 : 0.4;
+  const labelMesh = label as THREE.Mesh;
+  if (labelMesh.material && 'opacity' in labelMesh.material) {
+    (labelMesh.material as THREE.Material).opacity = THREE.MathUtils.lerp(
+      (labelMesh.material as THREE.Material).opacity,
+      labelTargetOpacity,
+      0.1,
+    );
+  }
+}
+
 export interface PhaseIndicatorDotsProps {
   /** Enable/disable the dots */
   enabled?: boolean;
@@ -91,38 +137,20 @@ export function PhaseIndicatorDots({
 
       const isActive = phaseIndex === PHASES[i].index;
 
-      // Animate size
-      const targetSize = isActive ? dotSizeActive : dotSizeInactive;
-      const currentSize = dot.scale.x;
-      const newSize = THREE.MathUtils.lerp(currentSize, targetSize, 0.15);
+      updateDot(
+        dot,
+        mat,
+        isActive,
+        time,
+        dotSizeActive,
+        dotSizeInactive,
+        opacityActive,
+        opacityInactive,
+        phaseProgress,
+      );
 
-      // Add pulse effect for active dot
-      const pulseAmount = isActive ? Math.sin(time * 4) * 0.02 : 0;
-      dot.scale.setScalar(newSize + pulseAmount);
-
-      // Animate opacity
-      const targetOpacity = isActive ? opacityActive : opacityInactive;
-      mat.opacity = THREE.MathUtils.lerp(mat.opacity, targetOpacity, 0.15);
-
-      // Update label opacity if visible
       if (label && showLabels) {
-        const labelTargetOpacity = isActive ? 1 : 0.4;
-        // Access the material through the mesh
-        const labelMesh = label as THREE.Mesh;
-        if (labelMesh.material && 'opacity' in labelMesh.material) {
-          (labelMesh.material as THREE.Material).opacity = THREE.MathUtils.lerp(
-            (labelMesh.material as THREE.Material).opacity,
-            labelTargetOpacity,
-            0.1,
-          );
-        }
-      }
-
-      // Add glow effect for active dot (scale inner white core)
-      if (isActive && phaseProgress < 0.1) {
-        // Brief "pop" at phase start
-        const popScale = 1 + (0.1 - phaseProgress) * 3;
-        dot.scale.multiplyScalar(popScale);
+        updateLabel(label, isActive);
       }
     }
   });
