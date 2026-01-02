@@ -1,7 +1,7 @@
 /**
  * Admin panel for inspirational text management
- * View, edit, and generate messages and stories
- * Shows message history with UTC timing, story support, and enhanced LLM generation
+ * Tabs: Current, History, Generator
+ * Features: Message viewing, history tracking, UTC timing, story support, LLM generation
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -11,15 +11,18 @@ import type {
   MessageDisplayHistory,
 } from '../lib/types/inspirational';
 
+type AdminTab = 'current' | 'history' | 'generator';
+
 interface BatchState {
   currentBatchId: string;
   currentMessageIndex: number;
   nextRotationTime: number;
+  nextRotationTimeISO?: string;
+  timeUntilNextRotation?: number;
   totalCycles: number;
+  batchStartedAtISO?: string;
   currentBatch: MessageBatch | null;
   recentHistory?: MessageDisplayHistory[];
-  batchStartedAtISO?: string;
-  nextRotationTimeISO?: string;
 }
 
 interface GenerationState {
@@ -28,7 +31,561 @@ interface GenerationState {
   success: string | null;
 }
 
+// Module-level constant (build-time value)
+const API_BASE_URL = import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787';
+
+// Helper function to format ISO timestamps to HH:MM:SS
+function formatISO(iso?: string): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+// Tab styling helper
+function getTabStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '10px 16px',
+    background: active ? '#7ec8d4' : '#333',
+    color: active ? '#1a1a1a' : '#f0f0f0',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: active ? 'bold' : 'normal',
+  };
+}
+
+// Current Tab Content Component
+interface CurrentTabProps {
+  batchState: BatchState;
+  onEditMessage: (index: number, message: InspirationMessage) => void;
+  editingMessage: { index: number; top: string; bottom: string } | null;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onEditingChange: (edit: { index: number; top: string; bottom: string } | null) => void;
+}
+
+function CurrentTabContent({
+  batchState,
+  onEditMessage,
+  editingMessage,
+  onSaveEdit,
+  onCancelEdit,
+  onEditingChange,
+}: CurrentTabProps) {
+  const currentBatch = batchState.currentBatch;
+  const currentMessage = currentBatch?.messages[batchState.currentMessageIndex];
+
+  return (
+    <div>
+      {/* Status Panel */}
+      <div
+        style={{
+          backgroundColor: '#2a2a2a',
+          padding: '16px',
+          borderRadius: '4px',
+          marginBottom: '20px',
+          borderLeft: '4px solid #7ec8d4',
+        }}
+      >
+        <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Status</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div>
+            <strong>Batch:</strong> {batchState.currentBatchId}
+          </div>
+          <div>
+            <strong>Message:</strong> {batchState.currentMessageIndex + 1} of{' '}
+            {currentBatch?.messages.length || 0}
+          </div>
+          <div>
+            <strong>Cycles:</strong> {batchState.totalCycles}
+          </div>
+          <div>
+            <strong>Rotation in:</strong> {batchState.timeUntilNextRotation}s
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <strong>Next rotation:</strong> {formatISO(batchState.nextRotationTimeISO)}
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <strong>Batch started:</strong> {formatISO(batchState.batchStartedAtISO)}
+          </div>
+        </div>
+      </div>
+
+      {/* Now Showing */}
+      {currentMessage && (
+        <div
+          style={{
+            backgroundColor: '#2a2a2a',
+            padding: '16px',
+            borderRadius: '4px',
+            marginBottom: '20px',
+            borderLeft: '4px solid #4dd9e8',
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Now Showing</h3>
+          <div
+            style={{
+              backgroundColor: '#1a1a1a',
+              padding: '20px',
+              borderRadius: '4px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '12px' }}>
+              {currentMessage.top}
+            </div>
+            <div style={{ fontSize: '16px' }}>{currentMessage.bottom}</div>
+            <div style={{ marginTop: '12px', fontSize: '11px', color: '#888' }}>
+              Displays for 32 seconds ({currentMessage.cyclesPerMessage} cycles)
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message Editor */}
+      {editingMessage && currentBatch && (
+        <div
+          style={{
+            backgroundColor: '#2a2a2a',
+            padding: '16px',
+            borderRadius: '4px',
+            marginBottom: '20px',
+            borderLeft: '4px solid #ff9500',
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: '12px' }}>✏️ Edit Message</h3>
+          <div style={{ marginBottom: '12px' }}>
+            <label htmlFor="top-text" style={{ display: 'block', marginBottom: '4px' }}>
+              Top text:
+            </label>
+            <input
+              id="top-text"
+              type="text"
+              value={editingMessage.top}
+              onChange={(e) => onEditingChange({ ...editingMessage, top: e.target.value })}
+              style={{
+                width: '100%',
+                padding: '8px',
+                backgroundColor: '#1a1a1a',
+                color: '#f0f0f0',
+                border: '1px solid #7ec8d4',
+                borderRadius: '4px',
+                fontFamily: 'monospace',
+                fontSize: '13px',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <label htmlFor="bottom-text" style={{ display: 'block', marginBottom: '4px' }}>
+              Bottom text:
+            </label>
+            <input
+              id="bottom-text"
+              type="text"
+              value={editingMessage.bottom}
+              onChange={(e) => onEditingChange({ ...editingMessage, bottom: e.target.value })}
+              style={{
+                width: '100%',
+                padding: '8px',
+                backgroundColor: '#1a1a1a',
+                color: '#f0f0f0',
+                border: '1px solid #7ec8d4',
+                borderRadius: '4px',
+                fontFamily: 'monospace',
+                fontSize: '13px',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={onSaveEdit}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#7ec8d4',
+                color: '#1a1a1a',
+                border: 'none',
+                borderRadius: '4px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#333',
+                color: '#f0f0f0',
+                border: '1px solid #666',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Message List */}
+      {currentBatch && !editingMessage && (
+        <div
+          style={{
+            backgroundColor: '#2a2a2a',
+            padding: '16px',
+            borderRadius: '4px',
+            borderLeft: '4px solid #9c27b0',
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: '12px' }}>
+            📜 Messages ({currentBatch.messages.length})
+          </h3>
+          <div
+            style={{
+              maxHeight: '400px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            {currentBatch.messages.map((msg: InspirationMessage, idx: number) => (
+              <div
+                key={msg.id}
+                style={{
+                  backgroundColor: idx === batchState.currentMessageIndex ? '#1a5c5c' : '#1a1a1a',
+                  padding: '12px',
+                  borderRadius: '4px',
+                  borderLeft:
+                    idx === batchState.currentMessageIndex ? '3px solid #4dd9e8' : '3px solid #666',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ marginBottom: '4px' }}>
+                    <strong>#{idx + 1}</strong> {msg.top}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#aaa' }}>{msg.bottom}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onEditMessage(idx, msg)}
+                  style={{
+                    padding: '4px 8px',
+                    backgroundColor: '#333',
+                    color: '#f0f0f0',
+                    border: '1px solid #666',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    marginLeft: '12px',
+                  }}
+                >
+                  Edit
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// History Tab Content Component
+interface HistoryTabProps {
+  batchState: BatchState;
+}
+
+function HistoryTabContent({ batchState }: HistoryTabProps) {
+  const historyCount = batchState.recentHistory?.length ?? 0;
+
+  return (
+    <div
+      style={{
+        backgroundColor: '#2a2a2a',
+        padding: '16px',
+        borderRadius: '4px',
+        borderLeft: '4px solid #4ade80',
+      }}
+    >
+      <h3 style={{ marginTop: 0, marginBottom: '12px' }}>
+        📜 Recent Messages Shown ({historyCount})
+      </h3>
+      <div
+        style={{
+          maxHeight: '600px',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        {!batchState.recentHistory || batchState.recentHistory.length === 0 ? (
+          <div style={{ padding: '12px', color: '#888' }}>No history yet</div>
+        ) : (
+          batchState.recentHistory.map((entry, idx) => (
+            <div
+              key={`${entry.entityId}-${idx}`}
+              style={{
+                backgroundColor: '#1a1a1a',
+                padding: '12px',
+                borderRadius: '4px',
+                borderLeft: '3px solid #4ade80',
+              }}
+            >
+              <div style={{ marginBottom: '4px' }}>
+                <strong>#{historyCount - idx}</strong> {entry.entityId}
+              </div>
+              <div style={{ fontSize: '12px', color: '#aaa', marginBottom: '4px' }}>
+                {formatISO(entry.displayedAtISO)} • {entry.durationSeconds}s • {entry.source}
+                {entry.theme && ` • ${entry.theme}`}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Generator Tab Content Component
+interface GeneratorTabProps {
+  generationState: GenerationState;
+  generationType: 'messages' | 'story';
+  storyType: 'complete-arc' | 'beginning' | 'middle' | 'end';
+  onGenerationTypeChange: (type: 'messages' | 'story') => void;
+  onStoryTypeChange: (type: 'complete-arc' | 'beginning' | 'middle' | 'end') => void;
+  onGenerate: (theme: string, intensity: string, count: number) => void;
+  isLoading: boolean;
+}
+
+function GeneratorTabContent({
+  generationState,
+  generationType,
+  storyType,
+  onGenerationTypeChange,
+  onStoryTypeChange,
+  onGenerate,
+  isLoading,
+}: GeneratorTabProps) {
+  return (
+    <div>
+      {generationState.error && (
+        <div
+          style={{
+            backgroundColor: '#5c1a1a',
+            color: '#ff9999',
+            padding: '12px',
+            borderRadius: '4px',
+            marginBottom: '16px',
+          }}
+        >
+          ❌ {generationState.error}
+        </div>
+      )}
+
+      {generationState.success && (
+        <div
+          style={{
+            backgroundColor: '#1a5c1a',
+            color: '#99ff99',
+            padding: '12px',
+            borderRadius: '4px',
+            marginBottom: '16px',
+          }}
+        >
+          ✓ {generationState.success}
+        </div>
+      )}
+
+      <div
+        style={{
+          backgroundColor: '#2a2a2a',
+          padding: '16px',
+          borderRadius: '4px',
+          marginBottom: '16px',
+        }}
+      >
+        <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Generate Messages/Story</h3>
+
+        {/* Generation Type Selection */}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'block', marginBottom: '8px' }}>
+            <strong>Type:</strong>
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            {(['messages', 'story'] as const).map((type) => (
+              <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="radio"
+                  name="generation-type"
+                  value={type}
+                  checked={generationType === type}
+                  onChange={() => onGenerationTypeChange(type)}
+                />
+                {type === 'messages' ? 'Individual Messages' : 'Story Arc'}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Generation Parameters */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '16px',
+            marginBottom: '16px',
+          }}
+        >
+          <div>
+            <label htmlFor="theme" style={{ display: 'block', marginBottom: '4px' }}>
+              <strong>Theme:</strong>
+            </label>
+            <select
+              id="theme"
+              defaultValue="gratitude"
+              style={{
+                width: '100%',
+                padding: '6px',
+                backgroundColor: '#1a1a1a',
+                color: '#f0f0f0',
+                border: '1px solid #666',
+                borderRadius: '4px',
+              }}
+            >
+              <option value="gratitude">Gratitude</option>
+              <option value="presence">Presence</option>
+              <option value="release">Release</option>
+              <option value="connection">Connection</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="intensity" style={{ display: 'block', marginBottom: '4px' }}>
+              <strong>Intensity:</strong>
+            </label>
+            <select
+              id="intensity"
+              defaultValue="subtle"
+              style={{
+                width: '100%',
+                padding: '6px',
+                backgroundColor: '#1a1a1a',
+                color: '#f0f0f0',
+                border: '1px solid #666',
+                borderRadius: '4px',
+              }}
+            >
+              <option value="subtle">Subtle</option>
+              <option value="profound">Profound</option>
+              <option value="energetic">Energetic</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="count" style={{ display: 'block', marginBottom: '4px' }}>
+              <strong>{generationType === 'story' ? 'Messages per story' : 'Count'}:</strong>
+            </label>
+            <input
+              id="count"
+              type="number"
+              min={generationType === 'story' ? '3' : '16'}
+              max={generationType === 'story' ? '12' : '64'}
+              defaultValue={generationType === 'story' ? '6' : '32'}
+              style={{
+                width: '100%',
+                padding: '6px',
+                backgroundColor: '#1a1a1a',
+                color: '#f0f0f0',
+                border: '1px solid #666',
+                borderRadius: '4px',
+              }}
+            />
+          </div>
+
+          {generationType === 'story' && (
+            <div>
+              <label htmlFor="story-type" style={{ display: 'block', marginBottom: '4px' }}>
+                <strong>Story Type:</strong>
+              </label>
+              <select
+                id="story-type"
+                value={storyType}
+                onChange={(e) =>
+                  onStoryTypeChange(
+                    e.target.value as 'complete-arc' | 'beginning' | 'middle' | 'end',
+                  )
+                }
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  backgroundColor: '#1a1a1a',
+                  color: '#f0f0f0',
+                  border: '1px solid #666',
+                  borderRadius: '4px',
+                }}
+              >
+                <option value="complete-arc">Complete Arc</option>
+                <option value="beginning">Beginning</option>
+                <option value="middle">Middle</option>
+                <option value="end">End</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Generate Button */}
+        <button
+          type="button"
+          onClick={() => {
+            const theme = (document.getElementById('theme') as HTMLSelectElement).value;
+            const intensity = (document.getElementById('intensity') as HTMLSelectElement).value;
+            const count = parseInt(
+              (document.getElementById('count') as HTMLInputElement).value,
+              10,
+            );
+            onGenerate(theme, intensity, count);
+          }}
+          disabled={isLoading}
+          style={{
+            width: '100%',
+            padding: '12px',
+            backgroundColor: isLoading ? '#666' : '#9c27b0',
+            color: '#f0f0f0',
+            border: 'none',
+            borderRadius: '4px',
+            fontWeight: 'bold',
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+          }}
+        >
+          {isLoading ? 'Generating...' : 'Generate'}
+        </button>
+
+        <div style={{ fontSize: '11px', color: '#aaa', marginTop: '12px' }}>
+          ℹ️ Uses Gemini Flash 3 when LLM_ENABLED=true. Includes recent message context to avoid
+          repetition and maintain narrative coherence.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function InspirationAdmin() {
+  const [activeTab, setActiveTab] = useState<AdminTab>('current');
   const [batchState, setBatchState] = useState<BatchState | null>(null);
   const [editingMessage, setEditingMessage] = useState<{
     index: number;
@@ -40,14 +597,15 @@ export function InspirationAdmin() {
     error: null,
     success: null,
   });
-
-  const apiBaseUrl = import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787';
+  const [generationType, setGenerationType] = useState<'messages' | 'story'>('messages');
+  const [storyType, setStoryType] = useState<'complete-arc' | 'beginning' | 'middle' | 'end'>(
+    'complete-arc',
+  );
 
   // Fetch current batch state
-  // biome-ignore lint/correctness/useExhaustiveDependencies: apiBaseUrl is build-time constant from environment
   const fetchBatchState = useCallback(async () => {
     try {
-      const response = await fetch(`${apiBaseUrl}/admin/inspirational`);
+      const response = await fetch(`${API_BASE_URL}/admin/inspirational`);
       if (!response.ok) throw new Error('Failed to fetch batch state');
       const data = (await response.json()) as BatchState;
       setBatchState(data);
@@ -60,7 +618,7 @@ export function InspirationAdmin() {
     fetchBatchState();
     const interval = setInterval(() => {
       fetchBatchState();
-    }, 5000); // Refresh every 5s
+    }, 3000); // Refresh every 3s
     return () => clearInterval(interval);
   }, [fetchBatchState]);
 
@@ -72,7 +630,7 @@ export function InspirationAdmin() {
     if (!editingMessage || !batchState?.currentBatch) return;
 
     try {
-      const response = await fetch(`${apiBaseUrl}/admin/inspirational/message`, {
+      const response = await fetch(`${API_BASE_URL}/admin/inspirational/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -97,13 +655,20 @@ export function InspirationAdmin() {
 
     try {
       const payload = {
+        type: generationType,
         theme,
         intensity,
-        count,
+        ...(generationType === 'story' && {
+          messageCount: count,
+          storyType,
+        }),
+        ...(generationType === 'messages' && {
+          count,
+        }),
         recentMessageIds: batchState?.recentHistory?.map((h) => h.entityId) || [],
       };
 
-      const response = await fetch(`${apiBaseUrl}/admin/inspirational/generate`, {
+      const response = await fetch(`${API_BASE_URL}/admin/inspirational/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -111,10 +676,15 @@ export function InspirationAdmin() {
 
       if (!response.ok) throw new Error('Generation failed');
 
+      const successMsg =
+        generationType === 'story'
+          ? `Generated story (${count} messages) - ${storyType} arc`
+          : `Generated ${count} messages`;
+
       setGenerationState({
         loading: false,
         error: null,
-        success: `Generated ${count} messages with theme: ${theme}, intensity: ${intensity}`,
+        success: `${successMsg} with theme: ${theme}, intensity: ${intensity}`,
       });
 
       await fetchBatchState();
@@ -127,23 +697,9 @@ export function InspirationAdmin() {
     }
   };
 
-  const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
-
-  const getTimeUntilRotation = (nextTime: number) => {
-    const remaining = Math.max(0, nextTime - Date.now());
-    const seconds = Math.floor((remaining / 1000) % 60);
-    const minutes = Math.floor((remaining / 1000 / 60) % 60);
-    return `${minutes}m ${seconds}s`;
-  };
-
   if (!batchState) {
     return <div style={{ padding: '20px' }}>Loading inspirational text state...</div>;
   }
-
-  const currentBatch = batchState.currentBatch;
-  const isShowingOverride = editingMessage !== null;
 
   return (
     <div
@@ -152,7 +708,7 @@ export function InspirationAdmin() {
         backgroundColor: '#1a1a1a',
         color: '#f0f0f0',
         fontFamily: 'monospace',
-        fontSize: '14px',
+        fontSize: '13px',
         borderRadius: '8px',
         marginBottom: '24px',
       }}
@@ -161,348 +717,66 @@ export function InspirationAdmin() {
         🎭 Inspirational Text Manager
       </h2>
 
-      {/* Current Status */}
+      {/* Tab Navigation */}
       <div
         style={{
-          backgroundColor: '#2a2a2a',
-          padding: '16px',
-          borderRadius: '4px',
+          display: 'flex',
+          gap: '0',
           marginBottom: '20px',
-          borderLeft: '4px solid #7ec8d4',
+          borderRadius: '4px',
+          overflow: 'hidden',
         }}
       >
-        <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Current Status</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div>
-            <strong>Batch:</strong> {batchState.currentBatchId}
-          </div>
-          <div>
-            <strong>Message:</strong> {batchState.currentMessageIndex + 1} of{' '}
-            {currentBatch?.messages.length || 0}
-          </div>
-          <div>
-            <strong>Rotation in:</strong> {getTimeUntilRotation(batchState.nextRotationTime)}
-          </div>
-          <div>
-            <strong>Total cycles:</strong> {batchState.totalCycles}
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <strong>Updated:</strong> {formatTime(Date.now())}
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveTab('current')}
+          style={getTabStyle(activeTab === 'current')}
+        >
+          📌 Current
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('history')}
+          style={getTabStyle(activeTab === 'history')}
+        >
+          📜 History
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('generator')}
+          style={getTabStyle(activeTab === 'generator')}
+        >
+          ⚡ Generator
+        </button>
       </div>
 
-      {/* Current Message */}
-      {currentBatch && (
-        <div
-          style={{
-            backgroundColor: '#2a2a2a',
-            padding: '16px',
-            borderRadius: '4px',
-            marginBottom: '20px',
-            borderLeft: '4px solid #4dd9e8',
-          }}
-        >
-          <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Now Showing</h3>
-          <div
-            style={{
-              backgroundColor: '#1a1a1a',
-              padding: '12px',
-              borderRadius: '4px',
-              textAlign: 'center',
-              marginBottom: '12px',
-            }}
-          >
-            <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
-              {currentBatch.messages[batchState.currentMessageIndex]?.top || '...'}
-            </div>
-            <div style={{ fontSize: '16px' }}>
-              {currentBatch.messages[batchState.currentMessageIndex]?.bottom || '...'}
-            </div>
-          </div>
-        </div>
+      {/* Current Tab */}
+      {activeTab === 'current' && (
+        <CurrentTabContent
+          batchState={batchState}
+          onEditMessage={handleEditMessage}
+          editingMessage={editingMessage}
+          onSaveEdit={saveEditedMessage}
+          onCancelEdit={() => setEditingMessage(null)}
+          onEditingChange={setEditingMessage}
+        />
       )}
 
-      {/* Message Editor */}
-      {isShowingOverride && editingMessage && currentBatch && (
-        <div
-          style={{
-            backgroundColor: '#2a2a2a',
-            padding: '16px',
-            borderRadius: '4px',
-            marginBottom: '20px',
-            borderLeft: '4px solid #ff9500',
-          }}
-        >
-          <h3 style={{ marginTop: 0, marginBottom: '12px' }}>✏️ Edit Message</h3>
-          <div style={{ marginBottom: '12px' }}>
-            <label htmlFor="top-text" style={{ display: 'block', marginBottom: '4px' }}>
-              Top text:
-            </label>
-            <input
-              id="top-text"
-              type="text"
-              value={editingMessage.top}
-              onChange={(e) => setEditingMessage({ ...editingMessage, top: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '8px',
-                backgroundColor: '#1a1a1a',
-                color: '#f0f0f0',
-                border: '1px solid #7ec8d4',
-                borderRadius: '4px',
-                fontFamily: 'monospace',
-                fontSize: '14px',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-          <div style={{ marginBottom: '12px' }}>
-            <label htmlFor="bottom-text" style={{ display: 'block', marginBottom: '4px' }}>
-              Bottom text:
-            </label>
-            <input
-              id="bottom-text"
-              type="text"
-              value={editingMessage.bottom}
-              onChange={(e) => setEditingMessage({ ...editingMessage, bottom: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '8px',
-                backgroundColor: '#1a1a1a',
-                color: '#f0f0f0',
-                border: '1px solid #7ec8d4',
-                borderRadius: '4px',
-                fontFamily: 'monospace',
-                fontSize: '14px',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={saveEditedMessage}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#7ec8d4',
-                color: '#1a1a1a',
-                border: 'none',
-                borderRadius: '4px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-              }}
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditingMessage(null)}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#333',
-                color: '#f0f0f0',
-                border: '1px solid #666',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+      {/* History Tab */}
+      {activeTab === 'history' && <HistoryTabContent batchState={batchState} />}
+
+      {/* Generator Tab */}
+      {activeTab === 'generator' && (
+        <GeneratorTabContent
+          generationState={generationState}
+          generationType={generationType}
+          storyType={storyType}
+          onGenerationTypeChange={setGenerationType}
+          onStoryTypeChange={setStoryType}
+          onGenerate={generateMessages}
+          isLoading={generationState.loading}
+        />
       )}
-
-      {/* Message List */}
-      {currentBatch && !isShowingOverride && (
-        <div
-          style={{
-            backgroundColor: '#2a2a2a',
-            padding: '16px',
-            borderRadius: '4px',
-            marginBottom: '20px',
-            maxHeight: '400px',
-            overflowY: 'auto',
-          }}
-        >
-          <h3 style={{ marginTop: 0, marginBottom: '12px' }}>
-            📜 Messages ({currentBatch.messages.length})
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {currentBatch.messages.map((msg: InspirationMessage, idx: number) => (
-              <div
-                key={msg.id}
-                style={{
-                  backgroundColor: idx === batchState.currentMessageIndex ? '#3a3a3a' : '#1a1a1a',
-                  padding: '12px',
-                  borderRadius: '4px',
-                  borderLeft: idx === batchState.currentMessageIndex ? '4px solid #4dd9e8' : 'none',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                    {idx + 1}. {msg.top}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#aaa' }}>{msg.bottom}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleEditMessage(idx, msg)}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#ff9500',
-                    color: '#1a1a1a',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    whiteSpace: 'nowrap',
-                    marginLeft: '8px',
-                  }}
-                >
-                  Edit
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Generation Section */}
-      <div
-        style={{
-          backgroundColor: '#2a2a2a',
-          padding: '16px',
-          borderRadius: '4px',
-          marginBottom: '20px',
-          borderLeft: '4px solid #9c27b0',
-        }}
-      >
-        <h3 style={{ marginTop: 0, marginBottom: '12px' }}>🤖 Generate with AI</h3>
-
-        {generationState.error && (
-          <div style={{ color: '#ff6b6b', marginBottom: '12px', fontSize: '12px' }}>
-            Error: {generationState.error}
-          </div>
-        )}
-
-        {generationState.success && (
-          <div style={{ color: '#51cf66', marginBottom: '12px', fontSize: '12px' }}>
-            ✓ {generationState.success}
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '8px' }}>
-          <div>
-            <label
-              htmlFor="theme"
-              style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}
-            >
-              Theme
-            </label>
-            <select
-              id="theme"
-              style={{
-                width: '100%',
-                padding: '6px',
-                backgroundColor: '#1a1a1a',
-                color: '#f0f0f0',
-                border: '1px solid #666',
-                borderRadius: '4px',
-                fontSize: '12px',
-              }}
-            >
-              <option value="gratitude">Gratitude</option>
-              <option value="presence">Presence</option>
-              <option value="release">Release</option>
-              <option value="connection">Connection</option>
-            </select>
-          </div>
-          <div>
-            <label
-              htmlFor="intensity"
-              style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}
-            >
-              Intensity
-            </label>
-            <select
-              id="intensity"
-              style={{
-                width: '100%',
-                padding: '6px',
-                backgroundColor: '#1a1a1a',
-                color: '#f0f0f0',
-                border: '1px solid #666',
-                borderRadius: '4px',
-                fontSize: '12px',
-              }}
-            >
-              <option value="subtle">Subtle</option>
-              <option value="profound">Profound</option>
-              <option value="energetic">Energetic</option>
-            </select>
-          </div>
-          <div>
-            <label
-              htmlFor="count"
-              style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}
-            >
-              Count
-            </label>
-            <input
-              type="number"
-              id="count"
-              min="16"
-              max="64"
-              defaultValue="32"
-              style={{
-                width: '100%',
-                padding: '6px',
-                backgroundColor: '#1a1a1a',
-                color: '#f0f0f0',
-                border: '1px solid #666',
-                borderRadius: '4px',
-                fontSize: '12px',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              const theme = (document.getElementById('theme') as HTMLSelectElement).value;
-              const intensity = (document.getElementById('intensity') as HTMLSelectElement).value;
-              const count = parseInt(
-                (document.getElementById('count') as HTMLInputElement).value,
-                10,
-              );
-              generateMessages(theme, intensity, count);
-            }}
-            disabled={generationState.loading}
-            style={{
-              padding: '6px 16px',
-              backgroundColor: generationState.loading ? '#666' : '#9c27b0',
-              color: '#f0f0f0',
-              border: 'none',
-              borderRadius: '4px',
-              fontWeight: 'bold',
-              cursor: generationState.loading ? 'not-allowed' : 'pointer',
-              fontSize: '12px',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {generationState.loading ? 'Generating...' : 'Generate'}
-          </button>
-        </div>
-
-        <div style={{ fontSize: '12px', color: '#aaa', marginTop: '8px' }}>
-          ℹ️ Generates messages with Gemini Flash 3 (when LLM_ENABLED=true)
-        </div>
-      </div>
     </div>
   );
 }
