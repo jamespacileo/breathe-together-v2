@@ -281,14 +281,14 @@ vec3 applyColorTemperature(vec3 color, float temp) {
   return color * tint;
 }
 
-// Lift/gamma/gain style color grading
+// Subtle color grading synced to breathing
 vec3 colorGrade(vec3 color, float breathPhase) {
-  // Slightly lift shadows during exhale (relaxation)
-  float shadowLift = mix(0.0, 0.02, 1.0 - breathPhase);
+  // Very subtle shadow lift during exhale (relaxation) - reduced
+  float shadowLift = mix(0.0, 0.008, 1.0 - breathPhase);
   color = color + shadowLift * (1.0 - color);
 
-  // Subtle contrast adjustment
-  float contrast = mix(1.0, 0.95, 1.0 - breathPhase); // Softer during exhale
+  // Minimal contrast adjustment - almost imperceptible
+  float contrast = mix(1.0, 0.98, 1.0 - breathPhase);
   color = (color - 0.5) * contrast + 0.5;
 
   return color;
@@ -329,18 +329,20 @@ void main() {
   }
 
   // === BLOOM ===
-  // Extract bright areas and add glow
-  vec3 bloomColor = smallBlur(vUv, 4.0);
+  // Extract only very bright areas and add subtle glow
+  vec3 bloomColor = smallBlur(vUv, 3.0);
   float brightness = dot(bloomColor, vec3(0.299, 0.587, 0.114));
-  float bloomMask = smoothstep(bloomThreshold, bloomThreshold + 0.2, brightness);
+  float bloomMask = smoothstep(bloomThreshold, bloomThreshold + 0.15, brightness);
 
-  // Bloom intensity pulses with breathing (brighter during inhale)
-  float dynamicBloom = bloomIntensity * mix(0.8, 1.2, breathPhase);
-  color += bloomColor * bloomMask * dynamicBloom;
+  // Bloom intensity pulses subtly with breathing
+  float dynamicBloom = bloomIntensity * mix(0.9, 1.1, breathPhase);
+  // Use screen blend instead of additive to prevent blowout
+  vec3 bloomContrib = bloomColor * bloomMask * dynamicBloom;
+  color = color + bloomContrib * (1.0 - color * 0.5);
 
   // === COLOR TEMPERATURE ===
-  // Warm during exhale (relaxation), slightly cooler during inhale (alertness)
-  float breathTemp = mix(-0.15, 0.25, 1.0 - breathPhase); // exhale = warm, inhale = cool
+  // Subtle warm during exhale, neutral during inhale
+  float breathTemp = mix(-0.05, 0.1, 1.0 - breathPhase); // Much subtler range
   color = applyColorTemperature(color, colorTemperature + breathTemp);
 
   // === COLOR GRADING ===
@@ -361,12 +363,14 @@ void main() {
   // === FILM GRAIN ===
   // Organic texture that's subtle during inhale, slightly more visible during exhale
   float dynamicGrain = grainIntensity * mix(0.7, 1.0, 1.0 - breathPhase);
-  float grainValue = grain(vUv, time) * dynamicGrain * 0.05;
+  float grainValue = grain(vUv, time) * dynamicGrain * 0.03;
   color += grainValue;
 
   // === FINAL OUTPUT ===
-  // Subtle filmic toe (compress shadows) and shoulder (compress highlights)
-  color = color / (color + 0.5) * 1.5; // Simple Reinhard-ish tone mapping
+  // Very subtle tone compression - preserves original colors
+  // Only compress extreme highlights to prevent blowout
+  vec3 compressed = color / (color * 0.15 + 1.0);
+  color = mix(color, compressed, 0.3); // Blend 30% compressed
 
   gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }
@@ -453,13 +457,13 @@ export function RefractionPipeline({
   focusDistance = 15,
   focalRange = 8,
   maxBlur = 3,
-  // Cinematic effects
-  bloomIntensity = 0.35,
-  bloomThreshold = 0.6,
-  vignetteIntensity = 0.4,
-  grainIntensity = 0.3,
-  chromaticAberration = 0.2,
-  colorTemperature = 0.1,
+  // Cinematic effects - tuned for subtlety
+  bloomIntensity = 0.15, // Reduced from 0.35
+  bloomThreshold = 0.75, // Raised from 0.6 (less bloom)
+  vignetteIntensity = 0.25, // Reduced from 0.4
+  grainIntensity = 0.15, // Reduced from 0.3
+  chromaticAberration = 0.1, // Reduced from 0.2
+  colorTemperature = 0.05, // Reduced from 0.1
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
