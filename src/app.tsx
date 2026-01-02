@@ -9,6 +9,7 @@ import { CameraRig } from './entities/camera/CameraRig';
 import { useViewport } from './hooks/useViewport';
 import { BreathingLevel, BreathingLevelUI } from './levels/breathing';
 import { KootaSystems } from './providers';
+import { useRendererStore } from './stores/rendererStore';
 
 // Lazy load admin panel (only loads when needed)
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
@@ -40,7 +41,12 @@ export function App() {
   const path = useCurrentPath();
   const { isMobile, isTablet } = useViewport();
 
-  // Disable antialias on mobile/tablet for 5-10% performance improvement
+  // GPU/renderer settings from store (persisted to localStorage)
+  const { powerPreference, rendererVersion } = useRendererStore();
+
+  // WebGL context configuration
+  // Note: powerPreference is a hint to the browser - actual behavior depends on hardware/OS
+  // Changing powerPreference requires Canvas remount (handled via key prop below)
   const glConfig = useMemo(
     () => ({
       antialias: !isMobile && !isTablet,
@@ -48,8 +54,11 @@ export function App() {
       localClippingEnabled: true,
       // Reduce pixel ratio on mobile for better performance
       pixelRatio: isMobile ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio,
+      // GPU power preference: 'default' | 'high-performance' | 'low-power'
+      // 'high-performance' requests discrete GPU, 'low-power' requests integrated GPU
+      powerPreference,
     }),
-    [isMobile, isTablet],
+    [isMobile, isTablet, powerPreference],
   );
 
   // Admin panel route
@@ -82,7 +91,9 @@ export function App() {
       {/* Shared event source - both Canvas and HTML UI are children */}
       <div ref={containerRef} className="relative w-full h-full">
         {/* 3D Canvas - receives events via eventSource, has pointer-events: none */}
+        {/* key={rendererVersion} forces remount when GPU preference changes */}
         <Canvas
+          key={`canvas-${rendererVersion}`}
           eventSource={containerRef}
           eventPrefix="client"
           shadows={false}
