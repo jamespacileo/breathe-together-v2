@@ -25,6 +25,7 @@
     "@types/three": "^0.175.0",
     "@vitejs/plugin-react": "^4.4.1",
     "driver.js": "^1.4.0",
+    "gsap": "^3.14.2",
     "koota": "^0.4.0",
     "leva": "^0.10.1",
     "lucide-react": "^0.562.0",

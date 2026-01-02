@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Letterbox } from './Letterbox';
 import { TitleReveal } from './TitleReveal';
 import type { CinematicConfig, IntroPhase } from './types';
-import { useCinematicPhase } from './useCinematicPhase';
+import { useCinematicTimeline } from './useCinematicTimeline';
 
 interface CinematicIntroProps extends CinematicConfig {
   /** Children to render - receives phase state for 3D integration */
@@ -36,7 +36,7 @@ export function CinematicIntro({
     onComplete?.();
   }, [onComplete]);
 
-  const { phase, progress, advance, skip } = useCinematicPhase({
+  const { phase, progress, advance, skip } = useCinematicTimeline({
     speedMultiplier,
     onComplete: handleComplete,
   });

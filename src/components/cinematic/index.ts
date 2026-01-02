@@ -16,3 +16,4 @@ export { TitleReveal } from './TitleReveal';
 export type { CinematicConfig, IntroPhase } from './types';
 export { PHASE_SEQUENCE, PHASE_TIMING } from './types';
 export { useCinematicPhase } from './useCinematicPhase';
+export { useCinematicTimeline } from './useCinematicTimeline';
