@@ -322,36 +322,20 @@ jobs:
           path: screenshots/
           retention-days: 30
 
-      - name: Push screenshots to branch
-        if: steps.capture.outputs.has_screenshots == 'true'
-        id: push
-        run: |
-          chmod +x .github/scripts/push-screenshots.sh
-          .github/scripts/push-screenshots.sh
-
       - name: Comment PR with screenshots
         if: always()
         uses: actions/github-script@v7
         env:
           HAS_SCREENSHOTS: ${{ steps.capture.outputs.has_screenshots }}
-          PUSH_OUTCOME: ${{ steps.push.outcome }}
-          SCREENSHOTS_BRANCH: ${{ steps.push.outputs.branch }}
-          SCREENSHOTS_FOLDER: ${{ steps.push.outputs.folder }}
         with:
           script: |
             const fs = require('fs');
             const prNumber = parseInt(process.env.PR_NUMBER);
             const previewUrl = process.env.PREVIEW_URL;
             const hasScreenshots = process.env.HAS_SCREENSHOTS === 'true';
-            const pushSucceeded = process.env.PUSH_OUTCOME === 'success';
-            const screenshotsBranch = process.env.SCREENSHOTS_BRANCH || 'screenshots';
-            const screenshotsFolder = process.env.SCREENSHOTS_FOLDER || `pr-${prNumber}`;
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
             const artifactUrl = `${repoUrl}/actions/runs/${context.runId}`;
             const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-            const rawBaseUrl = pushSucceeded
-              ? `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${screenshotsBranch}/${screenshotsFolder}`
-              : null;
 
             let screenshotFiles = [];
             try {
@@ -360,11 +344,9 @@ jobs:
               }
             } catch (e) { /* ignore */ }
 
-            const statusEmoji = hasScreenshots && pushSucceeded ? '✅' : hasScreenshots ? '⚠️' : '❌';
-            const statusText = hasScreenshots && pushSucceeded
-              ? 'Screenshots captured successfully'
-              : hasScreenshots
-              ? 'Screenshots captured but push failed - download artifact'
+            const statusEmoji = hasScreenshots ? '✅' : '❌';
+            const statusText = hasScreenshots
+              ? `Captured ${screenshotFiles.length} screenshots`
               : 'Screenshot capture failed';
 
             // Find existing comment
@@ -381,35 +363,25 @@ jobs:
               '',
               `${statusEmoji} ${statusText}`,
               '',
+              `**[📥 Download Screenshots](${artifactUrl})**`,
+              '',
               `From [preview deployment](${previewUrl})`,
               '',
             ];
 
-            if (hasScreenshots && pushSucceeded && rawBaseUrl) {
-              const devices = [
-                { name: 'Desktop', prefix: 'desktop', emoji: '🖥️', width: 280 },
-                { name: 'Tablet', prefix: 'tablet', emoji: '📱', width: 200 },
-                { name: 'Mobile', prefix: 'mobile', emoji: '📱', width: 140 },
-              ];
-              const phases = ['inhale', 'hold', 'exhale'];
-
-              for (const device of devices) {
-                const available = phases.filter(p => screenshotFiles.includes(`${device.prefix}-${p}.png`));
-                if (available.length > 0) {
-                  bodyParts.push(`**${device.emoji} ${device.name}**`, '');
-                  bodyParts.push('<table><tr>');
-                  bodyParts.push(available.map(p => `<th>${p}</th>`).join(''));
-                  bodyParts.push('</tr><tr>');
-                  bodyParts.push(available.map(p => {
-                    const url = `${rawBaseUrl}/${device.prefix}-${p}.png`;
-                    return `<td><a href="${url}"><img src="${url}" width="${device.width}"/></a></td>`;
-                  }).join(''));
-                  bodyParts.push('</tr></table>', '');
-                }
-              }
+            if (hasScreenshots && screenshotFiles.length > 0) {
+              bodyParts.push(
+                '<details>',
+                '<summary>Files captured</summary>',
+                '',
+                '```',
+                ...screenshotFiles.sort(),
+                '```',
+                '</details>',
+                '',
+              );
             }
 
-            bodyParts.push(`[📥 Download Artifact](${artifactUrl})`, '');
             bodyParts.push('---', `<sub>Last run: ${timestamp}</sub>`);
 
             const body = bodyParts.join('\n');
