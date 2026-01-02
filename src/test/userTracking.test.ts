@@ -240,3 +240,90 @@ describe('User tracking integration', () => {
     expect(afterSlotIndex).toBe(initialSlotIndex);
   });
 });
+
+describe('Self user slot visibility for YOU marker', () => {
+  it('self user slot has userId accessible for position tracking', () => {
+    const slotManager = new SlotManager();
+
+    // Users with self at index 0 (as usePresence does)
+    const users: User[] = [
+      { id: USER_TRACKING.SELF_USER_ID, mood: 'presence' },
+      { id: 'other-1', mood: 'gratitude' },
+      { id: 'other-2', mood: 'release' },
+    ];
+
+    slotManager.reconcile(users);
+
+    // Get slots array (this is what ParticleSwarm iterates)
+    const slots = slotManager.slots;
+
+    // Find the slot with self userId
+    const selfSlotFromArray = slots.find((s) => s.userId === USER_TRACKING.SELF_USER_ID);
+
+    expect(selfSlotFromArray).toBeDefined();
+    expect(selfSlotFromArray?.userId).toBe('self');
+
+    // Verify we can find it by userId lookup too
+    const selfSlotByLookup = slotManager.getSlotByUserId(USER_TRACKING.SELF_USER_ID);
+    expect(selfSlotByLookup).toBeDefined();
+    expect(selfSlotByLookup?.index).toBe(selfSlotFromArray?.index);
+  });
+
+  it('self user slot is visible (scale > 0) after animation', () => {
+    const slotManager = new SlotManager();
+
+    const users: User[] = [{ id: USER_TRACKING.SELF_USER_ID, mood: 'presence' }];
+
+    slotManager.reconcile(users);
+
+    // Initially slot is in 'entering' state with scale = 0
+    let selfSlot = slotManager.getSlotByUserId(USER_TRACKING.SELF_USER_ID);
+    expect(selfSlot?.state).toBe('entering');
+    expect(selfSlot?.scale).toBe(0);
+
+    // After animation completes, scale should be 1
+    slotManager.updateAnimations(0.5); // Enter animation is 0.4s
+
+    selfSlot = slotManager.getSlotByUserId(USER_TRACKING.SELF_USER_ID);
+    expect(selfSlot?.state).toBe('active');
+    expect(selfSlot?.scale).toBe(1);
+  });
+
+  it('iterating slots array finds self user by userId comparison', () => {
+    const slotManager = new SlotManager();
+
+    const users: User[] = [
+      { id: USER_TRACKING.SELF_USER_ID, mood: 'presence' },
+      { id: 'other-1', mood: 'gratitude' },
+      { id: 'other-2', mood: 'release' },
+    ];
+
+    slotManager.reconcile(users);
+    slotManager.updateAnimations(0.5);
+
+    const slots = slotManager.slots;
+
+    // Simulate what ParticleSwarm does
+    let foundSelfIndex = -1;
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i];
+      if (slot.userId === USER_TRACKING.SELF_USER_ID) {
+        foundSelfIndex = i;
+        break;
+      }
+    }
+
+    expect(foundSelfIndex).toBeGreaterThanOrEqual(0);
+    expect(slots[foundSelfIndex].userId).toBe('self');
+    expect(slots[foundSelfIndex].scale).toBe(1);
+  });
+
+  it('verifies SELF_USER_ID constant matches expected value', () => {
+    // This ensures the constant hasn't been accidentally changed
+    expect(USER_TRACKING.SELF_USER_ID).toBe('self');
+
+    // And that string comparison works as expected
+    const slot = { userId: 'self' };
+    expect(slot.userId === USER_TRACKING.SELF_USER_ID).toBe(true);
+  });
+});

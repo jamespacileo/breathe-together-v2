@@ -2,8 +2,10 @@ import { Leva } from 'leva';
 import { Perf } from 'r3f-perf';
 import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
+import { BreathingRing } from '../components/BreathingRing';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
+import { PhaseText } from '../components/PhaseText';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { YouMarker } from '../components/YouMarker';
@@ -105,7 +107,15 @@ export function BreathingLevel({
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
-            {showGlobe && <EarthGlobe />}
+            {showGlobe && (
+              <>
+                <EarthGlobe />
+                {/* Breathing ring - pulses with the breathing cycle */}
+                <BreathingRing />
+                {/* Phase text - shows current breathing phase below globe */}
+                <PhaseText />
+              </>
+            )}
 
             {showParticles && (
               <>
