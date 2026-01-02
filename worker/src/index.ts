@@ -18,6 +18,9 @@ import {
   rotateInspirationalOnSchedule,
   setUserOverride,
 } from './inspirational';
+import { generateInspirationalMessages } from './llm';
+import type { GenerationRequest } from './llm-config';
+import { loadLLMConfig } from './llm-config';
 import {
   type AggregateState,
   addSample,
@@ -189,6 +192,46 @@ async function handleCreateTextOverride(request: Request, env: Env): Promise<Res
   }
 }
 
+async function handleGenerateInspirationalMessages(request: Request, env: Env): Promise<Response> {
+  try {
+    const body = (await request.json()) as GenerationRequest;
+
+    const { theme, intensity, count } = body;
+
+    // Validate request
+    if (!theme || !intensity || !count || count < 1 || count > 64) {
+      return new Response(JSON.stringify({ error: 'Invalid generation request' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Load LLM config
+    const llmConfig = loadLLMConfig(env);
+
+    // Generate messages
+    const batch = await generateInspirationalMessages(llmConfig, {
+      theme,
+      intensity,
+      count,
+    });
+
+    // Store batch in KV for future use
+    const batchKey = `inspiration:batch:${batch.id}`;
+    await env.PRESENCE_KV.put(batchKey, JSON.stringify(batch));
+
+    return new Response(JSON.stringify({ success: true, batch }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (e) {
+    console.error('Message generation error:', e);
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
 function handleConfig(): Response {
   return new Response(
     JSON.stringify({
@@ -312,6 +355,10 @@ export default {
       // Admin inspirational text endpoints
       case path === '/admin/inspirational/override' && request.method === 'POST':
         response = await handleCreateTextOverride(request, env);
+        break;
+
+      case path === '/admin/inspirational/generate' && request.method === 'POST':
+        response = await handleGenerateInspirationalMessages(request, env);
         break;
 
       // Admin endpoints (forwarded to Durable Object)
