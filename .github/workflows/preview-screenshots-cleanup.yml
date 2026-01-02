@@ -16,11 +16,26 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check if screenshots branch exists
+        id: check_branch
+        run: |
+          if git ls-remote --heads origin screenshots | grep -q screenshots; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Screenshots branch exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  Screenshots branch does not exist yet, nothing to clean up"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check_branch.outputs.exists == 'true'
         with:
           ref: screenshots
           fetch-depth: 1
 
       - name: Remove PR screenshots folder
+        if: steps.check_branch.outputs.exists == 'true'
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |

@@ -5,6 +5,13 @@ import { existsSync } from 'fs';
 const PREVIEW_URL = process.env.PREVIEW_URL;
 const SCREENSHOTS_DIR = './screenshots';
 
+// Validate required environment variable
+if (!PREVIEW_URL) {
+  console.error('❌ Error: PREVIEW_URL environment variable is required');
+  console.error('   Usage: PREVIEW_URL=https://example.com node screenshot.mjs');
+  process.exit(1);
+}
+
 // =============================================================================
 // Breathing Cycle Configuration (imported from shared config)
 // =============================================================================
@@ -146,19 +153,42 @@ async function waitForPageReady(page, isCanvas = true) {
       // Check if canvas has non-zero dimensions
       if (canvas.width === 0 || canvas.height === 0) return false;
 
-      // Sample center pixel to verify it's not completely black/transparent
+      // Try WebGL first (for Three.js apps)
+      const gl = canvas.getContext('webgl') || canvas.getContext('webgl2');
+      if (gl) {
+        try {
+          // Sample center pixel using WebGL readPixels
+          const x = Math.floor(canvas.width / 2);
+          const y = Math.floor(canvas.height / 2);
+          const pixel = new Uint8Array(4);
+          gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+
+          // Check if any channel has data (not fully black/transparent)
+          return pixel.some(val => val !== 0);
+        } catch (e) {
+          // readPixels may fail during initialization, assume rendering
+          return true;
+        }
+      }
+
+      // Fallback to 2D canvas verification
       const ctx = canvas.getContext('2d');
-      if (!ctx) return true; // WebGL canvas, assume rendering
+      if (!ctx) return false; // No valid context
 
-      const imageData = ctx.getImageData(
-        canvas.width / 2,
-        canvas.height / 2,
-        1,
-        1
-      );
+      try {
+        const imageData = ctx.getImageData(
+          Math.floor(canvas.width / 2),
+          Math.floor(canvas.height / 2),
+          1,
+          1
+        );
 
-      // Check if pixel has any color data
-      return imageData.data.some(val => val !== 0);
+        // Check if pixel has any color data
+        return imageData.data.some(val => val !== 0);
+      } catch (e) {
+        // getImageData may fail, assume rendering
+        return true;
+      }
     });
 
     if (!isRendering) {

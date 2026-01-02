@@ -4,7 +4,7 @@ name: Preview Screenshots
 # repository context (not the PR context). This prevents exposing secrets to
 # fork PRs while still allowing screenshot capture.
 #
-# If the "Preview Deployment" workflow name changes, update line 6 below.
+# If the "Preview Deployment" workflow name changes, update line 11 below.
 
 on:
   workflow_run:
@@ -168,7 +168,6 @@ jobs:
         id: push_screenshots
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Make script executable
           chmod +x .github/scripts/push-screenshots.sh

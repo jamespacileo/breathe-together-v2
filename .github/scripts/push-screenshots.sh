@@ -14,11 +14,10 @@ set -euo pipefail
 #
 # Environment variables required:
 # - PR_NUMBER: Pull request number
-# - GITHUB_TOKEN: GitHub authentication token (for push)
 # =============================================================================
+# Note: GITHUB_TOKEN is automatically configured by actions/checkout
 
 PR_NUMBER="${PR_NUMBER:?PR_NUMBER environment variable is required}"
-GITHUB_TOKEN="${GITHUB_TOKEN:?GITHUB_TOKEN environment variable is required}"
 
 SCREENSHOTS_BRANCH="screenshots"
 PR_FOLDER="pr-${PR_NUMBER}"
@@ -69,8 +68,14 @@ git_push_with_retry() {
 echo "=== Pushing screenshots for PR #${PR_NUMBER} ==="
 
 # 1. Save screenshots to temp location before branch switch
-if [ ! -d "./screenshots" ] || [ -z "$(ls -A ./screenshots 2>/dev/null)" ]; then
-  echo "❌ Error: No screenshots found in ./screenshots directory"
+if [ ! -d "./screenshots" ]; then
+  echo "❌ Error: ./screenshots directory does not exist"
+  exit 1
+fi
+
+# Check specifically for PNG files (not just any files)
+if ! ls ./screenshots/*.png >/dev/null 2>&1; then
+  echo "❌ Error: No PNG screenshots found in ./screenshots directory"
   exit 1
 fi
 

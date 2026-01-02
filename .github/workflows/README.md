@@ -144,7 +144,7 @@ Shared breathing pattern configuration used by both the app and workflows.
 
 ---
 
-## Improvements Made (December 2024)
+## Improvements Made (January 2026)
 
 ### 🔴 Critical Fixes
 1. **Shared breathing constants** - Prevents drift between app and screenshots
