@@ -138,6 +138,27 @@ export interface ParticleSwarmProps {
    * @default 1000
    */
   performanceCap?: number;
+
+  // ==========================================
+  // BREATHING EFFECTS - Enhanced animation
+  // ==========================================
+
+  /** Minimum scale during exhale @default 0.85 */
+  scaleMin?: number;
+  /** Maximum scale during inhale @default 1.2 */
+  scaleMax?: number;
+  /** Minimum opacity during exhale @default 0.7 */
+  opacityMin?: number;
+  /** Maximum opacity during inhale @default 1.0 */
+  opacityMax?: number;
+
+  // Curl noise flow
+  /** Enable curl noise flow @default true */
+  enableCurlNoise?: boolean;
+  /** Curl noise displacement strength @default 0.15 */
+  curlNoiseStrength?: number;
+  /** Curl noise animation speed @default 0.3 */
+  curlNoiseSpeed?: number;
 }
 
 interface ShardData {
@@ -229,6 +250,77 @@ const _tempTangent2 = new THREE.Vector3();
 const _tempAmbient = new THREE.Vector3();
 const _yAxis = new THREE.Vector3(0, 1, 0);
 const _tempLerpDir = new THREE.Vector3();
+const _tempCurl = new THREE.Vector3();
+
+/**
+ * Simplex-style 3D noise for curl calculation
+ * Simplified implementation for performance
+ */
+function noise3D(x: number, y: number, z: number): number {
+  // Simple hash-based noise
+  const hash = (n: number) => {
+    const s = Math.sin(n) * 43758.5453;
+    return s - Math.floor(s);
+  };
+
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const iz = Math.floor(z);
+
+  const fx = x - ix;
+  const fy = y - iy;
+  const fz = z - iz;
+
+  // Smooth interpolation
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const uz = fz * fz * (3 - 2 * fz);
+
+  // Hash corners
+  const n000 = hash(ix + iy * 57 + iz * 113);
+  const n100 = hash(ix + 1 + iy * 57 + iz * 113);
+  const n010 = hash(ix + (iy + 1) * 57 + iz * 113);
+  const n110 = hash(ix + 1 + (iy + 1) * 57 + iz * 113);
+  const n001 = hash(ix + iy * 57 + (iz + 1) * 113);
+  const n101 = hash(ix + 1 + iy * 57 + (iz + 1) * 113);
+  const n011 = hash(ix + (iy + 1) * 57 + (iz + 1) * 113);
+  const n111 = hash(ix + 1 + (iy + 1) * 57 + (iz + 1) * 113);
+
+  // Trilinear interpolation
+  const nx00 = n000 + ux * (n100 - n000);
+  const nx10 = n010 + ux * (n110 - n010);
+  const nx01 = n001 + ux * (n101 - n001);
+  const nx11 = n011 + ux * (n111 - n011);
+
+  const nxy0 = nx00 + uy * (nx10 - nx00);
+  const nxy1 = nx01 + uy * (nx11 - nx01);
+
+  return (nxy0 + uz * (nxy1 - nxy0)) * 2 - 1; // Map to -1..1
+}
+
+/**
+ * Calculate curl noise displacement
+ * Creates divergence-free (swirling) motion
+ */
+function curlNoise(x: number, y: number, z: number, time: number, out: THREE.Vector3): void {
+  const eps = 0.0001;
+  const t = time * 0.5;
+
+  // Partial derivatives
+  const dx =
+    (noise3D(x, y + eps, z + t) - noise3D(x, y - eps, z + t)) / (2 * eps) -
+    (noise3D(x, y, z + eps + t) - noise3D(x, y, z - eps + t)) / (2 * eps);
+
+  const dy =
+    (noise3D(x, y, z + eps + t) - noise3D(x, y, z - eps + t)) / (2 * eps) -
+    (noise3D(x + eps, y, z + t) - noise3D(x - eps, y, z + t)) / (2 * eps);
+
+  const dz =
+    (noise3D(x + eps, y, z + t) - noise3D(x - eps, y, z + t)) / (2 * eps) -
+    (noise3D(x, y + eps, z + t) - noise3D(x, y - eps, z + t)) / (2 * eps);
+
+  out.set(dx, dy, dz);
+}
 
 /**
  * Normalize users input to User[] format
@@ -255,6 +347,15 @@ export function ParticleSwarm({
   maxShardSize = 0.6,
   minShardSize = 0.15,
   performanceCap = 1000,
+  // Breathing effects
+  scaleMin = 0.85,
+  scaleMax = 1.2,
+  opacityMin = 0.7,
+  opacityMax = 1.0,
+  // Curl noise
+  enableCurlNoise = true,
+  curlNoiseStrength = 0.15,
+  curlNoiseSpeed = 0.3,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const groupRef = useRef<THREE.Group>(null);
@@ -585,6 +686,7 @@ export function ParticleSwarm({
         Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE,
       );
 
+      // Calculate base position
       shard.mesh.position
         .copy(_tempOrbitedDir)
         .multiplyScalar(shardState.currentRadius)
@@ -592,13 +694,29 @@ export function ParticleSwarm({
         .addScaledVector(_tempTangent2, wobble2)
         .add(_tempAmbient);
 
+      // Add curl noise displacement (organic swirling motion)
+      if (enableCurlNoise && curlNoiseStrength > 0) {
+        const curlTime = time * curlNoiseSpeed;
+        const pos = shard.mesh.position;
+        curlNoise(pos.x * 0.3, pos.y * 0.3, pos.z * 0.3, curlTime, _tempCurl);
+        // Modulate curl strength by breath phase - more swirling during transitions
+        const breathMod = 0.5 + Math.sin(currentBreathPhase * Math.PI) * 0.5;
+        shard.mesh.position.addScaledVector(_tempCurl, curlNoiseStrength * breathMod);
+      }
+
       shard.mesh.rotation.x += 0.002 * shardState.rotationSpeedX;
       shard.mesh.rotation.y += 0.003 * shardState.rotationSpeedY;
 
-      // Final scale: slot scale × breath scale × base offset
-      const breathScale = 1.0 + currentBreathPhase * 0.05;
+      // Enhanced breathing animation: scale from scaleMin to scaleMax
+      const breathScale = scaleMin + currentBreathPhase * (scaleMax - scaleMin);
       const finalScale = slotScale * shardState.baseScaleOffset * breathScale;
       shard.mesh.scale.setScalar(finalScale);
+
+      // Enhanced breathing animation: opacity from opacityMin to opacityMax
+      if (material.uniforms?.opacity) {
+        const breathOpacity = opacityMin + currentBreathPhase * (opacityMax - opacityMin);
+        material.uniforms.opacity.value = breathOpacity;
+      }
     }
   });
 

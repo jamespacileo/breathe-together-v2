@@ -25,16 +25,128 @@ import * as THREE from 'three';
 import { useDisposeGeometries, useDisposeMaterials } from '../../hooks/useDisposeMaterials';
 import { breathPhase } from '../breath/traits';
 
-// Vertex shader for textured globe with fresnel
+// Simplex noise functions for wobbly displacement
+const simplexNoise3D = `
+// Simplex 3D noise - optimized for WebGL
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+float snoise(vec3 v) {
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+  vec3 i = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+
+  i = mod289(i);
+  vec4 p = permute(permute(permute(
+    i.z + vec4(0.0, i1.z, i2.z, 1.0))
+    + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+    + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+  float n_ = 0.142857142857;
+  vec3 ns = n_ * D.wyz - D.xzx;
+
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = y_ * ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+
+  vec4 s0 = floor(b0) * 2.0 + 1.0;
+  vec4 s1 = floor(b1) * 2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+
+  vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+
+  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+}
+`;
+
+// Vertex shader for textured globe with fresnel and wobbly displacement
 const globeVertexShader = `
+${simplexNoise3D}
+
+uniform float time;
+uniform float breathPhase;
+uniform float wobbleAmplitude;
+uniform float wobbleFrequency;
+uniform float wobbleSpeed;
+uniform bool enableWobble;
+
 varying vec3 vNormal;
 varying vec3 vViewPosition;
 varying vec2 vUv;
 
 void main() {
-  vNormal = normalize(normalMatrix * normal);
+  vec3 pos = position;
+  vec3 norm = normal;
+
+  // Wobbly surface displacement
+  if (enableWobble) {
+    // Multi-octave noise for organic feel
+    float noiseTime = time * wobbleSpeed;
+    vec3 noisePos = position * wobbleFrequency;
+
+    // Layer multiple noise frequencies
+    float displacement = snoise(noisePos + noiseTime) * 0.6;
+    displacement += snoise(noisePos * 2.0 + noiseTime * 0.7) * 0.3;
+    displacement += snoise(noisePos * 4.0 + noiseTime * 0.5) * 0.1;
+
+    // Modulate by breath phase - more wobble during inhale
+    float breathMod = 0.3 + breathPhase * 0.7;
+    displacement *= wobbleAmplitude * breathMod;
+
+    // Displace along normal
+    pos += normal * displacement;
+
+    // Recalculate normal (approximate - use central differences)
+    float eps = 0.01;
+    vec3 tangent1 = normalize(cross(normal, vec3(0.0, 1.0, 0.0)));
+    if (length(tangent1) < 0.01) tangent1 = normalize(cross(normal, vec3(1.0, 0.0, 0.0)));
+    vec3 tangent2 = normalize(cross(normal, tangent1));
+
+    float d1 = snoise((position + tangent1 * eps) * wobbleFrequency + noiseTime) * wobbleAmplitude * breathMod;
+    float d2 = snoise((position + tangent2 * eps) * wobbleFrequency + noiseTime) * wobbleAmplitude * breathMod;
+
+    vec3 p1 = position + tangent1 * eps + normal * d1;
+    vec3 p2 = position + tangent2 * eps + normal * d2;
+
+    norm = normalize(cross(p1 - pos, p2 - pos));
+    // Keep normal facing outward
+    if (dot(norm, normal) < 0.0) norm = -norm;
+  }
+
+  vNormal = normalize(normalMatrix * norm);
   vUv = uv;
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
   vViewPosition = -mvPosition.xyz;
   gl_Position = projectionMatrix * mvPosition;
 }
@@ -201,6 +313,14 @@ interface EarthGlobeProps {
   showGlow?: boolean;
   /** Show mist/haze layer @default true */
   showMist?: boolean;
+  /** Enable wobbly surface displacement @default true */
+  enableWobble?: boolean;
+  /** Wobble displacement amplitude @default 0.08 */
+  wobbleAmplitude?: number;
+  /** Wobble noise frequency @default 2.0 */
+  wobbleFrequency?: number;
+  /** Wobble animation speed @default 0.5 */
+  wobbleSpeed?: number;
 }
 
 /**
@@ -217,6 +337,10 @@ export function EarthGlobe({
   sparkleCount = 60,
   showGlow = true,
   showMist = true,
+  enableWobble = true,
+  wobbleAmplitude = 0.08,
+  wobbleFrequency = 2.0,
+  wobbleSpeed = 0.5,
 }: Partial<EarthGlobeProps> = {}) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
@@ -232,19 +356,24 @@ export function EarthGlobe({
     earthTexture.anisotropy = 16;
   }, [earthTexture]);
 
-  // Create shader material with texture
+  // Create shader material with texture and wobble uniforms
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
         uniforms: {
           earthTexture: { value: earthTexture },
           breathPhase: { value: 0 },
+          time: { value: 0 },
+          enableWobble: { value: enableWobble },
+          wobbleAmplitude: { value: wobbleAmplitude },
+          wobbleFrequency: { value: wobbleFrequency },
+          wobbleSpeed: { value: wobbleSpeed },
         },
         vertexShader: globeVertexShader,
         fragmentShader: globeFragmentShader,
         side: THREE.FrontSide,
       }),
-    [earthTexture],
+    [earthTexture, enableWobble, wobbleAmplitude, wobbleFrequency, wobbleSpeed],
   );
 
   // Create glow material - additive blended fresnel glow
@@ -336,6 +465,7 @@ export function EarthGlobe({
         const phase = breathEntity.get(breathPhase)?.value ?? 0;
         // Update shader uniforms
         material.uniforms.breathPhase.value = phase;
+        material.uniforms.time.value = state.clock.elapsedTime;
         glowMaterial.uniforms.breathPhase.value = phase;
         mistMaterial.uniforms.breathPhase.value = phase;
         mistMaterial.uniforms.time.value = state.clock.elapsedTime;

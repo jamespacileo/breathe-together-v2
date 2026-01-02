@@ -72,6 +72,47 @@ export const TUNING_DEFAULTS = {
   showPhaseMarkers: false,
   showTraitValues: false,
 
+  // ==========================================
+  // BREATHING EFFECTS (new breath-reactive visuals)
+  // ==========================================
+
+  // Bloom effect
+  enableBloom: true,
+  bloomIntensityMin: 0.2,
+  bloomIntensityMax: 0.6,
+  bloomThreshold: 0.85,
+  bloomSmoothing: 0.3,
+  bloomRadius: 0.4,
+
+  // Particle breathing animation
+  particleScaleMin: 0.85,
+  particleScaleMax: 1.2,
+  particleOpacityMin: 0.7,
+  particleOpacityMax: 1.0,
+
+  // Curl noise flow
+  enableCurlNoise: true,
+  curlNoiseStrength: 0.15,
+  curlNoiseSpeed: 0.3,
+
+  // Wobbly globe surface
+  enableWobble: true,
+  wobbleAmplitude: 0.08,
+  wobbleFrequency: 2.0,
+  wobbleSpeed: 0.5,
+
+  // Color temperature shift
+  enableColorTemperature: true,
+  warmColor: '#fff5eb',
+  coolColor: '#e8f4ff',
+  temperatureStrength: 0.3,
+
+  // Ripple emanation
+  enableRipples: true,
+  rippleSpeed: 2.0,
+  rippleOpacity: 0.3,
+  rippleCount: 3,
+
   // Drag & Rotate (dev-only) - iOS-style momentum scrolling
   dragSpeed: 1.8,
   dragDamping: 0.12,
@@ -153,6 +194,43 @@ export interface DevControlsState {
   showPhaseMarkers: boolean;
   showTraitValues: boolean;
 
+  // Breathing Effects - Bloom
+  enableBloom: boolean;
+  bloomIntensityMin: number;
+  bloomIntensityMax: number;
+  bloomThreshold: number;
+  bloomSmoothing: number;
+  bloomRadius: number;
+
+  // Breathing Effects - Particle animation
+  particleScaleMin: number;
+  particleScaleMax: number;
+  particleOpacityMin: number;
+  particleOpacityMax: number;
+
+  // Breathing Effects - Curl noise
+  enableCurlNoise: boolean;
+  curlNoiseStrength: number;
+  curlNoiseSpeed: number;
+
+  // Breathing Effects - Wobbly globe
+  enableWobble: boolean;
+  wobbleAmplitude: number;
+  wobbleFrequency: number;
+  wobbleSpeed: number;
+
+  // Breathing Effects - Color temperature
+  enableColorTemperature: boolean;
+  warmColor: string;
+  coolColor: string;
+  temperatureStrength: number;
+
+  // Breathing Effects - Ripples
+  enableRipples: boolean;
+  rippleSpeed: number;
+  rippleOpacity: number;
+  rippleCount: number;
+
   // Drag & Rotate
   dragSpeed: number;
   dragDamping: number;
@@ -191,6 +269,32 @@ function getDefaultDevControls(): DevControlsState {
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
+    // Breathing Effects
+    enableBloom: TUNING_DEFAULTS.enableBloom,
+    bloomIntensityMin: TUNING_DEFAULTS.bloomIntensityMin,
+    bloomIntensityMax: TUNING_DEFAULTS.bloomIntensityMax,
+    bloomThreshold: TUNING_DEFAULTS.bloomThreshold,
+    bloomSmoothing: TUNING_DEFAULTS.bloomSmoothing,
+    bloomRadius: TUNING_DEFAULTS.bloomRadius,
+    particleScaleMin: TUNING_DEFAULTS.particleScaleMin,
+    particleScaleMax: TUNING_DEFAULTS.particleScaleMax,
+    particleOpacityMin: TUNING_DEFAULTS.particleOpacityMin,
+    particleOpacityMax: TUNING_DEFAULTS.particleOpacityMax,
+    enableCurlNoise: TUNING_DEFAULTS.enableCurlNoise,
+    curlNoiseStrength: TUNING_DEFAULTS.curlNoiseStrength,
+    curlNoiseSpeed: TUNING_DEFAULTS.curlNoiseSpeed,
+    enableWobble: TUNING_DEFAULTS.enableWobble,
+    wobbleAmplitude: TUNING_DEFAULTS.wobbleAmplitude,
+    wobbleFrequency: TUNING_DEFAULTS.wobbleFrequency,
+    wobbleSpeed: TUNING_DEFAULTS.wobbleSpeed,
+    enableColorTemperature: TUNING_DEFAULTS.enableColorTemperature,
+    warmColor: TUNING_DEFAULTS.warmColor,
+    coolColor: TUNING_DEFAULTS.coolColor,
+    temperatureStrength: TUNING_DEFAULTS.temperatureStrength,
+    enableRipples: TUNING_DEFAULTS.enableRipples,
+    rippleSpeed: TUNING_DEFAULTS.rippleSpeed,
+    rippleOpacity: TUNING_DEFAULTS.rippleOpacity,
+    rippleCount: TUNING_DEFAULTS.rippleCount,
     dragSpeed: TUNING_DEFAULTS.dragSpeed,
     dragDamping: TUNING_DEFAULTS.dragDamping,
     dragMomentum: TUNING_DEFAULTS.dragMomentum,
@@ -523,6 +627,235 @@ export function useDevControls(): DevControlsState {
         },
       },
       { collapsed: true },
+    ),
+
+    // ==========================================
+    // BREATHING EFFECTS - Main creative controls
+    // ==========================================
+    'Breathing Effects': folder(
+      {
+        // Bloom subfolder
+        Bloom: folder(
+          {
+            enableBloom: {
+              value: TUNING_DEFAULTS.enableBloom,
+              label: 'Enable Bloom',
+              hint: 'Toggle breathing-synchronized bloom glow. Creates ethereal "breathing light" effect.',
+            },
+            bloomIntensityMin: {
+              value: TUNING_DEFAULTS.bloomIntensityMin,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Min Intensity',
+              hint: 'Bloom intensity during exhale (low point). 0 = no glow during exhale.',
+            },
+            bloomIntensityMax: {
+              value: TUNING_DEFAULTS.bloomIntensityMax,
+              min: 0,
+              max: 2,
+              step: 0.05,
+              label: 'Max Intensity',
+              hint: 'Bloom intensity during peak inhale. Higher = more dramatic glow pulse.',
+            },
+            bloomThreshold: {
+              value: TUNING_DEFAULTS.bloomThreshold,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Threshold',
+              hint: 'Brightness threshold for bloom. Lower = more elements glow, higher = only brightest.',
+            },
+            bloomSmoothing: {
+              value: TUNING_DEFAULTS.bloomSmoothing,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Smoothing',
+              hint: 'Soft knee transition at threshold. Higher = smoother falloff into bloom.',
+            },
+            bloomRadius: {
+              value: TUNING_DEFAULTS.bloomRadius,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Radius',
+              hint: 'Size of bloom blur. Higher = larger, softer glow spread.',
+            },
+          },
+          { collapsed: false },
+        ),
+
+        // Particle Animation subfolder
+        'Particle Animation': folder(
+          {
+            particleScaleMin: {
+              value: TUNING_DEFAULTS.particleScaleMin,
+              min: 0.5,
+              max: 1.0,
+              step: 0.05,
+              label: 'Scale Min',
+              hint: 'Particle scale during exhale. Creates "shrinking" effect as breath releases.',
+            },
+            particleScaleMax: {
+              value: TUNING_DEFAULTS.particleScaleMax,
+              min: 1.0,
+              max: 1.5,
+              step: 0.05,
+              label: 'Scale Max',
+              hint: 'Particle scale during inhale peak. Creates "expanding" effect with breath.',
+            },
+            particleOpacityMin: {
+              value: TUNING_DEFAULTS.particleOpacityMin,
+              min: 0.3,
+              max: 1.0,
+              step: 0.05,
+              label: 'Opacity Min',
+              hint: 'Particle opacity during exhale. Lower = more "fading out" on release.',
+            },
+            particleOpacityMax: {
+              value: TUNING_DEFAULTS.particleOpacityMax,
+              min: 0.5,
+              max: 1.0,
+              step: 0.05,
+              label: 'Opacity Max',
+              hint: 'Particle opacity during inhale. Full presence with breath.',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // Curl Noise Flow subfolder
+        'Curl Noise Flow': folder(
+          {
+            enableCurlNoise: {
+              value: TUNING_DEFAULTS.enableCurlNoise,
+              label: 'Enable Curl',
+              hint: 'Toggle curl noise flow. Creates organic swirling motion that intensifies with breathing.',
+            },
+            curlNoiseStrength: {
+              value: TUNING_DEFAULTS.curlNoiseStrength,
+              min: 0,
+              max: 0.5,
+              step: 0.01,
+              label: 'Strength',
+              hint: 'Curl displacement intensity. Higher = more dramatic swirling.',
+            },
+            curlNoiseSpeed: {
+              value: TUNING_DEFAULTS.curlNoiseSpeed,
+              min: 0.1,
+              max: 1.0,
+              step: 0.05,
+              label: 'Speed',
+              hint: 'Curl animation speed. Lower = more dreamy/slow, higher = more energetic.',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // Wobbly Globe subfolder
+        'Wobbly Globe': folder(
+          {
+            enableWobble: {
+              value: TUNING_DEFAULTS.enableWobble,
+              label: 'Enable Wobble',
+              hint: 'Toggle globe surface displacement. Makes the Earth "breathe" organically.',
+            },
+            wobbleAmplitude: {
+              value: TUNING_DEFAULTS.wobbleAmplitude,
+              min: 0,
+              max: 0.3,
+              step: 0.01,
+              label: 'Amplitude',
+              hint: 'Wobble displacement strength. Higher = more dramatic surface movement.',
+            },
+            wobbleFrequency: {
+              value: TUNING_DEFAULTS.wobbleFrequency,
+              min: 0.5,
+              max: 5.0,
+              step: 0.5,
+              label: 'Frequency',
+              hint: 'Wobble noise frequency. Higher = more detailed ripples, lower = smoother waves.',
+            },
+            wobbleSpeed: {
+              value: TUNING_DEFAULTS.wobbleSpeed,
+              min: 0.1,
+              max: 2.0,
+              step: 0.1,
+              label: 'Speed',
+              hint: 'Wobble animation speed. How fast the surface undulates.',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // Color Temperature subfolder
+        'Color Temperature': folder(
+          {
+            enableColorTemperature: {
+              value: TUNING_DEFAULTS.enableColorTemperature,
+              label: 'Enable Shift',
+              hint: 'Toggle warm/cool color shift with breathing. Warm on inhale, cool on exhale.',
+            },
+            warmColor: {
+              value: TUNING_DEFAULTS.warmColor,
+              label: 'Warm Color',
+              hint: 'Color during inhale (energy entering). Warm tones create feeling of activation.',
+            },
+            coolColor: {
+              value: TUNING_DEFAULTS.coolColor,
+              label: 'Cool Color',
+              hint: 'Color during exhale (releasing). Cool tones create calming release feeling.',
+            },
+            temperatureStrength: {
+              value: TUNING_DEFAULTS.temperatureStrength,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Strength',
+              hint: 'How much color shifts. 0 = no shift, 1 = full warm↔cool transition.',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // Ripple Emanation subfolder
+        Ripples: folder(
+          {
+            enableRipples: {
+              value: TUNING_DEFAULTS.enableRipples,
+              label: 'Enable Ripples',
+              hint: 'Toggle ripple rings on phase transitions. Creates "breath as ripple in pond" effect.',
+            },
+            rippleSpeed: {
+              value: TUNING_DEFAULTS.rippleSpeed,
+              min: 0.5,
+              max: 5.0,
+              step: 0.5,
+              label: 'Speed',
+              hint: 'How fast ripples expand outward. Higher = quicker expansion.',
+            },
+            rippleOpacity: {
+              value: TUNING_DEFAULTS.rippleOpacity,
+              min: 0.1,
+              max: 0.8,
+              step: 0.05,
+              label: 'Opacity',
+              hint: 'Ripple visibility. Higher = more prominent rings.',
+            },
+            rippleCount: {
+              value: TUNING_DEFAULTS.rippleCount,
+              min: 1,
+              max: 5,
+              step: 1,
+              label: 'Count',
+              hint: 'Number of ripple rings per phase transition.',
+            },
+          },
+          { collapsed: true },
+        ),
+      },
+      { collapsed: false },
     ),
 
     // ==========================================
