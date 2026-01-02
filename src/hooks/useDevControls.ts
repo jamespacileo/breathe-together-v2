@@ -71,6 +71,14 @@ export const TUNING_DEFAULTS = {
   showOrbitBounds: false,
   showPhaseMarkers: false,
   showTraitValues: false,
+
+  // Drag & Rotate (dev-only) - iOS-style momentum scrolling
+  dragSpeed: 1.8,
+  dragDamping: 0.12,
+  dragMomentum: 1.0,
+  dragTimeConstant: 0.325,
+  dragVelocityMultiplier: 0.15,
+  dragMinVelocity: 50,
 } as const;
 
 /**
@@ -144,6 +152,14 @@ export interface DevControlsState {
   showOrbitBounds: boolean;
   showPhaseMarkers: boolean;
   showTraitValues: boolean;
+
+  // Drag & Rotate
+  dragSpeed: number;
+  dragDamping: number;
+  dragMomentum: number;
+  dragTimeConstant: number;
+  dragVelocityMultiplier: number;
+  dragMinVelocity: number;
 }
 
 /** Get default values for all dev controls */
@@ -175,6 +191,12 @@ function getDefaultDevControls(): DevControlsState {
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
+    dragSpeed: TUNING_DEFAULTS.dragSpeed,
+    dragDamping: TUNING_DEFAULTS.dragDamping,
+    dragMomentum: TUNING_DEFAULTS.dragMomentum,
+    dragTimeConstant: TUNING_DEFAULTS.dragTimeConstant,
+    dragVelocityMultiplier: TUNING_DEFAULTS.dragVelocityMultiplier,
+    dragMinVelocity: TUNING_DEFAULTS.dragMinVelocity,
   };
 }
 
@@ -498,6 +520,63 @@ export function useDevControls(): DevControlsState {
           step: 0.05,
           label: 'Cloud Speed',
           hint: 'Animation speed of drifting clouds. 0 = frozen, 1 = fast drift.',
+        },
+      },
+      { collapsed: true },
+    ),
+
+    // ==========================================
+    // DRAG & ROTATE (iOS-style momentum scrolling)
+    // ==========================================
+    'Drag & Rotate': folder(
+      {
+        dragSpeed: {
+          value: TUNING_DEFAULTS.dragSpeed,
+          min: 0.5,
+          max: 4.0,
+          step: 0.1,
+          label: 'Drag Speed',
+          hint: 'Rotation speed multiplier when dragging. Higher = faster rotation response to mouse/touch movement.',
+        },
+        dragDamping: {
+          value: TUNING_DEFAULTS.dragDamping,
+          min: 0.01,
+          max: 0.5,
+          step: 0.01,
+          label: 'Damping',
+          hint: 'Controls how quickly rotation settles. Lower = snappier stop, higher = smoother deceleration.',
+        },
+        dragMomentum: {
+          value: TUNING_DEFAULTS.dragMomentum,
+          min: 0,
+          max: 3.0,
+          step: 0.1,
+          label: 'Momentum',
+          hint: 'iOS-style momentum multiplier. 0 = no coast after release, 1 = natural, 2+ = more spin.',
+        },
+        dragTimeConstant: {
+          value: TUNING_DEFAULTS.dragTimeConstant,
+          min: 0.1,
+          max: 1.0,
+          step: 0.025,
+          label: 'Deceleration Time',
+          hint: 'Time constant for momentum decay (seconds). iOS default is 0.325s. Higher = longer coast.',
+        },
+        dragVelocityMultiplier: {
+          value: TUNING_DEFAULTS.dragVelocityMultiplier,
+          min: 0.05,
+          max: 0.5,
+          step: 0.01,
+          label: 'Velocity Scale',
+          hint: 'Converts gesture velocity to rotation. Higher = more momentum from same flick speed.',
+        },
+        dragMinVelocity: {
+          value: TUNING_DEFAULTS.dragMinVelocity,
+          min: 0,
+          max: 200,
+          step: 10,
+          label: 'Min Velocity',
+          hint: 'Minimum flick speed (px/s) to trigger momentum. Prevents micro-drifts on slow releases.',
         },
       },
       { collapsed: true },

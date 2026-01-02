@@ -5,19 +5,14 @@ import * as React from 'react';
 import { type Group, MathUtils } from 'three';
 
 /**
- * iOS-style momentum scrolling constants
+ * iOS-style momentum scrolling defaults
  * Based on UIScrollView deceleration mechanics
  * @see https://ariya.io/2011/10/flick-list-with-its-momentum-scrolling-and-deceleration
  */
-const IOS_PHYSICS = {
-  // Time constant in seconds (325ms is iOS default)
+const IOS_DEFAULTS = {
   timeConstant: 0.325,
-  // Velocity multiplier to convert gesture velocity to rotation momentum
-  // Higher = more momentum from same flick speed
   velocityMultiplier: 0.15,
-  // Maximum momentum (radians) to prevent wild spins
   maxMomentum: Math.PI * 2,
-  // Minimum velocity threshold to trigger momentum (prevents micro-drifts)
   minVelocityThreshold: 50,
 };
 
@@ -40,6 +35,12 @@ interface MomentumControlsProps {
   damping?: number;
   /** Momentum multiplier (0 = no momentum, 1 = iOS-like, 2 = more momentum) */
   momentum?: number;
+  /** Time constant for momentum decay (seconds). iOS default is 0.325s */
+  timeConstant?: number;
+  /** Converts gesture velocity to rotation. Higher = more momentum from same flick */
+  velocityMultiplier?: number;
+  /** Minimum flick speed (px/s) to trigger momentum */
+  minVelocityThreshold?: number;
   children?: React.ReactNode;
 }
 
@@ -61,6 +62,9 @@ export function MomentumControls({
   azimuth = [-Infinity, Infinity],
   damping = 0.12,
   momentum = 1,
+  timeConstant = IOS_DEFAULTS.timeConstant,
+  velocityMultiplier = IOS_DEFAULTS.velocityMultiplier,
+  minVelocityThreshold = IOS_DEFAULTS.minVelocityThreshold,
   children,
 }: MomentumControlsProps) {
   const events = useThree((state) => state.events);
@@ -142,11 +146,11 @@ export function MomentumControls({
           animation.current.damping = damping;
         } else {
           // On release: apply iOS-style momentum based on velocity
-          const momentumScale = momentum * IOS_PHYSICS.velocityMultiplier;
+          const momentumScale = momentum * velocityMultiplier;
 
           // Only apply momentum if velocity exceeds threshold
-          const hasHorizontalMomentum = Math.abs(vx) > IOS_PHYSICS.minVelocityThreshold;
-          const hasVerticalMomentum = Math.abs(vy) > IOS_PHYSICS.minVelocityThreshold;
+          const hasHorizontalMomentum = Math.abs(vx) > minVelocityThreshold;
+          const hasVerticalMomentum = Math.abs(vy) > minVelocityThreshold;
 
           // Project target position based on velocity
           // iOS formula: target = current + velocity × timeConstant
@@ -155,18 +159,18 @@ export function MomentumControls({
 
           if (hasHorizontalMomentum) {
             const momentumX = MathUtils.clamp(
-              vx * momentumScale * IOS_PHYSICS.timeConstant,
-              -IOS_PHYSICS.maxMomentum,
-              IOS_PHYSICS.maxMomentum,
+              vx * momentumScale * timeConstant,
+              -IOS_DEFAULTS.maxMomentum,
+              IOS_DEFAULTS.maxMomentum,
             );
             targetX = MathUtils.clamp(newX + momentumX, ...rAzimuth);
           }
 
           if (hasVerticalMomentum) {
             const momentumY = MathUtils.clamp(
-              vy * momentumScale * IOS_PHYSICS.timeConstant,
-              -IOS_PHYSICS.maxMomentum,
-              IOS_PHYSICS.maxMomentum,
+              vy * momentumScale * timeConstant,
+              -IOS_DEFAULTS.maxMomentum,
+              IOS_DEFAULTS.maxMomentum,
             );
             targetY = MathUtils.clamp(newY + momentumY, ...rPolar);
           }

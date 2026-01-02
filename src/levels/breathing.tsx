@@ -185,9 +185,12 @@ export function BreathingLevel({
           <MomentumControls
             global
             cursor={true}
-            speed={1.8}
-            damping={0.12}
-            momentum={1}
+            speed={devControls.dragSpeed}
+            damping={devControls.dragDamping}
+            momentum={devControls.dragMomentum}
+            timeConstant={devControls.dragTimeConstant}
+            velocityMultiplier={devControls.dragVelocityMultiplier}
+            minVelocityThreshold={devControls.dragMinVelocity}
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
