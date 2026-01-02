@@ -17,7 +17,7 @@
  * - Fibonacci sphere positions are stable per slot index
  */
 
-import type { MoodId } from '../../constants';
+import { MOOD_IDS, type MoodId } from '../../constants';
 
 /**
  * Individual user with stable identity
@@ -465,14 +465,16 @@ export function isHoldPhase(phaseType: number): boolean {
 export function moodCountsToUsers(moods: Partial<Record<MoodId, number>>): User[] {
   const users: User[] = [];
 
-  for (const [mood, count] of Object.entries(moods)) {
+  // Iterate over known MOOD_IDS for type safety (avoids unsafe `as MoodId` cast)
+  for (const mood of MOOD_IDS) {
+    const count = moods[mood];
     if (typeof count !== 'number' || count <= 0) continue;
 
     for (let i = 0; i < count; i++) {
       users.push({
         // Stable ID: mood-index (e.g., "gratitude-0", "presence-5")
         id: `${mood}-${i}`,
-        mood: mood as MoodId,
+        mood,
       });
     }
   }
