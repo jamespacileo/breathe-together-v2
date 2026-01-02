@@ -1,0 +1,31 @@
+// Three.js Memory Leak Detection Rules
+// Simplified patterns using documented GritQL syntax
+
+// Rule: Detect useMemo creating THREE geometry without disposal
+or {
+  `useMemo(() => new THREE.$geometry($$$args), $deps)` where {
+    $geometry <: r".*Geometry",
+    register_diagnostic(
+      span = $geometry,
+      message = "Three.js geometry created without disposal. Add useEffect(() => () => geometry.dispose(), [geometry]) to prevent GPU memory leak.",
+      severity = "error"
+    )
+  },
+
+  `useMemo(() => new THREE.$material($$$args), $deps)` where {
+    $material <: r".*Material",
+    register_diagnostic(
+      span = $material,
+      message = "Three.js material created without disposal. Add useEffect(() => () => material.dispose(), [material]) to prevent GPU memory leak.",
+      severity = "error"
+    )
+  },
+
+  `new THREE.WebGLRenderTarget($$$args)` where {
+    register_diagnostic(
+      span = $args,
+      message = "WebGLRenderTarget created - ensure disposal in useEffect cleanup to prevent GPU memory leak.",
+      severity = "error"
+    )
+  }
+}

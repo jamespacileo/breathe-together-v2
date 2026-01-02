@@ -1,0 +1,8 @@
+// Simple test pattern to verify GritQL works
+`console.log($msg)` where {
+  register_diagnostic(
+    span = $msg,
+    message = "Test: console.log detected",
+    severity = "info"
+  )
+}

@@ -1,0 +1,22 @@
+// Three.js Performance Optimization Rules
+// Simplified patterns using documented GritQL syntax
+
+// Rule: No 'new' allocations in useFrame
+`useFrame(($state, $delta) => {
+  $$$body
+})` where {
+  $$$body <: contains `new THREE.$type($$$args)` as $allocation,
+  $type <: or {
+    `Vector3`,
+    `Vector2`,
+    `Quaternion`,
+    `Euler`,
+    `Matrix4`,
+    `Color`
+  },
+  register_diagnostic(
+    span = $allocation,
+    message = "Avoid 'new' allocations in useFrame. Declare temp objects outside and reuse: const tempVec = new THREE.Vector3(); useFrame(() => tempVec.set(x,y,z))",
+    severity = "warn"
+  )
+}

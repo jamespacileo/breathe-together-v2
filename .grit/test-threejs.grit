@@ -1,0 +1,7 @@
+`new THREE.$type($$$args)` where {
+  register_diagnostic(
+    span = $type,
+    message = "Found THREE constructor call",
+    severity = "info"
+  )
+}

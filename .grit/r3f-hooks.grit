@@ -1,0 +1,159 @@
+// React Three Fiber Hook Rules
+// Detects R3F-specific anti-patterns and lifecycle issues
+//
+// Reference: https://docs.pmnd.rs/react-three-fiber
+
+// Rule 1: No conditional R3F hooks
+// Hooks like useFrame, useThree must be called unconditionally
+// Follows React's rules of hooks
+pattern no_conditional_r3f_hooks() {
+  or {
+    // If statement containing hook
+    `if ($condition) {
+      $$$body
+    }` where {
+      $$$body <: contains or {
+        `useFrame($$$args)` as $hook,
+        `useThree($$$args)` as $hook,
+        `useLoader($$$args)` as $hook
+      },
+
+      register_diagnostic(
+        span = $hook,
+        message = "React Three Fiber hooks (useFrame, useThree, useLoader) must be called unconditionally. Move hook call outside conditional.",
+        severity = "error"
+      )
+    },
+
+    // Ternary with hook
+    `$condition ? $consequent : $alternate` where {
+      or {
+        $consequent <: contains `useFrame($$$args)` as $hook,
+        $alternate <: contains `useFrame($$$args)` as $hook,
+        $consequent <: contains `useThree($$$args)` as $hook,
+        $alternate <: contains `useThree($$$args)` as $hook
+      },
+
+      register_diagnostic(
+        span = $hook,
+        message = "React Three Fiber hooks cannot be called conditionally. Use conditional logic inside hook callback instead.",
+        severity = "error"
+      )
+    }
+  }
+}
+
+// Rule 2: Require addEventListener cleanup in useEffect
+// Common pattern with window, document, or canvas events
+pattern require_event_cleanup() {
+  `useEffect(() => {
+    $$$body
+  }, $deps)` where {
+    $$$body <: contains `$target.addEventListener($event, $handler)` as $listener,
+
+    // Check if cleanup function exists with removeEventListener
+    not $$$body <: contains `return () => {
+      $$$cleanup
+    }` where {
+      $$$cleanup <: contains `removeEventListener($event, $handler)`
+    },
+
+    register_diagnostic(
+      span = $listener,
+      message = "addEventListener in useEffect requires cleanup. Add return () => target.removeEventListener(event, handler) to prevent memory leaks.",
+      severity = "warn"
+    )
+  }
+}
+
+// Rule 3: Don't dispose useLoader resources
+// useLoader returns cached resources managed by R3F
+// User should NOT manually dispose them
+pattern no_dispose_loader_resources() {
+  or {
+    // Pattern 1: useLoader followed by disposal
+    `const $resource = useLoader($loader, $url)` as $load where {
+      // Find disposal of loaded resource in same scope
+      $$$following <: contains `$resource.dispose()` as $dispose,
+
+      register_diagnostic(
+        span = $dispose,
+        message = "Do not dispose resources from useLoader. They are cached and managed by React Three Fiber. Manual disposal breaks caching.",
+        severity = "error"
+      )
+    },
+
+    // Pattern 2: useGLTF followed by disposal
+    `const $gltf = useGLTF($url)` as $load where {
+      $$$following <: contains `$gltf.scene.traverse($callback)` where {
+        $callback <: contains `.dispose()` as $dispose
+      },
+
+      register_diagnostic(
+        span = $dispose,
+        message = "Do not dispose useGLTF resources manually. Use useGLTF.preload() and let R3F manage lifecycle.",
+        severity = "error"
+      )
+    }
+  }
+}
+
+// Rule 4: Prefer <primitive> for Three.js objects in JSX
+// When adding existing Three.js objects to scene, use <primitive>
+pattern prefer_primitive_for_threejs_objects() {
+  `<mesh $$$props>
+    {$object}
+  </mesh>` where {
+    $object <: contains `new THREE.$type($$$args)`,
+
+    register_diagnostic(
+      span = $object,
+      message = "When adding Three.js objects to JSX, prefer <primitive object={obj} /> over children. More explicit and idiomatic.",
+      severity = "info"
+    )
+  }
+}
+
+// Rule 5: useFrame callback should return void
+// Common mistake: returning values from useFrame
+pattern useframe_return_void() {
+  `useFrame(($state, $delta) => {
+    $$$body
+    return $value;
+  })` where {
+    register_diagnostic(
+      span = $value,
+      message = "useFrame callback should not return values. Return statement has no effect in frame loop.",
+      severity = "info"
+    )
+  }
+}
+
+// Rule 6: Detect missing dispose when using <primitive>
+// When using <primitive object={obj}>, ensure obj.dispose() is called on unmount
+pattern require_primitive_disposal() {
+  `<primitive object={$obj} $$$props />` where {
+    // Check if $obj is a created Three.js object (not from useLoader)
+    $obj <: or {
+      contains `new THREE.Mesh`,
+      contains `new THREE.Group`,
+      contains `new THREE.Object3D`
+    },
+
+    register_diagnostic(
+      span = $obj,
+      message = "When using <primitive> with created Three.js objects, ensure proper disposal in useEffect cleanup to prevent memory leaks.",
+      severity = "warn"
+    )
+  }
+}
+
+// Apply all R3F patterns
+or {
+  no_conditional_r3f_hooks(),
+  require_event_cleanup(),
+  no_dispose_loader_resources(),
+  prefer_primitive_for_threejs_objects(),
+  useframe_return_void(),
+  require_primitive_disposal()
+}
