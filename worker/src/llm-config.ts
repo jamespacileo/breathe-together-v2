@@ -1,19 +1,19 @@
 /**
  * Centralized LLM configuration for inspirational message generation
  *
- * Supports multiple providers (OpenAI, Anthropic, etc.) via Vercel AI SDK
+ * Supports multiple providers (OpenAI, Anthropic, Google Gemini, etc.) via Vercel AI SDK
  * Disabled by default - set LLM_ENABLED=true to activate
  *
  * Required environment variables:
  * - LLM_ENABLED: 'true' | 'false' (default: false)
- * - LLM_PROVIDER: 'openai' | 'anthropic' (default: openai)
+ * - LLM_PROVIDER: 'openai' | 'anthropic' | 'gemini' (default: gemini)
  * - LLM_API_KEY: API key for chosen provider
- * - LLM_MODEL: Model ID (e.g., 'gpt-4', 'claude-3-haiku')
+ * - LLM_MODEL: Model ID (e.g., 'gpt-4', 'claude-3-haiku', 'gemini-2.0-flash')
  */
 
 export interface LLMConfig {
   enabled: boolean;
-  provider: 'openai' | 'anthropic' | 'disabled';
+  provider: 'openai' | 'anthropic' | 'gemini' | 'disabled';
   apiKey: string;
   model: string;
   maxTokens: number;
@@ -45,10 +45,15 @@ export function loadLLMConfig(env: Record<string, string | undefined>): LLMConfi
     };
   }
 
-  const provider = (env.LLM_PROVIDER as 'openai' | 'anthropic') || 'openai';
+  const provider = (env.LLM_PROVIDER as 'openai' | 'anthropic' | 'gemini') || 'gemini';
   const apiKey = env.LLM_API_KEY || '';
   const model =
-    env.LLM_MODEL || (provider === 'openai' ? 'gpt-3.5-turbo' : 'claude-3-haiku-20240307');
+    env.LLM_MODEL ||
+    (provider === 'openai'
+      ? 'gpt-3.5-turbo'
+      : provider === 'anthropic'
+        ? 'claude-3-haiku-20240307'
+        : 'gemini-2.0-flash');
 
   if (!apiKey) {
     console.warn('LLM_ENABLED=true but LLM_API_KEY not set. LLM disabled.');

@@ -232,6 +232,93 @@ async function handleGenerateInspirationalMessages(request: Request, env: Env): 
   }
 }
 
+async function handleGetInspirationBatches(env: Env): Promise<Response> {
+  try {
+    const currentBatchData = await env.PRESENCE_KV.get('inspiration:batch:current', 'json');
+    const currentBatchId = (currentBatchData as { id?: string })?.id || 'preset:intro';
+
+    const stateData = await env.PRESENCE_KV.get('inspiration:state', 'json');
+    const state = stateData as {
+      currentMessageIndex?: number;
+      nextRotationTime?: number;
+      totalCycles?: number;
+    };
+
+    const currentBatch = await env.PRESENCE_KV.get(`inspiration:batch:${currentBatchId}`, 'json');
+
+    return new Response(
+      JSON.stringify({
+        currentBatchId,
+        currentMessageIndex: state?.currentMessageIndex || 0,
+        nextRotationTime: state?.nextRotationTime || Date.now(),
+        totalCycles: state?.totalCycles || 0,
+        currentBatch: currentBatch || null,
+      }),
+      {
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  } catch (e) {
+    console.error('Get batches error:', e);
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+async function handleEditMessage(request: Request, env: Env): Promise<Response> {
+  try {
+    const body = (await request.json()) as {
+      batchId: string;
+      messageIndex: number;
+      top: string;
+      bottom: string;
+    };
+
+    const { batchId, messageIndex, top, bottom } = body;
+
+    if (!batchId || messageIndex < 0 || !top || !bottom) {
+      return new Response(JSON.stringify({ error: 'Invalid request' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // biome-ignore lint/suspicious/noExplicitAny: KV returns untyped data
+    const batchData = (await env.PRESENCE_KV.get(`inspiration:batch:${batchId}`, 'json')) as any;
+    if (!batchData) {
+      return new Response(JSON.stringify({ error: 'Batch not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const batch = batchData;
+    if (messageIndex >= batch.messages.length) {
+      return new Response(JSON.stringify({ error: 'Message index out of range' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    batch.messages[messageIndex].top = top;
+    batch.messages[messageIndex].bottom = bottom;
+
+    await env.PRESENCE_KV.put(`inspiration:batch:${batchId}`, JSON.stringify(batch));
+
+    return new Response(JSON.stringify({ success: true, message: batch.messages[messageIndex] }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (e) {
+    console.error('Edit message error:', e);
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
 function handleConfig(): Response {
   return new Response(
     JSON.stringify({
@@ -353,12 +440,20 @@ export default {
         break;
 
       // Admin inspirational text endpoints
+      case path === '/admin/inspirational' && request.method === 'GET':
+        response = await handleGetInspirationBatches(env);
+        break;
+
       case path === '/admin/inspirational/override' && request.method === 'POST':
         response = await handleCreateTextOverride(request, env);
         break;
 
       case path === '/admin/inspirational/generate' && request.method === 'POST':
         response = await handleGenerateInspirationalMessages(request, env);
+        break;
+
+      case path === '/admin/inspirational/message' && request.method === 'POST':
+        response = await handleEditMessage(request, env);
         break;
 
       // Admin endpoints (forwarded to Durable Object)

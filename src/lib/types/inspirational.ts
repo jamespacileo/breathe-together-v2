@@ -17,6 +17,19 @@ export interface InspirationMessage {
   };
 }
 
+export interface MessageBatch {
+  id: string;
+  name: string;
+  messages: InspirationMessage[];
+  source: 'preset' | 'llm' | 'manual';
+  createdAt: number;
+  metadata?: {
+    theme?: string;
+    generatedBy?: string;
+    tokenCount?: number;
+  };
+}
+
 export interface UserTextOverride {
   sessionId: string;
   type: 'tutorial' | 'first-time-flow' | 'custom' | 'seasonal';
