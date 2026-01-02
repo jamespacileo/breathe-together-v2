@@ -35,7 +35,8 @@ function useCurrentPath(): string {
  * @see https://r3f.docs.pmnd.rs/api/canvas#extracting-events
  */
 export function App() {
-  const containerRef = useRef<HTMLDivElement>(null);
+  // biome-ignore lint/style/noNonNullAssertion: R3F eventSource requires non-null ref; ref is always assigned before Canvas renders
+  const containerRef = useRef<HTMLDivElement>(null!);
   const path = useCurrentPath();
   const { isMobile, isTablet } = useViewport();
 
