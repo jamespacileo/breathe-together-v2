@@ -76,8 +76,8 @@ export const TUNING_DEFAULTS = {
   // BREATHING EFFECTS (new breath-reactive visuals)
   // ==========================================
 
-  // Bloom effect
-  enableBloom: true,
+  // Bloom effect - DISABLED by default (conflicts with RefractionPipeline)
+  enableBloom: false,
   bloomIntensityMin: 0.2,
   bloomIntensityMax: 0.6,
   bloomThreshold: 0.85,
@@ -101,8 +101,8 @@ export const TUNING_DEFAULTS = {
   wobbleFrequency: 2.0,
   wobbleSpeed: 0.5,
 
-  // Color temperature shift
-  enableColorTemperature: true,
+  // Color temperature shift - DISABLED by default (can conflict with pipeline)
+  enableColorTemperature: false,
   warmColor: '#fff5eb',
   coolColor: '#e8f4ff',
   temperatureStrength: 0.3,

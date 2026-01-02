@@ -7,7 +7,7 @@ import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
-import { BreathingBloom, ColorTemperature, RippleEmitter } from '../entities/effects';
+import { RippleEmitter } from '../entities/effects';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
@@ -242,23 +242,8 @@ export function BreathingLevel({
           </MomentumControls>
         </RefractionPipeline>
 
-        {/* Color temperature shift (warm/cool based on breathing) */}
-        <ColorTemperature
-          enabled={devControls.enableColorTemperature}
-          warmColor={devControls.warmColor}
-          coolColor={devControls.coolColor}
-          strength={devControls.temperatureStrength}
-        />
-
-        {/* Breath-synchronized bloom post-processing */}
-        <BreathingBloom
-          enabled={devControls.enableBloom}
-          intensityMin={devControls.bloomIntensityMin}
-          intensityMax={devControls.bloomIntensityMax}
-          threshold={devControls.bloomThreshold}
-          smoothing={devControls.bloomSmoothing}
-          radius={devControls.bloomRadius}
-        />
+        {/* NOTE: Bloom and ColorTemperature effects removed - they conflict with RefractionPipeline */}
+        {/* The remaining effects (wobbly globe, curl noise, ripples, particle animation) work well */}
 
         {/* UI stays OUTSIDE pipeline (fixed HUD) - Simplified for first-time users */}
         <Html fullscreen>
