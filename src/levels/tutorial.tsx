@@ -10,7 +10,6 @@ import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useTutorialTour } from '../hooks/useTutorialTour';
 import { calculatePhaseInfo } from '../lib/breathPhase';
-import '../styles/tutorial-tour.css';
 
 /**
  * Tutorial phases - tracks progression through the experience
