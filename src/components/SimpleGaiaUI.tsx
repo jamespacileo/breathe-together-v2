@@ -7,8 +7,9 @@ import {
   useState,
   useTransition,
 } from 'react';
+import { useMediaQuery } from 'react-responsive';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
-import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
+import { BREAKPOINTS } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
@@ -115,12 +116,17 @@ export function SimpleGaiaUI() {
   const progressContainerRef = useRef<HTMLDivElement>(null);
   const presenceCountRef = useRef<HTMLSpanElement>(null);
 
-  // Responsive viewport detection
-  const { deviceType, isMobile, isTablet } = useViewport();
+  // Responsive design using react-responsive
+  const isMobile = useMediaQuery({ maxWidth: BREAKPOINTS.mobile });
+  const isTablet = useMediaQuery({
+    minWidth: BREAKPOINTS.mobile + 1,
+    maxWidth: BREAKPOINTS.tablet,
+  });
+  const isDesktop = useMediaQuery({ minWidth: BREAKPOINTS.tablet + 1 });
 
   // Responsive spacing values
-  const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32); // Mobile: 16px, Tablet: 24px, Desktop: 32px
-  const modalPadding = getResponsiveSpacing(deviceType, 24, 32, 40); // Mobile: 24px, Tablet: 32px, Desktop: 40px
+  const edgePadding = isMobile ? 16 : isTablet ? 24 : 32; // Mobile: 16px, Tablet: 24px, Desktop: 32px
+  const modalPadding = isMobile ? 24 : isTablet ? 32 : 40; // Mobile: 24px, Tablet: 32px, Desktop: 40px
   const controlsPanelWidth = isMobile ? '100%' : '260px'; // Full width on mobile
 
   // Entrance animation

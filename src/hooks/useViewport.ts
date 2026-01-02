@@ -1,8 +1,26 @@
+/**
+ * @deprecated This hook is deprecated in favor of react-responsive's useMediaQuery.
+ * Use useMediaQuery({ maxWidth: BREAKPOINTS.mobile }) instead.
+ * Kept for reference and backward compatibility.
+ *
+ * Migration example:
+ * ```ts
+ * // Old
+ * const { isMobile, deviceType } = useViewport();
+ *
+ * // New
+ * import { useMediaQuery } from 'react-responsive';
+ * const isMobile = useMediaQuery({ maxWidth: BREAKPOINTS.mobile });
+ * ```
+ */
+
 import { useEffect, useState } from 'react';
 
 /**
  * Viewport breakpoints for responsive design
  * Based on common device sizes and best practices
+ *
+ * These breakpoints are still used throughout the app with react-responsive.
  */
 export const BREAKPOINTS = {
   mobile: 480, // Small phones (iPhone SE, etc.)
@@ -33,6 +51,8 @@ function getDeviceType(width: number): DeviceType {
 }
 
 /**
+ * @deprecated Use react-responsive's useMediaQuery instead
+ *
  * useViewport - Responsive viewport size detection hook
  *
  * Provides real-time viewport dimensions and device type detection
@@ -42,7 +62,13 @@ function getDeviceType(width: number): DeviceType {
  *
  * @example
  * ```tsx
+ * // Old (deprecated)
  * const { isMobile, width, deviceType } = useViewport();
+ *
+ * // New (recommended)
+ * import { useMediaQuery } from 'react-responsive';
+ * const isMobile = useMediaQuery({ maxWidth: BREAKPOINTS.mobile });
+ * const isTablet = useMediaQuery({ minWidth: BREAKPOINTS.mobile + 1, maxWidth: BREAKPOINTS.tablet });
  *
  * return (
  *   <Container padding={isMobile ? 16 : 32}>

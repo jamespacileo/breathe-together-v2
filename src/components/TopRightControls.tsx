@@ -7,8 +7,9 @@
  */
 
 import { useCallback, useContext, useMemo } from 'react';
+import { useMediaQuery } from 'react-responsive';
 import { AudioContext } from '../audio/AudioProvider';
-import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
+import { BREAKPOINTS } from '../hooks/useViewport';
 import { useSettingsStore } from '../stores/settingsStore';
 import { UI_COLORS, Z_INDEX } from '../styles/designTokens';
 
@@ -18,10 +19,16 @@ export function TopRightControls() {
   // Use useContext directly to avoid throwing error when provider is missing
   // This allows the component to render gracefully without audio controls
   const audio = useContext(AudioContext);
-  const { deviceType, isMobile } = useViewport();
+
+  // Responsive design using react-responsive
+  const isMobile = useMediaQuery({ maxWidth: BREAKPOINTS.mobile });
+  const isTablet = useMediaQuery({
+    minWidth: BREAKPOINTS.mobile + 1,
+    maxWidth: BREAKPOINTS.tablet,
+  });
 
   // Match SimpleGaiaUI's edge padding for vertical alignment
-  const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32);
+  const edgePadding = isMobile ? 16 : isTablet ? 24 : 32;
 
   // Responsive button sizing - smaller on mobile to reduce visual weight
   const buttonSize = isMobile ? 38 : 44;
