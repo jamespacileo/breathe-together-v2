@@ -138,6 +138,14 @@ async function handleRoomPresence(env: Env): Promise<Response> {
   return room.fetch(new Request('https://internal/presence'));
 }
 
+async function handleAdminRequest(request: Request, env: Env, path: string): Promise<Response> {
+  const roomId = env.BREATHING_ROOM.idFromName('global');
+  const room = env.BREATHING_ROOM.get(roomId);
+  // Forward the request with the original URL to preserve query params
+  const url = new URL(request.url);
+  return room.fetch(new Request(`https://internal${path}${url.search}`));
+}
+
 // ============================================================================
 // CORS & Routing
 // ============================================================================
@@ -204,6 +212,13 @@ export default {
 
       case path === '/api/room':
         response = await handleRoomPresence(env);
+        break;
+
+      // Admin endpoints (forwarded to Durable Object)
+      case path === '/admin/users' && request.method === 'GET':
+      case path === '/admin/events' && request.method === 'GET':
+      case path === '/admin/stats' && request.method === 'GET':
+        response = await handleAdminRequest(request, env, path);
         break;
 
       default:
