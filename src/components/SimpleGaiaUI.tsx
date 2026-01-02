@@ -11,6 +11,7 @@ import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../con
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES } from '../styles/designTokens';
+import { AudioSettings } from './AudioSettings';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
@@ -390,6 +391,14 @@ export function SimpleGaiaUI({
             >
               Settings
             </h2>
+
+            {/* Audio Settings Section */}
+            <div className="mb-6 pb-6 border-b border-border">
+              <div className="text-[0.7rem] uppercase tracking-[0.1em] text-warm-gray mb-3">
+                Sound
+              </div>
+              <AudioSettings stopPropagation={stopPropagation} />
+            </div>
 
             {/* Current Mood - with icosahedron preview */}
             <div className="mb-6">

@@ -1,43 +1,76 @@
 /**
- * AudioEngine - Tone.js wrapper for atmospheric audio
+ * AudioEngine - Thin facade combining loader, mixer, and breath sync modules
  *
+ * Provides a unified API for audio management while delegating to specialized modules.
  * Handles loading, playback, and breath synchronization.
- * Fails softly when audio files are missing (warns in console).
  */
 
 import * as Tone from 'tone';
-import { getSoundsByCategory, SOUNDS } from './registry';
+import {
+  applyBreathVolume,
+  type BreathSyncState,
+  calculateBreathVolume,
+  createBreathSyncState,
+  detectPhaseChange,
+  shouldTriggerOnPhase,
+} from './breathSync';
+import { disposeAllSounds, getLoadingStates, type LoadedSound, loadAllSounds } from './loader';
+import { AudioMixer } from './mixer';
+import { getSoundsByCategory, isValidSoundId, SOUNDS } from './registry';
 import type { AudioState, SoundCategory, SoundState } from './types';
 
-// Prefix for console messages
 const LOG_PREFIX = '[Audio]';
 
 /**
- * Convert linear gain (0-1) to decibels
+ * Audio engine configuration
  */
-function gainToDb(gain: number): number {
-  if (gain <= 0) return -Infinity;
-  return 20 * Math.log10(gain);
+export interface AudioEngineConfig {
+  masterVolume: number;
+  ambientEnabled: boolean;
+  breathEnabled: boolean;
+  natureSound: string | null;
+  chimesEnabled: boolean;
+  syncIntensity: number;
+  rampTime: number;
+  categoryVolumes: Partial<Record<SoundCategory, number>>;
 }
 
+const DEFAULT_CONFIG: AudioEngineConfig = {
+  masterVolume: 0.7,
+  ambientEnabled: true,
+  breathEnabled: true,
+  natureSound: null,
+  chimesEnabled: false,
+  syncIntensity: 1.0,
+  rampTime: 0.1,
+  categoryVolumes: {},
+};
+
 /**
- * Low-level audio control wrapping Tone.js
+ * Low-level audio control using modular architecture
  */
 export class AudioEngine {
-  private players: Map<string, Tone.Player> = new Map();
-  private loadingStates: Map<string, SoundState> = new Map();
-  private masterGain: Tone.Gain;
+  private mixer: AudioMixer;
+  private loadedSounds: Map<string, LoadedSound> = new Map();
+  private breathSync: BreathSyncState;
   private ready = false;
-  private state: AudioState;
-  private lastPhase = -1;
+  private config: AudioEngineConfig;
 
-  constructor(initialState: Omit<AudioState, 'ready' | 'loadingStates'>) {
-    this.state = {
-      ...initialState,
-      ready: false,
-      loadingStates: {},
-    };
-    this.masterGain = new Tone.Gain(initialState.masterVolume).toDestination();
+  constructor(initialConfig: Partial<AudioEngineConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...initialConfig };
+    this.mixer = new AudioMixer({
+      masterVolume: this.config.masterVolume,
+      rampTime: this.config.rampTime,
+      categoryVolumes: {
+        ambient: this.config.categoryVolumes.ambient ?? 0.5,
+        breath: this.config.categoryVolumes.breath ?? 0.6,
+        nature: this.config.categoryVolumes.nature ?? 0.5,
+        chimes: this.config.categoryVolumes.chimes ?? 0.4,
+        ui: this.config.categoryVolumes.ui ?? 0.3,
+      },
+    });
+    this.breathSync = createBreathSyncState();
+    this.breathSync.syncIntensity = this.config.syncIntensity;
   }
 
   /**
@@ -49,64 +82,21 @@ export class AudioEngine {
       await Tone.start();
       console.log(LOG_PREFIX, 'Audio context started');
 
-      // Load all sounds (soft failure for missing files)
-      await this.loadSounds();
+      // Load all sounds using the loader module
+      this.loadedSounds = await loadAllSounds(SOUNDS, (category) =>
+        this.mixer.getCategoryGain(category),
+      );
 
       this.ready = true;
       console.log(LOG_PREFIX, 'Audio engine ready');
 
-      return this.loadingStates;
+      return new Map(
+        Array.from(this.loadedSounds.entries()).map(([id, sound]) => [id, sound.state]),
+      );
     } catch (error) {
       console.error(LOG_PREFIX, 'Failed to initialize audio engine:', error);
-      return this.loadingStates;
+      return new Map();
     }
-  }
-
-  /**
-   * Load all sounds from registry
-   */
-  private async loadSounds(): Promise<void> {
-    const loadPromises = Object.entries(SOUNDS).map(async ([id, def]) => {
-      try {
-        const player = new Tone.Player({
-          url: def.path,
-          loop: def.loop ?? false,
-          fadeIn: def.fadeIn,
-          fadeOut: def.fadeOut,
-          volume: def.baseVolume,
-        }).connect(this.masterGain);
-
-        // Wait for the player to load
-        await Tone.loaded();
-
-        this.players.set(id, player);
-        this.loadingStates.set(id, { loaded: true, playing: false });
-
-        console.log(LOG_PREFIX, `✓ Loaded: ${id}`);
-      } catch (error) {
-        // Soft failure - warn but don't throw
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        this.loadingStates.set(id, {
-          loaded: false,
-          playing: false,
-          error: errorMessage,
-        });
-
-        console.warn(
-          LOG_PREFIX,
-          `⚠ Missing audio file: ${def.path}`,
-          `\n  To fix: Add the file to public${def.path}`,
-          `\n  The app will continue without this sound.`,
-        );
-      }
-    });
-
-    await Promise.allSettled(loadPromises);
-
-    // Summary
-    const loaded = Array.from(this.loadingStates.values()).filter((s) => s.loaded).length;
-    const total = Object.keys(SOUNDS).length;
-    console.log(LOG_PREFIX, `Loaded ${loaded}/${total} sounds. Missing sounds will be skipped.`);
   }
 
   /**
@@ -120,14 +110,34 @@ export class AudioEngine {
    * Get loading states for all sounds
    */
   getLoadingStates(): Record<string, SoundState> {
-    return Object.fromEntries(Array.from(this.loadingStates.entries()));
+    return getLoadingStates(this.loadedSounds);
   }
 
   /**
-   * Update state from provider
+   * Update configuration
+   */
+  updateConfig(newConfig: Partial<AudioEngineConfig>): void {
+    this.config = { ...this.config, ...newConfig };
+
+    // Apply changes
+    if (newConfig.syncIntensity !== undefined) {
+      this.breathSync.syncIntensity = newConfig.syncIntensity;
+    }
+    if (newConfig.rampTime !== undefined) {
+      this.mixer.setRampTime(newConfig.rampTime);
+    }
+  }
+
+  /**
+   * Legacy method for backward compatibility
    */
   updateState(newState: Partial<AudioState>): void {
-    this.state = { ...this.state, ...newState };
+    this.updateConfig({
+      ambientEnabled: newState.ambientEnabled,
+      breathEnabled: newState.breathEnabled,
+      natureSound: newState.natureSound,
+      chimesEnabled: newState.chimesEnabled,
+    });
   }
 
   /**
@@ -136,13 +146,13 @@ export class AudioEngine {
   private isCategoryEnabled(category: SoundCategory): boolean {
     switch (category) {
       case 'ambient':
-        return this.state.ambientEnabled;
+        return this.config.ambientEnabled;
       case 'breath':
-        return this.state.breathEnabled;
+        return this.config.breathEnabled;
       case 'nature':
-        return this.state.natureSound !== null;
+        return this.config.natureSound !== null;
       case 'chimes':
-        return this.state.chimesEnabled;
+        return this.config.chimesEnabled;
       case 'ui':
         return true;
       default:
@@ -154,40 +164,40 @@ export class AudioEngine {
    * Check if a sound is loaded and ready
    */
   private isSoundReady(id: string): boolean {
-    const state = this.loadingStates.get(id);
-    return state?.loaded ?? false;
+    const sound = this.loadedSounds.get(id);
+    return sound?.state.loaded ?? false;
   }
 
   /**
    * Update playing state for a sound
    */
   private setPlayingState(id: string, playing: boolean): void {
-    const current = this.loadingStates.get(id);
-    if (current) {
-      this.loadingStates.set(id, { ...current, playing });
+    const sound = this.loadedSounds.get(id);
+    if (sound) {
+      sound.state.playing = playing;
     }
   }
 
   /**
    * Handle phase transition - trigger phase-specific sounds
    */
-  onPhaseChange(newPhase: number, _oldPhase: number): void {
-    if (!this.ready) return;
-
-    // Trigger phase-specific sounds
-    for (const [id, def] of Object.entries(SOUNDS)) {
+  private onPhaseChange(newPhase: number, _oldPhase: number): void {
+    this.loadedSounds.forEach((sound, id) => {
       if (
-        def.triggerPhase === newPhase &&
-        this.isCategoryEnabled(def.category) &&
-        this.isSoundReady(id)
+        shouldTriggerOnPhase(
+          sound.definition,
+          newPhase,
+          this.isCategoryEnabled(sound.definition.category),
+        ) &&
+        sound.state.loaded
       ) {
-        const player = this.players.get(id);
-        if (player && player.state !== 'started') {
+        const { player } = sound;
+        if (player.state !== 'started') {
           player.start();
           this.setPlayingState(id, true);
         }
       }
-    }
+    });
   }
 
   /**
@@ -196,61 +206,114 @@ export class AudioEngine {
   updateBreathProgress(phase: number, progress: number): void {
     if (!this.ready) return;
 
-    // Detect phase change
-    if (phase !== this.lastPhase) {
-      this.onPhaseChange(phase, this.lastPhase);
-      this.lastPhase = phase;
+    // Detect phase change using breath sync module
+    const { changed, oldPhase } = detectPhaseChange(phase, this.breathSync);
+    if (changed) {
+      this.onPhaseChange(phase, oldPhase);
     }
 
     // Update volume for breath-synced sounds
-    for (const [id, def] of Object.entries(SOUNDS)) {
-      if (!def.breathSync || !this.isCategoryEnabled(def.category)) continue;
-      if (!this.isSoundReady(id)) continue;
+    const rampTime = this.mixer.getRampTime();
 
-      const player = this.players.get(id);
-      if (!player) continue;
+    this.loadedSounds.forEach((sound) => {
+      const { player, definition } = sound;
 
-      // Only update volume for playing sounds or looping sounds
-      if (player.state !== 'started' && !def.loop) continue;
+      if (!definition.breathSync || !this.isCategoryEnabled(definition.category)) return;
+      if (!sound.state.loaded) return;
+      if (player.state !== 'started' && !definition.loop) return;
 
-      let targetVolume: number;
+      const targetVolume = calculateBreathVolume(
+        definition,
+        phase,
+        progress,
+        this.breathSync.syncIntensity,
+      );
 
-      if (def.breathSync.followProgress) {
-        // Volume follows eased progress within phase
-        const { volumeMin, volumeMax } = def.breathSync;
-        targetVolume = volumeMin + (volumeMax - volumeMin) * progress;
-      } else if (def.breathSync.phaseVolumes) {
-        // Volume snaps to phase-specific target
-        targetVolume = def.breathSync.phaseVolumes[phase];
-      } else {
-        continue;
+      if (targetVolume !== null) {
+        applyBreathVolume(player, definition, targetVolume, rampTime);
       }
-
-      // Smooth volume transition (100ms ramp)
-      const targetDb = def.baseVolume + gainToDb(targetVolume);
-      player.volume.rampTo(targetDb, 0.1);
-    }
+    });
   }
+
+  // ─────────────────────────────────────────────────────
+  // MIXER CONTROLS
+  // ─────────────────────────────────────────────────────
 
   /**
    * Set master volume
    */
   setMasterVolume(volume: number): void {
-    this.state.masterVolume = volume;
-    this.masterGain.gain.rampTo(volume, 0.1);
+    this.config.masterVolume = volume;
+    this.mixer.setMasterVolume(volume);
   }
+
+  /**
+   * Get master volume
+   */
+  getMasterVolume(): number {
+    return this.mixer.getMasterVolume();
+  }
+
+  /**
+   * Set category volume
+   */
+  setCategoryVolume(category: SoundCategory, volume: number): void {
+    this.config.categoryVolumes[category] = volume;
+    this.mixer.setCategoryVolume(category, volume);
+  }
+
+  /**
+   * Get category volume
+   */
+  getCategoryVolume(category: SoundCategory): number {
+    return this.mixer.getCategoryVolume(category);
+  }
+
+  /**
+   * Get all category volumes
+   */
+  getAllCategoryVolumes(): Record<SoundCategory, number> {
+    return this.mixer.getAllCategoryVolumes();
+  }
+
+  /**
+   * Set volume ramp time
+   */
+  setRampTime(time: number): void {
+    this.config.rampTime = time;
+    this.mixer.setRampTime(time);
+  }
+
+  /**
+   * Set breath sync intensity
+   */
+  setSyncIntensity(intensity: number): void {
+    this.config.syncIntensity = intensity;
+    this.breathSync.syncIntensity = intensity;
+  }
+
+  /**
+   * Get breath sync intensity
+   */
+  getSyncIntensity(): number {
+    return this.breathSync.syncIntensity;
+  }
+
+  // ─────────────────────────────────────────────────────
+  // PLAYBACK CONTROLS
+  // ─────────────────────────────────────────────────────
 
   /**
    * Start all ambient sounds
    */
   startAmbient(): void {
-    if (!this.ready || !this.state.ambientEnabled) return;
+    if (!this.ready || !this.config.ambientEnabled) return;
 
     getSoundsByCategory('ambient').forEach(({ id }) => {
       if (this.isSoundReady(id)) {
-        const player = this.players.get(id);
-        if (player && player.state !== 'started') {
-          player.start();
+        const sound = this.loadedSounds.get(id);
+        if (sound && sound.player.state !== 'started') {
+          sound.player.start();
           this.setPlayingState(id, true);
         }
       }
@@ -262,9 +325,9 @@ export class AudioEngine {
    */
   stopAmbient(): void {
     getSoundsByCategory('ambient').forEach(({ id }) => {
-      const player = this.players.get(id);
-      if (player && player.state === 'started') {
-        player.stop();
+      const sound = this.loadedSounds.get(id);
+      if (sound && sound.player.state === 'started') {
+        sound.player.stop();
         this.setPlayingState(id, false);
       }
     });
@@ -275,21 +338,21 @@ export class AudioEngine {
    */
   setNatureSound(soundId: string | null): void {
     // Stop current nature sound
-    if (this.state.natureSound) {
-      const currentPlayer = this.players.get(this.state.natureSound);
-      if (currentPlayer && currentPlayer.state === 'started') {
-        currentPlayer.stop();
-        this.setPlayingState(this.state.natureSound, false);
+    if (this.config.natureSound) {
+      const currentSound = this.loadedSounds.get(this.config.natureSound);
+      if (currentSound && currentSound.player.state === 'started') {
+        currentSound.player.stop();
+        this.setPlayingState(this.config.natureSound, false);
       }
     }
 
-    this.state.natureSound = soundId;
+    this.config.natureSound = soundId;
 
     // Start new nature sound
-    if (soundId && this.isSoundReady(soundId)) {
-      const player = this.players.get(soundId);
-      if (player && player.state !== 'started') {
-        player.start();
+    if (soundId && isValidSoundId(soundId) && this.isSoundReady(soundId)) {
+      const sound = this.loadedSounds.get(soundId);
+      if (sound && sound.player.state !== 'started') {
+        sound.player.start();
         this.setPlayingState(soundId, true);
       }
     }
@@ -299,16 +362,17 @@ export class AudioEngine {
    * Stop all sounds
    */
   stopAll(): void {
-    this.players.forEach((player, id) => {
-      if (player.state === 'started') {
-        player.stop();
-        const state = this.loadingStates.get(id);
-        if (state) {
-          this.loadingStates.set(id, { ...state, playing: false });
-        }
+    this.loadedSounds.forEach((sound) => {
+      if (sound.player.state === 'started') {
+        sound.player.stop();
+        sound.state.playing = false;
       }
     });
   }
+
+  // ─────────────────────────────────────────────────────
+  // CONTEXT MANAGEMENT
+  // ─────────────────────────────────────────────────────
 
   /**
    * Pause audio when tab is hidden
@@ -316,7 +380,6 @@ export class AudioEngine {
   suspend(): void {
     const context = Tone.getContext();
     if (context.state === 'running') {
-      // Cast to standard AudioContext to use suspend()
       const rawCtx = context.rawContext as unknown as AudioContext;
       void rawCtx.suspend();
     }
@@ -328,7 +391,6 @@ export class AudioEngine {
   resume(): void {
     const context = Tone.getContext();
     if (context.state === 'suspended') {
-      // Cast to standard AudioContext to use resume()
       const rawCtx = context.rawContext as unknown as AudioContext;
       void rawCtx.resume();
     }
@@ -339,11 +401,8 @@ export class AudioEngine {
    */
   dispose(): void {
     this.stopAll();
-    this.players.forEach((player) => {
-      player.dispose();
-    });
-    this.players.clear();
-    this.masterGain.dispose();
+    disposeAllSounds(this.loadedSounds);
+    this.mixer.dispose();
     this.ready = false;
     console.log(LOG_PREFIX, 'Audio engine disposed');
   }

@@ -1,6 +1,7 @@
 import { Html } from '@react-three/drei';
 import { Leva } from 'leva';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
@@ -158,6 +159,9 @@ export function BreathingLevel({
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
+        {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
+        <AudioDevControls />
+
         {/* 4-Pass FBO Refraction Pipeline handles background + refraction + depth of field rendering */}
         <RefractionPipeline
           ior={devControls.ior}
