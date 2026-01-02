@@ -91,6 +91,9 @@ export class BreathingRoom {
     if (url.pathname === '/admin/stats') {
       return this.handleAdminStatsRequest();
     }
+    if (url.pathname === '/admin/inspirational') {
+      return this.handleAdminInspirationalRequest();
+    }
 
     return new Response('Not found', { status: 404 });
   }
@@ -345,6 +348,28 @@ export class BreathingRoom {
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        },
+      },
+    );
+  }
+
+  /**
+   * Admin endpoint: Get inspirational message configuration
+   * Note: Messages are managed client-side in src/config/inspirationalSequences.ts
+   */
+  private handleAdminInspirationalRequest(): Response {
+    return new Response(
+      JSON.stringify({
+        source: 'client-side',
+        configPath: 'src/config/inspirationalSequences.ts',
+        note: 'Inspirational messages are managed client-side and bundled at build time',
+        timestamp: Date.now(),
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=3600',
           'Access-Control-Allow-Origin': '*',
         },
       },
