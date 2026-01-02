@@ -1,5 +1,6 @@
 import { Html } from '@react-three/drei';
 import { Leva } from 'leva';
+import { Perf } from 'r3f-perf';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
@@ -158,6 +159,20 @@ export function BreathingLevel({
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
+        {/* Performance monitor - controlled via Leva "Performance Monitor" folder */}
+        {DEV_MODE_ENABLED && devControls.showPerfMonitor && (
+          <Perf
+            position={devControls.perfPosition}
+            minimal={devControls.perfMinimal}
+            showGraph={devControls.perfShowGraph}
+            logsPerSecond={devControls.perfLogsPerSecond}
+            antialias={devControls.perfAntialias}
+            overClock={devControls.perfOverClock}
+            deepAnalyze={devControls.perfDeepAnalyze}
+            matrixUpdate={devControls.perfMatrixUpdate}
+          />
+        )}
+
         {/* 4-Pass FBO Refraction Pipeline handles background + refraction + depth of field rendering */}
         <RefractionPipeline
           ior={devControls.ior}
