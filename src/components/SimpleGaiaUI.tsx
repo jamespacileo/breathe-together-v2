@@ -7,15 +7,38 @@ import {
   useState,
   useTransition,
 } from 'react';
-import { useMediaQuery } from 'react-responsive';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
-import { BREAKPOINTS } from '../hooks/useViewport';
+import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
-import { useSettingsStore } from '../stores/settingsStore';
 import { MOOD_COLORS, PHASE_NAMES, UI_COLORS } from '../styles/designTokens';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
+
+interface SimpleGaiaUIProps {
+  /** Particle count (harmony) */
+  harmony: number;
+  setHarmony: (v: number) => void;
+  /** Orbit radius - how far particles orbit from center */
+  orbitRadius: number;
+  setOrbitRadius: (v: number) => void;
+  /** Shard size - maximum size of glass shards */
+  shardSize: number;
+  setShardSize: (v: number) => void;
+  /** Atmosphere density - number of ambient floating particles */
+  atmosphereDensity: number;
+  setAtmosphereDensity: (v: number) => void;
+  /** Apply preset values with smooth animation */
+  onApplyPreset: (preset: 'calm' | 'centered' | 'immersive') => void;
+  /** Optional external control for tune controls visibility */
+  showTuneControls?: boolean;
+  /** Optional callback when tune controls visibility changes */
+  onShowTuneControlsChange?: (show: boolean) => void;
+  /** Optional external control for settings modal visibility */
+  showSettings?: boolean;
+  /** Optional callback when settings modal visibility changes */
+  onShowSettingsChange?: (show: boolean) => void;
+}
 
 /**
  * SimpleGaiaUI - Simplified breathing meditation interface for first-time users
@@ -34,30 +57,23 @@ import { InspirationalText } from './InspirationalText';
  * - Touch-friendly controls with minimum 44px touch targets
  * - Stacks elements vertically on narrow screens
  * - Adjusts modal sizing for small viewports
- *
- * Settings: Uses centralized settings store (no prop drilling!)
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: UI component manages multiple modal states (tune controls, settings, mood selection, welcome, hints) and phase animation loops - refactoring would reduce readability by splitting cohesive UI state management
-export function SimpleGaiaUI() {
-  // Get all settings from centralized store
-  const {
-    harmony,
-    setHarmony,
-    ior,
-    setIor,
-    glassDepth,
-    setGlassDepth,
-    orbitRadius,
-    setOrbitRadius,
-    shardSize,
-    setShardSize,
-    atmosphereDensity,
-    setAtmosphereDensity,
-    showTuneControls: externalShowTuneControls,
-    setShowTuneControls: onShowTuneControlsChange,
-    showSettings: externalShowSettings,
-    setShowSettings: onShowSettingsChange,
-  } = useSettingsStore();
+export function SimpleGaiaUI({
+  harmony,
+  setHarmony,
+  orbitRadius,
+  setOrbitRadius,
+  shardSize,
+  setShardSize,
+  atmosphereDensity,
+  setAtmosphereDensity,
+  onApplyPreset,
+  showTuneControls: externalShowTuneControls,
+  onShowTuneControlsChange,
+  showSettings: externalShowSettings,
+  onShowSettingsChange,
+}: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
@@ -116,16 +132,12 @@ export function SimpleGaiaUI() {
   const progressContainerRef = useRef<HTMLDivElement>(null);
   const presenceCountRef = useRef<HTMLSpanElement>(null);
 
-  // Responsive design using react-responsive
-  const isMobile = useMediaQuery({ maxWidth: BREAKPOINTS.mobile });
-  const isTablet = useMediaQuery({
-    minWidth: BREAKPOINTS.mobile + 1,
-    maxWidth: BREAKPOINTS.tablet,
-  });
+  // Responsive viewport detection
+  const { deviceType, isMobile, isTablet } = useViewport();
 
   // Responsive spacing values
-  const edgePadding = isMobile ? 16 : isTablet ? 24 : 32; // Mobile: 16px, Tablet: 24px, Desktop: 32px
-  const modalPadding = isMobile ? 24 : isTablet ? 32 : 40; // Mobile: 24px, Tablet: 32px, Desktop: 40px
+  const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32); // Mobile: 16px, Tablet: 24px, Desktop: 32px
+  const modalPadding = getResponsiveSpacing(deviceType, 24, 32, 40); // Mobile: 24px, Tablet: 32px, Desktop: 40px
   const controlsPanelWidth = isMobile ? '100%' : '260px'; // Full width on mobile
 
   // Entrance animation
@@ -969,27 +981,48 @@ export function SimpleGaiaUI() {
               boxShadow: '0 20px 50px rgba(138, 131, 124, 0.08)',
             }}
           >
-            {/* PARTICLES SECTION */}
-            <div style={sectionStyle}>
+            {/* PRESETS ROW */}
+            <div style={{ marginBottom: '20px' }}>
               <div
                 style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
-                  color: colors.textDim,
-                  marginBottom: '12px',
-                  letterSpacing: '0.12em',
-                  fontVariant: 'small-caps',
-                  borderBottom: `1px solid ${colors.border}`,
-                  paddingBottom: '6px',
+                  display: 'flex',
+                  gap: '8px',
+                  justifyContent: 'space-between',
                 }}
               >
-                Particles
+                {(['calm', 'centered', 'immersive'] as const).map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => onApplyPreset(preset)}
+                    onPointerDown={stopPropagation}
+                    style={{
+                      flex: 1,
+                      padding: '10px 8px',
+                      background: colors.glass,
+                      border: `1px solid ${colors.border}`,
+                      borderRadius: '12px',
+                      fontSize: '0.6rem',
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: colors.text,
+                      cursor: 'pointer',
+                      transition: 'all 0.25s ease',
+                    }}
+                  >
+                    {preset}
+                  </button>
+                ))}
               </div>
+            </div>
 
+            {/* VISUAL CONTROLS */}
+            <div style={sectionStyle}>
               <label style={{ marginBottom: '14px', display: 'block' }}>
                 <div style={labelStyle}>
                   <span>Harmony</span>
-                  <span style={{ fontWeight: 400 }}>{harmony}</span>
+                  <span style={{ fontWeight: 400 }}>{Math.round(harmony)}</span>
                 </div>
                 <input
                   type="range"
@@ -1018,9 +1051,9 @@ export function SimpleGaiaUI() {
                 />
               </label>
 
-              <label style={{ display: 'block' }}>
+              <label style={{ marginBottom: '14px', display: 'block' }}>
                 <div style={labelStyle}>
-                  <span>Orbit</span>
+                  <span>Breathing Space</span>
                   <span style={{ fontWeight: 400 }}>{orbitRadius.toFixed(1)}</span>
                 </div>
                 <input
@@ -1033,79 +1066,11 @@ export function SimpleGaiaUI() {
                   style={inputStyle}
                 />
               </label>
-            </div>
-
-            {/* GLASS SECTION */}
-            <div style={sectionStyle}>
-              <div
-                style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
-                  color: colors.textDim,
-                  marginBottom: '12px',
-                  letterSpacing: '0.12em',
-                  fontVariant: 'small-caps',
-                  borderBottom: `1px solid ${colors.border}`,
-                  paddingBottom: '6px',
-                }}
-              >
-                Glass
-              </div>
-
-              <label style={{ marginBottom: '14px', display: 'block' }}>
-                <div style={labelStyle}>
-                  <span>Refraction</span>
-                  <span style={{ fontWeight: 400 }}>{ior.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="1.0"
-                  max="2.5"
-                  step="0.01"
-                  value={ior}
-                  onChange={(e) => setIor(parseFloat(e.target.value))}
-                  style={inputStyle}
-                />
-              </label>
 
               <label style={{ display: 'block' }}>
                 <div style={labelStyle}>
-                  <span>Depth</span>
-                  <span style={{ fontWeight: 400 }}>{glassDepth.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="1.0"
-                  step="0.01"
-                  value={glassDepth}
-                  onChange={(e) => setGlassDepth(parseFloat(e.target.value))}
-                  style={inputStyle}
-                />
-              </label>
-            </div>
-
-            {/* ATMOSPHERE SECTION */}
-            <div style={{ marginBottom: '16px' }}>
-              <div
-                style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
-                  color: colors.textDim,
-                  marginBottom: '12px',
-                  letterSpacing: '0.12em',
-                  fontVariant: 'small-caps',
-                  borderBottom: `1px solid ${colors.border}`,
-                  paddingBottom: '6px',
-                }}
-              >
-                Atmosphere
-              </div>
-
-              <label style={{ display: 'block' }}>
-                <div style={labelStyle}>
-                  <span>Density</span>
-                  <span style={{ fontWeight: 400 }}>{atmosphereDensity}</span>
+                  <span>Atmosphere</span>
+                  <span style={{ fontWeight: 400 }}>{Math.round(atmosphereDensity)}</span>
                 </div>
                 <input
                   type="range"
@@ -1117,6 +1082,31 @@ export function SimpleGaiaUI() {
                   style={inputStyle}
                 />
               </label>
+            </div>
+
+            {/* RESET BUTTON */}
+            <div style={{ marginBottom: '16px' }}>
+              <button
+                type="button"
+                onClick={() => onApplyPreset('centered')}
+                onPointerDown={stopPropagation}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'transparent',
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: '12px',
+                  fontSize: '0.58rem',
+                  fontWeight: 500,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  color: colors.textDim,
+                  cursor: 'pointer',
+                  transition: 'all 0.25s ease',
+                }}
+              >
+                Reset to Defaults
+              </button>
             </div>
 
             {/* Mood Legend */}

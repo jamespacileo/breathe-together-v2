@@ -7,28 +7,25 @@
  */
 
 import { useCallback, useContext, useMemo } from 'react';
-import { useMediaQuery } from 'react-responsive';
 import { AudioContext } from '../audio/AudioProvider';
-import { BREAKPOINTS } from '../hooks/useViewport';
-import { useSettingsStore } from '../stores/settingsStore';
+import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { UI_COLORS, Z_INDEX } from '../styles/designTokens';
 
-export function TopRightControls() {
-  // Get settings actions from store (no prop drilling!)
-  const { setShowTuneControls, setShowSettings } = useSettingsStore();
+interface TopRightControlsProps {
+  /** Callback to open tune/animation controls */
+  onOpenTuneControls: () => void;
+  /** Callback to open settings/mood modal */
+  onOpenSettings: () => void;
+}
+
+export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRightControlsProps) {
   // Use useContext directly to avoid throwing error when provider is missing
   // This allows the component to render gracefully without audio controls
   const audio = useContext(AudioContext);
-
-  // Responsive design using react-responsive
-  const isMobile = useMediaQuery({ maxWidth: BREAKPOINTS.mobile });
-  const isTablet = useMediaQuery({
-    minWidth: BREAKPOINTS.mobile + 1,
-    maxWidth: BREAKPOINTS.tablet,
-  });
+  const { deviceType, isMobile } = useViewport();
 
   // Match SimpleGaiaUI's edge padding for vertical alignment
-  const edgePadding = isMobile ? 16 : isTablet ? 24 : 32;
+  const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32);
 
   // Responsive button sizing - smaller on mobile to reduce visual weight
   const buttonSize = isMobile ? 38 : 44;
@@ -188,7 +185,7 @@ export function TopRightControls() {
       <button
         type="button"
         title="Tune Animation"
-        onClick={() => setShowTuneControls(true)}
+        onClick={onOpenTuneControls}
         onPointerDown={stopPropagation}
         style={buttonStyle}
         onMouseEnter={handleMouseEnter}
@@ -217,7 +214,7 @@ export function TopRightControls() {
       <button
         type="button"
         title="Settings & Mood"
-        onClick={() => setShowSettings(true)}
+        onClick={onOpenSettings}
         onPointerDown={stopPropagation}
         style={buttonStyle}
         onMouseEnter={handleMouseEnter}
