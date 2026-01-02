@@ -1,9 +1,9 @@
-name: Deploy to Cloudflare Workers
+name: Release Deployment
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*.*.*'  # Trigger on version tags (e.g., v1.0.0, v1.2.3)
 
 jobs:
   build:
@@ -11,6 +11,8 @@ jobs:
     name: Build
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for release notes
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -61,7 +63,6 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
           wranglerVersion: "4.54.0"
-          # Explicit --config to avoid picking up root wrangler.json (which has assets.directory for frontend)
           command: deploy --config wrangler.toml
 
   deploy-frontend:
@@ -72,8 +73,6 @@ jobs:
       frontend-url: ${{ steps.get-urls.outputs.frontend-url }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch all history for commit comparison
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -101,41 +100,98 @@ jobs:
         run: |
           echo "frontend-url=https://breathe-together-v2.palladio-registry.workers.dev" >> $GITHUB_OUTPUT
 
-  notify-deployment:
+  create-release:
     needs: [deploy-worker, deploy-frontend]
-    if: success()
     runs-on: ubuntu-latest
-    name: Notify Deployment Success
+    name: Create GitHub Release
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 50  # Fetch recent history for changelog
+          fetch-depth: 0  # Fetch all history for release notes
 
-      - name: Generate changelog
-        id: changelog
+      - name: Extract version from tag
+        id: version
         run: |
-          # Get the last deployment commit (previous main push)
-          PREVIOUS_SHA=$(git log --skip=1 --max-count=1 --format=%H)
-          CURRENT_SHA=${{ github.sha }}
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
-          # Generate compact changelog
-          CHANGELOG=$(git log ${PREVIOUS_SHA}..${CURRENT_SHA} --pretty=format:"• %s (%an)" --max-count=10)
+      - name: Get previous tag
+        id: previous-tag
+        run: |
+          PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+          echo "previous-tag=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PREVIOUS_TAG="${{ steps.previous-tag.outputs.previous-tag }}"
+
+          # Create release notes file
+          {
+            echo "## 🎉 What's Changed"
+            echo ""
+
+            if [ -n "$PREVIOUS_TAG" ]; then
+              # Get commits since previous tag
+              git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%an)" --no-merges
+            else
+              # First release - get all commits
+              git log --pretty=format:"- %s (%an)" --no-merges --max-count=20
+            fi
+
+            echo ""
+            echo ""
+            echo "## 🔗 Deployment Links"
+            echo ""
+            echo "- **Frontend**: https://breathe-together-v2.palladio-registry.workers.dev"
+            echo "- **Worker API**: https://breathe-together-presence.palladio-registry.workers.dev"
+            echo ""
+            echo "## 📊 Stats"
+            echo ""
+
+            if [ -n "$PREVIOUS_TAG" ]; then
+              COMMIT_COUNT=$(git rev-list --count ${PREVIOUS_TAG}..HEAD)
+              FILES_CHANGED=$(git diff --name-only ${PREVIOUS_TAG}..HEAD | wc -l)
+              echo "- **Commits**: $COMMIT_COUNT"
+              echo "- **Files Changed**: $FILES_CHANGED"
+            fi
+
+            echo ""
+            echo "---"
+            echo ""
+            echo "_Deployed via GitHub Actions on $(date -u +'%Y-%m-%d %H:%M:%S UTC')_"
+          } > release_notes.md
+
+          # Output for Slack (compact version)
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"• %s" --no-merges --max-count=10)
+          else
+            CHANGELOG=$(git log --pretty=format:"• %s" --no-merges --max-count=10)
+          fi
 
           # Escape for JSON
           CHANGELOG="${CHANGELOG//'%'/'%25'}"
           CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
           CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
 
-          echo "changelog=${CHANGELOG}" >> $GITHUB_OUTPUT
+          echo "slack-changelog=${CHANGELOG}" >> $GITHUB_OUTPUT
 
-          # Count commits
-          COMMIT_COUNT=$(git rev-list --count ${PREVIOUS_SHA}..${CURRENT_SHA})
-          echo "commit-count=${COMMIT_COUNT}" >> $GITHUB_OUTPUT
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify Slack - Production Deployment
+      - name: Notify Slack - Release Published
         uses: slackapi/slack-github-action@v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_CI_CD }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
           webhook-type: incoming-webhook
           payload: |
             {
@@ -144,7 +200,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "🚀 Production Deployment (main)",
+                    "text": "🎉 New Release: ${{ steps.version.outputs.version }}",
                     "emoji": true
                   }
                 },
@@ -153,24 +209,11 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Branch:*\n`main`"
+                      "text": "*Version:*\n`${{ steps.version.outputs.version }}`"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Commits:*\n${{ steps.changelog.outputs.commit-count }} new commits"
-                    }
-                  ]
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Frontend:*\n<${{ needs.deploy-frontend.outputs.frontend-url }}|breathe-together-v2>"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Worker:*\n<${{ needs.deploy-worker.outputs.worker-url }}|breathe-together-presence>"
+                      "text": "*Released:*\n<!date^${{ github.event.head_commit.timestamp }}^{date_short_pretty} at {time}|${{ github.event.head_commit.timestamp }}>"
                     }
                   ]
                 },
@@ -178,8 +221,24 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Changes:*\n${{ steps.changelog.outputs.changelog }}"
+                    "text": "*What's New:*\n${{ steps.release-notes.outputs.slack-changelog }}"
                   }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Frontend:*\n<${{ needs.deploy-frontend.outputs.frontend-url }}|breathe-together-v2.palladio-registry.workers.dev>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Worker API:*\n<${{ needs.deploy-worker.outputs.worker-url }}|breathe-together-presence.palladio-registry.workers.dev>"
+                    }
+                  ]
                 },
                 {
                   "type": "actions",
@@ -198,19 +257,19 @@ jobs:
                       "type": "button",
                       "text": {
                         "type": "plain_text",
-                        "text": "📊 Cloudflare Dashboard",
+                        "text": "📝 Release Notes",
                         "emoji": true
                       },
-                      "url": "https://dash.cloudflare.com/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers-and-pages"
+                      "url": "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}"
                     },
                     {
                       "type": "button",
                       "text": {
                         "type": "plain_text",
-                        "text": "⚙️ Workflow Run",
+                        "text": "📊 Cloudflare Dashboard",
                         "emoji": true
                       },
-                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                      "url": "https://dash.cloudflare.com/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers-and-pages"
                     }
                   ]
                 },
@@ -219,7 +278,7 @@ jobs:
                   "elements": [
                     {
                       "type": "mrkdwn",
-                      "text": "Deployed via GitHub Actions • Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|`${{ github.sha }}`>"
+                      "text": "🚀 Deployed successfully to production • <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow>"
                     }
                   ]
                 }
@@ -227,15 +286,21 @@ jobs:
             }
 
   notify-failure:
-    needs: [build, deploy-worker, deploy-frontend]
+    needs: [build, deploy-worker, deploy-frontend, create-release]
     if: failure()
     runs-on: ubuntu-latest
-    name: Notify Deployment Failure
+    name: Notify Release Failure
     steps:
-      - name: Notify Slack - Deployment Failed
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Notify Slack - Release Failed
         uses: slackapi/slack-github-action@v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_CI_CD }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
           webhook-type: incoming-webhook
           payload: |
             {
@@ -244,7 +309,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "❌ Production Deployment Failed",
+                    "text": "❌ Release Deployment Failed: ${{ steps.version.outputs.version }}",
                     "emoji": true
                   }
                 },
@@ -253,11 +318,11 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Branch:*\n`main`"
+                      "text": "*Version:*\n`${{ steps.version.outputs.version }}`"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Commit:*\n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|`${{ github.sha }}`>"
+                      "text": "*Tag:*\n`${{ github.ref }}`"
                     }
                   ]
                 },
@@ -265,7 +330,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "⚠️ *Failed Jobs:*\n${{ needs.build.result == 'failure' && '• Build\n' || '' }}${{ needs.deploy-worker.result == 'failure' && '• Deploy Worker\n' || '' }}${{ needs.deploy-frontend.result == 'failure' && '• Deploy Frontend\n' || '' }}"
+                    "text": "⚠️ *Failed Jobs:*\n${{ needs.build.result == 'failure' && '• Build\n' || '' }}${{ needs.deploy-worker.result == 'failure' && '• Deploy Worker\n' || '' }}${{ needs.deploy-frontend.result == 'failure' && '• Deploy Frontend\n' || '' }}${{ needs.create-release.result == 'failure' && '• Create Release\n' || '' }}"
                   }
                 },
                 {
@@ -288,7 +353,7 @@ jobs:
                   "elements": [
                     {
                       "type": "mrkdwn",
-                      "text": "Check workflow logs for details • ${{ github.repository }}"
+                      "text": "⚠️ Check workflow logs for details • ${{ github.repository }}"
                     }
                   ]
                 }

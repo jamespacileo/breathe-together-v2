@@ -84,10 +84,13 @@ export interface UsePresenceResult {
 }
 
 export function usePresence(): UsePresenceResult {
-  const [presence, setPresence] = useState<PresenceState>(() => ({
-    ...generateMockPresence(42),
-    timestamp: Date.now(),
-  }));
+  const [presence, setPresence] = useState<PresenceState>(() => {
+    const mockData = generateMockPresence(42);
+    return {
+      ...mockData,
+      timestamp: Date.now(),
+    };
+  });
   const [mood, setMoodState] = useState<MoodId>(getStoredMood);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionType, setConnectionType] = useState<'websocket' | 'polling' | 'mock'>('mock');

@@ -1,20 +1,42 @@
 name: Preview Screenshots
 
+# SECURITY NOTE: This workflow uses workflow_run trigger to run in the base
+# repository context (not the PR context). This prevents exposing secrets to
+# fork PRs while still allowing screenshot capture.
+#
+# If the "Preview Deployment" workflow name changes, update line 11 below.
+
 on:
   workflow_run:
     workflows: ["Preview Deployment"]
     types:
       - completed
 
+  # Manual trigger for testing (before workflow is merged to main)
+  # workflow_run only works when workflow file exists in default branch
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to capture screenshots for'
+        required: true
+        type: number
+
 jobs:
   screenshots:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' }}
+    # Run on workflow_run success OR manual trigger
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request') }}
     name: Capture Screenshots
     permissions:
       contents: write
       pull-requests: write
       actions: read
+
+    # Environment variables shared across all steps
+    env:
+      # NOTE: Update this if Cloudflare account changes
+      # Alternative: Store as repository variable CLOUDFLARE_WORKERS_SUBDOMAIN
+      CLOUDFLARE_WORKERS_SUBDOMAIN: palladio-registry.workers.dev
 
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +46,17 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Try to get PR number from workflow_run payload
-            const prNumber = context.payload.workflow_run.pull_requests[0]?.number;
+            // Strategy 0: Manual trigger (workflow_dispatch with PR number input)
+            if (context.eventName === 'workflow_dispatch') {
+              const prNumber = context.payload.inputs.pr_number;
+              core.setOutput('number', prNumber);
+              core.setOutput('found', 'true');
+              console.log(`Manual trigger for PR #${prNumber}`);
+              return;
+            }
+
+            // Strategy 1: Try to get PR number from workflow_run payload (most reliable)
+            const prNumber = context.payload.workflow_run?.pull_requests[0]?.number;
 
             if (prNumber) {
               core.setOutput('number', prNumber);
@@ -34,8 +65,13 @@ jobs:
               return;
             }
 
-            // Fallback: search for PR by head SHA (works for fork PRs too)
-            const headSha = context.payload.workflow_run.head_sha;
+            // Strategy 2: Search for PR by head SHA (works for fork PRs)
+            const headSha = context.payload.workflow_run?.head_sha;
+            if (!headSha) {
+              core.setOutput('found', 'false');
+              core.setFailed('Could not determine PR number');
+              return;
+            }
             console.log(`Searching for PR with head SHA: ${headSha}`);
 
             const { data: prs } = await github.rest.pulls.list({
@@ -53,8 +89,8 @@ jobs:
               return;
             }
 
-            // Final fallback: search by branch name (same-repo PRs only)
-            const headBranch = context.payload.workflow_run.head_branch;
+            // Strategy 3: Search by branch name (same-repo PRs only)
+            const headBranch = context.payload.workflow_run?.head_branch;
             console.log(`Searching for PR with head branch: ${headBranch}`);
 
             const branchPr = prs.find(pr =>
@@ -77,33 +113,10 @@ jobs:
         id: preview
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
-          # Cloudflare Workers subdomain - update if account changes
-          WORKERS_SUBDOMAIN: palladio-registry.workers.dev
         run: |
-          PREVIEW_URL="https://breathe-together-v2-pr-${PR_NUMBER}.${WORKERS_SUBDOMAIN}"
+          PREVIEW_URL="https://breathe-together-v2-pr-${PR_NUMBER}.${CLOUDFLARE_WORKERS_SUBDOMAIN}"
           echo "url=${PREVIEW_URL}" >> $GITHUB_OUTPUT
           echo "Preview URL: ${PREVIEW_URL}"
-
-      - name: Wait for preview to be ready
-        if: steps.pr.outputs.found == 'true'
-        run: |
-          echo "Waiting for preview deployment to be accessible..."
-          PREVIEW_URL="${{ steps.preview.outputs.url }}"
-          MAX_ATTEMPTS=30
-          ATTEMPT=0
-
-          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PREVIEW_URL" || echo "000")
-            if [ "$HTTP_STATUS" = "200" ]; then
-              echo "Preview is ready (HTTP $HTTP_STATUS)"
-              exit 0
-            fi
-            echo "Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS: HTTP $HTTP_STATUS, waiting..."
-            sleep 5
-            ATTEMPT=$((ATTEMPT + 1))
-          done
-
-          echo "::warning::Preview may not be fully ready after ${MAX_ATTEMPTS} attempts, proceeding anyway..."
 
       - name: Setup Node.js
         if: steps.pr.outputs.found == 'true'
@@ -111,133 +124,58 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Cache Playwright browsers
+        if: steps.pr.outputs.found == 'true'
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-chromium-
+
       - name: Install Playwright
         if: steps.pr.outputs.found == 'true'
         run: |
-          npm init -y
+          # Skip npm init - not needed
           npm install playwright@latest
-          npx playwright install chromium --with-deps
 
-      - name: Create screenshot script
+          # Only download browsers if cache miss
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache miss - downloading Chromium (~170MB)..."
+            npx playwright install chromium --with-deps
+          else
+            echo "Cache hit - skipping browser download"
+            # Still need system dependencies
+            npx playwright install-deps chromium
+          fi
+
+      - name: Wait for preview to be ready
         if: steps.pr.outputs.found == 'true'
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
-          cat > screenshot.mjs << 'EOF'
-          import { chromium } from 'playwright';
-          import { mkdir } from 'fs/promises';
-          import { existsSync } from 'fs';
-
-          const PREVIEW_URL = process.env.PREVIEW_URL;
-          const SCREENSHOTS_DIR = './screenshots';
-
-          // Viewport configurations
-          const viewports = [
-            { name: 'desktop', width: 1920, height: 1080 },
-            { name: 'tablet', width: 768, height: 1024 },
-            { name: 'mobile', width: 375, height: 667 },
-          ];
-
-          async function captureScreenshots() {
-            if (!existsSync(SCREENSHOTS_DIR)) {
-              await mkdir(SCREENSHOTS_DIR, { recursive: true });
-            }
-
-            let browser;
-            try {
-              browser = await chromium.launch({
-                args: ['--use-gl=angle', '--use-angle=swiftshader'],
-              });
-
-              console.log(`Capturing screenshots from: ${PREVIEW_URL}`);
-
-              for (const viewport of viewports) {
-                console.log(`\nCapturing ${viewport.name} (${viewport.width}x${viewport.height})...`);
-
-                const context = await browser.newContext({
-                  viewport: { width: viewport.width, height: viewport.height },
-                  // Use 1x scale to keep file sizes reasonable
-                  deviceScaleFactor: 1,
-                });
-
-                const page = await context.newPage();
-
-                try {
-                  // Navigate to the preview URL
-                  await page.goto(PREVIEW_URL, {
-                    waitUntil: 'networkidle',
-                    timeout: 60000,
-                  });
-
-                  // Wait for WebGL canvas to render
-                  await page.waitForSelector('canvas', { timeout: 30000 });
-
-                  // Additional wait for Three.js scene to initialize and render
-                  await page.waitForTimeout(5000);
-
-                  // Capture initial state
-                  await page.screenshot({
-                    path: `${SCREENSHOTS_DIR}/${viewport.name}-initial.png`,
-                    fullPage: false,
-                  });
-                  console.log(`  ✓ Captured ${viewport.name}-initial.png`);
-
-                  // Wait a few seconds for breathing animation to progress
-                  await page.waitForTimeout(4000);
-
-                  // Capture mid-cycle state
-                  await page.screenshot({
-                    path: `${SCREENSHOTS_DIR}/${viewport.name}-animation.png`,
-                    fullPage: false,
-                  });
-                  console.log(`  ✓ Captured ${viewport.name}-animation.png`);
-
-                } catch (error) {
-                  console.error(`  ✗ Error capturing ${viewport.name}:`, error.message);
-
-                  // Try to capture whatever is on screen for debugging
-                  try {
-                    await page.screenshot({
-                      path: `${SCREENSHOTS_DIR}/${viewport.name}-error.png`,
-                      fullPage: false,
-                    });
-                    console.log(`  ✓ Captured ${viewport.name}-error.png (fallback)`);
-                  } catch (e) {
-                    console.error(`  ✗ Could not capture fallback screenshot`);
-                  }
-                } finally {
-                  await context.close();
-                }
-              }
-
-              console.log('\nScreenshot capture complete!');
-            } finally {
-              if (browser) {
-                await browser.close();
-              }
-            }
-          }
-
-          captureScreenshots().catch((error) => {
-            console.error('Fatal error:', error);
-            process.exit(1);
-          });
-          EOF
+          # Use improved readiness check (verifies canvas exists and renders)
+          node .github/scripts/wait-for-preview.mjs
 
       - name: Capture screenshots
         id: capture
         if: steps.pr.outputs.found == 'true'
-        continue-on-error: true
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
-          node screenshot.mjs
-          # Check if we got any screenshots
-          if [ -d "./screenshots" ] && [ "$(ls -A ./screenshots 2>/dev/null)" ]; then
+          # Use extracted screenshot script
+          node .github/scripts/screenshot.mjs
+
+          # Verify screenshots were created
+          if [ -d "./screenshots" ] && [ "$(ls -A ./screenshots/*.png 2>/dev/null | wc -l)" -gt 0 ]; then
             echo "has_screenshots=true" >> $GITHUB_OUTPUT
             echo "Screenshots captured:"
-            ls -la ./screenshots/
+            ls -lah ./screenshots/
           else
             echo "has_screenshots=false" >> $GITHUB_OUTPUT
-            echo "::warning::No screenshots were captured"
+            echo "❌ No screenshots were captured"
+            exit 1
           fi
 
       - name: Upload screenshots as artifact
@@ -254,55 +192,12 @@ jobs:
         id: push_screenshots
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Save screenshots to temp location before branch switch
-          TEMP_SCREENSHOTS="/tmp/screenshots-pr-${PR_NUMBER}"
-          mkdir -p "${TEMP_SCREENSHOTS}"
-          cp ./screenshots/*.png "${TEMP_SCREENSHOTS}/"
-          echo "Saved screenshots to temp location:"
-          ls -la "${TEMP_SCREENSHOTS}/"
+          # Make script executable
+          chmod +x .github/scripts/push-screenshots.sh
 
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Create or checkout the screenshots branch
-          SCREENSHOTS_BRANCH="screenshots"
-          PR_FOLDER="pr-${PR_NUMBER}"
-
-          # Fetch the branch if it exists, or create it as orphan
-          if git ls-remote --heads origin ${SCREENSHOTS_BRANCH} | grep -q ${SCREENSHOTS_BRANCH}; then
-            git fetch origin ${SCREENSHOTS_BRANCH}
-            git checkout ${SCREENSHOTS_BRANCH}
-          else
-            git checkout --orphan ${SCREENSHOTS_BRANCH}
-            git rm -rf . 2>/dev/null || true
-            echo "# Preview Screenshots" > README.md
-            echo "" >> README.md
-            echo "This branch contains automatically generated screenshots from PR previews." >> README.md
-            git add README.md
-            git commit -m "Initialize screenshots branch"
-          fi
-
-          # Clean up old screenshots for this PR and add new ones from temp location
-          rm -rf "${PR_FOLDER}"
-          mkdir -p "${PR_FOLDER}"
-          cp "${TEMP_SCREENSHOTS}"/*.png "${PR_FOLDER}/"
-          echo "Copied screenshots to PR folder:"
-          ls -la "${PR_FOLDER}/"
-
-          # Commit and push
-          git add "${PR_FOLDER}"
-          git commit -m "Update screenshots for PR #${PR_NUMBER}" || echo "No changes to commit"
-          git push origin ${SCREENSHOTS_BRANCH}
-
-          # Cleanup temp
-          rm -rf "${TEMP_SCREENSHOTS}"
-
-          # Output the raw URL base
-          echo "branch=${SCREENSHOTS_BRANCH}" >> $GITHUB_OUTPUT
-          echo "folder=${PR_FOLDER}" >> $GITHUB_OUTPUT
+          # Run git push script with error handling and retry logic
+          .github/scripts/push-screenshots.sh
 
       - name: Comment PR with screenshots
         if: steps.pr.outputs.found == 'true'
@@ -332,20 +227,16 @@ jobs:
             // Base URL for raw image access
             const rawBaseUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${screenshotsBranch}/${screenshotsFolder}`;
 
-            // List captured screenshots from the PR folder on screenshots branch
-            const screenshotsDir = `./${screenshotsFolder}`;
+            // List captured screenshots from working directory
             let screenshotFiles = [];
             try {
-              screenshotFiles = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.png'));
-              console.log(`Found ${screenshotFiles.length} screenshots in ${screenshotsDir}`);
-            } catch (e) {
-              console.log('No screenshots directory found, trying fallback...');
-              // Fallback: try the original screenshots directory
-              try {
+              // Try screenshots directory first (where script saves them)
+              if (fs.existsSync('./screenshots')) {
                 screenshotFiles = fs.readdirSync('./screenshots').filter(f => f.endsWith('.png'));
-              } catch (e2) {
-                console.log('No screenshots found in either location');
+                console.log(`Found ${screenshotFiles.length} screenshots in ./screenshots/`);
               }
+            } catch (e) {
+              console.error('Error reading screenshots:', e.message);
             }
 
             // Build status indicator
@@ -361,16 +252,22 @@ jobs:
               statusText = 'Screenshot capture failed - check workflow logs';
             }
 
-            // Find existing comment
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-
-            const botComment = comments.data.find(comment =>
-              comment.body.includes('<!-- preview-screenshots-comment -->')
-            );
+            // Find existing comment (with pagination support)
+            let botComment = null;
+            for await (const response of github.paginate.iterator(
+              github.rest.issues.listComments,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                per_page: 100,
+              }
+            )) {
+              botComment = response.data.find(comment =>
+                comment.body.includes('<!-- preview-screenshots-comment -->')
+              );
+              if (botComment) break;
+            }
 
             const bodyParts = [
               '<!-- preview-screenshots-comment -->',
@@ -383,49 +280,89 @@ jobs:
             ];
 
             if (hasScreenshots) {
-              // Group screenshots by device
-              const devices = [
-                { name: 'Desktop', prefix: 'desktop', emoji: '🖥️', resolution: '1920×1080' },
-                { name: 'Tablet', prefix: 'tablet', emoji: '📱', resolution: '768×1024' },
-                { name: 'Mobile', prefix: 'mobile', emoji: '📱', resolution: '375×667' },
+              // Breathing screens configuration
+              const breathingScreens = [
+                { name: 'inhale', label: 'Inhale', description: 'Particles contracting' },
+                { name: 'hold', label: 'Hold', description: 'Particles at rest' },
+                { name: 'exhale', label: 'Exhale', description: 'Particles expanding' },
               ];
 
+              // Static screens configuration
+              const staticScreens = [
+                { name: 'admin', label: 'Admin', description: 'Admin panel' },
+              ];
+
+              // Device configurations with thumbnail widths
+              const devices = [
+                { name: 'Desktop', prefix: 'desktop', emoji: '🖥️', resolution: '1920×1080', thumbWidth: 280 },
+                { name: 'Tablet', prefix: 'tablet', emoji: '📱', resolution: '768×1024', thumbWidth: 200 },
+                { name: 'Mobile', prefix: 'mobile', emoji: '📱', resolution: '375×667', thumbWidth: 140 },
+              ];
+
+              // Helper: Create clickable thumbnail HTML (small preview, click for full size)
+              const makeThumb = (url, alt, width) =>
+                `<a href="${url}"><img src="${url}" alt="${alt}" width="${width}" /></a>`;
+
+              // Breathing phases section
+              bodyParts.push('### 🫁 Breathing Phases', '');
+              bodyParts.push('*Click any image to view full size*', '');
+
               for (const device of devices) {
-                const deviceFiles = screenshotFiles.filter(f => f.startsWith(device.prefix));
-                if (deviceFiles.length > 0) {
+                const availableScreens = breathingScreens.filter(s =>
+                  screenshotFiles.includes(`${device.prefix}-${s.name}.png`)
+                );
+
+                if (availableScreens.length > 0) {
+                  bodyParts.push(`**${device.emoji} ${device.name}** (${device.resolution})`, '');
+
+                  // Create HTML table for better control over image sizes
+                  const headers = availableScreens.map(s => s.label);
+                  const thumbs = availableScreens.map(s => {
+                    const url = `${rawBaseUrl}/${device.prefix}-${s.name}.png`;
+                    return makeThumb(url, `${device.name} - ${s.label}`, device.thumbWidth);
+                  });
+
                   bodyParts.push(
-                    `### ${device.emoji} ${device.name} (${device.resolution})`,
+                    '<table>',
+                    `<tr>${headers.map(h => `<th align="center">${h}</th>`).join('')}</tr>`,
+                    `<tr>${thumbs.map(t => `<td align="center">${t}</td>`).join('')}</tr>`,
+                    '</table>',
                     '',
                   );
-
-                  // Add images in a table for side-by-side comparison
-                  const initialFile = deviceFiles.find(f => f.includes('initial'));
-                  const animationFile = deviceFiles.find(f => f.includes('animation'));
-                  const errorFile = deviceFiles.find(f => f.includes('error'));
-
-                  if (initialFile && animationFile) {
-                    bodyParts.push(
-                      '| Initial State | Animation State |',
-                      '|:-------------:|:---------------:|',
-                      `| ![Initial](${rawBaseUrl}/${initialFile}) | ![Animation](${rawBaseUrl}/${animationFile}) |`,
-                      '',
-                    );
-                  } else if (initialFile) {
-                    bodyParts.push(
-                      `![${device.name} Initial](${rawBaseUrl}/${initialFile})`,
-                      '',
-                    );
-                  } else if (errorFile) {
-                    bodyParts.push(
-                      `![${device.name} Error State](${rawBaseUrl}/${errorFile})`,
-                      '',
-                      '> ⚠️ Error occurred during capture - showing fallback screenshot',
-                      '',
-                    );
-                  }
                 }
               }
 
+              // Static screens section (admin panel)
+              const adminFiles = devices
+                .map(d => ({ device: d, file: `${d.prefix}-admin.png` }))
+                .filter(({ file }) => screenshotFiles.includes(file));
+
+              if (adminFiles.length > 0) {
+                bodyParts.push(
+                  '<details>',
+                  '<summary>🔧 Admin Panel Screenshots</summary>',
+                  '',
+                  '*Click any image to view full size*',
+                  '',
+                );
+
+                // Create horizontal layout for admin screenshots
+                bodyParts.push('<table><tr>');
+                for (const { device, file } of adminFiles) {
+                  const url = `${rawBaseUrl}/${file}`;
+                  bodyParts.push(
+                    `<td align="center">`,
+                    `<strong>${device.emoji} ${device.name}</strong><br/>`,
+                    makeThumb(url, `Admin - ${device.name}`, device.thumbWidth),
+                    `</td>`,
+                  );
+                }
+                bodyParts.push('</tr></table>', '');
+
+                bodyParts.push('</details>', '');
+              }
+
+              // Download options
               bodyParts.push(
                 '<details>',
                 '<summary>📥 Download Options</summary>',

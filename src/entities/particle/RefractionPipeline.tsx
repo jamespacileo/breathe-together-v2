@@ -13,11 +13,21 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 // Backface vertex shader - renders normals from back faces
+// Supports both regular meshes and InstancedMesh via THREE.js instancing defines
 const backfaceVertexShader = `
 varying vec3 vNormal;
 void main() {
-  vNormal = normalize(normalMatrix * normal);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  // Apply instance transform if using InstancedMesh
+  #ifdef USE_INSTANCING
+    vec3 transformedNormal = mat3(normalMatrix) * mat3(instanceMatrix) * normal;
+    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+  #else
+    vec3 transformedNormal = normalMatrix * normal;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  #endif
+
+  vNormal = normalize(transformedNormal);
+  gl_Position = projectionMatrix * mvPosition;
 }
 `;
 
@@ -30,18 +40,37 @@ void main() {
 `;
 
 // Refraction vertex shader - passes color and calculates eye/normal vectors
+// Supports both regular meshes and InstancedMesh via THREE.js instancing defines
 const refractionVertexShader = `
-attribute vec3 color;
 varying vec3 vColor;
 varying vec3 eyeVector;
 varying vec3 worldNormal;
 
 void main() {
-  vColor = color;
-  vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+  // Use instanceColor if available (InstancedMesh), otherwise fallback to white
+  #ifdef USE_INSTANCING_COLOR
+    vColor = instanceColor;
+  #else
+    vColor = vec3(0.85, 0.75, 0.65); // Warm neutral fallback
+  #endif
+
+  // Apply instance transform if using InstancedMesh
+  #ifdef USE_INSTANCING
+    vec4 worldPosition = modelMatrix * instanceMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = mat3(modelViewMatrix) * mat3(instanceMatrix) * normal;
+  #else
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = mat3(modelViewMatrix) * normal;
+  #endif
+
   eyeVector = normalize(worldPosition.xyz - cameraPosition);
-  worldNormal = normalize(modelViewMatrix * vec4(normal, 0.0)).xyz;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  worldNormal = normalize(transformedNormal);
+
+  #ifdef USE_INSTANCING
+    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+  #else
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  #endif
 }
 `;
 
@@ -486,48 +515,52 @@ export function RefractionPipeline({
     gl.clear();
     gl.render(scene, camera);
 
-    // Pass 3: Render composite to compositeFBO (with depth for DoF)
-    // First render background
-    gl.setRenderTarget(compositeFBO);
-    gl.clear();
-    gl.render(bgScene, orthoCamera);
-
     // Update refraction material uniforms with FBO textures
     refractionMaterial.uniforms.envMap.value = envFBO.texture;
     refractionMaterial.uniforms.backfaceMap.value = backfaceFBO.texture;
 
-    // Swap to refraction material and render scene
+    // Swap to refraction material
     for (const mesh of meshes) {
       mesh.material = refractionMaterial;
     }
-    gl.clearDepth();
-    gl.render(scene, camera);
-
-    // Restore original materials (for next frame's scene graph consistency)
-    for (const mesh of meshes) {
-      const original = meshDataRef.current.get(mesh);
-      if (original) {
-        mesh.material = original;
-      }
-    }
-
-    // Pass 4: Apply depth of field and render to screen
-    gl.setRenderTarget(null);
-    gl.clear();
 
     if (enableDepthOfField) {
-      // Update DoF material with composite textures
+      // Pass 3: Render composite to compositeFBO (with depth for DoF)
+      gl.setRenderTarget(compositeFBO);
+      gl.clear();
+      gl.render(bgScene, orthoCamera);
+      gl.clearDepth();
+      gl.render(scene, camera);
+
+      // Restore original materials
+      for (const mesh of meshes) {
+        const original = meshDataRef.current.get(mesh);
+        if (original) {
+          mesh.material = original;
+        }
+      }
+
+      // Pass 4: Apply depth of field and render to screen
+      gl.setRenderTarget(null);
+      gl.clear();
       dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
       dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
       gl.render(dofScene, orthoCamera);
     } else {
-      // Skip DoF, render composite directly
-      // Create a simple passthrough if needed, or just render the composite
-      dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
-      dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
-      dofMaterial.uniforms.maxBlur.value = 0; // Disable blur
-      gl.render(dofScene, orthoCamera);
-      dofMaterial.uniforms.maxBlur.value = maxBlur; // Restore
+      // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
+      gl.setRenderTarget(null);
+      gl.clear();
+      gl.render(bgScene, orthoCamera);
+      gl.clearDepth();
+      gl.render(scene, camera);
+
+      // Restore original materials
+      for (const mesh of meshes) {
+        const original = meshDataRef.current.get(mesh);
+        if (original) {
+          mesh.material = original;
+        }
+      }
     }
   }, 1); // Priority 1 to run before default render
 

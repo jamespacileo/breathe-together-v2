@@ -5,6 +5,8 @@ export default defineConfig({
     globals: true,
     environment: 'happy-dom',
     include: ['src/**/*.test.{ts,tsx}', 'worker/**/*.test.ts'],
+    // Longer timeout for WebGL setup
+    testTimeout: 30000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
