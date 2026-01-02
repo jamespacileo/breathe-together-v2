@@ -21,7 +21,6 @@ import {
   toPresenceState,
   validateMood,
 } from './presence';
-import type { MoodId, PresenceState } from './types';
 
 // Re-export Durable Object class
 export { BreathingRoom } from './BreathingRoom';
