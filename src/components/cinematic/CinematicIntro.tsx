@@ -22,7 +22,7 @@ interface CinematicIntroProps extends CinematicConfig {
  */
 export function CinematicIntro({
   children,
-  skipIntro = false,
+  skipIntro: _skipIntro = false, // Reserved for programmatic/testing use
   speedMultiplier = 1,
   onComplete,
   onJoin,

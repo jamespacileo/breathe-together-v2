@@ -147,6 +147,7 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
       return;
     }
 
+    let rafId: number;
     const duration = 1500;
     const start = performance.now();
 
@@ -157,11 +158,12 @@ export function TutorialLevel({ userMood = 'presence', onComplete }: TutorialLev
       setOthersRevealProgress(eased);
 
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        rafId = requestAnimationFrame(animate);
       }
     };
 
-    requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
   }, [phase]);
 
   // Auto-complete after others reveal

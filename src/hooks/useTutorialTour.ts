@@ -142,8 +142,8 @@ export function useTutorialTour(callbacks: TutorialTourCallbacks = {}) {
       popoverClass: 'tutorial-popover',
       steps,
       onDestroyStarted: () => {
+        // Call onDestroy callback - driver handles its own destruction
         callbacksRef.current.onDestroy?.();
-        driverRef.current?.destroy();
       },
       onDestroyed: () => {
         callbacksRef.current.onComplete?.();
