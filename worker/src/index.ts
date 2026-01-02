@@ -16,6 +16,7 @@ import {
   getCurrentInspirationMessage,
   initializeInspirational,
   rotateInspirationalOnSchedule,
+  setUserOverride,
 } from './inspirational';
 import {
   type AggregateState,
@@ -26,6 +27,7 @@ import {
   toPresenceState,
   validateMood,
 } from './presence';
+import type { InspirationMessage, UserTextOverride } from './types/inspirational';
 
 // Re-export Durable Object class
 export { BreathingRoom } from './BreathingRoom';
@@ -135,6 +137,51 @@ async function handleInspirationText(request: Request, env: Env): Promise<Respon
     });
   } catch (e) {
     console.error('Inspirational text error:', e);
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+async function handleCreateTextOverride(request: Request, env: Env): Promise<Response> {
+  try {
+    const body = (await request.json()) as {
+      sessionId?: string;
+      type: 'tutorial' | 'first-time-flow' | 'custom' | 'seasonal';
+      messages: InspirationMessage[];
+      durationMinutes: number;
+      reason?: string;
+    };
+
+    const { sessionId, type, messages, durationMinutes, reason } = body;
+
+    // Validate request
+    if (!sessionId || !Array.isArray(messages) || messages.length === 0) {
+      return new Response(JSON.stringify({ error: 'Invalid request' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Create override
+    const override: UserTextOverride = {
+      sessionId,
+      type,
+      messages,
+      currentIndex: 0,
+      expiresAt: Date.now() + durationMinutes * 60 * 1000,
+      isComplete: false,
+      reason,
+    };
+
+    await setUserOverride(env.PRESENCE_KV, sessionId, override);
+
+    return new Response(JSON.stringify({ success: true, override }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (e) {
+    console.error('Override creation error:', e);
     return new Response(JSON.stringify({ error: 'Internal error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -260,6 +307,11 @@ export default {
 
       case path === '/api/room':
         response = await handleRoomPresence(env);
+        break;
+
+      // Admin inspirational text endpoints
+      case path === '/admin/inspirational/override' && request.method === 'POST':
+        response = await handleCreateTextOverride(request, env);
         break;
 
       // Admin endpoints (forwarded to Durable Object)

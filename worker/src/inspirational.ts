@@ -307,6 +307,17 @@ export async function getCurrentInspirationMessage(
 }
 
 // ============================================================================
+// Cleanup Jobs
+// ============================================================================
+
+export async function cleanupExpiredOverrides(kv: KVNamespace): Promise<void> {
+  // Note: KV doesn't provide list operation in free tier, so cleanup happens
+  // on-demand when checking overrides (see getUserOverride)
+  // In paid tier with KV list API, you could enumerate and delete expired
+  console.log('Override cleanup: Using TTL-based expiration (no-op)');
+}
+
+// ============================================================================
 // Scheduled Rotation Job
 // ============================================================================
 
