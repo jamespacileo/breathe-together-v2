@@ -150,12 +150,23 @@ export const TUNING_DEFAULTS = {
   glowHaloScaleMax: 1.15,
   glowHaloOpacity: 0.35,
 
-  // Phase Indicator Dots
+  // Phase Indicator Dots (deprecated - kept for backward compatibility)
   enablePhaseDots: true,
   phaseDotsRadius: 4.2,
   phaseDotSizeActive: 0.15,
   phaseDotSizeInactive: 0.08,
   phaseDotsShowLabels: true,
+
+  // ==========================================
+  // PHASE STEPPER (minimal dot indicator)
+  // ==========================================
+  enablePhaseStepper: true,
+  phaseStepperY: -2.5,
+  phaseStepperSpacing: 0.4,
+  phaseStepperDotSize: 0.08,
+  phaseStepperActiveScale: 2.0,
+  phaseStepperInactiveOpacity: 0.25,
+  phaseStepperActiveOpacity: 0.9,
 } as const;
 
 /**
@@ -300,12 +311,21 @@ export interface DevControlsState {
   glowHaloScaleMax: number;
   glowHaloOpacity: number;
 
-  // Holographic UI - Phase Dots
+  // Holographic UI - Phase Dots (deprecated)
   enablePhaseDots: boolean;
   phaseDotsRadius: number;
   phaseDotSizeActive: number;
   phaseDotSizeInactive: number;
   phaseDotsShowLabels: boolean;
+
+  // Phase Stepper (minimal dot indicator)
+  enablePhaseStepper: boolean;
+  phaseStepperY: number;
+  phaseStepperSpacing: number;
+  phaseStepperDotSize: number;
+  phaseStepperActiveScale: number;
+  phaseStepperInactiveOpacity: number;
+  phaseStepperActiveOpacity: number;
 }
 
 /** Get default values for all dev controls */
@@ -394,6 +414,14 @@ function getDefaultDevControls(): DevControlsState {
     phaseDotSizeActive: TUNING_DEFAULTS.phaseDotSizeActive,
     phaseDotSizeInactive: TUNING_DEFAULTS.phaseDotSizeInactive,
     phaseDotsShowLabels: TUNING_DEFAULTS.phaseDotsShowLabels,
+    // Phase Stepper
+    enablePhaseStepper: TUNING_DEFAULTS.enablePhaseStepper,
+    phaseStepperY: TUNING_DEFAULTS.phaseStepperY,
+    phaseStepperSpacing: TUNING_DEFAULTS.phaseStepperSpacing,
+    phaseStepperDotSize: TUNING_DEFAULTS.phaseStepperDotSize,
+    phaseStepperActiveScale: TUNING_DEFAULTS.phaseStepperActiveScale,
+    phaseStepperInactiveOpacity: TUNING_DEFAULTS.phaseStepperInactiveOpacity,
+    phaseStepperActiveOpacity: TUNING_DEFAULTS.phaseStepperActiveOpacity,
   };
 }
 
@@ -1245,13 +1273,13 @@ export function useDevControls(): DevControlsState {
           { collapsed: true },
         ),
 
-        // Phase Indicator Dots
-        'Phase Dots': folder(
+        // Phase Indicator Dots (deprecated - use Phase Stepper instead)
+        'Phase Dots (Deprecated)': folder(
           {
             enablePhaseDots: {
               value: TUNING_DEFAULTS.enablePhaseDots,
               label: 'Enable Dots',
-              hint: 'Toggle phase indicator dots around the globe.',
+              hint: '[DEPRECATED] Toggle phase indicator dots around the globe. Use Phase Stepper instead.',
             },
             phaseDotsRadius: {
               value: TUNING_DEFAULTS.phaseDotsRadius,
@@ -1284,6 +1312,66 @@ export function useDevControls(): DevControlsState {
             },
           },
           { collapsed: true },
+        ),
+
+        // Phase Stepper (minimal dot indicator - RECOMMENDED)
+        'Phase Stepper': folder(
+          {
+            enablePhaseStepper: {
+              value: TUNING_DEFAULTS.enablePhaseStepper,
+              label: 'Enable Stepper',
+              hint: 'Toggle minimal phase stepper. Shows 3-4 dots below globe indicating current breathing phase.',
+            },
+            phaseStepperY: {
+              value: TUNING_DEFAULTS.phaseStepperY,
+              min: -4.0,
+              max: -1.0,
+              step: 0.1,
+              label: 'Y Position',
+              hint: 'Vertical position of the stepper row. Negative = below center.',
+            },
+            phaseStepperSpacing: {
+              value: TUNING_DEFAULTS.phaseStepperSpacing,
+              min: 0.2,
+              max: 1.0,
+              step: 0.05,
+              label: 'Dot Spacing',
+              hint: 'Horizontal spacing between dots.',
+            },
+            phaseStepperDotSize: {
+              value: TUNING_DEFAULTS.phaseStepperDotSize,
+              min: 0.03,
+              max: 0.2,
+              step: 0.01,
+              label: 'Dot Size',
+              hint: 'Base size of inactive dots.',
+            },
+            phaseStepperActiveScale: {
+              value: TUNING_DEFAULTS.phaseStepperActiveScale,
+              min: 1.0,
+              max: 4.0,
+              step: 0.25,
+              label: 'Active Scale',
+              hint: 'Scale multiplier for the active (current phase) dot.',
+            },
+            phaseStepperInactiveOpacity: {
+              value: TUNING_DEFAULTS.phaseStepperInactiveOpacity,
+              min: 0.1,
+              max: 0.6,
+              step: 0.05,
+              label: 'Inactive Opacity',
+              hint: 'Opacity of non-active phase dots. Lower = more subtle.',
+            },
+            phaseStepperActiveOpacity: {
+              value: TUNING_DEFAULTS.phaseStepperActiveOpacity,
+              min: 0.5,
+              max: 1.0,
+              step: 0.05,
+              label: 'Active Opacity',
+              hint: 'Opacity of the active (current phase) dot.',
+            },
+          },
+          { collapsed: false },
         ),
       },
       { collapsed: false },

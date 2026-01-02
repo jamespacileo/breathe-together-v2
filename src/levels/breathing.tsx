@@ -8,12 +8,7 @@ import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
-import {
-  AmbientGlowHalo,
-  OrbitalProgressRing,
-  PhaseIndicatorDots,
-  RippleEmitter,
-} from '../entities/effects';
+import { BreathPhaseStepper, RippleEmitter } from '../entities/effects';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
@@ -149,36 +144,19 @@ export function BreathingLevel({
               opacity={devControls.rippleOpacity}
               count={devControls.rippleCount}
             />
-
-            {/* Holographic UI - 3D breathing guides */}
-            {/* Ambient glow behind globe - expands/contracts with breathing */}
-            <AmbientGlowHalo
-              enabled={devControls.enableGlowHalo}
-              size={devControls.glowHaloSize}
-              scaleMin={devControls.glowHaloScaleMin}
-              scaleMax={devControls.glowHaloScaleMax}
-              opacity={devControls.glowHaloOpacity}
-            />
-
-            {/* Orbital progress ring - shows cycle progress */}
-            <OrbitalProgressRing
-              enabled={devControls.enableProgressRing}
-              radius={devControls.progressRingRadius}
-              thickness={devControls.progressRingThickness}
-              opacity={devControls.progressRingOpacity}
-              shimmer={devControls.progressRingShimmer}
-            />
-
-            {/* Phase indicator dots - shows current breathing phase */}
-            <PhaseIndicatorDots
-              enabled={devControls.enablePhaseDots}
-              radius={devControls.phaseDotsRadius}
-              dotSizeActive={devControls.phaseDotSizeActive}
-              dotSizeInactive={devControls.phaseDotSizeInactive}
-              showLabels={devControls.phaseDotsShowLabels}
-            />
           </MomentumControls>
         </RefractionPipeline>
+
+        {/* Breath Phase Stepper - Minimal dot indicator OUTSIDE RefractionPipeline to avoid blur */}
+        <BreathPhaseStepper
+          enabled={devControls.enablePhaseStepper}
+          yPosition={devControls.phaseStepperY}
+          spacing={devControls.phaseStepperSpacing}
+          dotSize={devControls.phaseStepperDotSize}
+          activeScale={devControls.phaseStepperActiveScale}
+          inactiveOpacity={devControls.phaseStepperInactiveOpacity}
+          activeOpacity={devControls.phaseStepperActiveOpacity}
+        />
 
         {/* NOTE: Bloom and ColorTemperature effects removed - they conflict with RefractionPipeline */}
         {/* The remaining effects (wobbly globe, curl noise, ripples, particle animation) work well */}

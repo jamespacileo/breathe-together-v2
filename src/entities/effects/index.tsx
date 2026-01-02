@@ -10,6 +10,7 @@
 
 export { AmbientGlowHalo, type AmbientGlowHaloProps } from './AmbientGlowHalo';
 export { BreathingBloom, type BreathingBloomProps } from './BreathingBloom';
+export { BreathPhaseStepper, type BreathPhaseStepperProps } from './BreathPhaseStepper';
 export { ColorTemperature, type ColorTemperatureProps } from './ColorTemperature';
 
 // Holographic UI Components
