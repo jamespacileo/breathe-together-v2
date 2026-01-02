@@ -6,20 +6,20 @@ Fundamental concepts shared across all Claude skills. These are the building blo
 
 ## UTC-Based Global Breathing Synchronization
 
-### The 16-Second Cycle
+### The 19-Second Cycle (4-7-8 Relaxation Breathing)
 
-All users worldwide breathe together using the same **16-second box breathing pattern**, synchronized via UTC time:
+All users worldwide breathe together using the same **19-second 4-7-8 relaxation breathing pattern** (Dr. Andrew Weil's technique), synchronized via UTC time:
 
 ```
-0-4s:   INHALE   (breathPhase: 0 → 1)
-4-8s:   HOLD-IN  (breathPhase: 1.0)
-8-12s:  EXHALE   (breathPhase: 1 → 0)
-12-16s: HOLD-OUT (breathPhase: 0.0)
+0-4s:   INHALE   (breathPhase: 0 → 1) - 4 seconds
+4-11s:  HOLD-IN  (breathPhase: 1.0 with subtle oscillation) - 7 seconds
+11-19s: EXHALE   (breathPhase: 1 → 0) - 8 seconds
+(No HOLD-OUT - immediate transition to next inhale)
 ```
 
 **Key Implementation:**
 ```typescript
-const elapsed = (Date.now() / 1000) % BREATH_TOTAL_CYCLE;
+const elapsed = (Date.now() / 1000) % BREATH_TOTAL_CYCLE;  // BREATH_TOTAL_CYCLE = 19
 // All users at same elapsed time = synchronized breathing
 ```
 
@@ -55,10 +55,10 @@ Four discrete phases in the breathing cycle:
 
 ```typescript
 enum PhaseType {
-  INHALE = 0,    // 0-4s: Active inhalation
-  HOLD_IN = 1,   // 4-8s: Hold after inhale
-  EXHALE = 2,    // 8-12s: Active exhalation
-  HOLD_OUT = 3   // 12-16s: Hold after exhale
+  INHALE = 0,    // 0-4s: Active inhalation (4 seconds)
+  HOLD_IN = 1,   // 4-11s: Hold after inhale (7 seconds)
+  EXHALE = 2,    // 11-19s: Active exhalation (8 seconds)
+  HOLD_OUT = 3   // Not used in 4-7-8 pattern (0 seconds)
 }
 ```
 
@@ -68,9 +68,9 @@ const { phaseType } = breathEntity.get(phaseType);
 
 switch (phaseType) {
   case 0: // INHALE - particles moving inward
-  case 1: // HOLD_IN - crystallization increasing
+  case 1: // HOLD_IN - subtle oscillation for organic feel
   case 2: // EXHALE - particles moving outward
-  case 3: // HOLD_OUT - deep stillness
+  case 3: // HOLD_OUT - not used in 4-7-8 pattern
 }
 ```
 
@@ -81,41 +81,41 @@ switch (phaseType) {
 The breathing system calculates these alongside breathPhase:
 
 ### orbitRadius
-**Range:** 1.8 (inhale) → 3.5 (exhale)
+**Range:** 2.5 (inhale) → 6.0 (exhale)
 - Controls how far particles orbit from center
 - Inverse to breathPhase: shrinks during inhale, grows during exhale
-- Used by particle physics system
+- Used by ParticleSwarm component
+- Defined in `VISUALS.PARTICLE_ORBIT_MIN` and `VISUALS.PARTICLE_ORBIT_MAX` in `src/constants.ts`
 
-### sphereScale
-**Range:** 0.6 (inhale) → 1.4 (exhale)
-- Central sphere size
-- Inverse to breathPhase: expands while particles contract
-- Creates visual harmony (expanding sphere, contracting particles)
+### rawProgress
+**Range:** 0.0 → 1.0
+- Raw progress within the current phase (before easing applied)
+- Used by HUD for timer countdown and progress visualization
+- Linear progression through each phase
 
-### crystallization
-**Range:** 0.4 - 0.9
-- Shader parameter controlling particle movement smoothness
-- Increases during hold phases (more stillness)
-- Decreases during active inhalation/exhalation
+**Note:** Previous versions had `sphereScale` and `crystallization` traits. These have been removed in the current architecture. Visual effects are now achieved through direct calculation based on `breathPhase`.
 
 ---
 
 ## Easing Functions
 
-Breath transitions use smooth easing for natural, meditation-appropriate motion:
+Breath transitions use phase-specific easing for natural, meditation-appropriate motion:
 
-### easeInOutQuad
-The primary easing function for breath phase transitions:
+### easeInhale
+Gentle acceleration for natural filling sensation (used during INHALE phase)
 
+### easeExhale
+Viscous damping for controlled release (used during EXHALE phase)
+
+### Damped Harmonic Oscillator
+During HOLD phases, subtle micro-movement is added using an underdamped harmonic oscillator:
+
+```typescript
+const dampedAmplitude = AMPLITUDE * Math.exp(-DAMPING * progress);
+breathPhase = 1 - dampedAmplitude * Math.sin(progress * Math.PI * 2 * FREQUENCY);
 ```
-0%:    ████░░░░░░  (slow start)
-25%:   ██████░░░░  (accelerating)
-50%:   ████████░░  (peak speed)
-75%:   ██████░░░░  (decelerating)
-100%:  ████████░░  (slow finish)
-```
 
-**Effect:** Breathing feels natural, not robotic or jerky.
+**Effect:** Breathing feels natural and organic - nothing in nature is perfectly still. The subtle oscillation during holds creates a more lifelike experience.
 
 ### Damping with Easing
 
@@ -166,12 +166,13 @@ scale = 1.0 + breathPhase * 0.5;
 ## Key Takeaways
 
 1. **UTC Time** drives everything—no server coordination needed
-2. **breathPhase (0-1)** is the core value; multiply it for effects
-3. **Phase Types (0-3)** tell you *which* phase of breathing
-4. **Damping** (easing.damp with speed) smooths transitions naturally
-5. **Easing functions** (easeInOutQuad) ensure meditation-appropriate motion
-6. **Visibility thresholds** matter: aim for 20-30% parameter change
-7. **Crystallization** increases during holds for deeper stillness effect
+2. **19-second 4-7-8 cycle** (4s inhale, 7s hold, 8s exhale, 0s hold-out)
+3. **breathPhase (0-1)** is the core value; multiply it for effects
+4. **Phase Types (0-3)** tell you *which* phase of breathing
+5. **Phase-specific easing** (easeInhale, easeExhale, damped oscillation) creates natural motion
+6. **Damping** (easing.damp with speed) smooths transitions naturally
+7. **Visibility thresholds** matter: aim for 20-30% parameter change
+8. **Subtle oscillation** during holds creates organic feel (damped harmonic oscillator)
 
 ---
 

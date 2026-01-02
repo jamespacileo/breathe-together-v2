@@ -42,8 +42,8 @@ Create visual features that respond to the global UTC-based breathing cycle.
 - Opacity changes
 - Shader parameter adjusts
 
-**3. Phase-Specific Behavior:** Any special behavior during **HOLD-IN** (4-8s)?
-- Increased crystallization (stillness effect)
+**3. Phase-Specific Behavior:** Any special behavior during **HOLD-IN** (4-11s)?
+- Subtle micro-movement (damped oscillation)
 - Reduced motion
 - Color change
 - No special behavior
@@ -51,10 +51,10 @@ Create visual features that respond to the global UTC-based breathing cycle.
 ### Core Concepts
 
 See [Core Concepts Reference](../../reference/core-concepts.md) for:
-- 16-second UTC breathing cycle
+- 19-second UTC breathing cycle (4-7-8 relaxation breathing)
 - breathPhase 0-1 interpretation
 - Phase types 0-3
-- Easing functions and damping
+- Phase-specific easing functions (easeInhale, easeExhale, damped oscillation)
 
 ### Integration Patterns
 

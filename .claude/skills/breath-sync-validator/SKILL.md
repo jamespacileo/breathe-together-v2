@@ -10,6 +10,16 @@ allowed-tools: [Read, Grep, Glob, Bash(npm run dev:*)]
 
 This skill has been consolidated into **breathing-sync**.
 
+## ⚠️ OUTDATED DOCUMENTATION WARNING
+
+**The documentation below contains outdated information:**
+- References **16-second box breathing** (current: 19-second 4-7-8 relaxation breathing)
+- References **sphereScale** and **crystallization** traits (these no longer exist)
+- See `../../reference/core-concepts.md` for current breathing cycle details
+- See `src/entities/breath/traits.tsx` for current trait list
+
+For current, accurate documentation, use the **breathing-sync** skill instead.
+
 ## Migration Guide
 
 **To validate/debug breathing synchronization:** Use the `breathing-sync` skill and select **Mode 2 (Validate)**
