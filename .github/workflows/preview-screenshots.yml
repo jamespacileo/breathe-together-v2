@@ -91,7 +91,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Strategy 0: Manual trigger (workflow_dispatch with PR number input)
+            // Manual trigger - use input directly
             if (context.eventName === 'workflow_dispatch') {
               const prNumber = context.payload.inputs.pr_number;
               core.setOutput('number', prNumber);
@@ -100,7 +100,7 @@ jobs:
               return;
             }
 
-            // Strategy 1: Try to get PR number from workflow_run payload (most reliable)
+            // workflow_run trigger - PR info should be in payload
             const prNumber = context.payload.workflow_run?.pull_requests[0]?.number;
 
             if (prNumber) {
@@ -110,58 +110,31 @@ jobs:
               return;
             }
 
-            // Strategy 2: Search for PR by head SHA (works for fork PRs)
+            // Fallback: Use commits API to find PRs for this SHA (handles fork PRs)
             const headSha = context.payload.workflow_run?.head_sha;
-            const headBranch = context.payload.workflow_run?.head_branch;
-
             if (!headSha) {
               core.setOutput('found', 'false');
-              core.setFailed('Could not determine PR number');
+              core.setFailed('No PR in payload and no head SHA available');
               return;
             }
-            console.log(`Searching for PR with head SHA: ${headSha}`);
 
-            // Paginate through all open PRs (handles repos with >30 open PRs)
-            let matchingPr = null;
-            let branchPr = null;
+            console.log(`PR not in payload, checking commits API for SHA: ${headSha}`);
+            const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: headSha,
+            });
 
-            for await (const response of github.paginate.iterator(
-              github.rest.pulls.list,
-              {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: 'open',
-                per_page: 100,
-              }
-            )) {
-              // Strategy 2a: Match by SHA (most reliable)
-              matchingPr = response.data.find(pr => pr.head.sha === headSha);
-              if (matchingPr) {
-                core.setOutput('number', matchingPr.number);
-                core.setOutput('found', 'true');
-                console.log(`Found PR #${matchingPr.number} by SHA match`);
-                return;
-              }
-
-              // Strategy 2b: Match by branch (same-repo PRs only, fallback)
-              if (!branchPr && headBranch) {
-                branchPr = response.data.find(pr =>
-                  pr.head.ref === headBranch &&
-                  pr.head.repo?.full_name === `${context.repo.owner}/${context.repo.repo}`
-                );
-              }
-            }
-
-            // Strategy 3: Use branch match if SHA match failed
-            if (branchPr) {
-              core.setOutput('number', branchPr.number);
+            const openPr = prs.find(pr => pr.state === 'open');
+            if (openPr) {
+              core.setOutput('number', openPr.number);
               core.setOutput('found', 'true');
-              console.log(`Found PR #${branchPr.number} by branch match (SHA mismatch - PR may have been updated)`);
+              console.log(`Found PR #${openPr.number} via commits API`);
               return;
             }
 
             core.setOutput('found', 'false');
-            core.setFailed(`Could not find PR for SHA ${headSha} or branch ${headBranch}`);
+            core.setFailed(`No open PR found for SHA ${headSha}`);
 
       - name: Build preview URL
         if: steps.pr.outputs.found == 'true'
