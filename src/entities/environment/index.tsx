@@ -1,9 +1,11 @@
-import { Cloud, Clouds, Stars } from '@react-three/drei';
-import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useRef } from 'react';
-import * as THREE from 'three';
+import { Stars } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
+import { useEffect } from 'react';
 import { useViewport } from '../../hooks/useViewport';
+import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
+import { CloudSystem } from './CloudSystem';
+import { SubtleLightRays } from './SubtleLightRays';
 
 interface EnvironmentProps {
   enabled?: boolean;
@@ -40,14 +42,13 @@ export function Environment({
   showClouds = true,
   showStars = true,
   cloudOpacity = 0.4,
-  cloudSpeed = 0.3,
+  cloudSpeed = 0.8,
   ambientLightColor = '#fff5eb',
   ambientLightIntensity = 0.5,
   keyLightColor = '#ffe4c4',
   keyLightIntensity = 0.8,
 }: EnvironmentProps = {}) {
   const { scene } = useThree();
-  const cloudsRef = useRef<THREE.Group>(null);
   const { isMobile, isTablet } = useViewport();
 
   // Reduce star count on mobile/tablet for better performance
@@ -64,13 +65,6 @@ export function Environment({
     };
   }, [scene]);
 
-  // Animate cloud drift
-  useFrame((state) => {
-    if (cloudsRef.current) {
-      cloudsRef.current.rotation.y = state.clock.elapsedTime * 0.01 * cloudSpeed;
-    }
-  });
-
   if (!enabled) return null;
 
   return (
@@ -78,66 +72,16 @@ export function Environment({
       {/* Animated gradient background - renders behind everything */}
       <BackgroundGradient />
 
-      {/* Volumetric 3D clouds - pastel colored wisps */}
-      {showClouds && (
-        <Clouds ref={cloudsRef} material={THREE.MeshBasicMaterial}>
-          {/* Soft pink cloud - upper left */}
-          <Cloud
-            position={[-15, 12, -25]}
-            opacity={cloudOpacity * 0.5}
-            speed={cloudSpeed}
-            segments={30}
-            bounds={[12, 3, 8]}
-            volume={6}
-            color="#f8b4c4"
-            fade={40}
-          />
-          {/* Soft lavender cloud - upper right */}
-          <Cloud
-            position={[18, 14, -30]}
-            opacity={cloudOpacity * 0.45}
-            speed={cloudSpeed * 0.8}
-            segments={25}
-            bounds={[10, 2.5, 6]}
-            volume={5}
-            color="#c4b8e8"
-            fade={35}
-          />
-          {/* Soft sky blue cloud - center high */}
-          <Cloud
-            position={[0, 20, -40]}
-            opacity={cloudOpacity * 0.4}
-            speed={cloudSpeed * 1.2}
-            segments={20}
-            bounds={[8, 2, 5]}
-            volume={4}
-            color="#a8d4e8"
-            fade={30}
-          />
-          {/* Soft peach cloud - left horizon */}
-          <Cloud
-            position={[-20, 5, -45]}
-            opacity={cloudOpacity * 0.4}
-            speed={cloudSpeed * 0.5}
-            segments={25}
-            bounds={[15, 2, 10]}
-            volume={4}
-            color="#f8d0a8"
-            fade={45}
-          />
-          {/* Soft mint cloud - right horizon */}
-          <Cloud
-            position={[22, 6, -42]}
-            opacity={cloudOpacity * 0.35}
-            speed={cloudSpeed * 0.6}
-            segments={22}
-            bounds={[12, 1.5, 8]}
-            volume={3}
-            color="#b8e8d4"
-            fade={40}
-          />
-        </Clouds>
-      )}
+      {/* Memoized cloud system - only initializes once, never re-renders from parent changes */}
+      {/* Includes: top/middle/bottom layers, parallax depths, right-to-left looping */}
+      {showClouds && <CloudSystem opacity={cloudOpacity} speed={cloudSpeed} enabled={true} />}
+
+      {/* Subtle atmospheric details - users feel these more than see them */}
+      {/* Floating dust motes with gentle sparkle */}
+      <AmbientDust count={isMobile ? 40 : 80} opacity={0.12} size={0.012} enabled={true} />
+
+      {/* Subtle diagonal light rays from upper right */}
+      <SubtleLightRays opacity={0.03} enabled={!isMobile} />
 
       {/* Subtle distant stars - very faint for dreamy atmosphere */}
       {/* Count is responsive: 150 (mobile) / 300 (tablet) / 500 (desktop) */}
