@@ -137,8 +137,8 @@ export function BreathingLevelUI() {
   const { count: presenceCount } = usePresence();
 
   return (
-    <div className="absolute inset-0 pointer-events-none">
-      {/* Leva dev controls panel */}
+    <>
+      {/* Leva dev controls panel - renders via portal to document.body */}
       <Leva
         hidden={!DEV_MODE_ENABLED}
         collapsed={true}
@@ -173,7 +173,7 @@ export function BreathingLevelUI() {
         onShowSettingsChange={setShowSettings}
         presenceCount={presenceCount}
       />
-    </div>
+    </>
   );
 }
 
