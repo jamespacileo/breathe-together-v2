@@ -15,7 +15,7 @@
 
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
@@ -28,6 +28,7 @@ import {
   SlotManager,
   type User,
 } from './SlotManager';
+import { UserShard } from './UserShard';
 
 // Direct 1:1 mapping - each mood has exactly one color
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
@@ -81,6 +82,21 @@ export interface ParticleSwarmProps {
    * The number of shards dynamically matches the number of users.
    */
   users?: User[] | Partial<Record<MoodId, number>>;
+  /**
+   * Current user's ID - this user will be rendered with special
+   * MeshTransmissionMaterial and "YOU" label instead of the instanced material.
+   */
+  currentUserId?: string;
+  /**
+   * Edge color for the current user's shard outline.
+   * @default '#333333' (dark gray like reference)
+   */
+  currentUserEdgeColor?: string;
+  /**
+   * Whether to show the "YOU" label on the current user's shard.
+   * @default true
+   */
+  showCurrentUserLabel?: boolean;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
   /**
@@ -241,8 +257,22 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
   };
 }
 
+/**
+ * State for the current user's shard (passed to UserShard component)
+ */
+interface CurrentUserState {
+  direction: THREE.Vector3;
+  mood: MoodId;
+  scale: number;
+  phaseOffset: number;
+  ambientSeed: number;
+}
+
 export function ParticleSwarm({
   users,
+  currentUserId,
+  currentUserEdgeColor = '#333333',
+  showCurrentUserLabel = true,
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
@@ -254,6 +284,12 @@ export function ParticleSwarm({
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
+
+  // Track the current user's state for UserShard rendering
+  const currentUserStateRef = useRef<CurrentUserState | null>(null);
+
+  // State to trigger re-renders when current user becomes visible/hidden
+  const [currentUserVisible, setCurrentUserVisible] = useState(false);
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -490,15 +526,21 @@ export function ParticleSwarm({
     const slots = slotManager.slots;
     let visibleCount = 0;
 
+    // Reset current user state each frame
+    currentUserStateRef.current = null;
+
     for (let i = 0; i < states.length; i++) {
       const instanceState = states[i];
       const slot = i < slots.length ? slots[i] : null;
 
+      // Check if this slot belongs to the current user
+      const isCurrentUser = currentUserId && slot?.userId === currentUserId;
+
       // Get slot scale (0 if no slot or empty)
       const slotScale = slot && slot.state !== 'empty' ? slot.scale : 0;
 
-      // Track visible instances for count optimization
-      if (slotScale > 0.001) {
+      // Track visible instances for count optimization (but not current user)
+      if (slotScale > 0.001 && !isCurrentUser) {
         visibleCount = i + 1;
       }
 
@@ -519,6 +561,26 @@ export function ParticleSwarm({
       if (_tempLerpDir.lengthSq() > 0.0001) {
         instanceState.direction.addScaledVector(_tempLerpDir, positionLerpFactor);
         instanceState.direction.normalize();
+      }
+
+      // If this is the current user, store state for UserShard and hide in InstancedMesh
+      if (isCurrentUser && slot) {
+        currentUserStateRef.current = {
+          direction: instanceState.direction.clone(),
+          mood: slot.mood ?? 'presence',
+          scale: slotScale,
+          phaseOffset: instanceState.phaseOffset,
+          ambientSeed: instanceState.ambientSeed,
+        };
+
+        // Hide this instance in the InstancedMesh (UserShard will render it)
+        _tempScale.setScalar(0);
+        mesh.getMatrixAt(i, _tempMatrix);
+        _tempMatrix.decompose(_tempPosition, _tempQuaternion, _tempScale);
+        _tempScale.setScalar(0);
+        _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
+        mesh.setMatrixAt(i, _tempMatrix);
+        continue;
       }
 
       // Physics calculations
@@ -578,6 +640,12 @@ export function ParticleSwarm({
     // Update instance count for rendering optimization
     mesh.count = Math.max(1, visibleCount);
     mesh.instanceMatrix.needsUpdate = true;
+
+    // Update current user visibility state (triggers re-render if changed)
+    const isUserVisible = currentUserStateRef.current !== null;
+    if (isUserVisible !== currentUserVisible) {
+      setCurrentUserVisible(isUserVisible);
+    }
   });
 
   // Set the PARTICLES layer on the instanced mesh for RefractionPipeline detection
@@ -589,13 +657,33 @@ export function ParticleSwarm({
     }
   }, []);
 
+  // Get current user state for rendering
+  const userState = currentUserStateRef.current;
+
   return (
-    <instancedMesh
-      ref={instancedMeshRef}
-      args={[geometry, material, performanceCap]}
-      frustumCulled={false}
-      name="Particle Swarm"
-    />
+    <>
+      <instancedMesh
+        ref={instancedMeshRef}
+        args={[geometry, material, performanceCap]}
+        frustumCulled={false}
+        name="Particle Swarm"
+      />
+
+      {/* Render current user's shard with special material and edges */}
+      {currentUserVisible && userState && (
+        <UserShard
+          direction={userState.direction}
+          baseRadius={baseRadius}
+          shardSize={shardSize}
+          mood={userState.mood}
+          scale={userState.scale}
+          phaseOffset={userState.phaseOffset}
+          ambientSeed={userState.ambientSeed}
+          edgeColor={currentUserEdgeColor}
+          showLabel={showCurrentUserLabel}
+        />
+      )}
+    </>
   );
 }
 
