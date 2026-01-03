@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
+import { calculateBreathState } from '../lib/breathCalc';
 import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES } from '../styles/designTokens';
 import { AudioSettings } from './AudioSettings';
@@ -140,6 +141,8 @@ export function SimpleGaiaUI({
   const progressRef = useRef<HTMLDivElement>(null);
   const progressContainerRef = useRef<HTMLDivElement>(null);
   const presenceCountRef = useRef<HTMLSpanElement>(null);
+  // Title ref for breathing kerning animation
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   // Responsive viewport detection
   const { deviceType, isMobile, isTablet } = useViewport();
@@ -203,12 +206,35 @@ export function SimpleGaiaUI({
         calculatePhaseInfo(cycleTime);
       const phaseTime = phaseProgress * phaseDuration;
 
-      // Update phase name on transition
+      // Get overall breath phase (0-1) for continuous animations
+      const breathState = calculateBreathState(Date.now());
+      const breathPhaseValue = breathState.breathPhase;
+
+      // Update phase name on transition with letter-spacing micro-animation
       if (phaseIndex !== prevPhase) {
         prevPhase = phaseIndex;
         if (phaseNameRef.current) {
           phaseNameRef.current.textContent = PHASE_NAMES[phaseIndex] ?? 'Breathe';
         }
+      }
+
+      // Typography micro-animation: letter-spacing expansion/contraction on phase name
+      // Expands slightly on inhale (phase=1), contracts on exhale (phase=0)
+      // Range: 0.12em (exhale) → 0.22em (inhale) - subtle but noticeable
+      if (phaseNameRef.current) {
+        const baseTracking = 0.12;
+        const trackingRange = 0.1;
+        const dynamicTracking = baseTracking + breathPhaseValue * trackingRange;
+        phaseNameRef.current.style.letterSpacing = `${dynamicTracking}em`;
+      }
+
+      // Title kerning that breathes: "BREATHE TOGETHER"
+      // Even more subtle: 0.08em → 0.15em
+      if (titleRef.current) {
+        const baseTitleTracking = 0.08;
+        const titleTrackingRange = 0.07;
+        const dynamicTitleTracking = baseTitleTracking + breathPhaseValue * titleTrackingRange;
+        titleRef.current.style.letterSpacing = `${dynamicTitleTracking}em`;
       }
 
       // Update timer (countdown)
@@ -347,12 +373,14 @@ export function SimpleGaiaUI({
           gap: isMobile ? '8px' : '16px',
         }}
       >
-        {/* App Name */}
+        {/* App Name - with breathing kerning animation */}
         <div>
           <h1
-            className={`font-serif m-0 uppercase text-warm-gray
-              ${isMobile ? 'text-[1.2rem] font-normal tracking-[0.08em]' : isTablet ? 'text-[1.25rem] font-light tracking-[0.15em]' : 'text-[1.4rem] font-light tracking-[0.15em]'}
+            ref={titleRef}
+            className={`font-serif m-0 uppercase text-warm-gray transition-[letter-spacing] duration-300 ease-out
+              ${isMobile ? 'text-[1.2rem] font-normal' : isTablet ? 'text-[1.25rem] font-light' : 'text-[1.4rem] font-light'}
               ${isMobile ? 'drop-shadow-[0_1px_8px_rgba(255,252,245,0.8)]' : ''}`}
+            style={{ letterSpacing: '0.08em' }}
           >
             Breathe Together
           </h1>
@@ -812,10 +840,11 @@ export function SimpleGaiaUI({
         <div className="flex items-baseline" style={{ gap: isMobile ? '10px' : '12px' }}>
           <span
             ref={phaseNameRef}
-            className={`font-serif font-light uppercase text-warm-gray
-              ${isMobile ? 'text-[1.75rem] tracking-[0.12em]' : isTablet ? 'text-[1.5rem] tracking-[0.18em]' : 'text-[1.5rem] tracking-[0.18em]'}`}
+            className={`font-serif font-light uppercase text-warm-gray transition-[letter-spacing] duration-200 ease-out
+              ${isMobile ? 'text-[1.75rem]' : isTablet ? 'text-[1.5rem]' : 'text-[1.5rem]'}`}
             style={{
               textShadow: '0 2px 20px var(--color-accent-gold-glow), 0 1px 6px rgba(0, 0, 0, 0.15)',
+              letterSpacing: '0.12em',
             }}
           >
             Inhale

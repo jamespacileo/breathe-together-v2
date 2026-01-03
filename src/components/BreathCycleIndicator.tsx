@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { BREATH_TOTAL_CYCLE } from '../constants';
+import { calculateBreathState } from '../lib/breathCalc';
 import { calculatePhaseInfo } from '../lib/breathPhase';
+import { useAudioStore } from '../stores/audioStore';
 import { UI_COLORS } from '../styles/designTokens';
 
 /**
@@ -57,11 +59,34 @@ function BreathCycleIndicatorComponent() {
     [activeColor, inactiveColor, glowColor],
   );
 
-  // Memoize dot update helper
+  // Memoize dot update helper - now includes ambient sound visualization
+  // When audio is enabled, dots have a subtle pulse synced to breath
   const updateDot = useCallback(
-    (el: HTMLSpanElement, isTransitioning: boolean) => {
-      el.style.color = isTransitioning ? activeColor : inactiveColor;
-      el.style.opacity = isTransitioning ? '0.8' : '0.35';
+    (
+      el: HTMLSpanElement,
+      isTransitioning: boolean,
+      breathPhaseValue: number,
+      audioEnabled: boolean,
+    ) => {
+      // Base state: transitioning or inactive
+      const baseColor = isTransitioning ? activeColor : inactiveColor;
+      const baseOpacity = isTransitioning ? 0.8 : 0.35;
+
+      // Ambient sound visualization: micro-scale pulse when audio is enabled
+      // Creates the impression that the dots are "breathing" with the audio
+      let visualOpacity = baseOpacity;
+      let visualScale = 1.0;
+
+      if (audioEnabled) {
+        // Subtle pulse: opacity varies by ±0.1, scale by ±5%
+        const audioPulse = Math.sin(breathPhaseValue * Math.PI) * 0.1;
+        visualOpacity = Math.min(1.0, baseOpacity + audioPulse);
+        visualScale = 1.0 + breathPhaseValue * 0.05;
+      }
+
+      el.style.color = baseColor;
+      el.style.opacity = `${visualOpacity}`;
+      el.style.transform = `scale(${visualScale})`;
     },
     [activeColor, inactiveColor],
   );
@@ -81,6 +106,13 @@ function BreathCycleIndicatorComponent() {
       const cycleTime = now % BREATH_TOTAL_CYCLE;
       const { phaseIndex, phaseProgress } = calculatePhaseInfo(cycleTime);
 
+      // Get overall breath phase (0-1) for ambient sound visualization
+      const breathState = calculateBreathState(Date.now());
+      const breathPhaseValue = breathState.breathPhase;
+
+      // Check if audio is enabled for ambient visualization
+      const audioEnabled = useAudioStore.getState().enabled;
+
       // Update each number's appearance based on active phase
       if (number4Ref.current)
         updateNumberRef.current(number4Ref.current, phaseIndex === 0, phaseProgress);
@@ -90,15 +122,16 @@ function BreathCycleIndicatorComponent() {
         updateNumberRef.current(number8Ref.current, phaseIndex === 2, phaseProgress);
 
       // Update dots - glow when adjacent phases are transitioning
+      // Plus ambient sound visualization when audio is enabled
       if (dot1Ref.current) {
         const transitioning1 =
           (phaseIndex === 0 && phaseProgress > 0.85) || (phaseIndex === 1 && phaseProgress < 0.15);
-        updateDotRef.current(dot1Ref.current, transitioning1);
+        updateDotRef.current(dot1Ref.current, transitioning1, breathPhaseValue, audioEnabled);
       }
       if (dot2Ref.current) {
         const transitioning2 =
           (phaseIndex === 1 && phaseProgress > 0.85) || (phaseIndex === 2 && phaseProgress < 0.15);
-        updateDotRef.current(dot2Ref.current, transitioning2);
+        updateDotRef.current(dot2Ref.current, transitioning2, breathPhaseValue, audioEnabled);
       }
 
       prevPhaseRef.current = phaseIndex;
@@ -123,15 +156,17 @@ function BreathCycleIndicatorComponent() {
     willChange: 'transform, opacity, color, text-shadow',
   };
 
-  // Interpunct dot style
+  // Interpunct dot style - with transform for ambient sound visualization
   const dotStyle: React.CSSProperties = {
     fontSize: '0.5rem',
     padding: '0 6px',
     color: inactiveColor,
     opacity: 0.35,
-    transition: 'color 0.3s ease, opacity 0.3s ease',
+    transition: 'color 0.3s ease, opacity 0.3s ease, transform 0.2s ease',
     verticalAlign: 'middle',
     userSelect: 'none',
+    display: 'inline-block',
+    willChange: 'transform, opacity',
   };
 
   return (
