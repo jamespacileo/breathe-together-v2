@@ -67,7 +67,7 @@ export const BREATH_TOTAL_CYCLE =
  * Visual Constants - Breathing animation parameters
  *
  * IMPORTANT: PARTICLE_ORBIT_MIN must be >= minOrbitRadius in ParticleSwarm
- * (globeRadius + shardSize + buffer ≈ 1.5 + 0.6 + 0.3 = 2.4)
+ * (globeRadius + maxShardSize + buffer ≈ 1.5 + 0.4 + 0.15 = 2.05)
  * Otherwise, particles hit the clamp early and animation appears to stop.
  *
  * The full orbit range is used by the sin easing curve - if min is too low,
@@ -76,8 +76,9 @@ export const BREATH_TOTAL_CYCLE =
  */
 export const VISUALS = {
   /** Min orbit radius (inhale - particles closest to globe)
+   * Reduced from 2.5 to 2.1 for more dramatic approach
    * Must be >= globeRadius + maxShardSize + buffer to avoid early clamp */
-  PARTICLE_ORBIT_MIN: 2.5,
+  PARTICLE_ORBIT_MIN: 2.1,
   /** Max orbit radius (exhale - particles farthest from globe) */
   PARTICLE_ORBIT_MAX: 6.0,
 } as const;
@@ -119,9 +120,9 @@ export const KEPLERIAN_PHYSICS = {
   /**
    * Base gravitational parameter (GM combined)
    * Higher = faster base orbital velocity
-   * Tuned for aesthetic orbital drift at reference radius
+   * Increased from 0.3 to 0.6 for more noticeable orbital rotation
    */
-  BASE_GM: 0.3,
+  BASE_GM: 0.6,
 
   /**
    * Reference radius for velocity normalization
@@ -133,22 +134,23 @@ export const KEPLERIAN_PHYSICS = {
   /**
    * Breath modulation amplitude for apparent mass
    * 0 = no breath effect on mass, 1 = full modulation
+   * Increased from 0.3 to 0.5 for stronger breath-synchronized pull
    * During inhale: mass increases by this factor (stronger pull)
    * During exhale: mass decreases by this factor (weaker pull)
    */
-  BREATH_MASS_MODULATION: 0.3,
+  BREATH_MASS_MODULATION: 0.5,
 
   /**
    * Minimum velocity multiplier (prevents near-zero speed at large radii)
    * Ensures particles always have some orbital motion
    */
-  MIN_VELOCITY_FACTOR: 0.5,
+  MIN_VELOCITY_FACTOR: 0.4,
 
   /**
    * Maximum velocity multiplier (caps speed at small radii)
-   * Prevents particles from appearing to "zip" around too fast
+   * Increased from 2.0 to 3.0 for faster rotation when close to globe
    */
-  MAX_VELOCITY_FACTOR: 2.0,
+  MAX_VELOCITY_FACTOR: 3.0,
 } as const;
 
 /**

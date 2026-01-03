@@ -17,6 +17,12 @@
  * - During exhale: particles expand AND decelerate (releasing)
  * This creates organic variations preventing the "robotic" feel of constant-speed loops.
  *
+ * Breath-Synchronized Shard Scaling:
+ * Shards dynamically resize based on breath phase for more dramatic composition:
+ * - Exhale (far from globe): shards expand to 125% - dramatic, expansive feel
+ * - Inhale (close to globe): shards contract to 85% - intimate, concentrated feel
+ * This also helps prevent shard-globe collisions at close range.
+ *
  * Performance: Uses InstancedMesh for single draw call (1 draw call for all particles)
  * Previously used separate Mesh objects (300 draw calls for 300 particles)
  */
@@ -99,11 +105,12 @@ export interface ParticleSwarmProps {
   baseShardSize?: number;
   /** Globe radius for minimum distance calculation @default 1.5 */
   globeRadius?: number;
-  /** Buffer distance between shard surface and globe surface @default 0.3 */
+  /** Buffer distance between shard surface and globe surface @default 0.15 */
   buffer?: number;
   /**
    * Maximum shard size cap (prevents oversized shards at low counts).
-   * @default 0.6
+   * Reduced to 0.4 to allow closer approach to globe on inhale.
+   * @default 0.4
    */
   maxShardSize?: number;
   /**
@@ -179,9 +186,10 @@ const AMBIENT_Y_SCALE = 0.04;
  *
  * ORBIT_BASE_SPEED serves as the reference velocity at REFERENCE_RADIUS.
  * Actual speed varies based on current radius and breath phase.
+ * Increased from 0.015 to 0.025 for more noticeable orbital rotation.
  */
-const ORBIT_BASE_SPEED = 0.015;
-const ORBIT_SPEED_VARIATION = 0.01;
+const ORBIT_BASE_SPEED = 0.025;
+const ORBIT_SPEED_VARIATION = 0.015;
 
 /**
  * Calculate Keplerian orbital velocity based on current radius and breath phase.
@@ -309,8 +317,8 @@ export function ParticleSwarm({
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
-  buffer = 0.3,
-  maxShardSize = 0.6,
+  buffer = 0.15,
+  maxShardSize = 0.4,
   minShardSize = 0.15,
   performanceCap = 1000,
 }: ParticleSwarmProps) {
@@ -637,7 +645,11 @@ export function ParticleSwarm({
       _tempQuaternion.setFromEuler(_tempEuler);
 
       // Final scale: slot scale × breath scale × base offset
-      const breathScale = 1.0 + currentBreathPhase * 0.05;
+      // Shards shrink when close (inhale) and expand when far (exhale)
+      // This creates a more dynamic composition and helps prevent collisions at close range
+      // At exhale (breathPhase=0): scale = 1.25 (expanded, dramatic)
+      // At inhale (breathPhase=1): scale = 0.85 (contracted, intimate)
+      const breathScale = 1.25 - currentBreathPhase * 0.4;
       const finalScale = slotScale * instanceState.baseScaleOffset * breathScale;
       _tempScale.setScalar(finalScale);
 
