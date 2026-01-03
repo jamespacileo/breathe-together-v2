@@ -16,6 +16,16 @@ const IOS_DEFAULTS = {
   minVelocityThreshold: 50,
 };
 
+/**
+ * Zoom defaults for scroll-to-zoom
+ */
+const ZOOM_DEFAULTS = {
+  min: 0.5,
+  max: 2.0,
+  speed: 0.001,
+  damping: 0.15,
+};
+
 interface MomentumControlsProps {
   /** Enable/disable the controls */
   enabled?: boolean;
@@ -39,6 +49,14 @@ interface MomentumControlsProps {
   velocityMultiplier?: number;
   /** Minimum flick speed (px/s) to trigger momentum */
   minVelocityThreshold?: number;
+  /** Enable scroll-to-zoom (default: true) */
+  enableZoom?: boolean;
+  /** Minimum zoom level (default: 0.5 = zoomed out) */
+  minZoom?: number;
+  /** Maximum zoom level (default: 2.0 = zoomed in) */
+  maxZoom?: number;
+  /** Zoom sensitivity (default: 0.001) */
+  zoomSpeed?: number;
   children?: React.ReactNode;
 }
 
@@ -67,6 +85,10 @@ export function MomentumControls({
   timeConstant = IOS_DEFAULTS.timeConstant,
   velocityMultiplier = IOS_DEFAULTS.velocityMultiplier,
   minVelocityThreshold = IOS_DEFAULTS.minVelocityThreshold,
+  enableZoom = true,
+  minZoom = ZOOM_DEFAULTS.min,
+  maxZoom = ZOOM_DEFAULTS.max,
+  zoomSpeed = ZOOM_DEFAULTS.speed,
   children,
 }: MomentumControlsProps) {
   const gl = useThree((state) => state.gl);
@@ -98,6 +120,8 @@ export function MomentumControls({
     rotation: [...rInitial] as [number, number, number],
     target: [...rInitial] as [number, number, number],
     damping,
+    zoom: 1.0,
+    targetZoom: 1.0,
   });
 
   // Group ref for direct manipulation
@@ -124,6 +148,18 @@ export function MomentumControls({
 
     // Smoothly interpolate rotation toward target
     easing.dampE(ref.current.rotation, animation.current.target, animation.current.damping, delta);
+
+    // Smoothly interpolate zoom toward target zoom
+    if (enableZoom) {
+      animation.current.zoom = MathUtils.damp(
+        animation.current.zoom,
+        animation.current.targetZoom,
+        ZOOM_DEFAULTS.damping / delta,
+        delta,
+      );
+      const scale = animation.current.zoom;
+      ref.current.scale.set(scale, scale, scale);
+    }
   });
 
   // Gesture handling with velocity tracking
@@ -195,6 +231,32 @@ export function MomentumControls({
       // These are spread onto the group and work with R3F's pointer event system
     },
   );
+
+  // Wheel zoom handler - attached directly to DOM since wheel events
+  // don't propagate through R3F's pointer event system
+  React.useEffect(() => {
+    if (!enabled || !enableZoom) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      // Prevent page scroll when zooming
+      event.preventDefault();
+
+      // Calculate new zoom level based on scroll delta
+      // Negative delta = scroll up = zoom in (increase zoom)
+      // Positive delta = scroll down = zoom out (decrease zoom)
+      const zoomDelta = -event.deltaY * zoomSpeed;
+      const newZoom = MathUtils.clamp(animation.current.targetZoom + zoomDelta, minZoom, maxZoom);
+
+      animation.current.targetZoom = newZoom;
+    };
+
+    // Attach to canvas element
+    domElement.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      domElement.removeEventListener('wheel', handleWheel);
+    };
+  }, [enabled, enableZoom, zoomSpeed, minZoom, maxZoom, domElement]);
 
   return (
     <group ref={ref} {...(bind() || {})}>
