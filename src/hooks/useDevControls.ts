@@ -75,6 +75,7 @@ export const TUNING_DEFAULTS = {
   // Shape Gizmos (dev-only)
   showGlobeCentroid: false,
   showGlobeBounds: false,
+  showCountryCentroids: false,
   showSwarmCentroid: false,
   showSwarmBounds: false,
   showShardCentroids: false,
@@ -179,6 +180,7 @@ export interface DevControlsState {
   // Shape Gizmos
   showGlobeCentroid: boolean;
   showGlobeBounds: boolean;
+  showCountryCentroids: boolean;
   showSwarmCentroid: boolean;
   showSwarmBounds: boolean;
   showShardCentroids: boolean;
@@ -239,6 +241,7 @@ function getDefaultDevControls(): DevControlsState {
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
     showGlobeCentroid: TUNING_DEFAULTS.showGlobeCentroid,
     showGlobeBounds: TUNING_DEFAULTS.showGlobeBounds,
+    showCountryCentroids: TUNING_DEFAULTS.showCountryCentroids,
     showSwarmCentroid: TUNING_DEFAULTS.showSwarmCentroid,
     showSwarmBounds: TUNING_DEFAULTS.showSwarmBounds,
     showShardCentroids: TUNING_DEFAULTS.showShardCentroids,
@@ -698,6 +701,11 @@ export function useDevControls(): DevControlsState {
               value: TUNING_DEFAULTS.showGlobeBounds,
               label: 'Globe Bounds',
               hint: 'Show globe bounding sphere wireframes (core + atmosphere).\n\n**Use case:** Verify collision bounds and atmosphere layers',
+            },
+            showCountryCentroids: {
+              value: TUNING_DEFAULTS.showCountryCentroids,
+              label: 'Country Centroids',
+              hint: 'Show centroid markers for all countries on the globe surface.\n\n**Use case:** Verify lat/lng coordinate mapping for GeoMarkers',
             },
             showSwarmCentroid: {
               value: TUNING_DEFAULTS.showSwarmCentroid,

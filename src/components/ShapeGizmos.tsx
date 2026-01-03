@@ -4,6 +4,7 @@
  * Renders visual helpers for:
  * - Globe centroid (with optional XYZ axes)
  * - Globe bounding sphere
+ * - Country centroids on globe surface
  * - Particle swarm centroid
  * - Particle swarm bounding sphere (shows breathing range)
  * - Individual shard centroids and wireframes
@@ -13,6 +14,7 @@
  * - Debugging shape positioning
  * - Understanding breathing animation bounds
  * - Visualizing Fibonacci sphere distribution
+ * - Verifying country coordinate mapping
  * - Anchoring future effects/UI elements to shape positions
  *
  * Controlled via Leva Debug > Gizmos folder
@@ -25,6 +27,7 @@ import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { VISUALS } from '../constants';
 import { breathPhase, orbitRadius } from '../entities/breath/traits';
+import { COUNTRY_CENTROIDS, latLngToPosition } from '../lib/countryCentroids';
 
 interface ShapeGizmosProps {
   /**
@@ -38,6 +41,12 @@ interface ShapeGizmosProps {
    * @default false
    */
   showGlobeBounds?: boolean;
+
+  /**
+   * Show country centroid markers on globe
+   * @default false
+   */
+  showCountryCentroids?: boolean;
 
   /**
    * Show particle swarm centroid marker
@@ -256,6 +265,7 @@ function BoundingSphere({
  */
 interface ShardPosition {
   position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
   scale: number;
   index: number;
 }
@@ -267,6 +277,72 @@ const _tempMatrix = new THREE.Matrix4();
 const _tempPosition = new THREE.Vector3();
 const _tempQuaternion = new THREE.Quaternion();
 const _tempScale = new THREE.Vector3();
+
+/**
+ * Country Gizmos - renders centroid markers for countries on the globe
+ */
+function CountryGizmos({
+  globeRadius,
+  showLabels,
+  globeRotationY,
+}: {
+  globeRadius: number;
+  showLabels: boolean;
+  globeRotationY: number;
+}) {
+  // Calculate country positions
+  const countryPositions = useMemo(() => {
+    const positions: Array<{
+      code: string;
+      name: string;
+      position: [number, number, number];
+    }> = [];
+
+    for (const [code, centroid] of Object.entries(COUNTRY_CENTROIDS)) {
+      const position = latLngToPosition(centroid.lat, centroid.lng, globeRadius);
+      positions.push({ code, name: centroid.name, position });
+    }
+
+    return positions;
+  }, [globeRadius]);
+
+  return (
+    <group rotation={[0, globeRotationY, 0]} name="Country Gizmos">
+      {countryPositions.map((country) => (
+        <group key={country.code} position={country.position}>
+          {/* Country centroid marker */}
+          <mesh>
+            <sphereGeometry args={[0.03, 12, 12]} />
+            <meshBasicMaterial color="#ffaa00" />
+          </mesh>
+          {/* Small ring around centroid */}
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.04, 0.06, 16]} />
+            <meshBasicMaterial color="#ffaa00" transparent opacity={0.6} side={THREE.DoubleSide} />
+          </mesh>
+          {/* Country code label */}
+          {showLabels && (
+            <Html position={[0, 0.12, 0]} center>
+              <div
+                style={{
+                  background: 'rgba(0, 0, 0, 0.8)',
+                  color: '#ffaa00',
+                  padding: '2px 4px',
+                  borderRadius: '2px',
+                  fontSize: '9px',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {country.code}
+              </div>
+            </Html>
+          )}
+        </group>
+      ))}
+    </group>
+  );
+}
 
 /**
  * Shard Gizmos - renders centroids, wireframes, and connections for particle shards
@@ -286,7 +362,7 @@ function ShardGizmos({
   showLabels: boolean;
   shardSize: number;
 }) {
-  // Memoize wireframe geometry
+  // Memoize wireframe geometry - matches ParticleSwarm's IcosahedronGeometry(shardSize, 0)
   const wireframeGeometry = useMemo(() => new THREE.IcosahedronGeometry(shardSize, 0), [shardSize]);
 
   // Memoize wireframe material
@@ -329,12 +405,13 @@ function ShardGizmos({
           />
         ))}
 
-      {/* Shard wireframes */}
+      {/* Shard wireframes - with proper rotation from the instance matrix */}
       {showWireframes &&
         positions.map((shard) => (
           <mesh
             key={`wireframe-${shard.index}`}
             position={[shard.position.x, shard.position.y, shard.position.z]}
+            quaternion={shard.quaternion}
             scale={shard.scale}
             geometry={wireframeGeometry}
             material={wireframeMaterial}
@@ -358,6 +435,7 @@ function ShardGizmos({
 export function ShapeGizmos({
   showGlobeCentroid = false,
   showGlobeBounds = false,
+  showCountryCentroids = false,
   showSwarmCentroid = false,
   showSwarmBounds = false,
   showShardCentroids = false,
@@ -376,6 +454,7 @@ export function ShapeGizmos({
   const currentOrbitRef = useRef<number>(VISUALS.PARTICLE_ORBIT_MAX);
   const [shardPositions, setShardPositions] = useState<ShardPosition[]>([]);
   const [shardSize, setShardSize] = useState(0.5);
+  const [globeRotationY, setGlobeRotationY] = useState(0);
   const frameCountRef = useRef(0);
 
   // Find the particle swarm InstancedMesh
@@ -394,7 +473,12 @@ export function ShapeGizmos({
         currentOrbitRef.current = breath.get(orbitRadius)?.value ?? VISUALS.PARTICLE_ORBIT_MAX;
       }
 
-      // Throttle updates to every 4 frames
+      // Sync with globe rotation (matches EarthGlobe's 0.0008 rad/frame)
+      if (showCountryCentroids) {
+        setGlobeRotationY((prev) => prev - 0.0008);
+      }
+
+      // Throttle other updates to every 4 frames
       frameCountRef.current += 1;
       if (frameCountRef.current % 4 !== 0) return;
 
@@ -426,6 +510,7 @@ export function ShapeGizmos({
           if (_tempScale.x > 0.01) {
             positions.push({
               position: _tempPosition.clone(),
+              quaternion: _tempQuaternion.clone(),
               scale: _tempScale.x,
               index: i,
             });
@@ -443,6 +528,7 @@ export function ShapeGizmos({
   if (
     !showGlobeCentroid &&
     !showGlobeBounds &&
+    !showCountryCentroids &&
     !showSwarmCentroid &&
     !showSwarmBounds &&
     !showShardGizmos
@@ -487,6 +573,15 @@ export function ShapeGizmos({
             label={showLabels ? `Atmosphere r=${(globeRadius * 1.22).toFixed(2)}` : undefined}
           />
         </>
+      )}
+
+      {/* Country centroids on globe */}
+      {showCountryCentroids && (
+        <CountryGizmos
+          globeRadius={globeRadius}
+          showLabels={showLabels}
+          globeRotationY={globeRotationY}
+        />
       )}
 
       {/* ============================================================

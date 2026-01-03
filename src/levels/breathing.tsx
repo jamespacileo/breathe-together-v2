@@ -139,6 +139,7 @@ export function BreathingLevel({
             <ShapeGizmos
               showGlobeCentroid={devControls.showGlobeCentroid}
               showGlobeBounds={devControls.showGlobeBounds}
+              showCountryCentroids={devControls.showCountryCentroids}
               showSwarmCentroid={devControls.showSwarmCentroid}
               showSwarmBounds={devControls.showSwarmBounds}
               showShardCentroids={devControls.showShardCentroids}
