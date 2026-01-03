@@ -77,8 +77,13 @@ async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
     const validMood = validateMood(mood);
     const now = Date.now();
 
+    // Extract country from Cloudflare's built-in geolocation (free!)
+    // request.cf contains geolocation data added by Cloudflare edge
+    const cfData = request.cf as { country?: string } | undefined;
+    const country = cfData?.country;
+
     const state = await getAggregate(env.PRESENCE_KV);
-    const updated = addSample(state, sessionId, validMood, now);
+    const updated = addSample(state, sessionId, validMood, now, country);
     await saveAggregate(env.PRESENCE_KV, updated);
 
     const presence = toPresenceState(updated);

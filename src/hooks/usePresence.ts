@@ -77,6 +77,7 @@ export interface UsePresenceResult {
   count: number;
   moods: Record<MoodId, number>;
   users: User[];
+  countryCounts: Record<string, number>;
   mood: MoodId;
   setMood: (mood: MoodId) => void;
   isConnected: boolean;
@@ -324,6 +325,7 @@ export function usePresence(): UsePresenceResult {
     count: presence.count,
     moods: presence.moods,
     users: presence.users,
+    countryCounts: presence.countryCounts,
     mood,
     setMood,
     isConnected,

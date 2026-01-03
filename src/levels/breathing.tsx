@@ -8,6 +8,7 @@ import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
+import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
@@ -42,7 +43,7 @@ export function BreathingLevel({
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users } = usePresence();
+  const { users, countryCounts } = usePresence();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -69,41 +70,41 @@ export function BreathingLevel({
         {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
         <AudioDevControls />
 
-        {/* 4-Pass FBO Refraction Pipeline */}
-        <RefractionPipeline
-          ior={devControls.ior}
-          backfaceIntensity={devControls.glassDepth}
-          enableDepthOfField={devControls.enableDepthOfField}
-          focusDistance={devControls.focusDistance}
-          focalRange={devControls.focalRange}
-          maxBlur={devControls.maxBlur}
+        {/* MomentumControls wraps everything - iOS-style momentum scrolling for 3D rotation */}
+        <MomentumControls
+          cursor={true}
+          speed={devControls.dragSpeed}
+          damping={devControls.dragDamping}
+          momentum={devControls.dragMomentum}
+          timeConstant={devControls.dragTimeConstant}
+          velocityMultiplier={devControls.dragVelocityMultiplier}
+          minVelocityThreshold={devControls.dragMinVelocity}
+          polar={[-Math.PI * 0.3, Math.PI * 0.3]}
+          azimuth={[-Infinity, Infinity]}
         >
-          {/* Environment - clouds, lighting, fog */}
-          {showEnvironment && (
-            <Environment
-              showClouds={devControls.showClouds}
-              showStars={devControls.showStars}
-              cloudOpacity={devControls.cloudOpacity}
-              cloudSpeed={devControls.cloudSpeed}
-              ambientLightColor={devControls.ambientLightColor}
-              ambientLightIntensity={devControls.ambientLightIntensity}
-              keyLightColor={devControls.keyLightColor}
-              keyLightIntensity={devControls.keyLightIntensity}
-            />
-          )}
-
-          {/* MomentumControls - iOS-style momentum scrolling for 3D rotation */}
-          <MomentumControls
-            cursor={true}
-            speed={devControls.dragSpeed}
-            damping={devControls.dragDamping}
-            momentum={devControls.dragMomentum}
-            timeConstant={devControls.dragTimeConstant}
-            velocityMultiplier={devControls.dragVelocityMultiplier}
-            minVelocityThreshold={devControls.dragMinVelocity}
-            polar={[-Math.PI * 0.3, Math.PI * 0.3]}
-            azimuth={[-Infinity, Infinity]}
+          {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
+          <RefractionPipeline
+            ior={devControls.ior}
+            backfaceIntensity={devControls.glassDepth}
+            enableDepthOfField={devControls.enableDepthOfField}
+            focusDistance={devControls.focusDistance}
+            focalRange={devControls.focalRange}
+            maxBlur={devControls.maxBlur}
           >
+            {/* Environment - clouds, lighting, fog */}
+            {showEnvironment && (
+              <Environment
+                showClouds={devControls.showClouds}
+                showStars={devControls.showStars}
+                cloudOpacity={devControls.cloudOpacity}
+                cloudSpeed={devControls.cloudSpeed}
+                ambientLightColor={devControls.ambientLightColor}
+                ambientLightIntensity={devControls.ambientLightIntensity}
+                keyLightColor={devControls.keyLightColor}
+                keyLightIntensity={devControls.keyLightIntensity}
+              />
+            )}
+
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
@@ -123,8 +124,14 @@ export function BreathingLevel({
                 color={devControls.atmosphereColor}
               />
             )}
-          </MomentumControls>
-        </RefractionPipeline>
+
+            {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
+            {/* Now inside RefractionPipeline: occluded by globe/shards, has DoF effect */}
+            {showGlobe && Object.keys(countryCounts).length > 0 && (
+              <GeoMarkers countryCounts={countryCounts} showNames={false} />
+            )}
+          </RefractionPipeline>
+        </MomentumControls>
       </Suspense>
     </ErrorBoundary>
   );
