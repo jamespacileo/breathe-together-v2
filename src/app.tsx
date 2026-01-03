@@ -83,7 +83,7 @@ export function App() {
       <div ref={containerRef} className="relative w-full h-full">
         {/* 3D Canvas - receives events via eventSource, has pointer-events: none */}
         {/* frameloop="demand" enables on-demand rendering for battery savings */}
-        {/* Scene invalidates via invalidate() in breathSystem when state changes */}
+        {/* Scene invalidates via invalidate() in KootaSystems useFrame to ensure updates render */}
         <Canvas
           eventSource={containerRef}
           eventPrefix="client"

@@ -275,14 +275,14 @@ void main() {
 /**
  * Environment FBO cache interval (frames)
  * Background gradient is static, so we can cache it for multiple frames.
- * Set to 10 = re-render environment every 10 frames (~6 times per second at 60fps)
+ * Set to 10 = re-render background every 10 frames (6 times/sec if running at 60fps)
  */
 const ENV_CACHE_FRAMES = 10;
 
 /**
  * Backface resolution scale (0.5 = half resolution)
  * Backface normals don't need full resolution - bilinear filtering smooths the result.
- * This saves ~75% GPU fill rate on the backface pass.
+ * At 0.5 scale, this saves 75% GPU fill rate (0.5² = 0.25 pixels filled).
  */
 const BACKFACE_RESOLUTION_SCALE = 0.5;
 
@@ -346,7 +346,7 @@ export function RefractionPipeline({
     });
 
     // Backface FBO - half resolution with bilinear filtering for smooth normals
-    // This saves ~75% fill rate with minimal quality loss
+    // At 0.5 scale: saves 75% fill rate (0.5² = 0.25 pixels) with minimal quality loss
     const backfaceFBO = new THREE.WebGLRenderTarget(backfaceWidth, backfaceHeight, {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,

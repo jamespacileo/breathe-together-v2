@@ -34,15 +34,17 @@ export function KootaSystems({
     try {
       if (breathSystemEnabled) {
         breathSystem(world, delta);
-        // Trigger re-render for on-demand frameloop
-        // This ensures continuous animation while breath system is active
-        invalidate();
       }
     } catch (error) {
       // Silently catch ECS errors during unmount/remount in Triplex
       // This prevents the "data_7_$f.store" crash when the world is stale
       logger.warn('[breathSystem] ECS error (expected during Triplex hot-reload):', error);
     }
+
+    // Trigger re-render for on-demand frameloop
+    // Always invalidate regardless of breath system state to ensure all scene
+    // updates (camera, user interactions, state changes) are rendered
+    invalidate();
   });
 
   return <NestedCheck.Provider value={true}>{children}</NestedCheck.Provider>;
