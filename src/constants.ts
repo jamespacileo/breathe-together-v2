@@ -67,7 +67,7 @@ export const BREATH_TOTAL_CYCLE =
  * Visual Constants - Breathing animation parameters
  *
  * IMPORTANT: PARTICLE_ORBIT_MIN must be >= minOrbitRadius in ParticleSwarm
- * (globeRadius + maxShardSize + buffer ≈ 1.5 + 0.25 + 0.05 = 1.8)
+ * (globeRadius + maxShardSize + buffer ≈ 1.5 + 0.12 + 0.03 = 1.65)
  * Otherwise, particles hit the clamp early and animation appears to stop.
  *
  * The full orbit range is used by the sin easing curve - if min is too low,
@@ -76,9 +76,9 @@ export const BREATH_TOTAL_CYCLE =
  */
 export const VISUALS = {
   /** Min orbit radius (inhale - particles closest to globe)
-   * Reduced from 2.5 to 1.8 for intimate close approach
-   * Shards orbit just 0.3 units from globe surface at closest */
-  PARTICLE_ORBIT_MIN: 1.8,
+   * Set to 1.65 for very close approach (0.15 units from globe surface)
+   * Combined with reduced shard size enables intimate clustering */
+  PARTICLE_ORBIT_MIN: 1.65,
   /** Max orbit radius (exhale - particles farthest from globe) */
   PARTICLE_ORBIT_MAX: 6.0,
 } as const;
@@ -120,9 +120,9 @@ export const KEPLERIAN_PHYSICS = {
   /**
    * Base gravitational parameter (GM combined)
    * Higher = faster base orbital velocity
-   * Increased from 0.3 to 0.6 for more noticeable orbital rotation
+   * Increased to 1.2 for clearly visible orbital rotation
    */
-  BASE_GM: 0.6,
+  BASE_GM: 1.2,
 
   /**
    * Reference radius for velocity normalization
@@ -134,23 +134,23 @@ export const KEPLERIAN_PHYSICS = {
   /**
    * Breath modulation amplitude for apparent mass
    * 0 = no breath effect on mass, 1 = full modulation
-   * Increased from 0.3 to 0.5 for stronger breath-synchronized pull
+   * Increased to 0.6 for stronger breath-synchronized pull
    * During inhale: mass increases by this factor (stronger pull)
    * During exhale: mass decreases by this factor (weaker pull)
    */
-  BREATH_MASS_MODULATION: 0.5,
+  BREATH_MASS_MODULATION: 0.6,
 
   /**
    * Minimum velocity multiplier (prevents near-zero speed at large radii)
    * Ensures particles always have some orbital motion
    */
-  MIN_VELOCITY_FACTOR: 0.4,
+  MIN_VELOCITY_FACTOR: 0.3,
 
   /**
    * Maximum velocity multiplier (caps speed at small radii)
-   * Increased from 2.0 to 3.0 for faster rotation when close to globe
+   * Increased to 4.0 for noticeably faster rotation when close to globe
    */
-  MAX_VELOCITY_FACTOR: 3.0,
+  MAX_VELOCITY_FACTOR: 4.0,
 } as const;
 
 /**

@@ -38,14 +38,16 @@ export interface CollisionTestConfig {
  * - For Fibonacci sphere with N particles at radius R, min spacing ≈ R × 1.95 / sqrt(N)
  * - For collision-free: R > (2 × shardSize + wobbleMargin) × sqrt(N) / 1.95
  * - minOrbitRadius = max(globeConstraint, spacingConstraint)
+ *
+ * January 2026: Reduced shard sizes and wobble for closer approach to globe
  */
 export const DEFAULT_CONFIG: CollisionTestConfig = {
   particleCount: 42,
   globeRadius: 1.5,
   baseShardSize: 4.0,
-  maxShardSize: 0.6,
-  minShardSize: 0.15,
-  buffer: 0.3,
+  maxShardSize: 0.12,
+  minShardSize: 0.05,
+  buffer: 0.03,
   time: 0,
 };
 
@@ -92,14 +94,15 @@ export function calculateOrbitRadius(breathPhase: number): number {
 
 /**
  * Animation constants (matching ParticleSwarm)
+ * January 2026: Reduced wobble/ambient for closer shard packing
  */
-const AMBIENT_SCALE = 0.08;
-const AMBIENT_Y_SCALE = 0.04;
-const PERPENDICULAR_AMPLITUDE = 0.03;
+const AMBIENT_SCALE = 0.04;
+const AMBIENT_Y_SCALE = 0.02;
+const PERPENDICULAR_AMPLITUDE = 0.015;
 const PERPENDICULAR_FREQUENCY = 0.35;
 const MAX_PHASE_OFFSET = 0.04;
-const ORBIT_BASE_SPEED = 0.015;
-const ORBIT_SPEED_VARIATION = 0.01;
+const ORBIT_BASE_SPEED = 0.04;
+const ORBIT_SPEED_VARIATION = 0.02;
 
 /**
  * Per-particle state for deterministic position calculation
@@ -149,8 +152,8 @@ export function calculateDynamicMinOrbitRadius(config: CollisionTestConfig): num
 
   // Constraint 2: Inter-particle spacing
   // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
-  // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.22
-  const wobbleMargin = 0.22;
+  // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.11
+  const wobbleMargin = 0.11;
   const fibonacciSpacingFactor = 1.95;
   const requiredSpacing = 2 * shardSize + wobbleMargin;
   const spacingConstraint = (requiredSpacing * Math.sqrt(particleCount)) / fibonacciSpacingFactor;

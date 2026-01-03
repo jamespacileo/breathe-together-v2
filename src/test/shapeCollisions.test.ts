@@ -180,15 +180,18 @@ describe('Shape Collision Detection', () => {
 describe('Collision Geometry Calculations', () => {
   describe('calculateShardSize', () => {
     it('should decrease with particle count (inverse square root)', () => {
-      const size50 = calculateShardSize({ ...DEFAULT_CONFIG, particleCount: 50 });
-      const size100 = calculateShardSize({ ...DEFAULT_CONFIG, particleCount: 100 });
-      const size200 = calculateShardSize({ ...DEFAULT_CONFIG, particleCount: 200 });
+      // With reduced maxShardSize (0.12), need higher particle counts to see the relationship
+      // baseShardSize / sqrt(count) must be below maxShardSize (0.12) to avoid clamping
+      // 4.0 / sqrt(1200) = 0.115, 4.0 / sqrt(2400) = 0.082, 4.0 / sqrt(4800) = 0.058
+      const size1200 = calculateShardSize({ ...DEFAULT_CONFIG, particleCount: 1200 });
+      const size2400 = calculateShardSize({ ...DEFAULT_CONFIG, particleCount: 2400 });
+      const size4800 = calculateShardSize({ ...DEFAULT_CONFIG, particleCount: 4800 });
 
-      expect(size50).toBeGreaterThan(size100);
-      expect(size100).toBeGreaterThan(size200);
+      expect(size1200).toBeGreaterThan(size2400);
+      expect(size2400).toBeGreaterThan(size4800);
 
       // Ratio should be ~sqrt(2) ≈ 1.414
-      expect(size50 / size100).toBeCloseTo(Math.sqrt(2), 1);
+      expect(size1200 / size2400).toBeCloseTo(Math.sqrt(2), 1);
     });
 
     it('should respect min/max bounds', () => {
@@ -208,12 +211,12 @@ describe('Collision Geometry Calculations', () => {
 
     it('should return min radius at breathPhase=1 (inhale)', () => {
       const radius = calculateOrbitRadius(1);
-      expect(radius).toBe(2.5); // VISUALS.PARTICLE_ORBIT_MIN
+      expect(radius).toBeCloseTo(1.65, 5); // VISUALS.PARTICLE_ORBIT_MIN (reduced for closer approach)
     });
 
     it('should interpolate linearly between phases', () => {
       const radiusMid = calculateOrbitRadius(0.5);
-      expect(radiusMid).toBeCloseTo((6.0 + 2.5) / 2, 2);
+      expect(radiusMid).toBeCloseTo((6.0 + 1.65) / 2, 2);
     });
   });
 
@@ -245,7 +248,7 @@ describe('Collision Geometry Calculations', () => {
 
       // At breathPhase=1, particles orbit at dynamic min radius
       // Dynamic min = max(globeConstraint, spacingConstraint) based on particle count
-      // For 20 particles: spacingConstraint dominates for collision prevention
+      // With reduced shard sizes (0.12 max) and wobble (0.11 margin), particles get closer
       const positionsInhale = calculateAllParticlePositions(1, { particleCount: 20, time: 0 });
       const avgDistanceInhale =
         positionsInhale.reduce((sum, p) => sum + p.length(), 0) / positionsInhale.length;
@@ -254,10 +257,10 @@ describe('Collision Geometry Calculations', () => {
       expect(avgDistanceExhale).toBeGreaterThan(5.5);
       expect(avgDistanceExhale).toBeLessThan(6.5);
 
-      // Inhale: dynamic min orbit ensures collision-free spacing
-      // Must be > 2.0 (globe + buffer) and < 6.0 (max orbit)
-      // With 20 particles, dynamic min is ~3.2 for collision prevention
-      expect(avgDistanceInhale).toBeGreaterThan(2.0);
+      // Inhale: dynamic min orbit with reduced shard sizes allows closer approach
+      // Must be > 1.5 (globe radius) and < 6.0 (max orbit)
+      // With 20 particles and smaller shards, dynamic min is ~1.65-2.0
+      expect(avgDistanceInhale).toBeGreaterThan(1.5);
       expect(avgDistanceInhale).toBeLessThan(6.0);
 
       // Exhale should be further than inhale

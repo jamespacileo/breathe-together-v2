@@ -105,17 +105,17 @@ export interface ParticleSwarmProps {
   baseShardSize?: number;
   /** Globe radius for minimum distance calculation @default 1.5 */
   globeRadius?: number;
-  /** Buffer distance between shard surface and globe surface @default 0.05 */
+  /** Buffer distance between shard surface and globe surface @default 0.03 */
   buffer?: number;
   /**
    * Maximum shard size cap (prevents oversized shards at low counts).
-   * Reduced to 0.25 for intimate close approach to globe on inhale.
-   * @default 0.25
+   * Reduced to 0.12 for very close approach to globe on inhale.
+   * @default 0.12
    */
   maxShardSize?: number;
   /**
    * Minimum shard size (prevents tiny shards at high counts).
-   * @default 0.1
+   * @default 0.05
    */
   minShardSize?: number;
   /**
@@ -174,9 +174,10 @@ const POSITION_LERP_SPEED = 3.0;
 
 /**
  * Ambient floating motion constants
+ * Reduced from 0.08/0.04 to allow closer shard packing
  */
-const AMBIENT_SCALE = 0.08;
-const AMBIENT_Y_SCALE = 0.04;
+const AMBIENT_SCALE = 0.04;
+const AMBIENT_Y_SCALE = 0.02;
 
 /**
  * Orbital drift constants
@@ -186,10 +187,10 @@ const AMBIENT_Y_SCALE = 0.04;
  *
  * ORBIT_BASE_SPEED serves as the reference velocity at REFERENCE_RADIUS.
  * Actual speed varies based on current radius and breath phase.
- * Increased from 0.015 to 0.025 for more noticeable orbital rotation.
+ * Increased to 0.04 for clearly visible orbital rotation.
  */
-const ORBIT_BASE_SPEED = 0.025;
-const ORBIT_SPEED_VARIATION = 0.015;
+const ORBIT_BASE_SPEED = 0.04;
+const ORBIT_SPEED_VARIATION = 0.02;
 
 /**
  * Calculate Keplerian orbital velocity based on current radius and breath phase.
@@ -242,8 +243,9 @@ function calculateKeplerianSpeed(
 
 /**
  * Perpendicular wobble constants
+ * Reduced from 0.03 to allow closer shard packing
  */
-const PERPENDICULAR_AMPLITUDE = 0.03;
+const PERPENDICULAR_AMPLITUDE = 0.015;
 const PERPENDICULAR_FREQUENCY = 0.35;
 
 /**
@@ -317,9 +319,9 @@ export function ParticleSwarm({
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
-  buffer = 0.05,
-  maxShardSize = 0.25,
-  minShardSize = 0.1,
+  buffer = 0.03,
+  maxShardSize = 0.12,
+  minShardSize = 0.05,
   performanceCap = 1000,
 }: ParticleSwarmProps) {
   const world = useWorld();
@@ -377,8 +379,8 @@ export function ParticleSwarm({
 
     // Constraint 2: Inter-particle spacing
     // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
-    // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.22
-    const wobbleMargin = 0.22;
+    // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.11
+    const wobbleMargin = 0.11;
     const fibonacciSpacingFactor = 1.95;
     const requiredSpacing = 2 * shardSize + wobbleMargin;
     const spacingConstraint = (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
@@ -645,11 +647,11 @@ export function ParticleSwarm({
       _tempQuaternion.setFromEuler(_tempEuler);
 
       // Final scale: slot scale × breath scale × base offset
-      // Shards shrink when close (inhale) and expand when far (exhale)
-      // This creates a more dynamic composition and helps prevent collisions at close range
-      // At exhale (breathPhase=0): scale = 1.25 (expanded, dramatic)
-      // At inhale (breathPhase=1): scale = 0.85 (contracted, intimate)
-      const breathScale = 1.25 - currentBreathPhase * 0.4;
+      // Shards shrink significantly when close (inhale) and expand when far (exhale)
+      // This creates dynamic composition and allows very close approach without collisions
+      // At exhale (breathPhase=0): scale = 1.4 (expanded, dramatic, filling space)
+      // At inhale (breathPhase=1): scale = 0.6 (contracted, intimate, tight clustering)
+      const breathScale = 1.4 - currentBreathPhase * 0.8;
       const finalScale = slotScale * instanceState.baseScaleOffset * breathScale;
       _tempScale.setScalar(finalScale);
 
