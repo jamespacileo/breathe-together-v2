@@ -103,6 +103,9 @@ export function App() {
   // About modal visibility
   const [showAboutModal, setShowAboutModal] = useState(false);
 
+  // Session key - increments when returning to intro to reset CinematicIntro state
+  const [introSessionKey, setIntroSessionKey] = useState(0);
+
   // Layered reveal progress (0→1 over 3s after entering breathing phase)
   // Shared with CameraRig and BreathingLevel for coordinated transitions
   const [joinProgress, setJoinProgress] = useState(0);
@@ -206,6 +209,8 @@ export function App() {
     setJoinProgress(0);
     setSelectedMood(undefined);
     setShowWelcomeModal(false);
+    // Increment session key to force CinematicIntro to reset and show full intro again
+    setIntroSessionKey((prev) => prev + 1);
   }, []);
 
   // Admin panel route
@@ -236,7 +241,13 @@ export function App() {
   return (
     <ErrorBoundary>
       {/* CinematicIntro handles ALL users - the beautiful intro is always shown */}
-      <CinematicIntro onJoin={handleJoin} onTutorial={handleDirectTutorial} onAbout={handleAbout}>
+      <CinematicIntro
+        key={introSessionKey}
+        active={appPhase === 'intro'}
+        onJoin={handleJoin}
+        onTutorial={handleDirectTutorial}
+        onAbout={handleAbout}
+      >
         {(phase, progress) => (
           /* Shared event source - both Canvas and HTML UI are children */
           <div ref={containerRef} className="relative w-full h-full">

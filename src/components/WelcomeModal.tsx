@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface WelcomeModalProps {
   /** Number of users currently breathing */
@@ -14,28 +14,41 @@ interface WelcomeModalProps {
  * Uses soft fade animation for elegant entry/exit.
  */
 export function WelcomeModal({ userCount = 73, onDismiss }: WelcomeModalProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isAnimated, setIsAnimated] = useState(false);
+  const [isAnimatedIn, setIsAnimatedIn] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
+  const hasCalledDismiss = useRef(false);
 
-  // Fade in on mount
+  // Fade in on mount - immediate visibility with delayed animation
   useEffect(() => {
-    const showTimer = setTimeout(() => setIsVisible(true), 100);
-    const animateTimer = setTimeout(() => setIsAnimated(true), 200);
-    return () => {
-      clearTimeout(showTimer);
-      clearTimeout(animateTimer);
-    };
+    // Use requestAnimationFrame to ensure the initial render happens first
+    const raf = requestAnimationFrame(() => {
+      setIsAnimatedIn(true);
+    });
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   const handleDismiss = useCallback(() => {
-    setIsAnimated(false);
-    setTimeout(() => {
-      setIsVisible(false);
-      setTimeout(onDismiss, 300);
-    }, 200);
-  }, [onDismiss]);
+    // Prevent double-dismiss
+    if (hasCalledDismiss.current || isDismissing) return;
+    hasCalledDismiss.current = true;
+    setIsDismissing(true);
+    setIsAnimatedIn(false);
+    // Call onDismiss after animation completes
+    setTimeout(onDismiss, 400);
+  }, [onDismiss, isDismissing]);
 
-  if (!isVisible) return null;
+  // Also dismiss on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleDismiss();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleDismiss]);
+
+  const isAnimated = isAnimatedIn && !isDismissing;
 
   return (
     <button

@@ -11,6 +11,8 @@ interface CinematicIntroProps extends CinematicConfig {
   onTutorial?: () => void;
   /** Callback when user wants to see About modal */
   onAbout?: () => void;
+  /** Whether the cinematic intro overlay should be active/visible */
+  active?: boolean;
 }
 
 /**
@@ -32,6 +34,7 @@ export function CinematicIntro({
   onJoin,
   onTutorial,
   onAbout,
+  active = true,
 }: CinematicIntroProps) {
   // Always start with intro not complete - we want everyone to see it
   const [introComplete, setIntroComplete] = useState(false);
@@ -41,6 +44,9 @@ export function CinematicIntro({
     setIntroComplete(true);
     onComplete?.();
   }, [onComplete]);
+
+  // Overlay should show when: active AND not completed
+  const showOverlay = active && !introComplete;
 
   const { phase, progress, advance, skip } = useCinematicTimeline({
     speedMultiplier,
@@ -91,7 +97,7 @@ export function CinematicIntro({
       </div>
 
       {/* Cinematic overlay layer */}
-      {!introComplete && (
+      {showOverlay && (
         <div
           style={{
             position: 'fixed',
