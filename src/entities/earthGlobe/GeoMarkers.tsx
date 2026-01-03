@@ -149,12 +149,12 @@ function MarkerBadge({ width, height }: { width: number; height: number }) {
  */
 function CountBadge({ count, offsetX }: { count: number; offsetX: number }) {
   const countStr = String(count);
-  const badgeWidth = 0.08 + countStr.length * 0.03;
+  const badgeWidth = 0.1 + countStr.length * 0.04;
 
   return (
     <group position={[offsetX, 0, 0.015]}>
       {/* Teal pill background */}
-      <RoundedBox args={[badgeWidth, 0.07, 0.015]} radius={0.025} smoothness={4}>
+      <RoundedBox args={[badgeWidth, 0.085, 0.015]} radius={0.03} smoothness={4}>
         <meshBasicMaterial
           color="#5eb3b2"
           transparent
@@ -166,7 +166,7 @@ function CountBadge({ count, offsetX }: { count: number; offsetX: number }) {
       {/* Count number */}
       <Text
         position={[0, 0, 0.01]}
-        fontSize={0.04}
+        fontSize={0.055}
         color="#ffffff"
         anchorX="center"
         anchorY="middle"
@@ -186,12 +186,13 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
   // Calculate dimensions based on text length
   const nameLength = name.length;
   const countLength = String(count).length;
-  const badgeWidth = 0.06 + nameLength * 0.025 + 0.08 + countLength * 0.03 + 0.03;
-  const badgeHeight = 0.1;
+  const countBadgeWidth = 0.1 + countLength * 0.04;
+  const badgeWidth = 0.06 + nameLength * 0.025 + countBadgeWidth + 0.04;
+  const badgeHeight = 0.12;
 
   // Position offsets for text elements
   const nameOffsetX = -badgeWidth / 2 + 0.04 + (nameLength * 0.025) / 2;
-  const countOffsetX = badgeWidth / 2 - 0.04 - (0.08 + countLength * 0.03) / 2;
+  const countOffsetX = badgeWidth / 2 - 0.04 - countBadgeWidth / 2;
 
   return (
     <Billboard follow={true} lockX={false} lockY={false} lockZ={false} position={position}>
