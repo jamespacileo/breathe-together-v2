@@ -14,10 +14,13 @@
  * - Billboard mode (always faces camera via sprite prop)
  * - Holographic/ethereal styling to match Monument Valley aesthetic
  * - Smooth scale animation with distance
+ * - Auto-rotation synced with EarthGlobe for marker alignment
  */
 
 import { Html } from '@react-three/drei';
-import { useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useMemo, useRef } from 'react';
+import type { Group } from 'three';
 
 import { COUNTRY_CENTROIDS, getCountryName, latLngToPosition } from '../../lib/countryCentroids';
 
@@ -37,6 +40,10 @@ interface GeoMarkersProps {
   minCount?: number;
   /** Maximum markers to show (to avoid clutter) @default 10 */
   maxMarkers?: number;
+  /** Sync auto-rotation with EarthGlobe (same 0.0008 rad/frame) @default true */
+  syncRotation?: boolean;
+  /** Longitude offset in degrees for texture alignment @default 0 */
+  longitudeOffset?: number;
 }
 
 /**
@@ -57,7 +64,7 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
       position={position}
       center
       sprite
-      distanceFactor={5}
+      distanceFactor={4}
       zIndexRange={[100, 0]}
       style={{
         pointerEvents: 'none',
@@ -68,15 +75,16 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '6px',
-          padding: '5px 10px',
+          gap: '8px',
+          padding: '8px 14px',
           background:
-            'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)',
-          borderRadius: '14px',
-          border: '1px solid rgba(255,255,255,0.3)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.25)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
+            'linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(240,235,230,0.75) 100%)',
+          borderRadius: '16px',
+          border: '2px solid rgba(126,197,196,0.6)',
+          boxShadow:
+            '0 4px 20px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.3), inset 0 1px 0 rgba(255,255,255,0.5)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
           fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
           whiteSpace: 'nowrap',
         }}
@@ -84,11 +92,11 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
         {/* Country code/name */}
         <span
           style={{
-            fontSize: '11px',
-            fontWeight: 500,
-            color: 'rgba(255,255,255,0.95)',
-            textShadow: '0 1px 3px rgba(0,0,0,0.3)',
-            letterSpacing: '0.5px',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: '#5a5a5a',
+            textShadow: '0 1px 0 rgba(255,255,255,0.8)',
+            letterSpacing: '0.8px',
           }}
         >
           {name}
@@ -97,14 +105,14 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
         {/* User count badge */}
         <span
           style={{
-            fontSize: '10px',
+            fontSize: '12px',
             fontWeight: 700,
             color: 'white',
             background: 'linear-gradient(135deg, #7ec5c4 0%, #5eb3b2 100%)',
-            padding: '3px 8px',
-            borderRadius: '10px',
-            boxShadow: '0 2px 6px rgba(94,179,178,0.4)',
-            minWidth: '18px',
+            padding: '4px 10px',
+            borderRadius: '12px',
+            boxShadow: '0 3px 8px rgba(94,179,178,0.5), inset 0 1px 0 rgba(255,255,255,0.3)',
+            minWidth: '22px',
             textAlign: 'center',
           }}
         >
@@ -123,6 +131,9 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
  *
  * PLACEMENT: Must be inside MomentumControls but OUTSIDE RefractionPipeline
  * to follow globe rotation without being affected by DoF blur.
+ *
+ * ROTATION SYNC: Matches EarthGlobe's auto-rotation (0.0008 rad/frame) so
+ * markers stay aligned with their country positions on the texture.
  */
 export function GeoMarkers({
   countryCounts,
@@ -131,7 +142,18 @@ export function GeoMarkers({
   showNames = false,
   minCount = 1,
   maxMarkers = 10,
+  syncRotation = true,
+  longitudeOffset = 0,
 }: GeoMarkersProps) {
+  const groupRef = useRef<Group>(null);
+
+  // Sync rotation with EarthGlobe's auto-rotation
+  // EarthGlobe uses: rotation.y -= 0.0008 per frame
+  useFrame(() => {
+    if (!groupRef.current || !syncRotation) return;
+    groupRef.current.rotation.y -= 0.0008;
+  });
+
   // Calculate marker positions from country codes
   const markers = useMemo(() => {
     const result: Array<{
@@ -147,8 +169,9 @@ export function GeoMarkers({
       if (!centroid) continue;
 
       // Position marker at country centroid, elevated above surface
+      // Apply longitude offset for texture alignment calibration
       const markerRadius = globeRadius + heightOffset;
-      const position = latLngToPosition(centroid.lat, centroid.lng, markerRadius);
+      const position = latLngToPosition(centroid.lat, centroid.lng + longitudeOffset, markerRadius);
 
       result.push({ code, count, position });
     }
@@ -156,12 +179,12 @@ export function GeoMarkers({
     // Sort by count descending and limit to maxMarkers to avoid visual clutter
     result.sort((a, b) => b.count - a.count);
     return result.slice(0, maxMarkers);
-  }, [countryCounts, globeRadius, heightOffset, minCount, maxMarkers]);
+  }, [countryCounts, globeRadius, heightOffset, minCount, maxMarkers, longitudeOffset]);
 
   if (markers.length === 0) return null;
 
   return (
-    <group name="Geo Markers">
+    <group ref={groupRef} name="Geo Markers">
       {markers.map((marker) => (
         <CountryMarker
           key={marker.code}
