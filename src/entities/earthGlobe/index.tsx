@@ -53,20 +53,27 @@ void main() {
   // Sample earth texture
   vec3 texColor = texture2D(earthTexture, vUv).rgb;
 
-  // Fresnel rim for atmospheric glow
+  // Fresnel rim for atmospheric glow - dynamic falloff based on breath
   vec3 viewDir = normalize(vViewPosition);
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 4.0); // Tighter falloff
-  vec3 rimColor = vec3(0.94, 0.90, 0.86); // Muted warm cream, closer to background
+  float baseFalloff = 4.0;
+  float falloffBreath = breathPhase * 0.5; // Softer edges on inhale
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), baseFalloff - falloffBreath);
 
-  // Breathing modulation - subtle brightness shift
-  float breathMod = 1.0 + breathPhase * 0.06;
+  // Rim color shifts warmer on inhale
+  vec3 rimColor = vec3(0.94, 0.90, 0.86); // Base: muted warm cream
+  vec3 rimWarmShift = vec3(0.02, 0.01, -0.01) * breathPhase;
+  rimColor += rimWarmShift;
+
+  // Breathing modulation - brightness and saturation shift
+  float breathMod = 1.0 + breathPhase * 0.08;
   texColor *= breathMod;
 
-  // Blend texture with fresnel rim - very subtle
-  vec3 finalColor = mix(texColor, rimColor, fresnel * 0.18);
+  // Fresnel rim intensity varies with breath (18% base → 26% on full inhale)
+  float rimIntensity = 0.18 + breathPhase * 0.08;
+  vec3 finalColor = mix(texColor, rimColor, fresnel * rimIntensity);
 
-  // Subtle top-down lighting - very gentle
-  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.05;
+  // Subtle top-down lighting - slightly brighter on inhale
+  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * (0.05 + breathPhase * 0.02);
   finalColor += vec3(0.98, 0.95, 0.92) * topLight;
 
   gl_FragColor = vec4(finalColor, 1.0);
@@ -96,12 +103,23 @@ varying vec3 vViewPosition;
 
 void main() {
   vec3 viewDir = normalize(vViewPosition);
-  // Fresnel - softer edges with tighter falloff
-  float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 3.5);
-  // Breathing pulse - gentler
-  float pulse = 1.0 + breathPhase * 0.2;
-  float alpha = fresnel * glowIntensity * pulse;
-  gl_FragColor = vec4(glowColor, alpha);
+
+  // Dynamic Fresnel falloff - softer during inhale, tighter during exhale
+  // Creates the effect of "breathing light" - the glow expands on inhale
+  float baseFalloff = 3.5;
+  float falloffVariation = breathPhase * 0.8; // Softer falloff on inhale
+  float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), baseFalloff - falloffVariation);
+
+  // Enhanced breathing pulse - more dramatic intensity variation
+  // Inhale (phase=1): 40% brighter, Exhale (phase=0): baseline
+  float intensityPulse = 1.0 + breathPhase * 0.4;
+
+  // Subtle color warmth shift on inhale (warmer = more inviting)
+  vec3 warmShift = vec3(0.03, 0.015, -0.01) * breathPhase;
+  vec3 dynamicGlowColor = glowColor + warmShift;
+
+  float alpha = fresnel * glowIntensity * intensityPulse;
+  gl_FragColor = vec4(dynamicGlowColor, alpha);
 }
 `;
 

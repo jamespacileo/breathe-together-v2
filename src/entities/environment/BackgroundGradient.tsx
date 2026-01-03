@@ -5,12 +5,16 @@
  * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
  * - Animated procedural clouds using FBM noise
  * - Subtle vignette effect
+ * - Breathing-synchronized warmth shift (warmer on inhale, cooler on exhale)
  */
 
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
+
+import { breathPhase } from '../breath/traits';
 
 const vertexShader = `
 varying vec2 vUv;
@@ -22,6 +26,7 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
+uniform float breathPhaseValue;
 varying vec2 vUv;
 
 // Simplex noise functions for cloud-like patterns
@@ -59,7 +64,53 @@ float fbm(vec2 p) {
   return f / 0.75;
 }
 
+// RGB to HSL and back for hue rotation
+vec3 rgb2hsl(vec3 c) {
+  float maxC = max(c.r, max(c.g, c.b));
+  float minC = min(c.r, min(c.g, c.b));
+  float l = (maxC + minC) / 2.0;
+  float h = 0.0;
+  float s = 0.0;
+  if (maxC != minC) {
+    float d = maxC - minC;
+    s = l > 0.5 ? d / (2.0 - maxC - minC) : d / (maxC + minC);
+    if (maxC == c.r) h = (c.g - c.b) / d + (c.g < c.b ? 6.0 : 0.0);
+    else if (maxC == c.g) h = (c.b - c.r) / d + 2.0;
+    else h = (c.r - c.g) / d + 4.0;
+    h /= 6.0;
+  }
+  return vec3(h, s, l);
+}
+
+float hue2rgb(float p, float q, float t) {
+  if (t < 0.0) t += 1.0;
+  if (t > 1.0) t -= 1.0;
+  if (t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+  if (t < 1.0/2.0) return q;
+  if (t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+  return p;
+}
+
+vec3 hsl2rgb(vec3 hsl) {
+  float h = hsl.x;
+  float s = hsl.y;
+  float l = hsl.z;
+  if (s == 0.0) return vec3(l);
+  float q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+  float p = 2.0 * l - q;
+  return vec3(
+    hue2rgb(p, q, h + 1.0/3.0),
+    hue2rgb(p, q, h),
+    hue2rgb(p, q, h - 1.0/3.0)
+  );
+}
+
 void main() {
+  // Breathing warmth shift: subtle hue rotation
+  // breathPhaseValue: 0 = exhaled (cooler), 1 = inhaled (warmer)
+  // Shift range: ~2% hue rotation (0.02 * 360 = ~7 degrees)
+  float warmthShift = (breathPhaseValue - 0.5) * 0.015;
+
   // Creamy neutral background - soft warm tones
   vec3 skyTop = vec3(0.96, 0.94, 0.91);       // #f5f0e8 Warm cream
   vec3 skyMid = vec3(0.98, 0.95, 0.90);       // #faf2e6 Soft ivory
@@ -80,6 +131,12 @@ void main() {
   skyColor = mix(skyColor, skyMid, t2);
   skyColor = mix(skyColor, skyTop, t1);
 
+  // Apply breathing warmth shift via HSL
+  vec3 hsl = rgb2hsl(skyColor);
+  hsl.x = fract(hsl.x + warmthShift); // Rotate hue
+  hsl.y *= 1.0 + breathPhaseValue * 0.08; // Slightly more saturated on inhale
+  skyColor = hsl2rgb(hsl);
+
   // Animated cloud-like wisps using FBM noise
   vec2 cloudUv = vUv * vec2(2.0, 1.0) + vec2(time * 0.015, 0.0);
   float clouds = fbm(cloudUv * 2.5);
@@ -92,16 +149,22 @@ void main() {
   float cloudMask = smoothstep(0.2, 0.55, clouds * 0.5 + clouds2 * 0.5);
   cloudMask *= smoothstep(0.1, 0.4, y) * smoothstep(0.95, 0.6, y);
 
-  // Cloud color - pure warm white
+  // Cloud color - pure warm white, also shifted by breath
   vec3 cloudColor = vec3(1.0, 0.99, 0.97);
+  vec3 cloudHsl = rgb2hsl(cloudColor);
+  cloudHsl.x = fract(cloudHsl.x + warmthShift * 0.5);
+  cloudColor = hsl2rgb(cloudHsl);
 
   // Blend clouds very subtly into sky
   vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
 
   // Very subtle vignette - just darkens corners slightly
+  // Vignette intensity also subtly synced to breath (darker on exhale = more cocooned)
   vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
-  color *= mix(0.97, 1.0, vignette);
+  float vignetteBase = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
+  float vignetteStrength = mix(0.965, 0.975, breathPhaseValue); // Darker on exhale
+  float vignette = mix(vignetteStrength, 1.0, vignetteBase);
+  color *= vignette;
 
   // Paper texture noise (very subtle)
   float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
@@ -113,6 +176,7 @@ void main() {
 
 export function BackgroundGradient() {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const world = useWorld();
 
   // Create geometry with useMemo for proper disposal
   const geometry = useMemo(() => new PlaneGeometry(2, 2), []);
@@ -121,6 +185,7 @@ export function BackgroundGradient() {
     return new ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        breathPhaseValue: { value: 0.5 },
       },
       vertexShader,
       fragmentShader,
@@ -130,10 +195,21 @@ export function BackgroundGradient() {
     });
   }, []);
 
-  // Animate time uniform
+  // Animate time and breathPhase uniforms
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+
+      // Get breath phase from ECS world
+      try {
+        const breathEntity = world.queryFirst(breathPhase);
+        if (breathEntity) {
+          const phase = breathEntity.get(breathPhase)?.value ?? 0.5;
+          materialRef.current.uniforms.breathPhaseValue.value = phase;
+        }
+      } catch {
+        // Silently catch ECS errors during unmount/remount in Triplex
+      }
     }
   });
 
