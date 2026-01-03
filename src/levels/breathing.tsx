@@ -15,6 +15,7 @@ import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useDevControls } from '../hooks/useDevControls';
 import { usePresence } from '../hooks/usePresence';
 import { useBreathingLevelStore } from '../stores/breathingLevelStore';
+import { useRendererStore } from '../stores/rendererStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
@@ -36,6 +37,9 @@ export function BreathingLevel({
   // Shared state from Zustand store
   const { orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
 
+  // Renderer version - used to force Perf reinit after GPU preference change
+  const rendererVersion = useRendererStore((s) => s.rendererVersion);
+
   // Dev controls (Leva)
   const devControls = useDevControls();
 
@@ -52,9 +56,12 @@ export function BreathingLevel({
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
-        {/* Performance monitor (dev only) */}
+        {/* Performance monitor (dev only)
+            Key includes rendererVersion to force full reinit after GPU preference change,
+            since r3f-perf's WebGL queries get invalidated on context recreation */}
         {DEV_MODE_ENABLED && devControls.showPerfMonitor && (
           <Perf
+            key={`perf-${rendererVersion}`}
             position={devControls.perfPosition}
             minimal={devControls.perfMinimal}
             showGraph={devControls.perfShowGraph}

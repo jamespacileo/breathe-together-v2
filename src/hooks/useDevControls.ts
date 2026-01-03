@@ -16,6 +16,7 @@
 import { button, folder, useControls } from 'leva';
 import { useCallback, useEffect, useRef } from 'react';
 import { DEV_MODE_ENABLED } from '../config/devMode';
+import { type PowerPreference, useRendererStore } from '../stores/rendererStore';
 
 /** localStorage key for saved dev presets */
 const STORAGE_KEY = 'breathe-together-dev-presets';
@@ -655,6 +656,24 @@ export function useDevControls(): DevControlsState {
         // 5.2 Performance
         Performance: folder(
           {
+            // GPU preference control - syncs with Zustand store
+            gpuPreference: {
+              value: useRendererStore.getState().powerPreference,
+              options: {
+                'Default (let browser decide)': 'default',
+                'High Performance (discrete GPU)': 'high-performance',
+                'Low Power (integrated GPU)': 'low-power',
+              } as Record<string, PowerPreference>,
+              label: 'GPU Mode',
+              hint: 'WebGL power preference hint. "High Performance" requests the discrete GPU (better for complex scenes). "Low Power" uses integrated GPU (saves battery). Changing this will briefly reload the 3D scene.\n\n**Note:** Actual behavior depends on hardware. On single-GPU systems, all options behave the same.',
+              onChange: (value: PowerPreference) => {
+                // Only update if value actually changed (prevents remount loop on init)
+                const current = useRendererStore.getState().powerPreference;
+                if (value !== current) {
+                  useRendererStore.getState().setPowerPreference(value);
+                }
+              },
+            },
             showPerfMonitor: {
               value: TUNING_DEFAULTS.showPerfMonitor,
               label: 'Enable Monitor',
@@ -716,6 +735,26 @@ export function useDevControls(): DevControlsState {
   // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   useEffect(() => {
     setRef.current = set;
+  }, [set]);
+
+  // Sync GPU preference from Zustand store after hydration
+  // (Leva initializes before Zustand hydrates from localStorage)
+  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
+  useEffect(() => {
+    // Check if already hydrated
+    if (useRendererStore.persist.hasHydrated()) {
+      const storedValue = useRendererStore.getState().powerPreference;
+      // Type assertion needed: gpuPreference uses onChange so it's not in Leva's inferred type
+      (set as (v: { gpuPreference: PowerPreference }) => void)({ gpuPreference: storedValue });
+    }
+
+    // Also register callback for when hydration completes
+    const unsubscribe = useRendererStore.persist.onFinishHydration(() => {
+      const storedValue = useRendererStore.getState().powerPreference;
+      (set as (v: { gpuPreference: PowerPreference }) => void)({ gpuPreference: storedValue });
+    });
+
+    return unsubscribe;
   }, [set]);
 
   // Load last used settings on mount
