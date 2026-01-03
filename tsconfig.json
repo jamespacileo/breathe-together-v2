@@ -13,7 +13,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
-    "types": ["vite/client", "@react-three/fiber"]
+    "types": ["vite/client"]
   },
   "include": [".", ".triplex/*"],
   "exclude": ["node_modules", "worker"]
