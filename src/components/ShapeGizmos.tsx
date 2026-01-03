@@ -23,14 +23,8 @@ import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { VISUALS } from '../constants';
 import { breathPhase, orbitRadius } from '../entities/breath/traits';
-import {
-  countryData,
-  findKNearestNeighbors,
-  globeRotation,
-  isCountry,
-  isGlobe,
-  shapeCentroid,
-} from '../shared/gizmoTraits';
+import { COUNTRY_CENTROIDS, latLngToPosition } from '../lib/countryCentroids';
+import { findKNearestNeighbors } from '../shared/gizmoTraits';
 
 // Pre-allocated objects for matrix decomposition
 const _tempMatrix = new THREE.Matrix4();
@@ -58,55 +52,112 @@ interface ShapeGizmosProps {
 // HELPER COMPONENTS
 // ============================================================
 
+/**
+ * XYZ Axes Gizmo following standard conventions:
+ * - X axis: Red (right)
+ * - Y axis: Green (up)
+ * - Z axis: Blue (forward)
+ * - Includes cone arrowheads for direction
+ */
 function AxesGizmo({
   position,
-  length = 1.0,
-  opacity = 0.8,
+  length = 3.0,
+  opacity = 0.9,
+  lineWidth = 3,
+  arrowSize = 0.15,
 }: {
   position: [number, number, number];
   length?: number;
   opacity?: number;
+  lineWidth?: number;
+  arrowSize?: number;
 }) {
+  // Arrow geometry shared by all axes
+  const coneGeom = useMemo(() => new THREE.ConeGeometry(arrowSize, arrowSize * 2, 8), [arrowSize]);
+
   return (
     <group position={position}>
+      {/* X Axis - Red (right) */}
       <Line
         points={[
           [0, 0, 0],
           [length, 0, 0],
         ]}
-        color="#ff4444"
-        lineWidth={2}
+        color="#ff3333"
+        lineWidth={lineWidth}
         transparent
         opacity={opacity}
       />
+      <mesh position={[length, 0, 0]} rotation={[0, 0, -Math.PI / 2]} geometry={coneGeom}>
+        <meshBasicMaterial color="#ff3333" transparent opacity={opacity} />
+      </mesh>
+
+      {/* Y Axis - Green (up) */}
       <Line
         points={[
           [0, 0, 0],
           [0, length, 0],
         ]}
-        color="#44ff44"
-        lineWidth={2}
+        color="#33ff33"
+        lineWidth={lineWidth}
         transparent
         opacity={opacity}
       />
+      <mesh position={[0, length, 0]} geometry={coneGeom}>
+        <meshBasicMaterial color="#33ff33" transparent opacity={opacity} />
+      </mesh>
+
+      {/* Z Axis - Blue (forward) */}
       <Line
         points={[
           [0, 0, 0],
           [0, 0, length],
         ]}
-        color="#4444ff"
-        lineWidth={2}
+        color="#3333ff"
+        lineWidth={lineWidth}
         transparent
         opacity={opacity}
       />
-      <Html position={[length + 0.15, 0, 0]} center>
-        <span style={{ color: '#ff4444', fontSize: '10px', fontWeight: 'bold' }}>X</span>
+      <mesh position={[0, 0, length]} rotation={[Math.PI / 2, 0, 0]} geometry={coneGeom}>
+        <meshBasicMaterial color="#3333ff" transparent opacity={opacity} />
+      </mesh>
+
+      {/* Axis labels */}
+      <Html position={[length + arrowSize * 2, 0, 0]} center>
+        <span
+          style={{
+            color: '#ff3333',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            textShadow: '0 0 4px #000',
+          }}
+        >
+          X
+        </span>
       </Html>
-      <Html position={[0, length + 0.15, 0]} center>
-        <span style={{ color: '#44ff44', fontSize: '10px', fontWeight: 'bold' }}>Y</span>
+      <Html position={[0, length + arrowSize * 2, 0]} center>
+        <span
+          style={{
+            color: '#33ff33',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            textShadow: '0 0 4px #000',
+          }}
+        >
+          Y
+        </span>
       </Html>
-      <Html position={[0, 0, length + 0.15]} center>
-        <span style={{ color: '#4444ff', fontSize: '10px', fontWeight: 'bold' }}>Z</span>
+      <Html position={[0, 0, length + arrowSize * 2]} center>
+        <span
+          style={{
+            color: '#3333ff',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            textShadow: '0 0 4px #000',
+          }}
+        >
+          Z
+        </span>
       </Html>
     </group>
   );
@@ -569,15 +620,9 @@ export function ShapeGizmos({
       frameCountRef.current += 1;
       if (frameCountRef.current % 2 !== 0) return;
 
-      // Read globe rotation from ECS
+      // Track globe rotation (same as GeoMarkers: 0.0008 rad/frame)
       if (showCountryCentroids) {
-        const globeEntities = world.query(isGlobe, globeRotation);
-        for (const globe of globeEntities) {
-          const rotation = globe.get(globeRotation);
-          if (rotation) {
-            setGlobeRotationY(rotation.rotationY);
-          }
-        }
+        setGlobeRotationY((prev) => prev - 0.0008);
       }
 
       // Read current orbit from breath system
@@ -591,20 +636,17 @@ export function ShapeGizmos({
         }
       }
 
-      // Read country positions from ECS (only once)
+      // Calculate country positions directly (matching GeoMarkers exactly)
+      // Uses same height offset: globeRadius + 0.3
       if (showCountryCentroids && countries.length === 0) {
-        const countryEntities = world.query(isCountry, shapeCentroid, countryData);
         const countryList: CountryGizmoData[] = [];
-        for (const country of countryEntities) {
-          const centroid = country.get(shapeCentroid);
-          const data = country.get(countryData);
-          if (centroid && data) {
-            countryList.push({
-              code: data.code,
-              position: [centroid.x, centroid.y, centroid.z],
-            });
-          }
+        const markerRadius = globeRadius + 0.3; // Same as GeoMarkers heightOffset
+
+        for (const [code, centroid] of Object.entries(COUNTRY_CENTROIDS)) {
+          const position = latLngToPosition(centroid.lat, centroid.lng, markerRadius);
+          countryList.push({ code, position });
         }
+
         if (countryList.length > 0) {
           setCountries(countryList);
         }
@@ -695,8 +737,8 @@ export function ShapeGizmos({
             size={0.1}
             label={showLabels ? 'Globe Centroid (0, 0, 0)' : undefined}
           />
-          {/* Always show axes from globe center - key reference point */}
-          <AxesGizmo position={[0, 0, 0]} length={globeRadius * 1.5} opacity={0.9} />
+          {/* Always show axes from globe center - extends to max orbit for visibility */}
+          <AxesGizmo position={[0, 0, 0]} length={VISUALS.PARTICLE_ORBIT_MAX} opacity={0.9} />
         </>
       )}
 
