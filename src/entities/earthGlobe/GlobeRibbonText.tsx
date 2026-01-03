@@ -113,6 +113,60 @@ const CurvedText = Text as React.FC<CurvedTextProps>;
 
 const LETTER_SPACING = 0.08;
 
+/**
+ * Number of segments to render around the circle for full 360° coverage.
+ * More segments = smoother coverage but more render cost.
+ * 4 segments at 90° each provides good coverage with minimal overlap.
+ */
+export const RIBBON_SEGMENTS = 4;
+
+/**
+ * Single curved text segment - covers approximately 90° of the circle
+ */
+function RibbonSegment({
+  text,
+  radius,
+  color,
+  fontSize,
+  opacity,
+  glyphGeometryDetail,
+  rotationY,
+}: {
+  text: string;
+  radius: number;
+  color: string;
+  fontSize: number;
+  opacity: number;
+  glyphGeometryDetail: number;
+  rotationY: number;
+}) {
+  // curveRadius: negative = convex (text curves outward, center behind text)
+  const curveRadius = -radius;
+
+  return (
+    <group rotation={[0, rotationY, 0]}>
+      <CurvedText
+        fontSize={fontSize}
+        color={color}
+        anchorX="center"
+        anchorY="middle"
+        curveRadius={curveRadius}
+        glyphGeometryDetail={glyphGeometryDetail}
+        fillOpacity={opacity}
+        // Position text at z = radius so it sits on the sphere surface
+        position={[0, 0, radius]}
+        letterSpacing={LETTER_SPACING}
+        fontWeight={600}
+      >
+        {text}
+      </CurvedText>
+    </group>
+  );
+}
+
+/**
+ * Full ribbon band - renders multiple segments around the circle for 360° coverage
+ */
 function RibbonBand({
   text,
   radius,
@@ -132,36 +186,29 @@ function RibbonBand({
   opacity: number;
   glyphGeometryDetail: number;
 }) {
-  // curveRadius: negative = convex (text curves outward, center behind text)
-  // With curveRadius = -R and text at z = R, the cylinder center aligns with globe center
-  // This makes text wrap around the outside of the sphere
-  const curveRadius = -radius;
+  // Calculate rotation step for each segment (360° / RIBBON_SEGMENTS)
+  const rotationStep = (2 * Math.PI) / RIBBON_SEGMENTS;
 
-  // Generate text that fills the full circumference
-  const fullText = useMemo(
-    () => generateFullCircleText(text, radius, fontSize, LETTER_SPACING),
-    [text, radius, fontSize],
+  // Generate segment rotations
+  const segmentRotations = useMemo(
+    () => Array.from({ length: RIBBON_SEGMENTS }, (_, i) => i * rotationStep),
+    [rotationStep],
   );
 
   return (
     <group position={[0, heightOffset, 0]} rotation={[tiltAngle, 0, 0]}>
-      <CurvedText
-        fontSize={fontSize}
-        color={color}
-        anchorX="center"
-        anchorY="middle"
-        curveRadius={curveRadius}
-        glyphGeometryDetail={glyphGeometryDetail}
-        fillOpacity={opacity}
-        // Position text at z = radius so it sits on the sphere surface
-        // The curveRadius then bends it around the cylinder centered at origin
-        position={[0, 0, radius]}
-        // Slight letter spacing for readability on curve
-        letterSpacing={LETTER_SPACING}
-        fontWeight={600}
-      >
-        {fullText}
-      </CurvedText>
+      {segmentRotations.map((rotationY) => (
+        <RibbonSegment
+          key={`segment-${rotationY.toFixed(4)}`}
+          text={text}
+          radius={radius}
+          color={color}
+          fontSize={fontSize}
+          opacity={opacity}
+          glyphGeometryDetail={glyphGeometryDetail}
+          rotationY={rotationY}
+        />
+      ))}
     </group>
   );
 }
