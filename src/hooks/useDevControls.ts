@@ -90,6 +90,14 @@ export const TUNING_DEFAULTS = {
   dragTimeConstant: 0.325,
   dragVelocityMultiplier: 0.15,
   dragMinVelocity: 50,
+
+  // Motion Trails (dev-only)
+  showTrails: true,
+  trailLength: 8,
+  trailOpacity: 0.35,
+  trailColor: '#faf5ef',
+  trailSpeed: 4.0,
+  trailBreathingIntensity: 0.6,
 } as const;
 
 /**
@@ -182,6 +190,14 @@ export interface DevControlsState {
   dragTimeConstant: number;
   dragVelocityMultiplier: number;
   dragMinVelocity: number;
+
+  // Motion Trails
+  showTrails: boolean;
+  trailLength: number;
+  trailOpacity: number;
+  trailColor: string;
+  trailSpeed: number;
+  trailBreathingIntensity: number;
 }
 
 /** Get default values for all dev controls */
@@ -228,6 +244,12 @@ function getDefaultDevControls(): DevControlsState {
     dragTimeConstant: TUNING_DEFAULTS.dragTimeConstant,
     dragVelocityMultiplier: TUNING_DEFAULTS.dragVelocityMultiplier,
     dragMinVelocity: TUNING_DEFAULTS.dragMinVelocity,
+    showTrails: TUNING_DEFAULTS.showTrails,
+    trailLength: TUNING_DEFAULTS.trailLength,
+    trailOpacity: TUNING_DEFAULTS.trailOpacity,
+    trailColor: TUNING_DEFAULTS.trailColor,
+    trailSpeed: TUNING_DEFAULTS.trailSpeed,
+    trailBreathingIntensity: TUNING_DEFAULTS.trailBreathingIntensity,
   };
 }
 
@@ -515,6 +537,55 @@ export function useDevControls(): DevControlsState {
             },
           },
           { collapsed: true },
+        ),
+
+        // 2.5 Motion Trails
+        'Motion Trails': folder(
+          {
+            showTrails: {
+              value: TUNING_DEFAULTS.showTrails,
+              label: 'Enable Trails',
+              hint: 'Toggle motion trails behind particle shards. Creates ethereal streaks during breathing motion.\n\n**Performance:** Minimal impact (~0.5ms) - uses line segments',
+            },
+            trailLength: {
+              value: TUNING_DEFAULTS.trailLength,
+              min: 2,
+              max: 12,
+              step: 1,
+              label: 'Trail Length',
+              hint: 'Number of trail segments per particle. Higher = longer trails, more GPU usage.\n\n**Typical range:** Subtle (3-4) → Balanced (6) → Dramatic (10+)',
+            },
+            trailOpacity: {
+              value: TUNING_DEFAULTS.trailOpacity,
+              min: 0.05,
+              max: 0.6,
+              step: 0.05,
+              label: 'Trail Opacity',
+              hint: 'Base opacity at trail head (fades toward tail). Lower = more subtle wisps.\n\n**When to adjust:** Increase (0.4+) for dramatic effect, decrease (0.1-0.2) for ethereal feel',
+            },
+            trailColor: {
+              value: TUNING_DEFAULTS.trailColor,
+              label: 'Trail Color',
+              hint: 'Color of motion trails. Warm whites match Monument Valley aesthetic.\n\n**Interacts with:** Background color (contrast), particle colors (harmony)',
+            },
+            trailSpeed: {
+              value: TUNING_DEFAULTS.trailSpeed,
+              min: 0.5,
+              max: 8,
+              step: 0.5,
+              label: 'Trail Speed',
+              hint: 'How quickly trails respond to particle movement. Lower = smoother/laggier, higher = tighter.\n\n**Typical:** 2-3 for smooth, 5+ for responsive',
+            },
+            trailBreathingIntensity: {
+              value: TUNING_DEFAULTS.trailBreathingIntensity,
+              min: 0,
+              max: 1,
+              step: 0.1,
+              label: 'Breathing Intensity',
+              hint: 'How much breathing motion affects trail visibility. 0 = always visible, 1 = only during motion.\n\n**Effect:** Higher values hide trails during hold phases',
+            },
+          },
+          { collapsed: false },
         ),
       },
       { collapsed: true, order: 0 },
