@@ -6,7 +6,6 @@
  * - WebGL mocks for Three.js rendering tests
  */
 
-import createGL from 'gl';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { server } from '../mocks/server';
 
@@ -33,13 +32,72 @@ afterAll(() => {
 // WebGL / Canvas Mocks for Three.js
 // ============================================
 
-// Create a headless WebGL context factory
-function createHeadlessCanvas(width = 800, height = 600) {
-  const glContext = createGL(width, height, {
-    preserveDrawingBuffer: true,
-  });
+// Create a mock WebGL context (stub implementation)
+// For full WebGL tests, consider using @vitest/browser or happy-dom with WebGL support
+function createMockWebGLContext() {
+  return {
+    canvas: { width: 800, height: 600 },
+    drawingBufferWidth: 800,
+    drawingBufferHeight: 600,
+    getExtension: () => null,
+    getParameter: () => 0,
+    createShader: () => ({}),
+    shaderSource: () => {},
+    compileShader: () => {},
+    getShaderParameter: () => true,
+    createProgram: () => ({}),
+    attachShader: () => {},
+    linkProgram: () => {},
+    getProgramParameter: () => true,
+    useProgram: () => {},
+    createBuffer: () => ({}),
+    bindBuffer: () => {},
+    bufferData: () => {},
+    enableVertexAttribArray: () => {},
+    vertexAttribPointer: () => {},
+    getAttribLocation: () => 0,
+    getUniformLocation: () => ({}),
+    uniform1f: () => {},
+    uniform2f: () => {},
+    uniform3f: () => {},
+    uniform4f: () => {},
+    uniformMatrix4fv: () => {},
+    createTexture: () => ({}),
+    bindTexture: () => {},
+    texImage2D: () => {},
+    texParameteri: () => {},
+    enable: () => {},
+    disable: () => {},
+    blendFunc: () => {},
+    depthFunc: () => {},
+    clearColor: () => {},
+    clear: () => {},
+    viewport: () => {},
+    drawArrays: () => {},
+    drawElements: () => {},
+    deleteShader: () => {},
+    deleteProgram: () => {},
+    deleteBuffer: () => {},
+    deleteTexture: () => {},
+    createFramebuffer: () => ({}),
+    bindFramebuffer: () => {},
+    framebufferTexture2D: () => {},
+    checkFramebufferStatus: () => 36053, // FRAMEBUFFER_COMPLETE
+    createRenderbuffer: () => ({}),
+    bindRenderbuffer: () => {},
+    renderbufferStorage: () => {},
+    framebufferRenderbuffer: () => {},
+    pixelStorei: () => {},
+    activeTexture: () => {},
+    generateMipmap: () => {},
+    isContextLost: () => false,
+  };
+}
 
-  // Create a mock canvas object that Three.js expects
+// Create a mock canvas for headless testing
+function createHeadlessCanvas(width = 800, height = 600) {
+  const glContext = createMockWebGLContext();
+
   const canvas = {
     width,
     height,

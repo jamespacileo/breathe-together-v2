@@ -79,6 +79,7 @@ export interface ParticleSwarmProps {
    * - Partial<Record<MoodId, number>>: Aggregate mood counts (legacy, converted internally)
    *
    * The number of shards dynamically matches the number of users.
+   * Max 1000 for performance.
    */
   users?: User[] | Partial<Record<MoodId, number>>;
   /** Base radius for orbit @default 4.5 */

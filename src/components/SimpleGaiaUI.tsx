@@ -40,6 +40,11 @@ interface SimpleGaiaUIProps {
   showSettings?: boolean;
   /** Optional callback when settings modal visibility changes */
   onShowSettingsChange?: (show: boolean) => void;
+  // Scene readiness flags (from useSceneReadiness)
+  /** Whether onboarding flows (welcome, mood select) should run */
+  shouldRunOnboarding?: boolean;
+  /** Whether inspirational text should play */
+  shouldPlayText?: boolean;
   /** Number of users currently breathing together (from backend) */
   presenceCount?: number;
 }
@@ -66,6 +71,16 @@ interface SimpleGaiaUIProps {
  * - Tailwind CSS for styling
  * - lucide-react for iconography
  */
+// Helper to get stored mood from localStorage
+function getStoredMood(): MoodId | null {
+  if (typeof window === 'undefined') return null;
+  const stored = localStorage.getItem('breathe-together-selected-mood');
+  if (stored && MOOD_IDS.includes(stored as MoodId)) {
+    return stored as MoodId;
+  }
+  return null;
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: UI component manages multiple modal states (tune controls, settings, mood selection, welcome, hints) and phase animation loops - refactoring would reduce readability by splitting cohesive UI state management
 export function SimpleGaiaUI({
   harmony,
@@ -81,16 +96,23 @@ export function SimpleGaiaUI({
   onShowTuneControlsChange,
   showSettings: externalShowSettings,
   onShowSettingsChange,
+  // Scene readiness flags
+  shouldRunOnboarding = true,
+  shouldPlayText = true,
   presenceCount = 0,
 }: SimpleGaiaUIProps) {
   const [internalIsControlsOpen, setInternalIsControlsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hasEntered, setHasEntered] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
+  // Check if user already selected mood during intro - skip welcome if so
+  const storedMood = getStoredMood();
+  // Only show welcome if onboarding should run AND no mood was selected during intro
+  const [showWelcome, setShowWelcome] = useState(shouldRunOnboarding && !storedMood);
   const [showKeyHint, setShowKeyHint] = useState(false);
   const [internalShowSettings, setInternalShowSettings] = useState(false);
   const [showMoodSelect, setShowMoodSelect] = useState(false);
-  const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
+  // Initialize selected mood from localStorage if available
+  const [selectedMood, setSelectedMood] = useState<MoodId | null>(storedMood);
 
   // React 19 useTransition for non-urgent updates (modals, animations)
   // Keeps UI responsive during modal opens/closes and mood selections
@@ -154,15 +176,23 @@ export function SimpleGaiaUI({
     return () => clearTimeout(timer);
   }, []);
 
-  // Welcome message: Auto-dismiss after 8 seconds (but user can click Begin earlier)
+  // Show welcome when scene becomes ready (shouldRunOnboarding transitions to true)
   useEffect(() => {
-    if (showWelcome) {
+    if (shouldRunOnboarding && !showWelcome) {
+      setShowWelcome(true);
+    }
+  }, [shouldRunOnboarding, showWelcome]);
+
+  // Welcome message: Auto-dismiss after 8 seconds (but user can click Begin earlier)
+  // Only runs when shouldRunOnboarding is true
+  useEffect(() => {
+    if (showWelcome && shouldRunOnboarding) {
       const timer = setTimeout(() => {
         setShowWelcome(false);
       }, 8000);
       return () => clearTimeout(timer);
     }
-  }, [showWelcome]);
+  }, [showWelcome, shouldRunOnboarding]);
 
   // Show keyboard hint after 30 seconds
   useEffect(() => {
@@ -300,6 +330,8 @@ export function SimpleGaiaUI({
   }, []);
 
   const handleMoodSelect = useCallback((mood: MoodId) => {
+    // Store mood in localStorage
+    localStorage.setItem('breathe-together-selected-mood', mood);
     // Use transition for non-urgent mood selection
     startTransition(() => {
       setSelectedMood(mood);
@@ -334,7 +366,8 @@ export function SimpleGaiaUI({
         ${isVisible ? 'opacity-100' : 'opacity-0'}`}
     >
       {/* Inspirational Text - Above & Beyond style messages */}
-      <InspirationalText />
+      {/* Only show when scene is ready (not during intro) */}
+      {shouldPlayText && <InspirationalText />}
 
       {/* Top-Left: App Branding + Settings */}
       <div
@@ -790,6 +823,27 @@ export function SimpleGaiaUI({
                   {name}
                 </div>
               ))}
+            </div>
+
+            {/* Debug Section */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="text-[0.65rem] font-semibold text-warm-gray mb-3 tracking-[0.12em] small-caps">
+                Debug
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('breathe-together-intro-seen');
+                  window.location.reload();
+                }}
+                onPointerDown={stopPropagation}
+                className="w-full p-[8px_16px] bg-red-500/10 border border-border rounded-xl
+                  text-[0.6rem] uppercase tracking-[0.1em] text-warm-gray cursor-pointer
+                  transition-all duration-200 ease-smooth
+                  hover:bg-red-500/20 hover:border-red-500/30"
+              >
+                Reset Intro (Reload)
+              </button>
             </div>
           </div>
         </div>

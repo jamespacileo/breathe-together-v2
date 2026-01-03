@@ -4,7 +4,6 @@
  * Renders as a fullscreen quad behind all other content with:
  * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
  * - Animated procedural clouds using FBM noise
- * - Subtle vignette effect
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -97,15 +96,6 @@ void main() {
 
   // Blend clouds very subtly into sky
   vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
-
-  // Very subtle vignette - just darkens corners slightly
-  vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
-  color *= mix(0.97, 1.0, vignette);
-
-  // Paper texture noise (very subtle)
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
-  color += noise;
 
   gl_FragColor = vec4(color, 1.0);
 }

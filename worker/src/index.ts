@@ -512,6 +512,7 @@ export default {
       case path === '/admin/users' && request.method === 'GET':
       case path === '/admin/events' && request.method === 'GET':
       case path === '/admin/stats' && request.method === 'GET':
+      case path === '/admin/inspirational' && request.method === 'GET':
         response = await handleAdminRequest(request, env, path);
         break;
 

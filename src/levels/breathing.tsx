@@ -17,9 +17,19 @@ import { usePresence } from '../hooks/usePresence';
 import { useBreathingLevelStore } from '../stores/breathingLevelStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
+interface BreathingLevelExtendedProps extends Partial<BreathingLevelProps> {
+  /** Whether user has clicked "Join" - controls particle visibility */
+  hasJoined?: boolean;
+  /** Progress through join transition (0-1), for staggered element reveal */
+  joinProgress?: number;
+}
+
 /**
  * BreathingLevel - Core 3D meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * Before joining: Shows globe only (clean main menu state)
+ * After joining: Shows all particles and full experience
  *
  * This component handles ONLY the 3D scene content.
  * HTML UI is rendered separately via BreathingLevelUI (outside Canvas).
@@ -32,7 +42,24 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-}: Partial<BreathingLevelProps> = {}) {
+  // Whether user has clicked "Join" to enter full experience
+  hasJoined = true,
+  // Progress through join transition (0-1), animated in App.tsx
+  joinProgress = 1,
+}: BreathingLevelExtendedProps = {}) {
+  // Staggered visibility thresholds (cinematic reveal order)
+  // 0.0-0.3: Letterbox retracts, camera dolly continues
+  // 0.3-0.5: Clouds fade in
+  // 0.5-0.7: Particles begin appearing
+  // 0.7-0.85: Atmospheric particles fade in
+  // 0.85-1.0: UI fades in
+  const showCloudsNow = hasJoined ? joinProgress > 0.3 : false;
+  const showParticlesNow = hasJoined ? joinProgress > 0.5 : false;
+  const showAtmosphereNow = hasJoined ? joinProgress > 0.7 : false;
+
+  // Calculate opacity for smooth fades (0→1 within their window)
+  const atmosphereOpacity = showAtmosphereNow ? Math.min((joinProgress - 0.7) / 0.15, 1) : 0;
+
   // Shared state from Zustand store
   const { orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
 
@@ -78,10 +105,10 @@ export function BreathingLevel({
           focalRange={devControls.focalRange}
           maxBlur={devControls.maxBlur}
         >
-          {/* Environment - clouds, lighting, fog */}
+          {/* Monument Valley inspired atmosphere - clouds fade in during reveal */}
           {showEnvironment && (
             <Environment
-              showClouds={devControls.showClouds}
+              showClouds={showCloudsNow && devControls.showClouds}
               showStars={devControls.showStars}
               cloudOpacity={devControls.cloudOpacity}
               cloudSpeed={devControls.cloudSpeed}
@@ -106,7 +133,8 @@ export function BreathingLevel({
           >
             {showGlobe && <EarthGlobe />}
 
-            {showParticles && (
+            {/* Particle shards - staggered reveal after joining, with deferred updates for perf */}
+            {showParticles && showParticlesNow && (
               <ParticleSwarm
                 users={deferredUsers}
                 baseRadius={orbitRadius}
@@ -114,12 +142,13 @@ export function BreathingLevel({
               />
             )}
 
-            {showParticles && (
+            {/* Atmospheric particles - fade in after particles appear */}
+            {showParticles && showAtmosphereNow && (
               <AtmosphericParticles
                 count={Math.round(deferredAtmosphereDensity)}
                 size={devControls.atmosphereParticleSize}
-                baseOpacity={devControls.atmosphereBaseOpacity}
-                breathingOpacity={devControls.atmosphereBreathingOpacity}
+                baseOpacity={devControls.atmosphereBaseOpacity * atmosphereOpacity}
+                breathingOpacity={devControls.atmosphereBreathingOpacity * atmosphereOpacity}
                 color={devControls.atmosphereColor}
               />
             )}
@@ -139,7 +168,17 @@ export function BreathingLevel({
  *
  * Uses eventSource pattern on Canvas (see app.tsx).
  */
-export function BreathingLevelUI() {
+interface BreathingLevelUIProps {
+  /** Whether scene is ready for onboarding flows */
+  shouldRunOnboarding?: boolean;
+  /** Whether inspirational text should play */
+  shouldPlayText?: boolean;
+}
+
+export function BreathingLevelUI({
+  shouldRunOnboarding = true,
+  shouldPlayText = true,
+}: BreathingLevelUIProps = {}) {
   // Shared state from Zustand store
   const {
     harmony,
@@ -195,6 +234,8 @@ export function BreathingLevelUI() {
         onShowTuneControlsChange={setShowTuneControls}
         showSettings={showSettings}
         onShowSettingsChange={setShowSettings}
+        shouldRunOnboarding={shouldRunOnboarding}
+        shouldPlayText={shouldPlayText}
         presenceCount={presenceCount}
       />
     </>
