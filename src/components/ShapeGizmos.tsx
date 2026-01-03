@@ -193,6 +193,72 @@ function BoundingSphere({
   );
 }
 
+/**
+ * Breathing-animated bounding sphere
+ * Pulses opacity and adds glow effect synchronized with breath
+ */
+function BreathingBoundingSphere({
+  radius,
+  color = '#ffff00',
+  baseOpacity = 0.3,
+  label,
+}: {
+  radius: number;
+  color?: string;
+  baseOpacity?: number;
+  label?: string;
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const world = useWorld();
+
+  // Animate opacity with breathing
+  useFrame(() => {
+    if (!meshRef.current) return;
+
+    try {
+      const breath = world.queryFirst(breathPhase, orbitRadius);
+      if (breath) {
+        const phase = breath.get(breathPhase);
+        if (phase) {
+          // Use breath phase to modulate opacity (0.3 to 0.7)
+          const pulseOpacity = baseOpacity + phase.value * 0.4;
+          const material = meshRef.current.material as THREE.MeshBasicMaterial;
+          material.opacity = pulseOpacity;
+        }
+      }
+    } catch (_e) {
+      // Ignore ECS errors
+    }
+  });
+
+  return (
+    <group>
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[radius, 48, 48]} />
+        <meshBasicMaterial color={color} wireframe transparent opacity={baseOpacity} />
+      </mesh>
+      {label && (
+        <Html position={[0, radius + 0.3, 0]} center>
+          <div
+            style={{
+              background: 'rgba(0, 0, 0, 0.75)',
+              color: color,
+              padding: '3px 6px',
+              borderRadius: '3px',
+              fontSize: '10px',
+              fontFamily: 'monospace',
+              whiteSpace: 'nowrap',
+              textShadow: `0 0 8px ${color}`,
+            }}
+          >
+            {label}
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+}
+
 // ============================================================
 // DATA TYPES
 // ============================================================
@@ -211,26 +277,46 @@ interface CountryGizmoData {
 }
 
 // ============================================================
-// SHARD GIZMOS (constellation connections)
+// SHARD GIZMOS (constellation connections) - Optimized with instancing
 // ============================================================
 
-function ShardGizmos({
-  shards,
-  showCentroids,
-  showWireframes,
-  showConnections,
-  showLabels,
-  shardSize,
-}: {
-  shards: ShardData[];
-  showCentroids: boolean;
-  showWireframes: boolean;
-  showConnections: boolean;
-  showLabels: boolean;
-  shardSize: number;
-}) {
-  const wireframeGeometry = useMemo(() => new THREE.IcosahedronGeometry(shardSize, 0), [shardSize]);
-  const wireframeMaterial = useMemo(
+/**
+ * Instanced shard centroids - single draw call for all centroids
+ */
+function InstancedCentroids({ shards, size = 0.04 }: { shards: ShardData[]; size?: number }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const geometry = useMemo(() => new THREE.SphereGeometry(size, 8, 6), [size]);
+  const material = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: '#ff66ff', transparent: true, opacity: 0.9 }),
+    [],
+  );
+
+  // Update instance matrices when shards change
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const mesh = meshRef.current;
+
+    for (let i = 0; i < shards.length; i++) {
+      const shard = shards[i];
+      _tempMatrix.makeTranslation(shard.position[0], shard.position[1], shard.position[2]);
+      mesh.setMatrixAt(i, _tempMatrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.count = shards.length;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[geometry, material, shards.length]} frustumCulled={false} />
+  );
+}
+
+/**
+ * Instanced wireframes - single draw call for all wireframes
+ */
+function InstancedWireframes({ shards, shardSize }: { shards: ShardData[]; shardSize: number }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const geometry = useMemo(() => new THREE.IcosahedronGeometry(shardSize, 0), [shardSize]);
+  const material = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         color: '#00ffff',
@@ -241,82 +327,155 @@ function ShardGizmos({
     [],
   );
 
-  // Build connection lines (each shard to its neighbors)
-  const connectionLines = useMemo(() => {
-    if (!showConnections) return [];
+  // Update instance matrices when shards change
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const mesh = meshRef.current;
 
-    const lines: Array<{
-      key: string;
-      from: [number, number, number];
-      to: [number, number, number];
-    }> = [];
+    for (let i = 0; i < shards.length; i++) {
+      const shard = shards[i];
+      _tempMatrix.compose(
+        new THREE.Vector3(...shard.position),
+        shard.quaternion,
+        new THREE.Vector3(shard.scale, shard.scale, shard.scale),
+      );
+      mesh.setMatrixAt(i, _tempMatrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.count = shards.length;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[geometry, material, shards.length]} frustumCulled={false} />
+  );
+}
+
+/**
+ * Batched connection lines with distance-based coloring
+ * Single draw call for all connections using LineSegments
+ */
+function BatchedConnectionLines({ shards }: { shards: ShardData[] }) {
+  const linesRef = useRef<THREE.LineSegments>(null);
+
+  // Build connection data with distances
+  const connectionData = useMemo(() => {
     const shardMap = new Map(shards.map((s) => [s.index, s]));
     const drawnConnections = new Set<string>();
+    const connections: Array<{
+      from: [number, number, number];
+      to: [number, number, number];
+      distance: number;
+    }> = [];
 
     for (const shard of shards) {
       for (const neighborIndex of shard.neighbors) {
-        // Create a unique key for this connection (order-independent)
         const connectionKey =
           shard.index < neighborIndex
             ? `${shard.index}-${neighborIndex}`
             : `${neighborIndex}-${shard.index}`;
 
-        // Skip if we already drew this connection
         if (drawnConnections.has(connectionKey)) continue;
         drawnConnections.add(connectionKey);
 
         const neighbor = shardMap.get(neighborIndex);
         if (neighbor) {
-          lines.push({
-            key: connectionKey,
+          const dx = shard.position[0] - neighbor.position[0];
+          const dy = shard.position[1] - neighbor.position[1];
+          const dz = shard.position[2] - neighbor.position[2];
+          const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+          connections.push({
             from: shard.position,
             to: neighbor.position,
+            distance,
           });
         }
       }
     }
 
-    return lines;
-  }, [shards, showConnections]);
+    return connections;
+  }, [shards]);
 
+  // Create geometry with vertex colors based on distance
+  const { geometry, material } = useMemo(() => {
+    const positions: number[] = [];
+    const colors: number[] = [];
+
+    // Find min/max distance for normalization
+    let minDist = Infinity;
+    let maxDist = 0;
+    for (const conn of connectionData) {
+      if (conn.distance < minDist) minDist = conn.distance;
+      if (conn.distance > maxDist) maxDist = conn.distance;
+    }
+    const distRange = maxDist - minDist || 1;
+
+    // Build positions and colors
+    for (const conn of connectionData) {
+      positions.push(...conn.from, ...conn.to);
+
+      // Normalize distance: 0 = shortest (bright), 1 = longest (dim)
+      const t = (conn.distance - minDist) / distRange;
+
+      // Color gradient: magenta (short) -> cyan (long)
+      const r = 1.0 - t * 0.5;
+      const g = 0.4 + t * 0.6;
+      const b = 1.0;
+      const alpha = 0.8 - t * 0.4;
+
+      // Both vertices get same color
+      colors.push(r, g, b, alpha, r, g, b, alpha);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4));
+
+    const mat = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 1,
+      linewidth: 1,
+    });
+
+    return { geometry: geo, material: mat };
+  }, [connectionData]);
+
+  if (connectionData.length === 0) return null;
+
+  return <lineSegments ref={linesRef} geometry={geometry} material={material} />;
+}
+
+/**
+ * ShardGizmos - Optimized component using instancing
+ * Reduces draw calls from O(n) to O(1) per gizmo type
+ */
+function ShardGizmos({
+  shards,
+  showCentroids,
+  showWireframes,
+  showConnections,
+  shardSize,
+}: {
+  shards: ShardData[];
+  showCentroids: boolean;
+  showWireframes: boolean;
+  showConnections: boolean;
+  showLabels: boolean;
+  shardSize: number;
+}) {
   if (shards.length === 0) return null;
 
   return (
     <group name="Shard Gizmos">
-      {showCentroids &&
-        shards.map((shard) => (
-          <CentroidMarker
-            key={`centroid-${shard.index}`}
-            position={shard.position}
-            color="#ff66ff"
-            size={0.04}
-            label={showLabels ? `#${shard.index}` : undefined}
-          />
-        ))}
+      {/* Instanced centroids - 1 draw call for all */}
+      {showCentroids && <InstancedCentroids shards={shards} size={0.04} />}
 
-      {showWireframes &&
-        shards.map((shard) => (
-          <mesh
-            key={`wireframe-${shard.index}`}
-            position={shard.position}
-            quaternion={shard.quaternion}
-            scale={shard.scale}
-            geometry={wireframeGeometry}
-            material={wireframeMaterial}
-          />
-        ))}
+      {/* Instanced wireframes - 1 draw call for all */}
+      {showWireframes && <InstancedWireframes shards={shards} shardSize={shardSize} />}
 
-      {showConnections &&
-        connectionLines.map((line) => (
-          <Line
-            key={`connection-${line.key}`}
-            points={[line.from, line.to]}
-            color="#ff66ff"
-            lineWidth={1}
-            transparent
-            opacity={0.5}
-          />
-        ))}
+      {/* Batched connection lines - 1 draw call for all */}
+      {showConnections && <BatchedConnectionLines shards={shards} />}
     </group>
   );
 }
@@ -527,7 +686,7 @@ export function ShapeGizmos({
 
   return (
     <group name="Shape Gizmos">
-      {/* Globe Gizmos */}
+      {/* Globe Gizmos - XYZ axes always visible when centroid shown */}
       {showGlobeCentroid && (
         <>
           <CentroidMarker
@@ -536,7 +695,8 @@ export function ShapeGizmos({
             size={0.1}
             label={showLabels ? 'Globe Centroid (0, 0, 0)' : undefined}
           />
-          {showAxes && <AxesGizmo position={[0, 0, 0]} length={axisLength} />}
+          {/* Always show axes from globe center - key reference point */}
+          <AxesGizmo position={[0, 0, 0]} length={globeRadius * 1.5} opacity={0.9} />
         </>
       )}
 
@@ -585,19 +745,20 @@ export function ShapeGizmos({
           <BoundingSphere
             radius={VISUALS.PARTICLE_ORBIT_MIN}
             color="#00ff88"
-            opacity={0.25}
+            opacity={0.2}
             label={showLabels ? `Min Orbit r=${VISUALS.PARTICLE_ORBIT_MIN}` : undefined}
           />
           <BoundingSphere
             radius={VISUALS.PARTICLE_ORBIT_MAX}
             color="#ff8800"
-            opacity={0.25}
+            opacity={0.2}
             label={showLabels ? `Max Orbit r=${VISUALS.PARTICLE_ORBIT_MAX}` : undefined}
           />
-          <BoundingSphere
+          {/* Breathing-animated current orbit sphere */}
+          <BreathingBoundingSphere
             radius={currentOrbit}
             color="#ffff00"
-            opacity={0.5}
+            baseOpacity={0.3}
             label={showLabels ? `Current r=${currentOrbit.toFixed(2)}` : undefined}
           />
         </>
