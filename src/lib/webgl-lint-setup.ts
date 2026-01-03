@@ -15,12 +15,10 @@
 
 if (import.meta.env.DEV) {
   // Dynamically import webgl-lint only in development
+  // webgl-lint works via side effects - importing it wraps WebGL contexts
   import('webgl-lint')
-    .then((webglLint) => {
-      if (webglLint.default) {
-        // Enable WebGL linting with default configuration
-        console.log('[WebGL Lint] Enabled - Monitoring WebGL API usage');
-      }
+    .then(() => {
+      console.log('[WebGL Lint] Enabled - Monitoring WebGL API usage');
     })
     .catch((error) => {
       console.warn('[WebGL Lint] Failed to load:', error);

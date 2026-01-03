@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type * as THREE from 'three';
 
 /**
@@ -8,6 +8,9 @@ import type * as THREE from 'three';
  * when no longer needed. This hook provides a clean way to register
  * materials for automatic cleanup when the component unmounts.
  *
+ * Uses a ref-based approach to avoid issues with array reference changes,
+ * so you can safely pass inline arrays.
+ *
  * @param materials - Array of materials to dispose on unmount
  *
  * @example
@@ -16,19 +19,28 @@ import type * as THREE from 'three';
  * const glowMaterial = useMemo(() => new THREE.MeshBasicMaterial({...}), []);
  *
  * // Automatically disposed when component unmounts
+ * // No need to memoize the array - ref-based implementation handles this
  * useDisposeMaterials([material, glowMaterial]);
  *
  * return <mesh material={material} />;
  * ```
  */
 export function useDisposeMaterials(materials: (THREE.Material | null | undefined)[]): void {
+  const materialsRef = useRef<(THREE.Material | null | undefined)[]>([]);
+
+  // Update ref synchronously with render
+  useLayoutEffect(() => {
+    materialsRef.current = materials;
+  }, [materials]);
+
+  // Cleanup only on unmount
   useEffect(() => {
     return () => {
-      for (const material of materials) {
+      for (const material of materialsRef.current) {
         material?.dispose();
       }
     };
-  }, [materials]);
+  }, []);
 }
 
 /**
@@ -51,13 +63,19 @@ export function useDisposeMaterials(materials: (THREE.Material | null | undefine
 export function useDisposeGeometries(
   geometries: (THREE.BufferGeometry | null | undefined)[],
 ): void {
+  const geometriesRef = useRef<(THREE.BufferGeometry | null | undefined)[]>([]);
+
+  useLayoutEffect(() => {
+    geometriesRef.current = geometries;
+  }, [geometries]);
+
   useEffect(() => {
     return () => {
-      for (const geometry of geometries) {
+      for (const geometry of geometriesRef.current) {
         geometry?.dispose();
       }
     };
-  }, [geometries]);
+  }, []);
 }
 
 /**
@@ -78,13 +96,19 @@ export function useDisposeGeometries(
  * ```
  */
 export function useDisposeTextures(textures: (THREE.Texture | null | undefined)[]): void {
+  const texturesRef = useRef<(THREE.Texture | null | undefined)[]>([]);
+
+  useLayoutEffect(() => {
+    texturesRef.current = textures;
+  }, [textures]);
+
   useEffect(() => {
     return () => {
-      for (const texture of textures) {
+      for (const texture of texturesRef.current) {
         texture?.dispose();
       }
     };
-  }, [textures]);
+  }, []);
 }
 
 /**
@@ -108,13 +132,19 @@ export function useDisposeTextures(textures: (THREE.Texture | null | undefined)[
 export function useDisposeRenderTargets(
   renderTargets: (THREE.WebGLRenderTarget | null | undefined)[],
 ): void {
+  const renderTargetsRef = useRef<(THREE.WebGLRenderTarget | null | undefined)[]>([]);
+
+  useLayoutEffect(() => {
+    renderTargetsRef.current = renderTargets;
+  }, [renderTargets]);
+
   useEffect(() => {
     return () => {
-      for (const target of renderTargets) {
+      for (const target of renderTargetsRef.current) {
         target?.dispose();
       }
     };
-  }, [renderTargets]);
+  }, []);
 }
 
 /**
@@ -145,14 +175,27 @@ export function useDispose(
     | undefined,
   disposeMethod: string = 'dispose',
 ): void {
+  const resourcesRef = useRef<
+    ({ dispose?: () => void } | null | undefined)[] | { dispose?: () => void } | null | undefined
+  >(resources);
+  const disposeMethodRef = useRef(disposeMethod);
+
+  useLayoutEffect(() => {
+    resourcesRef.current = resources;
+    disposeMethodRef.current = disposeMethod;
+  }, [resources, disposeMethod]);
+
   useEffect(() => {
     return () => {
-      const resourceArray = Array.isArray(resources) ? resources : [resources];
+      const currentResources = resourcesRef.current;
+      const currentMethod = disposeMethodRef.current;
+      const resourceArray = Array.isArray(currentResources) ? currentResources : [currentResources];
+
       for (const resource of resourceArray) {
-        if (resource && typeof resource[disposeMethod as keyof typeof resource] === 'function') {
-          (resource[disposeMethod as keyof typeof resource] as () => void)();
+        if (resource && typeof resource[currentMethod as keyof typeof resource] === 'function') {
+          (resource[currentMethod as keyof typeof resource] as () => void)();
         }
       }
     };
-  }, [resources, disposeMethod]);
+  }, []);
 }

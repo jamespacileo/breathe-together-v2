@@ -29,5 +29,20 @@ async function startApp() {
   );
 }
 
-// Fire-and-forget async initialization - errors logged internally
-void startApp();
+// Start app with proper error handling
+startApp().catch((error) => {
+  console.error('[App] Failed to start:', error);
+  // Show user-friendly error message
+  const rootElement = document.getElementById('root');
+  if (rootElement) {
+    rootElement.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, sans-serif; padding: 2rem;">
+        <div style="max-width: 500px; text-align: center;">
+          <h1 style="color: #ef4444; margin-bottom: 1rem;">Failed to start application</h1>
+          <p style="color: #6b7280; margin-bottom: 1rem;">${error instanceof Error ? error.message : 'Unknown error'}</p>
+          <button onclick="location.reload()" style="padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 0.375rem; cursor: pointer;">Reload</button>
+        </div>
+      </div>
+    `;
+  }
+});
