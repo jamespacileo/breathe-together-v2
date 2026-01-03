@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
-import { calculatePhaseInfo } from '../lib/breathPhase';
+import { calculatePhaseInfo, type PhaseIndex } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES } from '../styles/designTokens';
 import { AudioSettings } from './AudioSettings';
 import { BreathCycleIndicator } from './BreathCycleIndicator';

@@ -160,8 +160,9 @@ export function usePresence(): UsePresenceResult {
       };
 
       wsRef.current = ws;
-    } catch {
+    } catch (err) {
       // WebSocket failed, will fall back to polling in init()
+      console.warn('[usePresence] WebSocket connection failed:', err);
     }
   }, [handlePresenceUpdate]);
 
@@ -189,7 +190,8 @@ export function usePresence(): UsePresenceResult {
       setPresence(data);
       setIsConnected(true);
       if (connectionType === 'mock') setConnectionType('polling');
-    } catch {
+    } catch (err) {
+      console.warn('[usePresence] Failed to fetch presence, falling back to mock:', err);
       fallbackToMock();
     }
   }, [connectionType, fallbackToMock]);
@@ -264,8 +266,9 @@ export function usePresence(): UsePresenceResult {
       try {
         const data = await presenceApi.getConfig();
         configRef.current = data;
-      } catch {
-        // Use default config on error
+      } catch (err) {
+        // Use default config on error - log for debugging
+        console.warn('[usePresence] Failed to fetch config, using defaults:', err);
       }
 
       if (!mounted) return;

@@ -23,6 +23,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 import { useDisposeGeometries, useDisposeMaterials } from '../../hooks/useDisposeMaterials';
+import { usePropRef } from '../../hooks/usePropRef';
 import { breathPhase } from '../breath/traits';
 
 // Vertex shader for textured globe with fresnel
@@ -223,6 +224,9 @@ export function EarthGlobe({
   const atmosphereRefs = useRef<(THREE.Mesh | null)[]>([]);
   const world = useWorld();
 
+  // Store props in refs to avoid stale closures in useFrame
+  const enableRotationRef = usePropRef(enableRotation);
+
   // Load earth texture using drei's useTexture hook
   const earthTexture = useTexture('/textures/earth-texture.png');
 
@@ -334,11 +338,17 @@ export function EarthGlobe({
       const breathEntity = world.queryFirst(breathPhase);
       if (breathEntity) {
         const phase = breathEntity.get(breathPhase)?.value ?? 0;
-        // Update shader uniforms
-        material.uniforms.breathPhase.value = phase;
-        glowMaterial.uniforms.breathPhase.value = phase;
-        mistMaterial.uniforms.breathPhase.value = phase;
-        mistMaterial.uniforms.time.value = state.clock.elapsedTime;
+        // Update shader uniforms - guard against disposal during unmount
+        if (material.uniforms) {
+          material.uniforms.breathPhase.value = phase;
+        }
+        if (glowMaterial.uniforms) {
+          glowMaterial.uniforms.breathPhase.value = phase;
+        }
+        if (mistMaterial.uniforms) {
+          mistMaterial.uniforms.breathPhase.value = phase;
+          mistMaterial.uniforms.time.value = state.clock.elapsedTime;
+        }
 
         // Subtle pulse: 1.0 to 1.06 (6% scale change)
         const scale = 1.0 + phase * 0.06;
@@ -358,8 +368,8 @@ export function EarthGlobe({
         ringMaterial.opacity = 0.12 + phase * 0.08; // 12% to 20%
       }
 
-      // Slow rotation
-      if (enableRotation) {
+      // Slow rotation - uses ref to avoid stale closure
+      if (enableRotationRef.current) {
         groupRef.current.rotation.y -= 0.0008;
       }
 

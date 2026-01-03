@@ -262,15 +262,15 @@ const AnimatedCloud = memo(function AnimatedCloud({
   const currentX = useRef(config.initialPosition[0]);
   const timeOffset = useRef(Math.random() * 100); // Random phase for bobbing
 
-  // Animate position each frame
-  useFrame((state) => {
+  // Animate position each frame - uses actual delta for frame-rate independence
+  useFrame((state, delta) => {
     if (!cloudRef.current) return;
 
     const time = state.clock.elapsedTime + timeOffset.current;
 
-    // Horizontal movement (right to left)
+    // Horizontal movement (right to left) - uses actual delta instead of 60fps assumption
     const horizontalSpeed = config.speed * baseSpeed * 0.8;
-    currentX.current -= horizontalSpeed * 0.016; // ~60fps delta approximation
+    currentX.current -= horizontalSpeed * delta;
 
     // Loop cloud when it goes off-screen left
     if (currentX.current < CLOUD_X_MIN - CLOUD_LOOP_BUFFER) {

@@ -133,11 +133,21 @@ export class PresenceApiClient {
 
   /**
    * Internal fetch with error handling
+   * Includes response body in error message for better debugging
    */
   private async fetch(path: string, init?: RequestInit): Promise<Response> {
     const response = await fetch(`${this.baseUrl}${path}`, init);
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      // Try to get error details from response body
+      let errorBody = '';
+      try {
+        errorBody = await response.text();
+      } catch {
+        // Ignore if we can't read the body
+      }
+      throw new Error(
+        `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}${errorBody ? `: ${errorBody}` : ''}`,
+      );
     }
     return response;
   }

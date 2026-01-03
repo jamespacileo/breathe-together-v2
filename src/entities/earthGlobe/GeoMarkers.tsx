@@ -20,6 +20,7 @@ import { useMemo, useRef } from 'react';
 import type { Group, Mesh } from 'three';
 import * as THREE from 'three';
 
+import { usePropRef } from '../../hooks/usePropRef';
 import { COUNTRY_CENTROIDS, getCountryName, latLngToPosition } from '../../lib/countryCentroids';
 
 /**
@@ -246,10 +247,13 @@ export function GeoMarkers({
 }: GeoMarkersProps) {
   const groupRef = useRef<Group>(null);
 
+  // Store props in refs to avoid stale closures in useFrame
+  const syncRotationRef = usePropRef(syncRotation);
+
   // Sync rotation with EarthGlobe's auto-rotation
   // EarthGlobe uses: rotation.y -= 0.0008 per frame
   useFrame(() => {
-    if (!groupRef.current || !syncRotation) return;
+    if (!groupRef.current || !syncRotationRef.current) return;
     groupRef.current.rotation.y -= 0.0008;
   });
 

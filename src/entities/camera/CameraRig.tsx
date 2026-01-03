@@ -5,6 +5,7 @@ import { damp3 } from 'maath/easing';
 import { useRef } from 'react';
 import * as THREE from 'three';
 import type { OrbitControls } from 'three-stdlib';
+import { usePropRef } from '../../hooks/usePropRef';
 import * as logger from '../../lib/logger';
 import { breathPhase } from '../breath/traits';
 
@@ -49,6 +50,10 @@ export function CameraRig({
   const world = useWorld();
   const controlsRef = useRef<OrbitControls>(null);
 
+  // Store props in refs to avoid stale closures in useFrame
+  const distanceRef = usePropRef(distance);
+  const parallaxIntensityRef = usePropRef(parallaxIntensity);
+
   // Ref-based state to keep updates smooth and avoid React re-renders
   const lastPhase = useRef(0);
   const targetCameraPos = useRef(new THREE.Vector3(0, 0, distance));
@@ -74,11 +79,14 @@ export function CameraRig({
       const swayY = Math.cos(t * 0.4) * swayIntensity;
 
       // 2. Breathing Zoom (Camera pushes in/out with the breath)
-      const dynamicDistance = distance - phase * breathZoomIntensity;
+      // Uses refs to avoid stale closures when props change
+      const currentDistance = distanceRef.current ?? distance;
+      const dynamicDistance = currentDistance - phase * breathZoomIntensity;
 
       // 3. Mouse Parallax (Gentle look-around)
-      const mouseX = mouse.x * parallaxIntensity;
-      const mouseY = mouse.y * parallaxIntensity;
+      const currentParallax = parallaxIntensityRef.current ?? parallaxIntensity;
+      const mouseX = mouse.x * currentParallax;
+      const mouseY = mouse.y * currentParallax;
 
       // Update target position
       // Combine base distance, mouse offset, and breathing push
