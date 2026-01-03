@@ -67,6 +67,13 @@ export const TUNING_DEFAULTS = {
   globeRingOpacity: 0.15,
   globeAtmosphereTint: '#f8d0a8',
 
+  // Trails (dev-only)
+  showTrails: true,
+  trailLength: 0.8,
+  trailWidth: 0.08,
+  trailOpacity: 0.35,
+  trailColor: '#f5f0eb',
+
   // Debug (dev-only)
   showOrbitBounds: false,
   showPhaseMarkers: false,
@@ -159,6 +166,13 @@ export interface DevControlsState {
   globeRingOpacity: number;
   globeAtmosphereTint: string;
 
+  // Trails
+  showTrails: boolean;
+  trailLength: number;
+  trailWidth: number;
+  trailOpacity: number;
+  trailColor: string;
+
   // Debug
   showOrbitBounds: boolean;
   showPhaseMarkers: boolean;
@@ -210,6 +224,11 @@ function getDefaultDevControls(): DevControlsState {
     globeRingColor: TUNING_DEFAULTS.globeRingColor,
     globeRingOpacity: TUNING_DEFAULTS.globeRingOpacity,
     globeAtmosphereTint: TUNING_DEFAULTS.globeAtmosphereTint,
+    showTrails: TUNING_DEFAULTS.showTrails,
+    trailLength: TUNING_DEFAULTS.trailLength,
+    trailWidth: TUNING_DEFAULTS.trailWidth,
+    trailOpacity: TUNING_DEFAULTS.trailOpacity,
+    trailColor: TUNING_DEFAULTS.trailColor,
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
@@ -515,6 +534,47 @@ export function useDevControls(): DevControlsState {
             },
           },
           { collapsed: true },
+        ),
+
+        // 2.5 Motion Trails
+        'Motion Trails': folder(
+          {
+            showTrails: {
+              value: TUNING_DEFAULTS.showTrails,
+              label: 'Enable Trails',
+              hint: 'Toggle motion trails behind shards.\n\n**Effect:** Ethereal ribbons that appear during movement, fade during holds. Gives feeling of flowing motion during breathing.',
+            },
+            trailLength: {
+              value: TUNING_DEFAULTS.trailLength,
+              min: 0.2,
+              max: 2.0,
+              step: 0.1,
+              label: 'Trail Length',
+              hint: 'Base length multiplier for trails.\n\n**Short (0.3)** = subtle wisps\n**Medium (0.8)** = balanced (default)\n**Long (1.5+)** = dramatic comet tails\n\n**Note:** Actual length also depends on shard velocity.',
+            },
+            trailWidth: {
+              value: TUNING_DEFAULTS.trailWidth,
+              min: 0.02,
+              max: 0.2,
+              step: 0.01,
+              label: 'Trail Width',
+              hint: 'Ribbon thickness.\n\n**Thin (0.03)** = delicate threads\n**Medium (0.08)** = soft ribbons (default)\n**Thick (0.15+)** = bold strokes',
+            },
+            trailOpacity: {
+              value: TUNING_DEFAULTS.trailOpacity,
+              min: 0.1,
+              max: 0.8,
+              step: 0.05,
+              label: 'Trail Opacity',
+              hint: 'Overall trail visibility.\n\n**Subtle (0.2)** = ghost-like\n**Medium (0.35)** = balanced (default)\n**Strong (0.6+)** = prominent\n\n**Interacts with:** Trail color brightness',
+            },
+            trailColor: {
+              value: TUNING_DEFAULTS.trailColor,
+              label: 'Trail Color',
+              hint: 'Trail ribbon color. Warm whites work best with Monument Valley palette.\n\n**Default:** #f5f0eb (warm off-white)\n**Tip:** Match to bgColorHorizon for subtle effect',
+            },
+          },
+          { collapsed: false },
         ),
       },
       { collapsed: true, order: 0 },
