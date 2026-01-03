@@ -314,6 +314,23 @@ jobs:
             exit 1
           fi
 
+      - name: Upload screenshots to R2
+        if: steps.capture.outputs.has_screenshots == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCREENSHOTS_API_KEY }}
+          AWS_REGION: auto
+          R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          # Upload each screenshot to R2
+          for file in ./screenshots/*.png; do
+            filename=$(basename "$file")
+            aws s3 cp "$file" "s3://preview-screenshots/pr-${{ env.PR_NUMBER }}/$filename" \
+              --endpoint-url "$R2_ENDPOINT" \
+              --content-type "image/png"
+            echo "Uploaded: $filename"
+          done
+
       - name: Upload screenshots as artifact
         if: steps.capture.outputs.has_screenshots == 'true'
         uses: actions/upload-artifact@v4
@@ -327,12 +344,14 @@ jobs:
         uses: actions/github-script@v7
         env:
           HAS_SCREENSHOTS: ${{ steps.capture.outputs.has_screenshots }}
+          R2_PUBLIC_URL: ${{ secrets.R2_SCREENSHOTS_URL }}
         with:
           script: |
             const fs = require('fs');
             const prNumber = parseInt(process.env.PR_NUMBER);
             const previewUrl = process.env.PREVIEW_URL;
             const hasScreenshots = process.env.HAS_SCREENSHOTS === 'true';
+            const r2BaseUrl = process.env.R2_PUBLIC_URL;
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
             const artifactUrl = `${repoUrl}/actions/runs/${context.runId}`;
             const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
@@ -361,28 +380,39 @@ jobs:
               '<!-- preview-screenshots-comment -->',
               '## 📸 Preview Screenshots',
               '',
-              `${statusEmoji} ${statusText}`,
-              '',
-              `**[📥 Download Screenshots](${artifactUrl})**`,
-              '',
-              `From [preview deployment](${previewUrl})`,
+              `${statusEmoji} ${statusText} | [Preview](${previewUrl}) | [Artifacts](${artifactUrl})`,
               '',
             ];
 
-            if (hasScreenshots && screenshotFiles.length > 0) {
-              bodyParts.push(
-                '<details>',
-                '<summary>Files captured</summary>',
-                '',
-                '```',
-                ...screenshotFiles.sort(),
-                '```',
-                '</details>',
-                '',
-              );
+            if (hasScreenshots && r2BaseUrl) {
+              const r2Folder = `${r2BaseUrl}/pr-${prNumber}`;
+              const devices = [
+                { name: 'Desktop', prefix: 'desktop', width: 320 },
+                { name: 'Tablet', prefix: 'tablet', width: 200 },
+                { name: 'Mobile', prefix: 'mobile', width: 120 },
+              ];
+              const phases = ['inhale', 'hold', 'exhale'];
+
+              // Build image grid
+              bodyParts.push('| | Inhale | Hold | Exhale |', '|---|---|---|---|');
+
+              for (const device of devices) {
+                const row = [`**${device.name}**`];
+                for (const phase of phases) {
+                  const filename = `${device.prefix}-${phase}.png`;
+                  if (screenshotFiles.includes(filename)) {
+                    const url = `${r2Folder}/${filename}`;
+                    row.push(`<a href="${url}"><img src="${url}" width="${device.width}"/></a>`);
+                  } else {
+                    row.push('-');
+                  }
+                }
+                bodyParts.push(`| ${row.join(' | ')} |`);
+              }
+              bodyParts.push('');
             }
 
-            bodyParts.push('---', `<sub>Last run: ${timestamp}</sub>`);
+            bodyParts.push('---', `<sub>Last updated: ${timestamp}</sub>`);
 
             const body = bodyParts.join('\n');
             if (botComment) {
