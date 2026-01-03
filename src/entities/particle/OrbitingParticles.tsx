@@ -1,10 +1,10 @@
 /**
- * OrbitingParticles - Fibonacci Orbit Ring (Breathing Sash)
+ * OrbitingParticles - Breathing Cloud Ring
  *
- * A tilted ring of particles that orbits the globe, breathing in sync:
- * - Inhale: Ring contracts close to globe, slow rotation
+ * A dramatic band of cloud-like particles orbiting the globe:
+ * - Inhale: Particles gather close to globe in a tight ring
  * - Hold: Gentle drift, peaceful stillness
- * - Exhale: Ring expands outward with accelerating spiral rotation
+ * - Exhale: Particles fan out and expand in a beautiful spiral release
  *
  * Creates visual metaphor of breath as energy gathering and releasing.
  *
@@ -18,8 +18,7 @@ import * as THREE from 'three';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 
 /**
- * Soft ethereal material for orbiting particles
- * Lighter and more translucent than main ParticleSwarm shards
+ * Glowing ethereal material for cloud-like particles
  */
 const orbitVertexShader = `
 varying vec3 vNormal;
@@ -27,10 +26,6 @@ varying vec3 vViewPosition;
 
 void main() {
   vNormal = normalize(normalMatrix * normal);
-
-  #ifdef USE_INSTANCING_COLOR
-    // Instance color passed to fragment
-  #endif
 
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   vViewPosition = -mvPosition.xyz;
@@ -50,29 +45,29 @@ varying vec3 vViewPosition;
 void main() {
   vec3 viewDir = normalize(vViewPosition);
 
-  // Soft fresnel glow - more pronounced for ethereal look
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.0);
+  // Strong fresnel glow for cloud-like appearance
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 1.5);
 
-  // Breathing luminosity - brighter during exhale (release)
+  // Breathing luminosity - much brighter during exhale
   float exhalePhase = 1.0 - breathPhase;
-  float breathLuminosity = 1.0 + exhalePhase * 0.3;
+  float breathLuminosity = 1.0 + exhalePhase * 0.5;
 
-  // Soft pulsing glow synced to time
-  float pulse = sin(time * 2.0) * 0.05 + 1.0;
+  // Soft pulsing glow
+  float pulse = sin(time * 1.5) * 0.08 + 1.0;
 
   // Apply base color with effects
   vec3 color = baseColor * breathLuminosity * pulse;
 
-  // Add soft white rim glow
-  vec3 rimColor = vec3(1.0, 0.98, 0.95);
-  color = mix(color, rimColor, fresnel * 0.4);
+  // Strong white rim glow for cloud effect
+  vec3 rimColor = vec3(1.0, 0.99, 0.97);
+  color = mix(color, rimColor, fresnel * 0.6);
 
-  // Soft inner glow during exhale
-  float innerGlow = (1.0 - fresnel) * exhalePhase * 0.15;
+  // Inner glow during exhale - particles "light up" as they release
+  float innerGlow = (1.0 - fresnel) * exhalePhase * 0.25;
   color += rimColor * innerGlow;
 
-  // Final alpha with fresnel edge fade
-  float alpha = opacity * (0.7 + fresnel * 0.3);
+  // Alpha: more opaque in center, fades at edges
+  float alpha = opacity * (0.6 + fresnel * 0.4);
 
   gl_FragColor = vec4(color, alpha);
 }
@@ -83,120 +78,93 @@ function createOrbitMaterial(): THREE.ShaderMaterial {
     uniforms: {
       breathPhase: { value: 0 },
       time: { value: 0 },
-      baseColor: { value: new THREE.Color('#e8dcd0') }, // Soft warm white
-      opacity: { value: 0.85 },
+      baseColor: { value: new THREE.Color('#f5ebe0') },
+      opacity: { value: 0.9 },
     },
     vertexShader: orbitVertexShader,
     fragmentShader: orbitFragmentShader,
     transparent: true,
     side: THREE.DoubleSide,
-    depthWrite: false, // Proper transparency sorting
-    blending: THREE.NormalBlending,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending, // Additive for glowing cloud effect
   });
-}
-
-/**
- * Get position on tilted ring using Fibonacci distribution
- *
- * @param index - Particle index (0 to count-1)
- * @param count - Total particles in ring
- * @param radius - Ring radius from center
- * @param tiltAngle - Ring tilt in radians (0 = horizontal, PI/2 = vertical)
- * @param rotationOffset - Additional rotation around Y axis
- */
-function getRingPosition(
-  index: number,
-  count: number,
-  radius: number,
-  tiltAngle: number,
-  rotationOffset: number,
-): THREE.Vector3 {
-  // Golden angle distribution around ring
-  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-  const angle = goldenAngle * index + rotationOffset;
-
-  // Position on horizontal ring
-  const x = Math.cos(angle) * radius;
-  const z = Math.sin(angle) * radius;
-  const y = 0;
-
-  // Create position vector
-  const pos = new THREE.Vector3(x, y, z);
-
-  // Rotate around X axis to tilt the ring
-  const tiltQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), tiltAngle);
-  pos.applyQuaternion(tiltQuat);
-
-  return pos;
 }
 
 export interface OrbitingParticlesProps {
   /**
    * Number of particles in the ring.
-   * @default 60
-   * @min 20
+   * @default 80
+   * @min 30
    * @max 200
    */
   count?: number;
 
   /**
    * Particle size (radius of spheres).
-   * @default 0.08
-   * @min 0.02
-   * @max 0.2
+   * @default 0.12
+   * @min 0.05
+   * @max 0.3
    */
   particleSize?: number;
 
   /**
    * Ring tilt angle in degrees from horizontal.
-   * @default 25
+   * @default 20
    * @min 0
    * @max 45
    */
   tiltAngle?: number;
 
   /**
-   * Minimum orbit radius (during inhale).
-   * @default 2.2
+   * Minimum orbit radius (during inhale - close to globe).
+   * @default 1.8
    * @min 1.5
-   * @max 3.0
+   * @max 2.5
    */
   minRadius?: number;
 
   /**
-   * Maximum orbit radius (during exhale).
-   * @default 5.5
+   * Maximum orbit radius (during exhale - expanded outward).
+   * @default 6.0
    * @min 4.0
-   * @max 8.0
+   * @max 10.0
    */
   maxRadius?: number;
 
   /**
+   * Vertical spread of the band (creates thickness).
+   * @default 0.8
+   * @min 0.2
+   * @max 2.0
+   */
+  bandHeight?: number;
+
+  /**
    * Base rotation speed (radians per second).
-   * @default 0.15
-   * @min 0.05
-   * @max 0.5
+   * @default 0.25
+   * @min 0.1
+   * @max 0.6
    */
   baseRotationSpeed?: number;
 
   /**
    * Exhale speed multiplier (rotation accelerates during exhale).
-   * @default 2.5
-   * @min 1.0
+   * @default 3.0
+   * @min 1.5
    * @max 5.0
    */
   exhaleSpeedMultiplier?: number;
 
   /**
    * Particle color (hex string).
-   * @default '#e8dcd0'
+   * @default '#f5ebe0'
    */
   color?: string;
 
   /**
    * Particle opacity.
-   * @default 0.85
-   * @min 0.3
+   * @default 0.9
+   * @min 0.5
    * @max 1.0
    */
   opacity?: number;
@@ -206,50 +174,58 @@ export interface OrbitingParticlesProps {
  * Per-particle state for orbital animation
  */
 interface ParticleState {
-  /** Individual orbit speed variation */
+  /** Base angle position in ring (radians) */
+  baseAngle: number;
+  /** Individual orbit speed variation (-0.3 to +0.3) */
   speedOffset: number;
-  /** Phase offset for wave effect */
+  /** Vertical offset within band (-1 to 1) */
+  verticalOffset: number;
+  /** Radial offset variation */
+  radialOffset: number;
+  /** Phase offset for staggered breathing */
   phaseOffset: number;
-  /** Perpendicular wobble seed */
+  /** Wobble animation seed */
   wobbleSeed: number;
-  /** Y-axis vertical drift seed */
-  verticalSeed: number;
+  /** Scale variation (0.7 to 1.3) */
+  scaleVariation: number;
 }
 
 // Reusable objects (avoid GC pressure)
 const _tempMatrix = new THREE.Matrix4();
-const _tempPosition = new THREE.Vector3();
 const _tempQuaternion = new THREE.Quaternion();
 const _tempScale = new THREE.Vector3();
+const _tiltQuat = new THREE.Quaternion();
+const _tempPos = new THREE.Vector3();
 
 /**
- * OrbitingParticles - Breathing ring of particles around the globe
+ * OrbitingParticles - Breathing cloud band around the globe
  */
 export const OrbitingParticles = memo(function OrbitingParticlesComponent({
-  count = 60,
-  particleSize = 0.08,
-  tiltAngle = 25,
-  minRadius = 2.2,
-  maxRadius = 5.5,
-  baseRotationSpeed = 0.15,
-  exhaleSpeedMultiplier = 2.5,
-  color = '#e8dcd0',
-  opacity = 0.85,
+  count = 80,
+  particleSize = 0.12,
+  tiltAngle = 20,
+  minRadius = 1.8,
+  maxRadius = 6.0,
+  bandHeight = 0.8,
+  baseRotationSpeed = 0.25,
+  exhaleSpeedMultiplier = 3.0,
+  color = '#f5ebe0',
+  opacity = 0.9,
 }: OrbitingParticlesProps = {}) {
   const world = useWorld();
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const rotationRef = useRef(0);
   const particleStatesRef = useRef<ParticleState[]>([]);
 
-  // Convert tilt to radians
+  // Convert tilt to radians and create quaternion
   const tiltRad = (tiltAngle * Math.PI) / 180;
 
-  // Create geometry (small spheres for soft look)
+  // Create geometry - larger spheres for visibility
   const geometry = useMemo(() => {
-    return new THREE.SphereGeometry(particleSize, 8, 6);
+    return new THREE.SphereGeometry(particleSize, 12, 8);
   }, [particleSize]);
 
-  // Create material
+  // Create glowing material
   const material = useMemo(() => {
     const mat = createOrbitMaterial();
     mat.uniforms.baseColor.value = new THREE.Color(color);
@@ -257,17 +233,40 @@ export const OrbitingParticles = memo(function OrbitingParticlesComponent({
     return mat;
   }, [color, opacity]);
 
-  // Initialize particle states
+  // Initialize particle states with varied positions in band
   useEffect(() => {
     const states: ParticleState[] = [];
     const goldenRatio = (1 + Math.sqrt(5)) / 2;
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
     for (let i = 0; i < count; i++) {
+      // Distribute evenly around ring using golden angle
+      const baseAngle = goldenAngle * i;
+
+      // Varied vertical position within band (gaussian-ish distribution)
+      const verticalRandom = ((i * goldenRatio * 3.7) % 1) * 2 - 1;
+      const verticalOffset = verticalRandom * Math.abs(verticalRandom); // Concentrate toward center
+
+      // Radial variation for cloud-like spread
+      const radialOffset = (((i * goldenRatio * 2.3) % 1) - 0.5) * 0.4;
+
+      // Speed variation
+      const speedOffset = (((i * goldenRatio) % 1) - 0.5) * 0.6;
+
+      // Phase offset for wave effect (staggered breathing)
+      const phaseOffset = ((i * goldenRatio * 1.5) % 1) * 0.15;
+
+      // Scale variation
+      const scaleVariation = 0.7 + ((i * goldenRatio * 4.1) % 1) * 0.6;
+
       states.push({
-        speedOffset: (((i * goldenRatio) % 1) - 0.5) * 0.3, // ±15% speed variation
-        phaseOffset: ((i * goldenRatio) % 1) * 0.08, // ±4% phase offset
+        baseAngle,
+        speedOffset,
+        verticalOffset,
+        radialOffset,
+        phaseOffset,
         wobbleSeed: i * 137.508,
-        verticalSeed: i * Math.E,
+        scaleVariation,
       });
     }
     particleStatesRef.current = states;
@@ -278,17 +277,29 @@ export const OrbitingParticles = memo(function OrbitingParticlesComponent({
     const mesh = meshRef.current;
     if (!mesh) return;
 
+    _tiltQuat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), tiltRad);
     _tempQuaternion.identity();
     _tempScale.setScalar(1);
 
     for (let i = 0; i < count; i++) {
-      const pos = getRingPosition(i, count, minRadius, tiltRad, 0);
-      _tempMatrix.compose(pos, _tempQuaternion, _tempScale);
+      const state = particleStatesRef.current[i];
+      if (!state) continue;
+
+      const radius = minRadius * (1 + state.radialOffset);
+      _tempPos.set(
+        Math.cos(state.baseAngle) * radius,
+        state.verticalOffset * bandHeight * 0.5,
+        Math.sin(state.baseAngle) * radius,
+      );
+      _tempPos.applyQuaternion(_tiltQuat);
+
+      _tempScale.setScalar(state.scaleVariation);
+      _tempMatrix.compose(_tempPos, _tempQuaternion, _tempScale);
       mesh.setMatrixAt(i, _tempMatrix);
     }
 
     mesh.instanceMatrix.needsUpdate = true;
-  }, [count, minRadius, tiltRad]);
+  }, [count, minRadius, tiltRad, bandHeight]);
 
   // Cleanup
   useEffect(() => {
@@ -317,22 +328,18 @@ export const OrbitingParticles = memo(function OrbitingParticlesComponent({
       currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
     }
 
-    // Calculate current radius (inverted: contracts on inhale, expands on exhale)
-    // breathPhase: 0 = exhaled (expanded), 1 = inhaled (contracted)
-    const radiusRange = maxRadius - minRadius;
-    const currentRadius = maxRadius - currentBreathPhase * radiusRange;
-
     // Calculate rotation speed based on phase
-    // Exhale (phaseType 2) = faster rotation for "release" feeling
-    // Hold phases = slower, peaceful drift
     let speedMultiplier = 1.0;
     if (currentPhaseType === 2) {
-      // Exhale: accelerate based on how far into exhale we are
+      // Exhale: accelerate as breath releases
       const exhaleProgress = 1.0 - currentBreathPhase;
-      speedMultiplier = 1.0 + (exhaleSpeedMultiplier - 1.0) * exhaleProgress;
+      speedMultiplier = 1.0 + (exhaleSpeedMultiplier - 1.0) * exhaleProgress * exhaleProgress;
     } else if (currentPhaseType === 1 || currentPhaseType === 3) {
-      // Hold phases: slow down for peaceful stillness
-      speedMultiplier = 0.5;
+      // Hold phases: gentle drift
+      speedMultiplier = 0.4;
+    } else if (currentPhaseType === 0) {
+      // Inhale: slowing down as particles gather
+      speedMultiplier = 0.7 + currentBreathPhase * 0.3;
     }
 
     // Update global rotation
@@ -344,33 +351,62 @@ export const OrbitingParticles = memo(function OrbitingParticlesComponent({
       material.uniforms.time.value = time;
     }
 
+    // Prepare tilt quaternion once
+    _tiltQuat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), tiltRad);
+
+    // Base radius calculation
+    // breathPhase: 1 = inhaled (contracted close), 0 = exhaled (expanded far)
+    const radiusRange = maxRadius - minRadius;
+    const baseRadius = maxRadius - currentBreathPhase * radiusRange;
+
+    // Band height expands during exhale (fan out effect)
+    const currentBandHeight = bandHeight * (0.5 + (1.0 - currentBreathPhase) * 1.5);
+
     // Update each particle
     for (let i = 0; i < count; i++) {
       const particleState = states[i];
 
-      // Individual speed with variation
+      // Staggered breath phase for wave effect
+      const staggeredPhase = Math.max(
+        0,
+        Math.min(1, currentBreathPhase + particleState.phaseOffset * (1 - currentBreathPhase)),
+      );
+
+      // Individual rotation with speed variation
       const individualRotation = rotationRef.current * (1 + particleState.speedOffset);
+      const angle = particleState.baseAngle + individualRotation;
 
-      // Get base ring position
-      const pos = getRingPosition(i, count, currentRadius, tiltRad, individualRotation);
+      // Radius with individual variation and breathing
+      const particleRadius = baseRadius * (1 + particleState.radialOffset);
 
-      // Add subtle perpendicular wobble
-      const wobblePhase = time * 0.5 + particleState.wobbleSeed;
-      const wobbleAmount = 0.05 + currentBreathPhase * 0.03; // Less wobble when contracted
-      pos.x += Math.sin(wobblePhase) * wobbleAmount;
-      pos.z += Math.cos(wobblePhase * 0.7) * wobbleAmount * 0.8;
+      // Wobble animation - more pronounced during exhale
+      const wobbleIntensity = 0.1 + (1.0 - currentBreathPhase) * 0.15;
+      const wobblePhase = time * 0.8 + particleState.wobbleSeed;
+      const wobbleX = Math.sin(wobblePhase) * wobbleIntensity;
+      const wobbleZ = Math.cos(wobblePhase * 0.7) * wobbleIntensity * 0.8;
 
-      // Subtle vertical breathing motion
-      const verticalPhase = time * 0.3 + particleState.verticalSeed;
-      pos.y += Math.sin(verticalPhase) * 0.03;
+      // Position on ring
+      _tempPos.set(
+        Math.cos(angle) * particleRadius + wobbleX,
+        particleState.verticalOffset * currentBandHeight,
+        Math.sin(angle) * particleRadius + wobbleZ,
+      );
 
-      // Scale variation based on breathing (slightly larger during exhale)
-      const breathScale = 1.0 + (1.0 - currentBreathPhase) * 0.15;
-      _tempScale.setScalar(breathScale);
+      // Apply tilt
+      _tempPos.applyQuaternion(_tiltQuat);
 
-      // Compose matrix
+      // Additional vertical float
+      const floatOffset = Math.sin(time * 0.5 + particleState.wobbleSeed * 0.1) * 0.08;
+      _tempPos.y += floatOffset;
+
+      // Scale: larger during exhale, smaller when contracted
+      const breathScale = 0.7 + (1.0 - staggeredPhase) * 0.6;
+      const finalScale = particleState.scaleVariation * breathScale;
+      _tempScale.setScalar(finalScale);
+
+      // Compose and set matrix
       _tempQuaternion.identity();
-      _tempMatrix.compose(pos, _tempQuaternion, _tempScale);
+      _tempMatrix.compose(_tempPos, _tempQuaternion, _tempScale);
       mesh.setMatrixAt(i, _tempMatrix);
     }
 
