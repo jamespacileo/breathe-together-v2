@@ -10,6 +10,7 @@ import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { Environment } from '../entities/environment';
+import { InspirationRibbon } from '../entities/inspirationRibbon';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -106,6 +107,15 @@ export function BreathingLevel({
             )}
 
             {showGlobe && <EarthGlobe />}
+
+            {/* Inspiration Ribbon - orbits between globe and particles */}
+            <InspirationRibbon
+              radius={3.0}
+              height={0.18}
+              rotationSpeed={0.06}
+              scrollSpeed={0.015}
+              waveAmplitude={0.015}
+            />
 
             {showParticles && (
               <ParticleSwarm
