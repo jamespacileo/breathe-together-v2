@@ -31,6 +31,14 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import {
+  AMBIENT_MOTION_CONFIG,
+  ANIMATION_CONFIG,
+  BREATH_SCALE_CONFIG,
+  GLOBE_CONFIG,
+  KEPLERIAN_CONFIG,
+  SHARD_SIZE_CONFIG,
+} from '../../config/particlePhysics';
 import { BREATH_TOTAL_CYCLE, KEPLERIAN_PHYSICS, type MoodId, RENDER_LAYERS } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
@@ -103,19 +111,18 @@ export interface ParticleSwarmProps {
    * @default 4.0
    */
   baseShardSize?: number;
-  /** Globe radius for minimum distance calculation @default 1.5 */
+  /** Globe radius for minimum distance calculation @default GLOBE_CONFIG.RADIUS (1.5) */
   globeRadius?: number;
-  /** Buffer distance between shard surface and globe surface @default 0.03 */
+  /** Buffer distance between shard surface and globe surface @default SHARD_SIZE_CONFIG.BUFFER */
   buffer?: number;
   /**
    * Maximum shard size cap (prevents oversized shards at low counts).
-   * Reduced to 0.12 for very close approach to globe on inhale.
-   * @default 0.12
+   * @default SHARD_SIZE_CONFIG.MAX_SIZE
    */
   maxShardSize?: number;
   /**
    * Minimum shard size (prevents tiny shards at high counts).
-   * @default 0.05
+   * @default SHARD_SIZE_CONFIG.MIN_SIZE
    */
   minShardSize?: number;
   /**
@@ -161,36 +168,22 @@ interface InstanceState {
 }
 
 /**
- * Lerp speed for breathing animation
- * Controls how quickly particles follow the ECS target radius.
+ * Animation constants from centralized config
  */
-const BREATH_LERP_SPEED = 6.0;
+const BREATH_LERP_SPEED = ANIMATION_CONFIG.BREATH_LERP_SPEED;
+const POSITION_LERP_SPEED = ANIMATION_CONFIG.POSITION_LERP_SPEED;
 
 /**
- * Lerp speed for position redistribution
- * How quickly shards move to new Fibonacci positions when count changes.
+ * Ambient floating motion constants from centralized config
  */
-const POSITION_LERP_SPEED = 3.0;
+const AMBIENT_SCALE = AMBIENT_MOTION_CONFIG.SCALE;
+const AMBIENT_Y_SCALE = AMBIENT_MOTION_CONFIG.Y_SCALE;
 
 /**
- * Ambient floating motion constants
- * Reduced from 0.08/0.04 to allow closer shard packing
+ * Orbital drift constants from centralized Keplerian config
  */
-const AMBIENT_SCALE = 0.04;
-const AMBIENT_Y_SCALE = 0.02;
-
-/**
- * Orbital drift constants
- *
- * Base speed is now modulated by Keplerian physics:
- * v = √(GM/r) where GM is breath-modulated
- *
- * ORBIT_BASE_SPEED serves as the reference velocity at REFERENCE_RADIUS.
- * Actual speed varies based on current radius and breath phase.
- * Increased to 0.04 for clearly visible orbital rotation.
- */
-const ORBIT_BASE_SPEED = 0.04;
-const ORBIT_SPEED_VARIATION = 0.02;
+const ORBIT_BASE_SPEED = KEPLERIAN_CONFIG.BASE_ORBIT_SPEED;
+const ORBIT_SPEED_VARIATION = KEPLERIAN_CONFIG.ORBIT_SPEED_VARIATION;
 
 /**
  * Calculate Keplerian orbital velocity based on current radius and breath phase.
@@ -242,16 +235,15 @@ function calculateKeplerianSpeed(
 }
 
 /**
- * Perpendicular wobble constants
- * Reduced from 0.03 to allow closer shard packing
+ * Perpendicular wobble constants from centralized config
  */
-const PERPENDICULAR_AMPLITUDE = 0.015;
-const PERPENDICULAR_FREQUENCY = 0.35;
+const PERPENDICULAR_AMPLITUDE = AMBIENT_MOTION_CONFIG.WOBBLE_AMPLITUDE;
+const PERPENDICULAR_FREQUENCY = AMBIENT_MOTION_CONFIG.WOBBLE_FREQUENCY;
 
 /**
- * Phase stagger for wave effect (4% of breath cycle)
+ * Phase stagger for wave effect from centralized config
  */
-const MAX_PHASE_OFFSET = 0.04;
+const MAX_PHASE_OFFSET = AMBIENT_MOTION_CONFIG.MAX_PHASE_OFFSET;
 
 /**
  * Reusable objects for animation loop (pre-allocated to avoid GC pressure)
@@ -317,11 +309,11 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
 export function ParticleSwarm({
   users,
   baseRadius = 4.5,
-  baseShardSize = 4.0,
-  globeRadius = 1.5,
-  buffer = 0.03,
-  maxShardSize = 0.12,
-  minShardSize = 0.05,
+  baseShardSize = SHARD_SIZE_CONFIG.BASE_SIZE,
+  globeRadius = GLOBE_CONFIG.RADIUS,
+  buffer = SHARD_SIZE_CONFIG.BUFFER,
+  maxShardSize = SHARD_SIZE_CONFIG.MAX_SIZE,
+  minShardSize = SHARD_SIZE_CONFIG.MIN_SIZE,
   performanceCap = 1000,
 }: ParticleSwarmProps) {
   const world = useWorld();
@@ -379,8 +371,8 @@ export function ParticleSwarm({
 
     // Constraint 2: Inter-particle spacing
     // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
-    // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.11
-    const wobbleMargin = 0.11;
+    // Wobble margin from centralized config
+    const wobbleMargin = AMBIENT_MOTION_CONFIG.WOBBLE_MARGIN;
     const fibonacciSpacingFactor = 1.95;
     const requiredSpacing = 2 * shardSize + wobbleMargin;
     const spacingConstraint = (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
@@ -647,11 +639,8 @@ export function ParticleSwarm({
       _tempQuaternion.setFromEuler(_tempEuler);
 
       // Final scale: slot scale × breath scale × base offset
-      // Shards shrink significantly when close (inhale) and expand when far (exhale)
-      // This creates dynamic composition and allows very close approach without collisions
-      // At exhale (breathPhase=0): scale = 1.4 (expanded, dramatic, filling space)
-      // At inhale (breathPhase=1): scale = 0.6 (contracted, intimate, tight clustering)
-      const breathScale = 1.4 - currentBreathPhase * 0.8;
+      // Uses centralized config for breath-synchronized scaling
+      const breathScale = BREATH_SCALE_CONFIG.getBreathScale(currentBreathPhase);
       const finalScale = slotScale * instanceState.baseScaleOffset * breathScale;
       _tempScale.setScalar(finalScale);
 

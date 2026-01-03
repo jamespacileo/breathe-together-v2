@@ -3,6 +3,8 @@
  * Single source of truth for mood and avatar IDs
  */
 
+import { DERIVED_CONSTANTS, KEPLERIAN_CONFIG } from './config/particlePhysics';
+
 /**
  * Mood IDs - simplified 4-category system with positive framing
  *
@@ -66,21 +68,19 @@ export const BREATH_TOTAL_CYCLE =
 /**
  * Visual Constants - Breathing animation parameters
  *
- * IMPORTANT: PARTICLE_ORBIT_MIN must be >= minOrbitRadius in ParticleSwarm
- * (globeRadius + maxShardSize + buffer ≈ 1.5 + 0.12 + 0.03 = 1.65)
- * Otherwise, particles hit the clamp early and animation appears to stop.
+ * Values are derived from centralized particle physics config.
+ * See src/config/particlePhysics.ts for the source of truth.
  *
- * The full orbit range is used by the sin easing curve - if min is too low,
- * particles will reach their physical limit before the easing completes,
- * causing the animation to appear shorter than the phase duration.
+ * Orbit distances are calculated relative to globe radius:
+ * - MIN = globeRadius × (1 + inhaleRatio) = 1.5 × 1.5 = 2.25
+ * - MAX = globeRadius × (1 + exhaleRatio) = 1.5 × 4.0 = 6.0
  */
 export const VISUALS = {
   /** Min orbit radius (inhale - particles closest to globe)
-   * Set to 1.65 for very close approach (0.15 units from globe surface)
-   * Combined with reduced shard size enables intimate clustering */
-  PARTICLE_ORBIT_MIN: 1.65,
+   * = globe radius + 0.5 × globe radius (half globe radius from surface) */
+  PARTICLE_ORBIT_MIN: DERIVED_CONSTANTS.PARTICLE_ORBIT_MIN,
   /** Max orbit radius (exhale - particles farthest from globe) */
-  PARTICLE_ORBIT_MAX: 6.0,
+  PARTICLE_ORBIT_MAX: DERIVED_CONSTANTS.PARTICLE_ORBIT_MAX,
 } as const;
 
 /**
@@ -106,51 +106,18 @@ export const HOLD_OSCILLATION = {
 /**
  * Keplerian Physics Constants
  *
+ * Re-exported from centralized config for backwards compatibility.
+ * See src/config/particlePhysics.ts for the source of truth.
+ *
  * Implements simplified Kepler's Laws for natural particle motion:
  * Orbital velocity v = √(GM/r) - velocity inversely proportional to √radius
- *
- * During inhale (smaller radius): particles speed up (tightening effect)
- * During exhale (larger radius): particles slow down (releasing effect)
- *
- * The "apparent mass" modulates with breath for dynamic gravitational pull:
- * - Higher during inhale: globe "pulls" particles inward more strongly
- * - Lower during exhale: weaker pull allows natural expansion
  */
 export const KEPLERIAN_PHYSICS = {
-  /**
-   * Base gravitational parameter (GM combined)
-   * Higher = faster base orbital velocity
-   * Increased to 1.2 for clearly visible orbital rotation
-   */
-  BASE_GM: 1.2,
-
-  /**
-   * Reference radius for velocity normalization
-   * At this radius, orbital speed matches the original ORBIT_BASE_SPEED
-   * Uses baseRadius (4.5) as the equilibrium point
-   */
-  REFERENCE_RADIUS: 4.5,
-
-  /**
-   * Breath modulation amplitude for apparent mass
-   * 0 = no breath effect on mass, 1 = full modulation
-   * Increased to 0.6 for stronger breath-synchronized pull
-   * During inhale: mass increases by this factor (stronger pull)
-   * During exhale: mass decreases by this factor (weaker pull)
-   */
-  BREATH_MASS_MODULATION: 0.6,
-
-  /**
-   * Minimum velocity multiplier (prevents near-zero speed at large radii)
-   * Ensures particles always have some orbital motion
-   */
-  MIN_VELOCITY_FACTOR: 0.3,
-
-  /**
-   * Maximum velocity multiplier (caps speed at small radii)
-   * Increased to 4.0 for noticeably faster rotation when close to globe
-   */
-  MAX_VELOCITY_FACTOR: 4.0,
+  BASE_GM: KEPLERIAN_CONFIG.BASE_GM,
+  REFERENCE_RADIUS: KEPLERIAN_CONFIG.REFERENCE_RADIUS,
+  BREATH_MASS_MODULATION: KEPLERIAN_CONFIG.BREATH_MASS_MODULATION,
+  MIN_VELOCITY_FACTOR: KEPLERIAN_CONFIG.MIN_VELOCITY_FACTOR,
+  MAX_VELOCITY_FACTOR: KEPLERIAN_CONFIG.MAX_VELOCITY_FACTOR,
 } as const;
 
 /**
