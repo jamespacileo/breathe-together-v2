@@ -15,12 +15,13 @@
 
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
+import { ShardMotionTrails } from './ShardMotionTrails';
 import {
   getBreathingCycleIndex,
   isHoldPhase,
@@ -109,6 +110,40 @@ export interface ParticleSwarmProps {
    * @default 1000
    */
   performanceCap?: number;
+  /**
+   * Enable motion trails behind shards during breathing.
+   * Creates elegant "comet tail" streaks as shards move in and out.
+   *
+   * **When to adjust:** Disable for lower-end devices or minimal aesthetic.
+   * **Performance note:** Adds one additional draw call.
+   *
+   * @default true
+   */
+  enableTrails?: boolean;
+  /**
+   * Maximum length of motion trails (velocity multiplier).
+   * Higher values create longer streaks during fast movement.
+   *
+   * **Typical range:** Subtle (1.5) → Standard (3.0) → Dramatic (5.0)
+   *
+   * @min 0.5
+   * @max 8.0
+   * @step 0.5
+   * @default 3.0
+   */
+  trailLength?: number;
+  /**
+   * Base opacity of motion trails.
+   * Lower values are more subtle, higher values more prominent.
+   *
+   * **Typical range:** Whisper (0.1) → Subtle (0.2) → Visible (0.35)
+   *
+   * @min 0.05
+   * @max 0.5
+   * @step 0.02
+   * @default 0.22
+   */
+  trailOpacity?: number;
 }
 
 /**
@@ -250,10 +285,16 @@ export function ParticleSwarm({
   maxShardSize = 0.6,
   minShardSize = 0.15,
   performanceCap = 1000,
+  enableTrails = true,
+  trailLength = 3.0,
+  trailOpacity = 0.22,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
+
+  // Track instance moods for trail coloring
+  const [instanceMoods, setInstanceMoods] = useState<(MoodId | null)[]>([]);
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -458,6 +499,7 @@ export function ParticleSwarm({
 
       // Update instance colors based on slot moods
       const slots = slotManager.slots;
+      const newMoods: (MoodId | null)[] = [];
       for (let i = 0; i < slots.length && i < states.length; i++) {
         const slot = slots[i];
         const instanceState = states[i];
@@ -467,10 +509,13 @@ export function ParticleSwarm({
           mesh.setColorAt(i, color);
           instanceState.currentMood = slot.mood;
         }
+        newMoods.push(instanceState.currentMood);
       }
       if (mesh.instanceColor) {
         mesh.instanceColor.needsUpdate = true;
       }
+      // Update trail moods
+      setInstanceMoods(newMoods);
     }
     wasInHoldRef.current = isInHold;
 
@@ -590,12 +635,26 @@ export function ParticleSwarm({
   }, []);
 
   return (
-    <instancedMesh
-      ref={instancedMeshRef}
-      args={[geometry, material, performanceCap]}
-      frustumCulled={false}
-      name="Particle Swarm"
-    />
+    <group name="ParticleSwarm Group">
+      {/* Motion trails rendered behind shards */}
+      {enableTrails && (
+        <ShardMotionTrails
+          shardMeshRef={instancedMeshRef}
+          instanceCount={performanceCap}
+          trailLength={trailLength}
+          baseOpacity={trailOpacity}
+          trailScale={shardSize * 2}
+          instanceMoods={instanceMoods}
+        />
+      )}
+      {/* Main shard mesh */}
+      <instancedMesh
+        ref={instancedMeshRef}
+        args={[geometry, material, performanceCap]}
+        frustumCulled={false}
+        name="Particle Swarm"
+      />
+    </group>
   );
 }
 
