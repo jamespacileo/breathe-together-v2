@@ -21,13 +21,18 @@ import { MOOD_IDS, type MoodId } from '../../constants';
 
 /**
  * Individual user with stable identity
- * Unlike aggregate mood counts, this allows tracking specific users
+ *
+ * IMPORTANT: Users must be ordered by arrival time (first joined = index 0).
+ * This ensures each user has a consistent Fibonacci sphere position
+ * determined by their order in the array.
  */
 export interface User {
   /** Unique identifier for this user (stable across sessions) */
   id: string;
-  /** Current mood selection */
+  /** Current mood selection - determines shard color */
   mood: MoodId;
+  /** Join timestamp (ms since epoch) - optional, used for ordering when available */
+  joinedAt?: number;
 }
 
 /**
@@ -454,28 +459,74 @@ export function isHoldPhase(phaseType: number): boolean {
 
 /**
  * Convert aggregate mood counts to individual users
- * Useful for backward compatibility with existing mock presence system
  *
- * Generates stable user IDs based on mood and index, so the same
- * mood distribution will produce the same user IDs.
+ * This is a LEGACY fallback for when the server only provides mood counts
+ * instead of individual users. In production, the server should return
+ * users in arrival order with stable session-based IDs.
+ *
+ * IMPORTANT: This function interleaves moods to simulate arrival order
+ * (as if users with different moods joined at random times), NOT grouped
+ * by mood. This ensures deterministic but realistic positioning.
  *
  * @param moods - Aggregate mood counts { gratitude: 5, presence: 10, ... }
- * @returns Array of individual users with stable IDs
+ * @returns Array of individual users with stable IDs in simulated arrival order
  */
 export function moodCountsToUsers(moods: Partial<Record<MoodId, number>>): User[] {
-  const users: User[] = [];
+  // Create arrays of users per mood for interleaving
+  const moodArrays: Record<MoodId, User[]> = {
+    gratitude: [],
+    presence: [],
+    release: [],
+    connection: [],
+  };
 
-  // Iterate over known MOOD_IDS for type safety (avoids unsafe `as MoodId` cast)
+  // Build arrays for each mood
   for (const mood of MOOD_IDS) {
     const count = moods[mood];
     if (typeof count !== 'number' || count <= 0) continue;
 
     for (let i = 0; i < count; i++) {
-      users.push({
-        // Stable ID: mood-index (e.g., "gratitude-0", "presence-5")
-        id: `${mood}-${i}`,
+      moodArrays[mood].push({
+        // Will be reassigned with arrival-order ID below
+        id: '',
         mood,
       });
+    }
+  }
+
+  // Interleave users from different moods to simulate random arrival order
+  // Round-robin through moods to distribute users evenly
+  const users: User[] = [];
+  const moodOrder: MoodId[] = ['presence', 'gratitude', 'release', 'connection'];
+  const indices: Record<MoodId, number> = {
+    gratitude: 0,
+    presence: 0,
+    release: 0,
+    connection: 0,
+  };
+
+  const totalUsers = Object.values(moods).reduce(
+    (sum, count) => sum + (typeof count === 'number' ? count : 0),
+    0,
+  );
+
+  let moodIndex = 0;
+  for (let i = 0; i < totalUsers; i++) {
+    // Find next mood with available users (round-robin)
+    let attempts = 0;
+    while (attempts < moodOrder.length) {
+      const mood = moodOrder[moodIndex % moodOrder.length];
+      if (indices[mood] < moodArrays[mood].length) {
+        const user = moodArrays[mood][indices[mood]];
+        // Assign arrival-order ID (not mood-based)
+        user.id = `user-${i}`;
+        users.push(user);
+        indices[mood]++;
+        moodIndex++;
+        break;
+      }
+      moodIndex++;
+      attempts++;
     }
   }
 
