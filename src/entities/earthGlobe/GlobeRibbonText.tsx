@@ -17,7 +17,7 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import type React from 'react';
 import { useMemo, useRef } from 'react';
-import type { Group } from 'three';
+import { FrontSide, type Group } from 'three';
 
 import { breathPhase } from '../breath/traits';
 
@@ -115,13 +115,14 @@ const LETTER_SPACING = 0.08;
 
 /**
  * Number of segments to render around the circle for full 360° coverage.
- * More segments = smoother coverage but more render cost.
- * 4 segments at 90° each provides good coverage with minimal overlap.
+ * Using 2 segments at 180° apart (front and back) to avoid text overlap.
+ * Each Troika text segment covers ~180° of arc with centered anchor.
  */
-export const RIBBON_SEGMENTS = 4;
+export const RIBBON_SEGMENTS = 2;
 
 /**
- * Single curved text segment - covers approximately 90° of the circle
+ * Single curved text segment - covers approximately 180° of the circle
+ * Uses FrontSide rendering to prevent back-face text from showing through
  */
 function RibbonSegment({
   text,
@@ -157,6 +158,8 @@ function RibbonSegment({
         position={[0, 0, radius]}
         letterSpacing={LETTER_SPACING}
         fontWeight={600}
+        // Single-sided rendering to prevent back-face overlap
+        material-side={FrontSide}
       >
         {text}
       </CurvedText>

@@ -253,33 +253,28 @@ describe('GlobeRibbonText', () => {
   });
 
   describe('multi-segment 360° coverage', () => {
-    it('uses 4 segments for full coverage', () => {
-      // 4 segments at 90° each = 360° total coverage
-      expect(RIBBON_SEGMENTS).toBe(4);
+    it('uses 2 segments for full coverage (front and back)', () => {
+      // 2 segments at 180° each = 360° total coverage
+      // Using 2 instead of 4 to avoid text overlap from double-sided rendering
+      expect(RIBBON_SEGMENTS).toBe(2);
     });
 
     it('segments are evenly distributed around circle', () => {
       const rotationStep = (2 * Math.PI) / RIBBON_SEGMENTS;
 
-      // Each segment should be 90° (PI/2 radians) apart
-      expect(rotationStep).toBeCloseTo(Math.PI / 2, 5);
+      // Each segment should be 180° (PI radians) apart
+      expect(rotationStep).toBeCloseTo(Math.PI, 5);
     });
 
     it('calculates correct segment rotations', () => {
       const rotationStep = (2 * Math.PI) / RIBBON_SEGMENTS;
       const rotations = Array.from({ length: RIBBON_SEGMENTS }, (_, i) => i * rotationStep);
 
-      // First segment at 0°
+      // First segment at 0° (front)
       expect(rotations[0]).toBeCloseTo(0, 5);
 
-      // Second segment at 90°
-      expect(rotations[1]).toBeCloseTo(Math.PI / 2, 5);
-
-      // Third segment at 180°
-      expect(rotations[2]).toBeCloseTo(Math.PI, 5);
-
-      // Fourth segment at 270°
-      expect(rotations[3]).toBeCloseTo((3 * Math.PI) / 2, 5);
+      // Second segment at 180° (back)
+      expect(rotations[1]).toBeCloseTo(Math.PI, 5);
     });
 
     it('total rotation coverage equals full circle', () => {
@@ -290,14 +285,13 @@ describe('GlobeRibbonText', () => {
       expect(totalCoverage).toBeCloseTo(2 * Math.PI, 5);
     });
 
-    it('segments provide overlapping coverage for seamless appearance', () => {
-      // With 4 segments, each segment needs to cover at least 90° + some overlap
-      // The text in each segment should extend beyond its 90° allocation
-      // This is ensured by the text being centered (anchorX="center")
-      const minSegmentCoverage = (2 * Math.PI) / RIBBON_SEGMENTS;
+    it('segments provide full coverage with centered anchor', () => {
+      // With 2 segments at 180° apart, each segment covers ~180° of arc
+      // The text is centered (anchorX="center") so it extends 90° in each direction
+      const segmentSpacing = (2 * Math.PI) / RIBBON_SEGMENTS;
 
-      // Each segment should cover at least its allocated portion
-      expect(minSegmentCoverage).toBeCloseTo(Math.PI / 2, 5);
+      // Each segment should cover 180° (PI radians)
+      expect(segmentSpacing).toBeCloseTo(Math.PI, 5);
     });
   });
 
