@@ -1,117 +1,62 @@
 /**
  * Shape Gizmos - Debug visualization for shape centroids, bounds, and axes
  *
- * Renders visual helpers for:
+ * Renders visual helpers by querying Koota ECS entities:
  * - Globe centroid (with optional XYZ axes)
  * - Globe bounding sphere
  * - Country centroids on globe surface
  * - Particle swarm centroid
  * - Particle swarm bounding sphere (shows breathing range)
  * - Individual shard centroids and wireframes
- * - Connecting lines between shard centroids
+ * - Connecting lines between neighboring shards (constellation effect)
  *
- * These gizmos help with:
- * - Debugging shape positioning
- * - Understanding breathing animation bounds
- * - Visualizing Fibonacci sphere distribution
- * - Verifying country coordinate mapping
- * - Anchoring future effects/UI elements to shape positions
+ * All positions are read from ECS traits managed by GizmoEntities.
+ * This ensures consistency with other systems that may use the same data.
  *
  * Controlled via Leva Debug > Gizmos folder
  */
 
 import { Html, Line } from '@react-three/drei';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { VISUALS } from '../constants';
-import { breathPhase, orbitRadius } from '../entities/breath/traits';
-import { COUNTRY_CENTROIDS, latLngToPosition } from '../lib/countryCentroids';
+import {
+  countryData,
+  globeRotation,
+  isCountry,
+  isGlobe,
+  isShard,
+  isSwarm,
+  shapeCentroid,
+  shapeOrientation,
+  shapeScale,
+  shardIndex,
+  shardNeighbors,
+  swarmState,
+} from '../shared/gizmoTraits';
 
 interface ShapeGizmosProps {
-  /**
-   * Show globe centroid marker and axes
-   * @default false
-   */
   showGlobeCentroid?: boolean;
-
-  /**
-   * Show globe bounding sphere wireframe
-   * @default false
-   */
   showGlobeBounds?: boolean;
-
-  /**
-   * Show country centroid markers on globe
-   * @default false
-   */
   showCountryCentroids?: boolean;
-
-  /**
-   * Show particle swarm centroid marker
-   * @default false
-   */
   showSwarmCentroid?: boolean;
-
-  /**
-   * Show particle swarm bounding spheres (min/max orbit)
-   * @default false
-   */
   showSwarmBounds?: boolean;
-
-  /**
-   * Show centroid markers for individual shards
-   * @default false
-   */
   showShardCentroids?: boolean;
-
-  /**
-   * Show wireframe icosahedrons at shard positions
-   * @default false
-   */
   showShardWireframes?: boolean;
-
-  /**
-   * Show lines connecting adjacent shard centroids
-   * @default false
-   */
   showShardConnections?: boolean;
-
-  /**
-   * Maximum number of shard gizmos to render (for performance)
-   * @default 50
-   */
   maxShardGizmos?: number;
-
-  /**
-   * Show XYZ axes on centroids
-   * @default true
-   */
   showAxes?: boolean;
-
-  /**
-   * Show coordinate labels on gizmos
-   * @default false
-   */
   showLabels?: boolean;
-
-  /**
-   * Globe radius for bounds visualization
-   * @default 1.5
-   */
   globeRadius?: number;
-
-  /**
-   * Axis length for gizmo arrows
-   * @default 1.0
-   */
   axisLength?: number;
 }
 
-/**
- * XYZ Axes Gizmo - renders colored axis lines
- */
+// ============================================================
+// HELPER COMPONENTS
+// ============================================================
+
 function AxesGizmo({
   position,
   length = 1.0,
@@ -123,7 +68,6 @@ function AxesGizmo({
 }) {
   return (
     <group position={position}>
-      {/* X axis - Red */}
       <Line
         points={[
           [0, 0, 0],
@@ -134,7 +78,6 @@ function AxesGizmo({
         transparent
         opacity={opacity}
       />
-      {/* Y axis - Green */}
       <Line
         points={[
           [0, 0, 0],
@@ -145,7 +88,6 @@ function AxesGizmo({
         transparent
         opacity={opacity}
       />
-      {/* Z axis - Blue */}
       <Line
         points={[
           [0, 0, 0],
@@ -156,7 +98,6 @@ function AxesGizmo({
         transparent
         opacity={opacity}
       />
-      {/* Axis labels */}
       <Html position={[length + 0.15, 0, 0]} center>
         <span style={{ color: '#ff4444', fontSize: '10px', fontWeight: 'bold' }}>X</span>
       </Html>
@@ -170,9 +111,6 @@ function AxesGizmo({
   );
 }
 
-/**
- * Centroid Marker - small sphere at the centroid position
- */
 function CentroidMarker({
   position,
   color = '#ffffff',
@@ -186,17 +124,14 @@ function CentroidMarker({
 }) {
   return (
     <group position={position}>
-      {/* Centroid sphere */}
       <mesh>
         <sphereGeometry args={[size, 16, 16]} />
         <meshBasicMaterial color={color} />
       </mesh>
-      {/* Outer ring for visibility */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[size * 1.5, size * 2, 32]} />
         <meshBasicMaterial color={color} transparent opacity={0.5} side={THREE.DoubleSide} />
       </mesh>
-      {/* Label */}
       {label && (
         <Html position={[0, size * 4, 0]} center>
           <div
@@ -219,9 +154,6 @@ function CentroidMarker({
   );
 }
 
-/**
- * Bounding Sphere Wireframe
- */
 function BoundingSphere({
   radius,
   color = '#ffffff',
@@ -260,67 +192,159 @@ function BoundingSphere({
   );
 }
 
-/**
- * Shard position data extracted from InstancedMesh
- */
-interface ShardPosition {
-  position: THREE.Vector3;
+// ============================================================
+// DATA TYPES
+// ============================================================
+
+interface ShardData {
+  index: number;
+  position: [number, number, number];
   quaternion: THREE.Quaternion;
   scale: number;
-  index: number;
+  neighbors: number[];
 }
 
-/**
- * Pre-allocated objects for matrix decomposition
- */
-const _tempMatrix = new THREE.Matrix4();
-const _tempPosition = new THREE.Vector3();
-const _tempQuaternion = new THREE.Quaternion();
-const _tempScale = new THREE.Vector3();
+interface CountryGizmoData {
+  code: string;
+  position: [number, number, number];
+}
 
-/**
- * Country Gizmos - renders centroid markers for countries on the globe
- */
-function CountryGizmos({
-  globeRadius,
+// ============================================================
+// SHARD GIZMOS (constellation connections)
+// ============================================================
+
+function ShardGizmos({
+  shards,
+  showCentroids,
+  showWireframes,
+  showConnections,
+  showLabels,
+  shardSize,
+}: {
+  shards: ShardData[];
+  showCentroids: boolean;
+  showWireframes: boolean;
+  showConnections: boolean;
+  showLabels: boolean;
+  shardSize: number;
+}) {
+  const wireframeGeometry = useMemo(() => new THREE.IcosahedronGeometry(shardSize, 0), [shardSize]);
+  const wireframeMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: '#00ffff',
+        wireframe: true,
+        transparent: true,
+        opacity: 0.6,
+      }),
+    [],
+  );
+
+  // Build connection lines (each shard to its neighbors)
+  const connectionLines = useMemo(() => {
+    if (!showConnections) return [];
+
+    const lines: Array<{
+      key: string;
+      from: [number, number, number];
+      to: [number, number, number];
+    }> = [];
+    const shardMap = new Map(shards.map((s) => [s.index, s]));
+    const drawnConnections = new Set<string>();
+
+    for (const shard of shards) {
+      for (const neighborIndex of shard.neighbors) {
+        // Create a unique key for this connection (order-independent)
+        const connectionKey =
+          shard.index < neighborIndex
+            ? `${shard.index}-${neighborIndex}`
+            : `${neighborIndex}-${shard.index}`;
+
+        // Skip if we already drew this connection
+        if (drawnConnections.has(connectionKey)) continue;
+        drawnConnections.add(connectionKey);
+
+        const neighbor = shardMap.get(neighborIndex);
+        if (neighbor) {
+          lines.push({
+            key: connectionKey,
+            from: shard.position,
+            to: neighbor.position,
+          });
+        }
+      }
+    }
+
+    return lines;
+  }, [shards, showConnections]);
+
+  if (shards.length === 0) return null;
+
+  return (
+    <group name="Shard Gizmos">
+      {showCentroids &&
+        shards.map((shard) => (
+          <CentroidMarker
+            key={`centroid-${shard.index}`}
+            position={shard.position}
+            color="#ff66ff"
+            size={0.04}
+            label={showLabels ? `#${shard.index}` : undefined}
+          />
+        ))}
+
+      {showWireframes &&
+        shards.map((shard) => (
+          <mesh
+            key={`wireframe-${shard.index}`}
+            position={shard.position}
+            quaternion={shard.quaternion}
+            scale={shard.scale}
+            geometry={wireframeGeometry}
+            material={wireframeMaterial}
+          />
+        ))}
+
+      {showConnections &&
+        connectionLines.map((line) => (
+          <Line
+            key={`connection-${line.key}`}
+            points={[line.from, line.to]}
+            color="#ff66ff"
+            lineWidth={1}
+            transparent
+            opacity={0.5}
+          />
+        ))}
+    </group>
+  );
+}
+
+// ============================================================
+// COUNTRY GIZMOS
+// ============================================================
+
+function CountryGizmosRenderer({
+  countries,
   showLabels,
   globeRotationY,
 }: {
-  globeRadius: number;
+  countries: CountryGizmoData[];
   showLabels: boolean;
   globeRotationY: number;
 }) {
-  // Calculate country positions
-  const countryPositions = useMemo(() => {
-    const positions: Array<{
-      code: string;
-      name: string;
-      position: [number, number, number];
-    }> = [];
-
-    for (const [code, centroid] of Object.entries(COUNTRY_CENTROIDS)) {
-      const position = latLngToPosition(centroid.lat, centroid.lng, globeRadius);
-      positions.push({ code, name: centroid.name, position });
-    }
-
-    return positions;
-  }, [globeRadius]);
-
   return (
     <group rotation={[0, globeRotationY, 0]} name="Country Gizmos">
-      {countryPositions.map((country) => (
+      {countries.map((country) => (
         <group key={country.code} position={country.position}>
-          {/* Country centroid marker */}
           <mesh>
             <sphereGeometry args={[0.03, 12, 12]} />
             <meshBasicMaterial color="#ffaa00" />
           </mesh>
-          {/* Small ring around centroid */}
           <mesh rotation={[Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.04, 0.06, 16]} />
             <meshBasicMaterial color="#ffaa00" transparent opacity={0.6} side={THREE.DoubleSide} />
           </mesh>
-          {/* Country code label */}
           {showLabels && (
             <Html position={[0, 0.12, 0]} center>
               <div
@@ -344,94 +368,10 @@ function CountryGizmos({
   );
 }
 
-/**
- * Shard Gizmos - renders centroids, wireframes, and connections for particle shards
- */
-function ShardGizmos({
-  positions,
-  showCentroids,
-  showWireframes,
-  showConnections,
-  showLabels,
-  shardSize,
-}: {
-  positions: ShardPosition[];
-  showCentroids: boolean;
-  showWireframes: boolean;
-  showConnections: boolean;
-  showLabels: boolean;
-  shardSize: number;
-}) {
-  // Memoize wireframe geometry - matches ParticleSwarm's IcosahedronGeometry(shardSize, 0)
-  const wireframeGeometry = useMemo(() => new THREE.IcosahedronGeometry(shardSize, 0), [shardSize]);
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 
-  // Memoize wireframe material
-  const wireframeMaterial = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: '#00ffff',
-        wireframe: true,
-        transparent: true,
-        opacity: 0.6,
-      }),
-    [],
-  );
-
-  // Generate connection line points (connect each shard to its neighbors in Fibonacci order)
-  const connectionPoints = useMemo(() => {
-    if (!showConnections || positions.length < 2) return [];
-
-    const points: [number, number, number][] = [];
-    for (const shard of positions) {
-      const p = shard.position;
-      points.push([p.x, p.y, p.z]);
-    }
-    return points;
-  }, [positions, showConnections]);
-
-  if (positions.length === 0) return null;
-
-  return (
-    <group name="Shard Gizmos">
-      {/* Shard centroids */}
-      {showCentroids &&
-        positions.map((shard) => (
-          <CentroidMarker
-            key={`centroid-${shard.index}`}
-            position={[shard.position.x, shard.position.y, shard.position.z]}
-            color="#ff66ff"
-            size={0.04}
-            label={showLabels ? `#${shard.index}` : undefined}
-          />
-        ))}
-
-      {/* Shard wireframes - with proper rotation from the instance matrix */}
-      {showWireframes &&
-        positions.map((shard) => (
-          <mesh
-            key={`wireframe-${shard.index}`}
-            position={[shard.position.x, shard.position.y, shard.position.z]}
-            quaternion={shard.quaternion}
-            scale={shard.scale}
-            geometry={wireframeGeometry}
-            material={wireframeMaterial}
-          />
-        ))}
-
-      {/* Connection lines between adjacent shards (Fibonacci order) */}
-      {showConnections && connectionPoints.length >= 2 && (
-        <Line points={connectionPoints} color="#ff66ff" lineWidth={1} transparent opacity={0.4} />
-      )}
-    </group>
-  );
-}
-
-/**
- * ShapeGizmos Component
- *
- * Renders debug visualization for shape centroids and bounds.
- * Integrates with Koota ECS for real-time breath phase data.
- */
 export function ShapeGizmos({
   showGlobeCentroid = false,
   showGlobeBounds = false,
@@ -448,76 +388,115 @@ export function ShapeGizmos({
   axisLength = 1.0,
 }: ShapeGizmosProps) {
   const world = useWorld();
-  const { scene } = useThree();
 
-  // Track current orbit radius for swarm bounds
-  const currentOrbitRef = useRef<number>(VISUALS.PARTICLE_ORBIT_MAX);
-  const [shardPositions, setShardPositions] = useState<ShardPosition[]>([]);
-  const [shardSize, setShardSize] = useState(0.5);
+  // State for rendering
+  const [shards, setShards] = useState<ShardData[]>([]);
+  const [countries, setCountries] = useState<CountryGizmoData[]>([]);
+  const [currentOrbit, setCurrentOrbit] = useState<number>(VISUALS.PARTICLE_ORBIT_MAX);
   const [globeRotationY, setGlobeRotationY] = useState(0);
+  const [shardSize, setShardSize] = useState(0.5);
   const frameCountRef = useRef(0);
 
-  // Find the particle swarm InstancedMesh
-  const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
-
-  // Check if shard gizmos are enabled
   const showShardGizmos = showShardCentroids || showShardWireframes || showShardConnections;
 
-  // Update orbit radius and shard positions from scene
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: useFrame needs to handle ECS queries, scene traversal, and matrix decomposition in one loop for performance
+  // Read data from Koota ECS
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ECS data synchronization requires querying multiple entity types and extracting different trait combinations
   useFrame(() => {
     try {
-      // Update orbit radius from ECS
-      const breath = world.queryFirst(breathPhase, orbitRadius);
-      if (breath) {
-        currentOrbitRef.current = breath.get(orbitRadius)?.value ?? VISUALS.PARTICLE_ORBIT_MAX;
-      }
-
-      // Sync with globe rotation (matches EarthGlobe's 0.0008 rad/frame)
-      if (showCountryCentroids) {
-        setGlobeRotationY((prev) => prev - 0.0008);
-      }
-
-      // Throttle other updates to every 4 frames
+      // Throttle updates to every 4 frames
       frameCountRef.current += 1;
       if (frameCountRef.current % 4 !== 0) return;
 
-      // Find the InstancedMesh if not cached
-      if (!instancedMeshRef.current && showShardGizmos) {
-        scene.traverse((obj) => {
-          if (obj.name === 'Particle Swarm' && obj instanceof THREE.InstancedMesh) {
-            instancedMeshRef.current = obj;
+      // Read globe rotation
+      if (showCountryCentroids) {
+        const globeEntities = world.query(isGlobe, globeRotation);
+        for (const globe of globeEntities) {
+          const rotation = globe.get(globeRotation);
+          if (rotation) {
+            setGlobeRotationY(rotation.rotationY);
           }
-        });
+        }
       }
 
-      // Extract shard positions from InstancedMesh
-      if (instancedMeshRef.current && showShardGizmos) {
-        const mesh = instancedMeshRef.current;
-        const positions: ShardPosition[] = [];
-        const count = Math.min(mesh.count, maxShardGizmos);
-
-        // Get shard size from geometry bounding sphere
-        if (mesh.geometry.boundingSphere) {
-          setShardSize(mesh.geometry.boundingSphere.radius);
+      // Read swarm state
+      if (showSwarmBounds) {
+        const swarmEntities = world.query(isSwarm, swarmState);
+        for (const swarm of swarmEntities) {
+          const state = swarm.get(swarmState);
+          if (state) {
+            setCurrentOrbit(state.currentOrbit);
+          }
         }
+      }
 
-        for (let i = 0; i < count; i++) {
-          mesh.getMatrixAt(i, _tempMatrix);
-          _tempMatrix.decompose(_tempPosition, _tempQuaternion, _tempScale);
-
-          // Only include visible shards (scale > 0)
-          if (_tempScale.x > 0.01) {
-            positions.push({
-              position: _tempPosition.clone(),
-              quaternion: _tempQuaternion.clone(),
-              scale: _tempScale.x,
-              index: i,
+      // Read country positions (only if visible)
+      if (showCountryCentroids && countries.length === 0) {
+        const countryEntities = world.query(isCountry, shapeCentroid, countryData);
+        const countryList: CountryGizmoData[] = [];
+        for (const country of countryEntities) {
+          const centroid = country.get(shapeCentroid);
+          const data = country.get(countryData);
+          if (centroid && data) {
+            countryList.push({
+              code: data.code,
+              position: [centroid.x, centroid.y, centroid.z],
             });
           }
         }
+        if (countryList.length > 0) {
+          setCountries(countryList);
+        }
+      }
 
-        setShardPositions(positions);
+      // Read shard data
+      if (showShardGizmos) {
+        const shardEntities = world.query(
+          isShard,
+          shardIndex,
+          shapeCentroid,
+          shapeOrientation,
+          shapeScale,
+          shardNeighbors,
+        );
+
+        const shardList: ShardData[] = [];
+        let maxScale = 0;
+
+        for (const shard of shardEntities) {
+          if (shardList.length >= maxShardGizmos) break;
+
+          const idx = shard.get(shardIndex);
+          const centroid = shard.get(shapeCentroid);
+          const orientation = shard.get(shapeOrientation);
+          const scale = shard.get(shapeScale);
+          const neighbors = shard.get(shardNeighbors);
+
+          if (idx && centroid && orientation && scale && neighbors) {
+            const quat = new THREE.Quaternion(
+              orientation.qx,
+              orientation.qy,
+              orientation.qz,
+              orientation.qw,
+            );
+
+            shardList.push({
+              index: idx.index,
+              position: [centroid.x, centroid.y, centroid.z],
+              quaternion: quat,
+              scale: scale.scale,
+              neighbors: neighbors.neighborIndices,
+            });
+
+            if (scale.scale > maxScale) {
+              maxScale = scale.scale;
+            }
+          }
+        }
+
+        setShards(shardList);
+        if (maxScale > 0) {
+          setShardSize(maxScale * 0.5); // Estimate geometry radius from scale
+        }
       }
     } catch (_e) {
       // Ignore ECS errors during hot-reload
@@ -538,11 +517,7 @@ export function ShapeGizmos({
 
   return (
     <group name="Shape Gizmos">
-      {/* ============================================================
-        GLOBE GIZMOS
-        ============================================================ */}
-
-      {/* Globe centroid marker */}
+      {/* Globe Gizmos */}
       {showGlobeCentroid && (
         <>
           <CentroidMarker
@@ -555,17 +530,14 @@ export function ShapeGizmos({
         </>
       )}
 
-      {/* Globe bounding sphere */}
       {showGlobeBounds && (
         <>
-          {/* Core radius */}
           <BoundingSphere
             radius={globeRadius}
             color="#f8d0a8"
             opacity={0.4}
             label={showLabels ? `Core r=${globeRadius}` : undefined}
           />
-          {/* Outer atmosphere (approx) */}
           <BoundingSphere
             radius={globeRadius * 1.22}
             color="#c4b8e8"
@@ -575,20 +547,15 @@ export function ShapeGizmos({
         </>
       )}
 
-      {/* Country centroids on globe */}
-      {showCountryCentroids && (
-        <CountryGizmos
-          globeRadius={globeRadius}
+      {showCountryCentroids && countries.length > 0 && (
+        <CountryGizmosRenderer
+          countries={countries}
           showLabels={showLabels}
           globeRotationY={globeRotationY}
         />
       )}
 
-      {/* ============================================================
-        PARTICLE SWARM GIZMOS
-        ============================================================ */}
-
-      {/* Swarm centroid (same as globe - they share the same center) */}
+      {/* Swarm Gizmos */}
       {showSwarmCentroid && (
         <>
           <CentroidMarker
@@ -603,42 +570,33 @@ export function ShapeGizmos({
         </>
       )}
 
-      {/* Swarm bounding spheres (min/max orbit) */}
       {showSwarmBounds && (
         <>
-          {/* Minimum orbit (inhale - particles closest) */}
           <BoundingSphere
             radius={VISUALS.PARTICLE_ORBIT_MIN}
             color="#00ff88"
             opacity={0.25}
             label={showLabels ? `Min Orbit r=${VISUALS.PARTICLE_ORBIT_MIN}` : undefined}
           />
-
-          {/* Maximum orbit (exhale - particles farthest) */}
           <BoundingSphere
             radius={VISUALS.PARTICLE_ORBIT_MAX}
             color="#ff8800"
             opacity={0.25}
             label={showLabels ? `Max Orbit r=${VISUALS.PARTICLE_ORBIT_MAX}` : undefined}
           />
-
-          {/* Current orbit (animated) */}
           <BoundingSphere
-            radius={currentOrbitRef.current}
+            radius={currentOrbit}
             color="#ffff00"
             opacity={0.5}
-            label={showLabels ? `Current r=${currentOrbitRef.current.toFixed(2)}` : undefined}
+            label={showLabels ? `Current r=${currentOrbit.toFixed(2)}` : undefined}
           />
         </>
       )}
 
-      {/* ============================================================
-        INDIVIDUAL SHARD GIZMOS
-        ============================================================ */}
-
+      {/* Shard Gizmos */}
       {showShardGizmos && (
         <ShardGizmos
-          positions={shardPositions}
+          shards={shards}
           showCentroids={showShardCentroids}
           showWireframes={showShardWireframes}
           showConnections={showShardConnections}

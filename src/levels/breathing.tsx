@@ -3,6 +3,7 @@ import { Perf } from 'r3f-perf';
 import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { GizmoEntities } from '../components/GizmoEntities';
 import { MomentumControls } from '../components/MomentumControls';
 import { ShapeGizmos } from '../components/ShapeGizmos';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
@@ -132,6 +133,23 @@ export function BreathingLevel({
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
           </RefractionPipeline>
+
+          {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
+          {DEV_MODE_ENABLED && (
+            <GizmoEntities
+              enabled={
+                devControls.showGlobeCentroid ||
+                devControls.showGlobeBounds ||
+                devControls.showCountryCentroids ||
+                devControls.showSwarmCentroid ||
+                devControls.showSwarmBounds ||
+                devControls.showShardCentroids ||
+                devControls.showShardWireframes ||
+                devControls.showShardConnections
+              }
+              maxShards={devControls.maxShardGizmos}
+            />
+          )}
 
           {/* Shape Gizmos - debug visualization for centroids and bounds */}
           {/* Rendered outside RefractionPipeline to avoid distortion effects */}
