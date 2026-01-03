@@ -3,8 +3,12 @@ import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
+import { AuroraEffect } from './AuroraEffect';
 import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
+import { EtherealWisps } from './EtherealWisps';
+import { FloatingPetals } from './FloatingPetals';
+import { GlowingOrbs } from './GlowingOrbs';
 import { SubtleLightRays } from './SubtleLightRays';
 
 interface EnvironmentProps {
@@ -13,10 +17,26 @@ interface EnvironmentProps {
   showClouds?: boolean;
   /** Show distant stars @default true */
   showStars?: boolean;
+  /** Show ethereal wisps @default true */
+  showWisps?: boolean;
+  /** Show glowing orbs @default true */
+  showOrbs?: boolean;
+  /** Show aurora effect @default true */
+  showAurora?: boolean;
+  /** Show floating petals @default true */
+  showPetals?: boolean;
   /** Cloud opacity @default 0.4 */
   cloudOpacity?: number;
   /** Cloud speed multiplier @default 0.3 */
   cloudSpeed?: number;
+  /** Wisps opacity @default 0.12 */
+  wispsOpacity?: number;
+  /** Orbs opacity @default 0.3 */
+  orbsOpacity?: number;
+  /** Aurora opacity @default 0.06 */
+  auroraOpacity?: number;
+  /** Petals opacity @default 0.2 */
+  petalsOpacity?: number;
   /** Ambient light color @default '#fff5eb' */
   ambientLightColor?: string;
   /** Ambient light intensity @default 0.5 */
@@ -41,8 +61,16 @@ export function Environment({
   enabled = true,
   showClouds = true,
   showStars = true,
+  showWisps = true,
+  showOrbs = true,
+  showAurora = true,
+  showPetals = true,
   cloudOpacity = 0.4,
   cloudSpeed = 0.8,
+  wispsOpacity = 0.12,
+  orbsOpacity = 0.3,
+  auroraOpacity = 0.06,
+  petalsOpacity = 0.2,
   ambientLightColor = '#fff5eb',
   ambientLightIntensity = 0.5,
   keyLightColor = '#ffe4c4',
@@ -82,6 +110,22 @@ export function Environment({
 
       {/* Subtle diagonal light rays from upper right */}
       <SubtleLightRays opacity={0.03} enabled={!isMobile} />
+
+      {/* Ethereal wisps - flowing ribbon-like energy trails */}
+      {showWisps && !isMobile && <EtherealWisps count={5} opacity={wispsOpacity} enabled={true} />}
+
+      {/* Glowing orbs - floating firefly-like particles */}
+      {showOrbs && <GlowingOrbs count={isMobile ? 12 : 25} opacity={orbsOpacity} enabled={true} />}
+
+      {/* Aurora effect - subtle northern lights in the background */}
+      {showAurora && !isMobile && (
+        <AuroraEffect opacity={auroraOpacity} speed={0.3} enabled={true} />
+      )}
+
+      {/* Floating petals - gentle drifting petal shapes */}
+      {showPetals && !isMobile && (
+        <FloatingPetals count={isTablet ? 8 : 15} opacity={petalsOpacity} enabled={true} />
+      )}
 
       {/* Subtle distant stars - very faint for dreamy atmosphere */}
       {/* Count is responsive: 150 (mobile) / 300 (tablet) / 500 (desktop) */}
