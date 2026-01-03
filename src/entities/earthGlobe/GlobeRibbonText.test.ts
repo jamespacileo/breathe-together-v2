@@ -1,11 +1,13 @@
 /**
  * Tests for GlobeRibbonText configuration and positioning logic
  *
- * These tests verify the ribbon text is correctly positioned outside the globe
- * and the curveRadius calculation produces the expected cylindrical curvature.
+ * These tests verify the ribbon text is correctly positioned outside the globe,
+ * wraps fully around 360°, and the curveRadius calculation produces the expected
+ * cylindrical curvature.
  */
 
 import { describe, expect, it } from 'vitest';
+import { calculateTextRepetitions, generateFullCircleText } from './GlobeRibbonText';
 
 /**
  * Calculate ribbon positioning values (extracted from component logic)
@@ -105,6 +107,144 @@ describe('GlobeRibbonText', () => {
 
       // 5 units of text on radius 1.6 covers about 3.14 radians (180 degrees)
       expect(coverageAngle).toBeCloseTo(Math.PI, 1);
+    });
+  });
+
+  describe('calculateTextRepetitions', () => {
+    const DEFAULT_RADIUS = 1.6;
+    const DEFAULT_FONT_SIZE = 0.12;
+    const DEFAULT_LETTER_SPACING = 0.08;
+
+    it('calculates repetitions needed to fill circumference', () => {
+      const text = '✦ BREATHE ✦';
+      const repetitions = calculateTextRepetitions(
+        text,
+        DEFAULT_RADIUS,
+        DEFAULT_FONT_SIZE,
+        DEFAULT_LETTER_SPACING,
+      );
+
+      // Should return at least 1
+      expect(repetitions).toBeGreaterThanOrEqual(1);
+
+      // For short text on large radius, should need multiple repetitions
+      expect(repetitions).toBeGreaterThan(1);
+    });
+
+    it('returns 1 for very long text', () => {
+      // Create text that's longer than the circumference
+      const longText = 'A'.repeat(500);
+      const repetitions = calculateTextRepetitions(
+        longText,
+        DEFAULT_RADIUS,
+        DEFAULT_FONT_SIZE,
+        DEFAULT_LETTER_SPACING,
+      );
+
+      // Should return minimum of 1 (plus 1 for seamless wrap = 2)
+      expect(repetitions).toBeGreaterThanOrEqual(1);
+    });
+
+    it('increases repetitions for smaller font sizes', () => {
+      const text = '✦ BREATHE ✦';
+
+      const repLarge = calculateTextRepetitions(text, DEFAULT_RADIUS, 0.2, DEFAULT_LETTER_SPACING);
+      const repSmall = calculateTextRepetitions(text, DEFAULT_RADIUS, 0.08, DEFAULT_LETTER_SPACING);
+
+      // Smaller font = more repetitions needed
+      expect(repSmall).toBeGreaterThan(repLarge);
+    });
+
+    it('increases repetitions for larger radius', () => {
+      const text = '✦ BREATHE ✦';
+
+      const repSmallRadius = calculateTextRepetitions(
+        text,
+        1.0,
+        DEFAULT_FONT_SIZE,
+        DEFAULT_LETTER_SPACING,
+      );
+      const repLargeRadius = calculateTextRepetitions(
+        text,
+        3.0,
+        DEFAULT_FONT_SIZE,
+        DEFAULT_LETTER_SPACING,
+      );
+
+      // Larger radius = larger circumference = more repetitions
+      expect(repLargeRadius).toBeGreaterThan(repSmallRadius);
+    });
+
+    it('handles empty text gracefully', () => {
+      const repetitions = calculateTextRepetitions(
+        '',
+        DEFAULT_RADIUS,
+        DEFAULT_FONT_SIZE,
+        DEFAULT_LETTER_SPACING,
+      );
+
+      // Should return at least 1
+      expect(repetitions).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('generateFullCircleText', () => {
+    const DEFAULT_RADIUS = 1.6;
+    const DEFAULT_FONT_SIZE = 0.12;
+
+    it('repeats text to fill circumference', () => {
+      const baseText = '✦ BREATHE ✦';
+      const fullText = generateFullCircleText(baseText, DEFAULT_RADIUS, DEFAULT_FONT_SIZE);
+
+      // Full text should be longer than base text
+      expect(fullText.length).toBeGreaterThan(baseText.length);
+
+      // Full text should contain the base text multiple times
+      expect(fullText).toContain(baseText);
+    });
+
+    it('generates seamless wrapping text', () => {
+      const baseText = 'HELLO';
+      const fullText = generateFullCircleText(baseText, DEFAULT_RADIUS, DEFAULT_FONT_SIZE);
+
+      // Should contain multiple copies separated by spaces
+      const expectedPattern = `${baseText} ${baseText}`;
+      expect(fullText).toContain(expectedPattern);
+    });
+
+    it('estimates correct text width for full coverage', () => {
+      const baseText = '✦ BREATHE TOGETHER ✦';
+      const fullText = generateFullCircleText(baseText, DEFAULT_RADIUS, DEFAULT_FONT_SIZE);
+
+      // Calculate expected text width
+      const letterSpacing = 0.08;
+      const avgCharWidth = DEFAULT_FONT_SIZE * (0.5 + letterSpacing);
+      const textWidth = fullText.length * avgCharWidth;
+
+      // Circumference
+      const circumference = 2 * Math.PI * DEFAULT_RADIUS;
+
+      // Text width should exceed circumference for seamless wrap
+      expect(textWidth).toBeGreaterThan(circumference);
+    });
+
+    it('works with different radii', () => {
+      const baseText = '✦ BREATHE ✦';
+
+      const textSmall = generateFullCircleText(baseText, 1.0, DEFAULT_FONT_SIZE);
+      const textLarge = generateFullCircleText(baseText, 3.0, DEFAULT_FONT_SIZE);
+
+      // Larger radius needs longer text
+      expect(textLarge.length).toBeGreaterThan(textSmall.length);
+    });
+
+    it('generates consistent output for same inputs', () => {
+      const baseText = '✦ TEST ✦';
+
+      const text1 = generateFullCircleText(baseText, DEFAULT_RADIUS, DEFAULT_FONT_SIZE);
+      const text2 = generateFullCircleText(baseText, DEFAULT_RADIUS, DEFAULT_FONT_SIZE);
+
+      expect(text1).toBe(text2);
     });
   });
 

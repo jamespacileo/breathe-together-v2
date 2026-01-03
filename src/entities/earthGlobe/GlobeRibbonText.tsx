@@ -6,6 +6,7 @@
  *
  * KEY FEATURES:
  * - Cylindrical curved text using curveRadius prop
+ * - Auto-repeating text to fill full 360° circumference
  * - Auto-rotation synced with EarthGlobe (0.0008 rad/frame)
  * - Breathing-synchronized opacity animation
  * - Multiple ribbon positions (equator, tilted bands)
@@ -15,7 +16,7 @@ import { Text, type TextProps } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import type React from 'react';
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import type { Group } from 'three';
 
 import { breathPhase } from '../breath/traits';
@@ -29,6 +30,48 @@ import { breathPhase } from '../breath/traits';
  */
 interface CurvedTextProps extends TextProps {
   curveRadius?: number;
+}
+
+/**
+ * Calculate how many times to repeat text to fill circumference
+ * @param text - The base text to repeat
+ * @param radius - Cylinder radius
+ * @param fontSize - Font size in 3D units
+ * @param letterSpacing - Letter spacing multiplier
+ * @returns Number of repetitions needed to fill 360°
+ */
+export function calculateTextRepetitions(
+  text: string,
+  radius: number,
+  fontSize: number,
+  letterSpacing: number = 0.08,
+): number {
+  // Circumference of the cylinder
+  const circumference = 2 * Math.PI * radius;
+
+  // Approximate character width (fontSize * ~0.5 for average char width + letterSpacing)
+  const avgCharWidth = fontSize * (0.5 + letterSpacing);
+
+  // Total width of text
+  const textWidth = text.length * avgCharWidth;
+
+  // How many repetitions needed to fill circumference (add 1 for seamless wrap)
+  const repetitions = Math.ceil(circumference / textWidth) + 1;
+
+  return Math.max(1, repetitions);
+}
+
+/**
+ * Generate repeated text to fill full circumference
+ */
+export function generateFullCircleText(
+  baseText: string,
+  radius: number,
+  fontSize: number,
+  letterSpacing: number = 0.08,
+): string {
+  const repetitions = calculateTextRepetitions(baseText, radius, fontSize, letterSpacing);
+  return Array(repetitions).fill(baseText).join(' ');
 }
 
 /**
@@ -68,6 +111,8 @@ interface GlobeRibbonTextProps {
  */
 const CurvedText = Text as React.FC<CurvedTextProps>;
 
+const LETTER_SPACING = 0.08;
+
 function RibbonBand({
   text,
   radius,
@@ -92,6 +137,12 @@ function RibbonBand({
   // This makes text wrap around the outside of the sphere
   const curveRadius = -radius;
 
+  // Generate text that fills the full circumference
+  const fullText = useMemo(
+    () => generateFullCircleText(text, radius, fontSize, LETTER_SPACING),
+    [text, radius, fontSize],
+  );
+
   return (
     <group position={[0, heightOffset, 0]} rotation={[tiltAngle, 0, 0]}>
       <CurvedText
@@ -106,10 +157,10 @@ function RibbonBand({
         // The curveRadius then bends it around the cylinder centered at origin
         position={[0, 0, radius]}
         // Slight letter spacing for readability on curve
-        letterSpacing={0.08}
+        letterSpacing={LETTER_SPACING}
         fontWeight={600}
       >
-        {text}
+        {fullText}
       </CurvedText>
     </group>
   );
