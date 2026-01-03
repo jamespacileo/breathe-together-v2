@@ -8,6 +8,7 @@ import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
+import { BreathTimerRibbon } from '../entities/earthGlobe/BreathTimerRibbon';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { GlobeRibbonText } from '../entities/earthGlobe/GlobeRibbonText';
 import { Environment } from '../entities/environment';
@@ -110,6 +111,9 @@ export function BreathingLevel({
 
             {/* Globe Ribbon Text - curved text wrapping around globe */}
             {showGlobe && <GlobeRibbonText />}
+
+            {/* Breath Timer Ribbon - progress indicator for current breathing phase */}
+            {showGlobe && <BreathTimerRibbon />}
 
             {showParticles && (
               <ParticleSwarm
