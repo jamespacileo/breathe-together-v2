@@ -9,6 +9,14 @@
  * - Diff-based reconciliation for minimal disruption
  * - Updates only during hold phase, once per breathing cycle
  *
+ * Keplerian Physics (January 2026):
+ * Implements simplified Kepler's Laws for natural, ethereal shard motion:
+ * - Orbital velocity v = √(GM/r) - closer to globe = faster orbit
+ * - "Apparent mass" modulates with breath phase for dynamic pull effect
+ * - During inhale: particles contract AND accelerate (tightening)
+ * - During exhale: particles expand AND decelerate (releasing)
+ * This creates organic variations preventing the "robotic" feel of constant-speed loops.
+ *
  * Performance: Uses InstancedMesh for single draw call (1 draw call for all particles)
  * Previously used separate Mesh objects (300 draw calls for 300 particles)
  */
@@ -17,7 +25,7 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
+import { BREATH_TOTAL_CYCLE, KEPLERIAN_PHYSICS, type MoodId, RENDER_LAYERS } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -165,9 +173,64 @@ const AMBIENT_Y_SCALE = 0.04;
 
 /**
  * Orbital drift constants
+ *
+ * Base speed is now modulated by Keplerian physics:
+ * v = √(GM/r) where GM is breath-modulated
+ *
+ * ORBIT_BASE_SPEED serves as the reference velocity at REFERENCE_RADIUS.
+ * Actual speed varies based on current radius and breath phase.
  */
 const ORBIT_BASE_SPEED = 0.015;
 const ORBIT_SPEED_VARIATION = 0.01;
+
+/**
+ * Calculate Keplerian orbital velocity based on current radius and breath phase.
+ *
+ * Implements simplified Kepler's Laws: v = √(GM/r)
+ * - Closer to globe (smaller r) = faster orbital velocity
+ * - Further from globe (larger r) = slower orbital velocity
+ *
+ * The "apparent mass" (GM) modulates with breath phase:
+ * - During inhale (breathPhase approaching 1): mass increases, stronger pull
+ * - During exhale (breathPhase approaching 0): mass decreases, weaker pull
+ *
+ * @param currentRadius - Current orbital radius of the particle
+ * @param breathPhaseValue - Current breath phase (0-1, 0=exhaled, 1=inhaled)
+ * @param baseSpeed - Base orbital speed for this particle (includes variation)
+ * @returns Keplerian-adjusted orbital speed (radians/second)
+ */
+function calculateKeplerianSpeed(
+  currentRadius: number,
+  breathPhaseValue: number,
+  baseSpeed: number,
+): number {
+  const {
+    BASE_GM,
+    REFERENCE_RADIUS,
+    BREATH_MASS_MODULATION,
+    MIN_VELOCITY_FACTOR,
+    MAX_VELOCITY_FACTOR,
+  } = KEPLERIAN_PHYSICS;
+
+  // Modulate apparent mass with breath phase
+  // During inhale (high breathPhase): mass increases → stronger gravitational pull
+  // During exhale (low breathPhase): mass decreases → weaker pull
+  const massModulation = 1 + BREATH_MASS_MODULATION * (breathPhaseValue * 2 - 1);
+  const effectiveGM = BASE_GM * massModulation;
+
+  // Keplerian velocity: v = √(GM/r)
+  // Normalized so that at REFERENCE_RADIUS, velocity = baseSpeed
+  const keplerianFactor = Math.sqrt(effectiveGM / currentRadius);
+  const referenceFactor = Math.sqrt(BASE_GM / REFERENCE_RADIUS);
+
+  // Velocity ratio relative to reference
+  const velocityRatio = keplerianFactor / referenceFactor;
+
+  // Clamp to prevent extreme velocities
+  const clampedRatio = Math.max(MIN_VELOCITY_FACTOR, Math.min(MAX_VELOCITY_FACTOR, velocityRatio));
+
+  return baseSpeed * clampedRatio;
+}
 
 /**
  * Perpendicular wobble constants
@@ -529,7 +592,15 @@ export function ParticleSwarm({
       const lerpFactor = 1 - Math.exp(-BREATH_LERP_SPEED * clampedDelta);
       instanceState.currentRadius += (clampedTarget - instanceState.currentRadius) * lerpFactor;
 
-      instanceState.orbitAngle += instanceState.orbitSpeed * clampedDelta;
+      // Calculate Keplerian orbital velocity based on current radius and breath phase
+      // Particles speed up when closer to the globe, slow down when further away
+      const keplerianSpeed = calculateKeplerianSpeed(
+        instanceState.currentRadius,
+        currentBreathPhase,
+        instanceState.orbitSpeed,
+      );
+      instanceState.orbitAngle += keplerianSpeed * clampedDelta;
+
       _tempOrbitedDir
         .copy(instanceState.direction)
         .applyAxisAngle(_yAxis, instanceState.orbitAngle);

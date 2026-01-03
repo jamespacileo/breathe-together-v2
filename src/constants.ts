@@ -103,6 +103,55 @@ export const HOLD_OSCILLATION = {
 } as const;
 
 /**
+ * Keplerian Physics Constants
+ *
+ * Implements simplified Kepler's Laws for natural particle motion:
+ * Orbital velocity v = √(GM/r) - velocity inversely proportional to √radius
+ *
+ * During inhale (smaller radius): particles speed up (tightening effect)
+ * During exhale (larger radius): particles slow down (releasing effect)
+ *
+ * The "apparent mass" modulates with breath for dynamic gravitational pull:
+ * - Higher during inhale: globe "pulls" particles inward more strongly
+ * - Lower during exhale: weaker pull allows natural expansion
+ */
+export const KEPLERIAN_PHYSICS = {
+  /**
+   * Base gravitational parameter (GM combined)
+   * Higher = faster base orbital velocity
+   * Tuned for aesthetic orbital drift at reference radius
+   */
+  BASE_GM: 0.3,
+
+  /**
+   * Reference radius for velocity normalization
+   * At this radius, orbital speed matches the original ORBIT_BASE_SPEED
+   * Uses baseRadius (4.5) as the equilibrium point
+   */
+  REFERENCE_RADIUS: 4.5,
+
+  /**
+   * Breath modulation amplitude for apparent mass
+   * 0 = no breath effect on mass, 1 = full modulation
+   * During inhale: mass increases by this factor (stronger pull)
+   * During exhale: mass decreases by this factor (weaker pull)
+   */
+  BREATH_MASS_MODULATION: 0.3,
+
+  /**
+   * Minimum velocity multiplier (prevents near-zero speed at large radii)
+   * Ensures particles always have some orbital motion
+   */
+  MIN_VELOCITY_FACTOR: 0.5,
+
+  /**
+   * Maximum velocity multiplier (caps speed at small radii)
+   * Prevents particles from appearing to "zip" around too fast
+   */
+  MAX_VELOCITY_FACTOR: 2.0,
+} as const;
+
+/**
  * THREE.js Render Layers for Selective Rendering
  *
  * Used by RefractionPipeline to render specific object groups per pass:
