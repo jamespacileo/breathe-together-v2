@@ -78,15 +78,15 @@ function createOrbitMaterial(): THREE.ShaderMaterial {
     uniforms: {
       breathPhase: { value: 0 },
       time: { value: 0 },
-      baseColor: { value: new THREE.Color('#f5ebe0') },
-      opacity: { value: 0.9 },
+      baseColor: { value: new THREE.Color('#d4a574') }, // Warm gold - visible on any background
+      opacity: { value: 1.0 },
     },
     vertexShader: orbitVertexShader,
     fragmentShader: orbitFragmentShader,
     transparent: true,
     side: THREE.DoubleSide,
     depthWrite: false,
-    blending: THREE.AdditiveBlending, // Additive for glowing cloud effect
+    blending: THREE.NormalBlending, // Normal blending for visibility
   });
 }
 
@@ -101,9 +101,9 @@ export interface OrbitingParticlesProps {
 
   /**
    * Particle size (radius of spheres).
-   * @default 0.12
+   * @default 0.18
    * @min 0.05
-   * @max 0.3
+   * @max 0.4
    */
   particleSize?: number;
 
@@ -157,13 +157,13 @@ export interface OrbitingParticlesProps {
 
   /**
    * Particle color (hex string).
-   * @default '#f5ebe0'
+   * @default '#d4a574'
    */
   color?: string;
 
   /**
    * Particle opacity.
-   * @default 0.9
+   * @default 1.0
    * @min 0.5
    * @max 1.0
    */
@@ -202,15 +202,15 @@ const _tempPos = new THREE.Vector3();
  */
 export const OrbitingParticles = memo(function OrbitingParticlesComponent({
   count = 80,
-  particleSize = 0.12,
+  particleSize = 0.18,
   tiltAngle = 20,
   minRadius = 1.8,
   maxRadius = 6.0,
   bandHeight = 0.8,
   baseRotationSpeed = 0.25,
   exhaleSpeedMultiplier = 3.0,
-  color = '#f5ebe0',
-  opacity = 0.9,
+  color = '#d4a574',
+  opacity = 1.0,
 }: OrbitingParticlesProps = {}) {
   const world = useWorld();
   const meshRef = useRef<THREE.InstancedMesh>(null);
