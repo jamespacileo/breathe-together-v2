@@ -15,10 +15,21 @@ import { z } from 'zod';
 export const MoodIdSchema = z.enum(['gratitude', 'presence', 'release', 'connection']);
 export type MoodId = z.infer<typeof MoodIdSchema>;
 
-/** Individual user for slot-based rendering */
+/**
+ * Individual user for slot-based rendering
+ *
+ * IMPORTANT: Users array must be ordered by arrival time (first joined = index 0).
+ * The server MUST maintain this order to ensure consistent particle positions
+ * across all clients. User's index in the array determines their Fibonacci
+ * sphere position.
+ */
 export const UserSchema = z.object({
+  /** Unique, stable identifier for this user (e.g., session UUID) */
   id: z.string(),
+  /** Current mood selection - determines shard color */
   mood: MoodIdSchema,
+  /** Join timestamp (ms since epoch) - optional, used for ordering when available */
+  joinedAt: z.number().optional(),
 });
 export type User = z.infer<typeof UserSchema>;
 
