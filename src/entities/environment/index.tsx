@@ -6,9 +6,13 @@ import { AmbientDust } from './AmbientDust';
 import { AuroraEffect } from './AuroraEffect';
 import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
+import { DistantMotes } from './DistantMotes';
+import { DistantNebula } from './DistantNebula';
 import { EtherealWisps } from './EtherealWisps';
 import { FloatingPetals } from './FloatingPetals';
 import { GlowingOrbs } from './GlowingOrbs';
+import { HorizonGlow } from './HorizonGlow';
+import { ParallaxCloudLayers } from './ParallaxCloudLayers';
 import { SubtleLightRays } from './SubtleLightRays';
 
 interface EnvironmentProps {
@@ -25,6 +29,8 @@ interface EnvironmentProps {
   showAurora?: boolean;
   /** Show floating petals @default true */
   showPetals?: boolean;
+  /** Show depth effects (nebula, parallax clouds, distant motes, horizon) @default true */
+  showDepthEffects?: boolean;
   /** Cloud opacity @default 0.4 */
   cloudOpacity?: number;
   /** Cloud speed multiplier @default 0.3 */
@@ -37,6 +43,8 @@ interface EnvironmentProps {
   auroraOpacity?: number;
   /** Petals opacity @default 0.2 */
   petalsOpacity?: number;
+  /** Depth effects opacity @default 0.15 */
+  depthOpacity?: number;
   /** Ambient light color @default '#fff5eb' */
   ambientLightColor?: string;
   /** Ambient light intensity @default 0.5 */
@@ -65,12 +73,14 @@ export function Environment({
   showOrbs = true,
   showAurora = true,
   showPetals = true,
+  showDepthEffects = true,
   cloudOpacity = 0.4,
   cloudSpeed = 0.8,
   wispsOpacity = 0.12,
   orbsOpacity = 0.3,
   auroraOpacity = 0.06,
   petalsOpacity = 0.2,
+  depthOpacity = 0.15,
   ambientLightColor = '#fff5eb',
   ambientLightIntensity = 0.5,
   keyLightColor = '#ffe4c4',
@@ -99,6 +109,24 @@ export function Environment({
     <group>
       {/* Animated gradient background - renders behind everything */}
       <BackgroundGradient />
+
+      {/* === DEPTH EFFECTS - Create sense of vast space === */}
+      {/* These render far behind everything else */}
+      {showDepthEffects && !isMobile && (
+        <>
+          {/* Horizon glow - luminous glow at distant horizon */}
+          <HorizonGlow opacity={depthOpacity * 0.7} enabled={true} />
+
+          {/* Distant nebula - layered cosmic clouds with parallax */}
+          <DistantNebula opacity={depthOpacity} enabled={true} />
+
+          {/* Parallax cloud layers - multiple depths for perspective */}
+          <ParallaxCloudLayers opacity={depthOpacity * 0.8} enabled={true} />
+
+          {/* Distant motes - tiny particles at extreme range for scale */}
+          <DistantMotes count={isTablet ? 80 : 150} opacity={depthOpacity * 1.5} enabled={true} />
+        </>
+      )}
 
       {/* Memoized cloud system - only initializes once, never re-renders from parent changes */}
       {/* Includes: top/middle/bottom layers, parallax depths, right-to-left looping */}

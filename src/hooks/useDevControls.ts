@@ -53,12 +53,14 @@ export const TUNING_DEFAULTS = {
   showOrbs: true,
   showAurora: true,
   showPetals: true,
+  showDepthEffects: true,
   cloudOpacity: 0.4,
   cloudSpeed: 0.3,
   wispsOpacity: 0.12,
   orbsOpacity: 0.3,
   auroraOpacity: 0.06,
   petalsOpacity: 0.2,
+  depthOpacity: 0.15,
 
   // Colors - Background
   bgColorTop: '#f5f0e8',
@@ -153,12 +155,14 @@ export interface DevControlsState {
   showOrbs: boolean;
   showAurora: boolean;
   showPetals: boolean;
+  showDepthEffects: boolean;
   cloudOpacity: number;
   cloudSpeed: number;
   wispsOpacity: number;
   orbsOpacity: number;
   auroraOpacity: number;
   petalsOpacity: number;
+  depthOpacity: number;
 
   // Colors - Background
   bgColorTop: string;
@@ -219,12 +223,14 @@ function getDefaultDevControls(): DevControlsState {
     showOrbs: TUNING_DEFAULTS.showOrbs,
     showAurora: TUNING_DEFAULTS.showAurora,
     showPetals: TUNING_DEFAULTS.showPetals,
+    showDepthEffects: TUNING_DEFAULTS.showDepthEffects,
     cloudOpacity: TUNING_DEFAULTS.cloudOpacity,
     cloudSpeed: TUNING_DEFAULTS.cloudSpeed,
     wispsOpacity: TUNING_DEFAULTS.wispsOpacity,
     orbsOpacity: TUNING_DEFAULTS.orbsOpacity,
     auroraOpacity: TUNING_DEFAULTS.auroraOpacity,
     petalsOpacity: TUNING_DEFAULTS.petalsOpacity,
+    depthOpacity: TUNING_DEFAULTS.depthOpacity,
     bgColorTop: TUNING_DEFAULTS.bgColorTop,
     bgColorHorizon: TUNING_DEFAULTS.bgColorHorizon,
     ambientLightColor: TUNING_DEFAULTS.ambientLightColor,
@@ -595,6 +601,26 @@ export function useDevControls(): DevControlsState {
               step: 0.02,
               label: 'Petals Opacity',
               hint: 'Visibility of floating petals. Additive blending creates soft glow.\n\n**Typical range:** Subtle (0.15) → Standard (0.25) → Prominent (0.35)',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // 2.6 Depth & Scale Effects
+        'Depth & Scale': folder(
+          {
+            showDepthEffects: {
+              value: TUNING_DEFAULTS.showDepthEffects,
+              label: 'Enable Depth Effects',
+              hint: 'Toggle all depth/scale effects: distant nebula, parallax clouds, distant motes, horizon glow.\n\n**Creates:** Sense of vast space and being part of something bigger',
+            },
+            depthOpacity: {
+              value: TUNING_DEFAULTS.depthOpacity,
+              min: 0,
+              max: 0.4,
+              step: 0.01,
+              label: 'Depth Opacity',
+              hint: 'Overall intensity of depth effects. Controls nebula, parallax clouds, motes, and horizon glow.\n\n**Typical range:** Subtle (0.1) → Standard (0.15) → Prominent (0.25)',
             },
           },
           { collapsed: true },
