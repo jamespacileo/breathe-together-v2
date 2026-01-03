@@ -1,6 +1,6 @@
 import { Stats } from '@react-three/drei';
 import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
-import { lazy, Suspense, useCallback, useMemo, useRef } from 'react';
+import { lazy, Suspense, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -11,6 +11,8 @@ import { BreathingLevel, BreathingLevelUI } from './levels/breathing';
 import { KootaSystems } from './providers';
 
 // Preload assets before Canvas mounts (side-effect import)
+// ES modules execute synchronously - this runs before App component renders
+// drei's useTexture.preload() adds to internal cache checked by useTexture
 import './lib/preload';
 
 // Lazy load admin panel (only loads when needed)
@@ -62,28 +64,10 @@ export function App() {
     [isMobile, isTablet],
   );
 
-  /**
-   * Handle Canvas creation - precompile shaders to prevent first-frame stutter.
-   *
-   * renderer.compile() forces shader compilation before first visible frame,
-   * preventing the stutter that occurs when shaders compile on-demand.
-   * Scene reveal is handled organically via useSceneReveal hook inside BreathingLevel.
-   */
-  const handleCanvasCreated = useCallback(
-    ({
-      gl,
-      scene,
-      camera,
-    }: {
-      gl: THREE.WebGLRenderer;
-      scene: THREE.Scene;
-      camera: THREE.Camera;
-    }) => {
-      // Precompile all shaders to eliminate first-frame stutter
-      gl.compile(scene, camera);
-    },
-    [],
-  );
+  // Note: gl.compile() for shader precompilation was removed because:
+  // 1. Suspense-wrapped components (EarthGlobe with useTexture) aren't in scene yet
+  // 2. The organic reveal (fog + camera animation) handles loading UX gracefully
+  // 3. Shaders compile naturally as fog recedes and elements become visible
 
   // Admin panel route
   if (path === '/admin') {
@@ -124,7 +108,6 @@ export function App() {
           gl={glConfig}
           dpr={isMobile ? [1, 2] : [1, 2]}
           className="!absolute inset-0"
-          onCreated={handleCanvasCreated}
         >
           {import.meta.env.DEV && <Stats />}
           <CameraRig />
