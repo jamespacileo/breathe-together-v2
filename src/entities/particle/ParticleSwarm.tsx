@@ -89,7 +89,7 @@ export interface ParticleSwarmProps {
   currentUserId?: string;
   /**
    * Edge color for the current user's shard outline.
-   * @default '#fef8ee' (warm white)
+   * @default '#333333' (dark gray like reference)
    */
   currentUserEdgeColor?: string;
   /**
@@ -271,7 +271,7 @@ interface CurrentUserState {
 export function ParticleSwarm({
   users,
   currentUserId,
-  currentUserEdgeColor = '#fef8ee',
+  currentUserEdgeColor = '#333333',
   showCurrentUserLabel = true,
   baseRadius = 4.5,
   baseShardSize = 4.0,

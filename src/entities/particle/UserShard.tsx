@@ -35,23 +35,27 @@ export interface UserShardProps {
   phaseOffset?: number;
   /** Ambient seed for floating motion @default 0 */
   ambientSeed?: number;
-  /** Edge color for the outline @default '#fef8ee' (warm white) */
+  /** Edge color for the outline @default '#333333' (dark gray like reference) */
   edgeColor?: string;
   /** Whether to show the "YOU" label @default true */
   showLabel?: boolean;
 }
 
-// Material properties inspired by the reference example
+// Material properties matching the reference image
+// The reference has high transmission, significant thickness for refraction,
+// and moderate roughness for that soft glassy look
 const TRANSMISSION_PROPS = {
-  transmission: 0.95,
-  thickness: 1.5,
-  roughness: 0.15,
-  envMapIntensity: 2.5,
-  chromaticAberration: 0.03,
-  anisotropy: 0.2,
+  transmission: 1,
+  thickness: 2,
+  roughness: 0.5,
+  envMapIntensity: 5,
+  chromaticAberration: 0.02,
+  anisotropy: 0.1,
   distortion: 0.1,
-  distortionScale: 0.2,
-  temporalDistortion: 0.1,
+  distortionScale: 0.3,
+  temporalDistortion: 0.05,
+  backside: true,
+  backsideThickness: 1,
 };
 
 // Animation constants (matching ParticleSwarm)
@@ -78,7 +82,7 @@ export function UserShard({
   scale = 1,
   phaseOffset = 0,
   ambientSeed = 0,
-  edgeColor = '#fef8ee',
+  edgeColor = '#333333',
   showLabel = true,
 }: UserShardProps) {
   const world = useWorld();
@@ -187,21 +191,24 @@ export function UserShard({
           resolution={256}
           samples={8}
         />
-        <Edges scale={1.05} threshold={15} color={edgeColor} lineWidth={1.5} />
+        {/* Edges with scale slightly larger than mesh, matching reference style */}
+        <Edges scale={1.1} renderOrder={1000}>
+          <meshBasicMaterial transparent color={edgeColor} depthTest={false} />
+        </Edges>
       </mesh>
 
       {/* "YOU" label */}
       {showLabel && (
         <Text
-          position={[0, shardSize * 1.8, 0]}
-          fontSize={shardSize * 0.6}
-          color={edgeColor}
+          position={[0, shardSize * 2.0, 0]}
+          fontSize={shardSize * 0.5}
+          color="#ffffff"
           anchorX="center"
           anchorY="bottom"
           fontWeight="bold"
-          outlineWidth={0.02}
-          outlineColor="#000000"
-          outlineOpacity={0.3}
+          outlineWidth={0.04}
+          outlineColor={edgeColor}
+          outlineOpacity={0.8}
         >
           YOU
         </Text>
