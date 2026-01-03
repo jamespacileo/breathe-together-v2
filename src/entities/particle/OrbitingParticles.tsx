@@ -15,7 +15,7 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
+import { breathPhase, phaseType } from '../breath/traits';
 
 /**
  * Glowing ethereal material for cloud-like particles
@@ -322,7 +322,7 @@ export const OrbitingParticles = memo(function OrbitingParticlesComponent({
     let currentBreathPhase = 0;
     let currentPhaseType = 0;
 
-    const breathEntity = world.queryFirst(breathPhase, orbitRadius, phaseType);
+    const breathEntity = world.queryFirst(breathPhase, phaseType);
     if (breathEntity) {
       currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
       currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
