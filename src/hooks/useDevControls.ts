@@ -72,6 +72,14 @@ export const TUNING_DEFAULTS = {
   showPhaseMarkers: false,
   showTraitValues: false,
 
+  // Shape Gizmos (dev-only)
+  showGlobeCentroid: false,
+  showGlobeBounds: false,
+  showSwarmCentroid: false,
+  showSwarmBounds: false,
+  showGizmoAxes: true,
+  showGizmoLabels: false,
+
   // Performance monitoring (dev-only)
   showPerfMonitor: false,
   perfPosition: 'top-left' as 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right',
@@ -164,6 +172,14 @@ export interface DevControlsState {
   showPhaseMarkers: boolean;
   showTraitValues: boolean;
 
+  // Shape Gizmos
+  showGlobeCentroid: boolean;
+  showGlobeBounds: boolean;
+  showSwarmCentroid: boolean;
+  showSwarmBounds: boolean;
+  showGizmoAxes: boolean;
+  showGizmoLabels: boolean;
+
   // Performance monitoring
   showPerfMonitor: boolean;
   perfPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -213,6 +229,12 @@ function getDefaultDevControls(): DevControlsState {
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
+    showGlobeCentroid: TUNING_DEFAULTS.showGlobeCentroid,
+    showGlobeBounds: TUNING_DEFAULTS.showGlobeBounds,
+    showSwarmCentroid: TUNING_DEFAULTS.showSwarmCentroid,
+    showSwarmBounds: TUNING_DEFAULTS.showSwarmBounds,
+    showGizmoAxes: TUNING_DEFAULTS.showGizmoAxes,
+    showGizmoLabels: TUNING_DEFAULTS.showGizmoLabels,
     showPerfMonitor: TUNING_DEFAULTS.showPerfMonitor,
     perfPosition: TUNING_DEFAULTS.perfPosition,
     perfMinimal: TUNING_DEFAULTS.perfMinimal,
@@ -652,7 +674,44 @@ export function useDevControls(): DevControlsState {
           { collapsed: true },
         ),
 
-        // 5.2 Performance
+        // 5.2 Shape Gizmos
+        Gizmos: folder(
+          {
+            showGlobeCentroid: {
+              value: TUNING_DEFAULTS.showGlobeCentroid,
+              label: 'Globe Centroid',
+              hint: 'Show globe center point with XYZ axes.\n\n**Use case:** Anchor effects or UI elements to globe center',
+            },
+            showGlobeBounds: {
+              value: TUNING_DEFAULTS.showGlobeBounds,
+              label: 'Globe Bounds',
+              hint: 'Show globe bounding sphere wireframes (core + atmosphere).\n\n**Use case:** Verify collision bounds and atmosphere layers',
+            },
+            showSwarmCentroid: {
+              value: TUNING_DEFAULTS.showSwarmCentroid,
+              label: 'Swarm Centroid',
+              hint: 'Show particle swarm center point.\n\n**Use case:** Anchor particle-related effects to swarm center',
+            },
+            showSwarmBounds: {
+              value: TUNING_DEFAULTS.showSwarmBounds,
+              label: 'Swarm Bounds',
+              hint: 'Show particle orbit range (min/max/current radius).\n\n**Shows:** Green (min orbit at inhale), Orange (max at exhale), Yellow (current)',
+            },
+            showGizmoAxes: {
+              value: TUNING_DEFAULTS.showGizmoAxes,
+              label: 'Show Axes',
+              hint: 'Display XYZ coordinate axes on centroids.\n\n**Colors:** X=Red, Y=Green, Z=Blue',
+            },
+            showGizmoLabels: {
+              value: TUNING_DEFAULTS.showGizmoLabels,
+              label: 'Show Labels',
+              hint: 'Display coordinate and radius labels on gizmos.\n\n**Use case:** Precise debugging of positions and bounds',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // 5.3 Performance
         Performance: folder(
           {
             showPerfMonitor: {

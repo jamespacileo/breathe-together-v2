@@ -4,6 +4,7 @@ import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MomentumControls } from '../components/MomentumControls';
+import { ShapeGizmos } from '../components/ShapeGizmos';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
@@ -131,6 +132,19 @@ export function BreathingLevel({
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
           </RefractionPipeline>
+
+          {/* Shape Gizmos - debug visualization for centroids and bounds */}
+          {/* Rendered outside RefractionPipeline to avoid distortion effects */}
+          {DEV_MODE_ENABLED && (
+            <ShapeGizmos
+              showGlobeCentroid={devControls.showGlobeCentroid}
+              showGlobeBounds={devControls.showGlobeBounds}
+              showSwarmCentroid={devControls.showSwarmCentroid}
+              showSwarmBounds={devControls.showSwarmBounds}
+              showAxes={devControls.showGizmoAxes}
+              showLabels={devControls.showGizmoLabels}
+            />
+          )}
         </MomentumControls>
       </Suspense>
     </ErrorBoundary>
