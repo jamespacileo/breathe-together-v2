@@ -225,8 +225,11 @@ const _tempPosition = new THREE.Vector3();
 const _tempDirection = new THREE.Vector3();
 const _tempQuaternion = new THREE.Quaternion();
 const _tempScale = new THREE.Vector3();
-const _upVector = new THREE.Vector3(0, 1, 0);
-const _lookAtMatrix = new THREE.Matrix4();
+const _cameraDirection = new THREE.Vector3();
+const _perpendicular = new THREE.Vector3();
+const _zAxis = new THREE.Vector3();
+const _rotationMatrix = new THREE.Matrix4();
+const _trailPos = new THREE.Vector3();
 
 export function ShardTrails({
   maxTrails = 1000,
@@ -393,16 +396,37 @@ export function ShardTrails({
       const dynamicLength =
         trailLength * phaseLengthMultiplier * (1 + trailState.smoothedVelocity * 5);
 
-      // Position trail behind the shard
-      const trailPos = trailState.currentPosition
-        .clone()
+      // Position trail behind the shard (at midpoint of trail)
+      _trailPos
+        .copy(trailState.currentPosition)
         .addScaledVector(_tempDirection, -dynamicLength * 0.5);
 
-      // Orient trail to face camera while pointing in velocity direction
-      if (_tempDirection.lengthSq() > 0.0001) {
-        _lookAtMatrix.lookAt(trailPos, trailPos.clone().add(_tempDirection), _upVector);
-        _tempQuaternion.setFromRotationMatrix(_lookAtMatrix);
+      // Calculate camera-facing orientation for the trail
+      // Get direction from trail to camera
+      _cameraDirection.copy(state.camera.position).sub(_trailPos).normalize();
+
+      // Calculate perpendicular axis (cross product of velocity and camera direction)
+      // This will be the "up" direction for our billboard
+      _perpendicular.crossVectors(_tempDirection, _cameraDirection);
+
+      // If velocity is parallel to camera direction, use a fallback perpendicular
+      if (_perpendicular.lengthSq() < 0.001) {
+        _perpendicular.set(0, 1, 0);
+        _perpendicular.crossVectors(_tempDirection, _perpendicular);
+        if (_perpendicular.lengthSq() < 0.001) {
+          _perpendicular.set(1, 0, 0);
+        }
       }
+      _perpendicular.normalize();
+
+      // Build rotation matrix:
+      // X axis = velocity direction (trail stretches along X in geometry)
+      // Y axis = perpendicular (trail width)
+      // Z axis = cross of X and Y (faces roughly toward camera)
+      _zAxis.crossVectors(_tempDirection, _perpendicular).normalize();
+
+      _rotationMatrix.makeBasis(_tempDirection, _perpendicular, _zAxis);
+      _tempQuaternion.setFromRotationMatrix(_rotationMatrix);
 
       // Scale trail based on velocity, phase, and config
       const widthMultiplier = 0.5 + trailState.visibility * 0.5;
@@ -413,7 +437,7 @@ export function ShardTrails({
       );
 
       // Compose final matrix
-      _tempMatrix.compose(trailPos, _tempQuaternion, _tempScale);
+      _tempMatrix.compose(_trailPos, _tempQuaternion, _tempScale);
       mesh.setMatrixAt(i, _tempMatrix);
     }
 
