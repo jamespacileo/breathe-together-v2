@@ -92,9 +92,13 @@ export function MomentumControls({
   children,
 }: MomentumControlsProps) {
   const gl = useThree((state) => state.gl);
+  const events = useThree((state) => state.events);
   const { size } = useThree();
 
   const domElement = gl.domElement;
+  // Get the actual event source element (container div) since canvas has pointer-events: none
+  // when using the eventSource pattern
+  const eventSourceElement = (events.connected || domElement) as HTMLElement;
 
   // Calculate rotation limits
   const rPolar = React.useMemo(
@@ -232,10 +236,10 @@ export function MomentumControls({
     },
   );
 
-  // Wheel zoom handler - attached directly to DOM since wheel events
-  // don't propagate through R3F's pointer event system
+  // Wheel zoom handler - attached to eventSource element since canvas has pointer-events: none
+  // when using the eventSource pattern for HTML overlay support
   React.useEffect(() => {
-    if (!enabled || !enableZoom) return;
+    if (!enabled || !enableZoom || !eventSourceElement) return;
 
     const handleWheel = (event: WheelEvent) => {
       // Prevent page scroll when zooming
@@ -250,13 +254,13 @@ export function MomentumControls({
       animation.current.targetZoom = newZoom;
     };
 
-    // Attach to canvas element
-    domElement.addEventListener('wheel', handleWheel, { passive: false });
+    // Attach to eventSource element (the container div that receives events)
+    eventSourceElement.addEventListener('wheel', handleWheel, { passive: false });
 
     return () => {
-      domElement.removeEventListener('wheel', handleWheel);
+      eventSourceElement.removeEventListener('wheel', handleWheel);
     };
-  }, [enabled, enableZoom, zoomSpeed, minZoom, maxZoom, domElement]);
+  }, [enabled, enableZoom, zoomSpeed, minZoom, maxZoom, eventSourceElement]);
 
   return (
     <group ref={ref} {...(bind() || {})}>
