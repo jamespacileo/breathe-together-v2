@@ -7,6 +7,7 @@ import { MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
+import { EnergyMotes, FloatingGeometry, LightBeams, OrbitRings } from '../entities/ambientEffects';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
@@ -104,6 +105,10 @@ export function BreathingLevel({
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
+            {/* Ambient Effects - subtle visual enhancements */}
+            <LightBeams enabled={showParticles} opacityMultiplier={0.8} />
+            <OrbitRings enabled={showParticles} opacityMultiplier={0.7} />
+
             {showGlobe && <EarthGlobe />}
 
             {showParticles && (
@@ -113,6 +118,10 @@ export function BreathingLevel({
                 maxShardSize={shardSize}
               />
             )}
+
+            {/* Additional ambient effects near the shards */}
+            <EnergyMotes enabled={showParticles} count={60} opacity={0.35} />
+            <FloatingGeometry enabled={showParticles} opacityMultiplier={0.8} />
 
             {showParticles && (
               <AtmosphericParticles
