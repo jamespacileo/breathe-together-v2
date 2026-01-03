@@ -9,6 +9,7 @@ import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
+import { HolographicPulseRing } from '../entities/holographicPulseRing';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -105,6 +106,9 @@ export function BreathingLevel({
             azimuth={[-Infinity, Infinity]}
           >
             {showGlobe && <EarthGlobe />}
+
+            {/* Holographic pulse rings - expands on exhale, contracts on inhale */}
+            {showGlobe && <HolographicPulseRing />}
 
             {showParticles && (
               <ParticleSwarm
