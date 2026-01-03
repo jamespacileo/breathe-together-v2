@@ -407,6 +407,24 @@ export function ParticleSwarm({
           state.direction.copy(state.targetDirection);
         }
       }
+
+      // Apply correct colors from slot moods immediately (not waiting for hold phase)
+      // This fixes the "all shards start green" issue where DEFAULT_COLOR was shown
+      // until the first hold phase triggered color reconciliation
+      const slots = slotManager.slots;
+      const states = instanceStatesRef.current;
+      for (let i = 0; i < slots.length && i < states.length; i++) {
+        const slot = slots[i];
+        const instanceState = states[i];
+        if (slot.mood) {
+          const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
+          mesh.setColorAt(i, color);
+          instanceState.currentMood = slot.mood;
+        }
+      }
+      if (mesh.instanceColor) {
+        mesh.instanceColor.needsUpdate = true;
+      }
     }
   }, [performanceCap, baseRadius, redistributePositions, geometry, material]);
 
