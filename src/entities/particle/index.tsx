@@ -4,6 +4,8 @@
 
 export type { AtmosphericParticlesProps } from './AtmosphericParticles';
 export { AtmosphericParticles } from './AtmosphericParticles';
+export type { OrbitingParticlesProps } from './OrbitingParticles';
+export { OrbitingParticles } from './OrbitingParticles';
 export type { ParticleSwarmProps } from './ParticleSwarm';
 export { ParticleSwarm } from './ParticleSwarm';
 

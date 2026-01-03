@@ -10,6 +10,7 @@ import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
+import { OrbitingParticles } from '../entities/particle/OrbitingParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useDevControls } from '../hooks/useDevControls';
@@ -123,6 +124,9 @@ export function BreathingLevel({
                 color={devControls.atmosphereColor}
               />
             )}
+
+            {/* Orbiting ring particles - contracts on inhale, expands on exhale */}
+            {showParticles && <OrbitingParticles />}
           </MomentumControls>
         </RefractionPipeline>
       </Suspense>
