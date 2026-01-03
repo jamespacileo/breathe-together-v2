@@ -87,8 +87,9 @@ function RibbonBand({
   opacity: number;
   glyphGeometryDetail: number;
 }) {
-  // curveRadius: negative = convex (text curves outward, facing away from center)
-  // We use negative because we want text to wrap around the outside of the sphere
+  // curveRadius: negative = convex (text curves outward, center behind text)
+  // With curveRadius = -R and text at z = R, the cylinder center aligns with globe center
+  // This makes text wrap around the outside of the sphere
   const curveRadius = -radius;
 
   return (
@@ -101,9 +102,9 @@ function RibbonBand({
         curveRadius={curveRadius}
         glyphGeometryDetail={glyphGeometryDetail}
         fillOpacity={opacity}
-        // Position text at the radius distance on Z axis
-        // curveRadius will bend it around the Y axis
-        position={[0, 0, 0]}
+        // Position text at z = radius so it sits on the sphere surface
+        // The curveRadius then bends it around the cylinder centered at origin
+        position={[0, 0, radius]}
         // Slight letter spacing for readability on curve
         letterSpacing={0.08}
         fontWeight={600}
