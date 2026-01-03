@@ -17,7 +17,8 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { BREATH_TOTAL_CYCLE, type MoodId } from '../../constants';
+import { BREATH_TOTAL_CYCLE, type MoodId, USER_TRACKING } from '../../constants';
+import { useUserPositionOptional } from '../../contexts/UserPositionContext';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -254,6 +255,10 @@ export function ParticleSwarm({
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
+
+  // User position tracking for "YOU" marker
+  // Returns null if context is not available (e.g., in tests)
+  const userPositionContext = useUserPositionOptional();
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -573,6 +578,11 @@ export function ParticleSwarm({
       // Compose and set matrix
       _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
       mesh.setMatrixAt(i, _tempMatrix);
+
+      // Update position context for current user ("YOU" marker)
+      if (userPositionContext && slot?.userId === USER_TRACKING.SELF_USER_ID) {
+        userPositionContext.updatePosition(_tempPosition, slotScale > 0.1, slotScale, i);
+      }
     }
 
     // Update instance count for rendering optimization

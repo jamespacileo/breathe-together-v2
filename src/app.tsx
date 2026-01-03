@@ -4,6 +4,7 @@ import { lazy, Suspense, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { UserPositionProvider } from './contexts/UserPositionContext';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
 import { useViewport } from './hooks/useViewport';
@@ -94,10 +95,12 @@ export function App() {
           {import.meta.env.DEV && <Stats />}
           <CameraRig />
           <KootaSystems breathSystemEnabled={true}>
-            <AudioProvider>
-              <BreathEntity />
-              <BreathingLevel />
-            </AudioProvider>
+            <UserPositionProvider>
+              <AudioProvider>
+                <BreathEntity />
+                <BreathingLevel />
+              </AudioProvider>
+            </UserPositionProvider>
           </KootaSystems>
         </Canvas>
 

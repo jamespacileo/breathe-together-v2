@@ -17,7 +17,8 @@
  * ```
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { USER_TRACKING } from '../constants';
 import { generateMockPresence } from '../lib/mockPresence';
 import {
   type MoodId,
@@ -41,11 +42,10 @@ const DEFAULT_CONFIG: ServerConfig = {
 const CONFIG = {
   WS_RECONNECT_DELAY_MS: 3_000,
   WS_TIMEOUT_MS: 5_000,
-  STORAGE_KEYS: {
-    SESSION_ID: 'breathe-together:sessionId',
-    MOOD: 'breathe-together:mood',
-  },
 } as const;
+
+// Use centralized storage keys from USER_TRACKING constant (single source of truth)
+const { STORAGE_KEYS } = USER_TRACKING;
 
 function generateSessionId(): string {
   return crypto.randomUUID();
@@ -53,23 +53,23 @@ function generateSessionId(): string {
 
 function getSessionId(): string {
   if (typeof window === 'undefined') return generateSessionId();
-  let sessionId = localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_ID);
+  let sessionId = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
   if (!sessionId) {
     sessionId = generateSessionId();
-    localStorage.setItem(CONFIG.STORAGE_KEYS.SESSION_ID, sessionId);
+    localStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
   }
   return sessionId;
 }
 
 function getStoredMood(): MoodId {
   if (typeof window === 'undefined') return 'presence';
-  const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
+  const stored = localStorage.getItem(STORAGE_KEYS.MOOD);
   return validateMood(stored);
 }
 
 function storeMood(mood: MoodId): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(CONFIG.STORAGE_KEYS.MOOD, mood);
+    localStorage.setItem(STORAGE_KEYS.MOOD, mood);
   }
 }
 
@@ -81,6 +81,10 @@ export interface UsePresenceResult {
   setMood: (mood: MoodId) => void;
   isConnected: boolean;
   connectionType: 'websocket' | 'polling' | 'mock';
+  /** Current user's session ID (stable across page reloads) */
+  sessionId: string;
+  /** Index of current user in users array (self user is always at index 0) */
+  currentUserIndex: number;
 }
 
 export function usePresence(): UsePresenceResult {
@@ -320,13 +324,29 @@ export function usePresence(): UsePresenceResult {
     };
   }, [connectWebSocket]);
 
+  // Inject current user ("self") as first user in list
+  // This ensures the current user's shard is always at a known position
+  const usersWithSelf = useMemo((): User[] => {
+    const selfUser: User = {
+      id: USER_TRACKING.SELF_USER_ID,
+      mood,
+    };
+    // Prepend self to the users list (index 0 = current user)
+    return [selfUser, ...presence.users];
+  }, [presence.users, mood]);
+
+  // Current user is always at index 0 in usersWithSelf
+  const currentUserIndex = 0;
+
   return {
-    count: presence.count,
+    count: presence.count + 1, // Include self in count
     moods: presence.moods,
-    users: presence.users,
+    users: usersWithSelf,
     mood,
     setMood,
     isConnected,
     connectionType,
+    sessionId: sessionIdRef.current,
+    currentUserIndex,
   };
 }
