@@ -19,11 +19,12 @@
 import { Ring, Sparkles, Sphere, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 import { useDisposeGeometries, useDisposeMaterials } from '../../hooks/useDisposeMaterials';
 import { breathPhase } from '../breath/traits';
+import { GeoMarkers } from './GeoMarkers';
 
 // Vertex shader for textured globe with fresnel
 const globeVertexShader = `
@@ -201,6 +202,12 @@ interface EarthGlobeProps {
   showGlow?: boolean;
   /** Show mist/haze layer @default true */
   showMist?: boolean;
+  /** Show country markers with user counts @default true */
+  showGeoMarkers?: boolean;
+  /** Country counts (ISO code -> user count) for geo markers */
+  countries?: Record<string, number>;
+  /** Maximum geo markers to display @default 20 */
+  maxGeoMarkers?: number;
 }
 
 /**
@@ -217,11 +224,17 @@ export function EarthGlobe({
   sparkleCount = 60,
   showGlow = true,
   showMist = true,
+  showGeoMarkers = true,
+  countries = {},
+  maxGeoMarkers = 20,
 }: Partial<EarthGlobeProps> = {}) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const atmosphereRefs = useRef<(THREE.Mesh | null)[]>([]);
   const world = useWorld();
+
+  // Track current breath phase for GeoMarkers
+  const [currentBreathPhase, setCurrentBreathPhase] = useState(0);
 
   // Load earth texture using drei's useTexture hook
   const earthTexture = useTexture('/textures/earth-texture.png');
@@ -334,6 +347,12 @@ export function EarthGlobe({
       const breathEntity = world.queryFirst(breathPhase);
       if (breathEntity) {
         const phase = breathEntity.get(breathPhase)?.value ?? 0;
+
+        // Update state for GeoMarkers (only if changed significantly)
+        if (Math.abs(phase - currentBreathPhase) > 0.01) {
+          setCurrentBreathPhase(phase);
+        }
+
         // Update shader uniforms
         material.uniforms.breathPhase.value = phase;
         glowMaterial.uniforms.breathPhase.value = phase;
@@ -416,6 +435,17 @@ export function EarthGlobe({
           args={[radius * 1.6, radius * 1.65, 64]}
           rotation={[Math.PI / 2, 0, 0]}
           material={ringMaterial}
+        />
+      )}
+
+      {/* Country markers with user counts */}
+      {showGeoMarkers && Object.keys(countries).length > 0 && (
+        <GeoMarkers
+          countries={countries}
+          globeRadius={radius}
+          markerHeight={0.2}
+          maxMarkers={maxGeoMarkers}
+          breathPhase={currentBreathPhase}
         />
       )}
     </group>

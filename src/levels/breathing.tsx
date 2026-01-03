@@ -39,10 +39,10 @@ export function BreathingLevel({
   // Dev controls (Leva)
   const devControls = useDevControls();
 
-  // Presence API (synchronized user positions)
+  // Presence API (synchronized user positions + country data)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users } = usePresence();
+  const { users, countries } = usePresence();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -104,7 +104,7 @@ export function BreathingLevel({
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
-            {showGlobe && <EarthGlobe />}
+            {showGlobe && <EarthGlobe countries={countries} />}
 
             {showParticles && (
               <ParticleSwarm

@@ -17,6 +17,8 @@ export interface User {
   id: string;
   /** User's current mood */
   mood: MoodId;
+  /** ISO 3166-1 alpha-2 country code (e.g., 'US', 'GB', 'JP') */
+  country?: string;
 }
 
 /**
@@ -27,6 +29,8 @@ export interface PresenceState {
   count: number;
   /** Count of users per mood */
   moods: Record<MoodId, number>;
+  /** Count of users per country (ISO 3166-1 alpha-2 codes) */
+  countries: Record<string, number>;
   /** Individual users for slot-based rendering (synchronized positions) */
   users: User[];
   /** Server timestamp when this was computed */

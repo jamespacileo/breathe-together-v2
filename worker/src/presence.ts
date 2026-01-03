@@ -6,6 +6,7 @@
  */
 
 import {
+  getSimulatedCountryCounts,
   getSimulatedMoodCounts,
   getSimulatedUserCount,
   isSimulationEnabled,
@@ -28,6 +29,16 @@ export const PRESENCE_CONFIG = {
 } as const;
 
 /**
+ * Sample data stored per user slot
+ */
+export interface SampleData {
+  mood: MoodId;
+  ts: number;
+  /** ISO 3166-1 alpha-2 country code */
+  country?: string;
+}
+
+/**
  * Stored aggregate state in KV
  */
 export interface AggregateState {
@@ -35,7 +46,7 @@ export interface AggregateState {
   sampleCount: number;
   moodRatios: Record<MoodId, number>;
   lastUpdate: number;
-  samples: Record<string, { mood: MoodId; ts: number }>;
+  samples: Record<string, SampleData>;
 }
 
 /**
@@ -76,12 +87,12 @@ export function validateMood(mood: unknown): MoodId {
  * Prune stale samples from state
  */
 export function pruneStale(
-  samples: Record<string, { mood: MoodId; ts: number }>,
+  samples: Record<string, SampleData>,
   now: number,
   ttlMs: number = PRESENCE_CONFIG.SAMPLE_TTL_SECONDS * 1000,
-): Record<string, { mood: MoodId; ts: number }> {
+): Record<string, SampleData> {
   const cutoff = now - ttlMs;
-  const result: Record<string, { mood: MoodId; ts: number }> = {};
+  const result: Record<string, SampleData> = {};
 
   for (const [slot, sample] of Object.entries(samples)) {
     if (sample.ts > cutoff) {
@@ -95,9 +106,7 @@ export function pruneStale(
 /**
  * Count moods in samples
  */
-export function countMoods(
-  samples: Record<string, { mood: MoodId; ts: number }>,
-): Record<MoodId, number> {
+export function countMoods(samples: Record<string, SampleData>): Record<MoodId, number> {
   const counts: Record<MoodId, number> = {
     gratitude: 0,
     presence: 0,
@@ -107,6 +116,21 @@ export function countMoods(
 
   for (const sample of Object.values(samples)) {
     counts[sample.mood]++;
+  }
+
+  return counts;
+}
+
+/**
+ * Count users per country from samples
+ */
+export function countCountries(samples: Record<string, SampleData>): Record<string, number> {
+  const counts: Record<string, number> = {};
+
+  for (const sample of Object.values(samples)) {
+    if (sample.country) {
+      counts[sample.country] = (counts[sample.country] || 0) + 1;
+    }
   }
 
   return counts;
@@ -180,9 +204,10 @@ export function addSample(
   sessionId: string,
   mood: MoodId,
   now: number,
+  country?: string,
 ): AggregateState {
   const slot = hashSession(sessionId);
-  const newSamples = { ...state.samples, [slot]: { mood, ts: now } };
+  const newSamples = { ...state.samples, [slot]: { mood, ts: now, country } };
 
   return recalculate({ ...state, samples: newSamples }, now);
 }
@@ -193,9 +218,9 @@ export function addSample(
  * Merges with simulated users when simulation is enabled
  */
 export function toPresenceState(state: AggregateState): PresenceState {
-  // Convert real samples to users array
+  // Convert real samples to users array (including country)
   const realUsers = Object.entries(state.samples)
-    .map(([id, sample]) => ({ id, mood: sample.mood }))
+    .map(([id, sample]) => ({ id, mood: sample.mood, country: sample.country }))
     .sort((a, b) => a.id.localeCompare(b.id));
 
   // Merge with simulated users if enabled
@@ -208,6 +233,16 @@ export function toPresenceState(state: AggregateState): PresenceState {
   // Get simulated mood counts
   const simMoods = getSimulatedMoodCounts();
 
+  // Count users per country from real samples
+  const realCountryCounts = countCountries(state.samples);
+
+  // Merge with simulated country counts
+  const simCountryCounts = isSimulationEnabled() ? getSimulatedCountryCounts() : {};
+  const countryCounts: Record<string, number> = { ...realCountryCounts };
+  for (const [country, simCount] of Object.entries(simCountryCounts)) {
+    countryCounts[country] = (countryCounts[country] || 0) + simCount;
+  }
+
   return {
     count,
     moods: {
@@ -217,6 +252,7 @@ export function toPresenceState(state: AggregateState): PresenceState {
       connection:
         Math.round(state.estimatedCount * state.moodRatios.connection) + simMoods.connection,
     },
+    countries: countryCounts,
     users,
     timestamp: state.lastUpdate,
   };

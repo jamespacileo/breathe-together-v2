@@ -84,6 +84,29 @@ export function getSimulatedUserCount(): number {
 }
 
 /**
+ * Assign a country to a user based on deterministic index
+ * Uses weighted distribution from config
+ */
+function assignCountry(index: number, totalUsers: number): string {
+  const config = SIMULATION_CONFIG;
+  const countries = Object.entries(config.countryDistribution);
+
+  // Use deterministic assignment based on index
+  let cumulative = 0;
+  const threshold = (index % totalUsers) / totalUsers;
+
+  for (const [country, weight] of countries) {
+    cumulative += weight;
+    if (threshold < cumulative) {
+      return country;
+    }
+  }
+
+  // Fallback to first country if rounding issues
+  return countries[0]?.[0] ?? 'US';
+}
+
+/**
  * Generate simulated users with stable IDs and configured mood distribution
  *
  * @param count - Number of users to generate
@@ -118,12 +141,16 @@ export function generateSimulatedUsers(count: number): User[] {
   // ID format: "sim-{mood}-{index}" for predictable ordering
   const moods: MoodId[] = ['presence', 'gratitude', 'release', 'connection'];
 
+  let globalIndex = 0;
   for (const mood of moods) {
     for (let i = 0; i < moodCounts[mood]; i++) {
+      const country = assignCountry(globalIndex, count);
       users.push({
         id: `sim-${mood}-${i.toString().padStart(4, '0')}`,
         mood,
+        country,
       });
+      globalIndex++;
     }
   }
 
@@ -200,4 +227,27 @@ export function mergeWithSimulatedMoods(realMoods: Record<MoodId, number>): Reco
     release: realMoods.release + simMoods.release,
     connection: realMoods.connection + simMoods.connection,
   };
+}
+
+/**
+ * Get simulated country counts for the current user count
+ */
+export function getSimulatedCountryCounts(): Record<string, number> {
+  const count = getSimulatedUserCount();
+  const config = SIMULATION_CONFIG;
+
+  if (!config.enabled || count <= 0) {
+    return {};
+  }
+
+  const counts: Record<string, number> = {};
+
+  for (const [country, ratio] of Object.entries(config.countryDistribution)) {
+    const countryCount = Math.floor(count * ratio);
+    if (countryCount > 0) {
+      counts[country] = countryCount;
+    }
+  }
+
+  return counts;
 }

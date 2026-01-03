@@ -76,6 +76,8 @@ function storeMood(mood: MoodId): void {
 export interface UsePresenceResult {
   count: number;
   moods: Record<MoodId, number>;
+  /** User counts by country (ISO 3166-1 alpha-2 codes) */
+  countries: Record<string, number>;
   users: User[];
   mood: MoodId;
   setMood: (mood: MoodId) => void;
@@ -323,6 +325,7 @@ export function usePresence(): UsePresenceResult {
   return {
     count: presence.count,
     moods: presence.moods,
+    countries: presence.countries ?? {},
     users: presence.users,
     mood,
     setMood,
