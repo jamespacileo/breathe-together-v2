@@ -9,6 +9,7 @@ import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
+import { InspirationalText3D } from '../entities/inspirationalText3D';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -32,6 +33,7 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
+  showInspirationalText3D = true,
 }: Partial<BreathingLevelProps> = {}) {
   // Shared state from Zustand store
   const { orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
@@ -124,6 +126,11 @@ export function BreathingLevel({
               />
             )}
           </MomentumControls>
+
+          {/* 3D Inspirational Text - breath-synchronized bloom reveal */}
+          {showInspirationalText3D && (
+            <InspirationalText3D yOffset={0} zPosition={4} fontSize={0.32} textGap={3.0} />
+          )}
         </RefractionPipeline>
       </Suspense>
     </ErrorBoundary>
