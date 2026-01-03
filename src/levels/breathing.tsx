@@ -12,6 +12,7 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { ShardTrails } from '../entities/particle/ShardTrails';
 import { useDevControls } from '../hooks/useDevControls';
 import { usePresence } from '../hooks/usePresence';
 import { useBreathingLevelStore } from '../stores/breathingLevelStore';
@@ -111,6 +112,17 @@ export function BreathingLevel({
                 users={deferredUsers}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
+              />
+            )}
+
+            {/* Motion trails - ethereal streaks behind particle shards */}
+            {showParticles && devControls.showTrails && (
+              <ShardTrails
+                trailLength={devControls.trailLength}
+                baseOpacity={devControls.trailOpacity}
+                color={devControls.trailColor}
+                trailSpeed={devControls.trailSpeed}
+                breathingIntensity={devControls.trailBreathingIntensity}
               />
             )}
 
