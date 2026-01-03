@@ -832,7 +832,7 @@ export function SimpleGaiaUI({
         {/* 4·7·8 Cycle Indicator */}
         <BreathCycleIndicator />
 
-        {/* Progress Bar */}
+        {/* Progress Bar - Linear progress of full cycle */}
         <div
           ref={progressContainerRef}
           className="bg-border rounded-[1px] overflow-hidden transition-shadow duration-300 ease-smooth"

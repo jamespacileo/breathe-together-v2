@@ -4,13 +4,16 @@
  * Renders as a fullscreen quad behind all other content with:
  * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
  * - Animated procedural clouds using FBM noise
- * - Subtle vignette effect
+ * - Breathing-synchronized vignette pulse (darker on exhale, lighter on inhale)
+ * - Cloud scale/opacity that responds to breathing
  */
 
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
+import { breathPhase, phaseType } from '../breath/traits';
 
 const vertexShader = `
 varying vec2 vUv;
@@ -22,6 +25,8 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
+uniform float breathPhase;  // 0 = exhaled, 1 = inhaled
+uniform float phaseType;    // 0 = inhale, 1 = hold-in, 2 = exhale, 3 = hold-out
 varying vec2 vUv;
 
 // Simplex noise functions for cloud-like patterns
@@ -80,28 +85,58 @@ void main() {
   skyColor = mix(skyColor, skyMid, t2);
   skyColor = mix(skyColor, skyTop, t1);
 
+  // === BREATHING CLOUD EFFECT ===
+  // Clouds expand outward on exhale, contract on inhale
+  // Scale factor: 1.0 at inhale (phase=1), 1.15 at exhale (phase=0)
+  float cloudBreathScale = 1.0 + (1.0 - breathPhase) * 0.15;
+
+  // Cloud opacity responds to breathing - more visible on exhale
+  float cloudBreathOpacity = 0.15 + (1.0 - breathPhase) * 0.08;
+
   // Animated cloud-like wisps using FBM noise
-  vec2 cloudUv = vUv * vec2(2.0, 1.0) + vec2(time * 0.015, 0.0);
+  // Apply breathing scale to UV coordinates (clouds expand/contract)
+  vec2 cloudCenter = vec2(0.5, 0.5);
+  vec2 cloudUvOffset = (vUv - cloudCenter) * cloudBreathScale + cloudCenter;
+  vec2 cloudUv = cloudUvOffset * vec2(2.0, 1.0) + vec2(time * 0.015, 0.0);
   float clouds = fbm(cloudUv * 2.5);
 
   // Second layer of clouds moving slightly differently
-  vec2 cloudUv2 = vUv * vec2(1.5, 0.8) + vec2(time * 0.01 + 50.0, time * 0.003);
+  vec2 cloudUv2Offset = (vUv - cloudCenter) * cloudBreathScale * 0.95 + cloudCenter;
+  vec2 cloudUv2 = cloudUv2Offset * vec2(1.5, 0.8) + vec2(time * 0.01 + 50.0, time * 0.003);
   float clouds2 = fbm(cloudUv2 * 2.0);
 
   // Combine cloud layers - fade at top and bottom
   float cloudMask = smoothstep(0.2, 0.55, clouds * 0.5 + clouds2 * 0.5);
   cloudMask *= smoothstep(0.1, 0.4, y) * smoothstep(0.95, 0.6, y);
 
-  // Cloud color - pure warm white
-  vec3 cloudColor = vec3(1.0, 0.99, 0.97);
+  // Cloud color - slightly warmer on inhale, cooler on exhale
+  vec3 cloudColorInhale = vec3(1.0, 0.995, 0.97);   // Warm white
+  vec3 cloudColorExhale = vec3(0.98, 0.985, 0.98);  // Slightly cooler
+  vec3 cloudColor = mix(cloudColorExhale, cloudColorInhale, breathPhase);
 
-  // Blend clouds very subtly into sky
-  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
+  // Blend clouds with breathing-modulated opacity
+  vec3 color = mix(skyColor, cloudColor, cloudMask * cloudBreathOpacity);
 
-  // Very subtle vignette - just darkens corners slightly
+  // === BREATHING VIGNETTE PULSE ===
+  // Vignette darkens on exhale (phase=0), lightens on inhale (phase=1)
+  // Creates a "tunnel of focus" effect during exhale
   vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
-  color *= mix(0.97, 1.0, vignette);
+
+  // Base vignette intensity
+  float vignetteBase = 0.15;
+  // Breathing modulation: stronger vignette on exhale
+  float vignetteBreath = vignetteBase + (1.0 - breathPhase) * 0.12;
+
+  // Calculate vignette with breathing modulation
+  float vignetteDist = dot(vignetteUv * vignetteBreath, vignetteUv * vignetteBreath);
+  float vignette = 1.0 - vignetteDist;
+
+  // Vignette color shift - slightly cooler/darker edges on exhale
+  float vignetteStrength = mix(0.97, 1.0, vignette);
+  // Add subtle blue tint to vignette on exhale
+  vec3 vignetteTint = mix(vec3(0.96, 0.97, 0.99), vec3(1.0), breathPhase);
+  color *= vignetteStrength;
+  color = mix(color * vignetteTint, color, vignette);
 
   // Paper texture noise (very subtle)
   float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
@@ -113,6 +148,7 @@ void main() {
 
 export function BackgroundGradient() {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const world = useWorld();
 
   // Create geometry with useMemo for proper disposal
   const geometry = useMemo(() => new PlaneGeometry(2, 2), []);
@@ -121,6 +157,8 @@ export function BackgroundGradient() {
     return new ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        breathPhase: { value: 0 },
+        phaseType: { value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -130,10 +168,22 @@ export function BackgroundGradient() {
     });
   }, []);
 
-  // Animate time uniform
+  // Animate time and breath uniforms
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+
+      // Get breathing state from ECS
+      try {
+        const breathEntity = world.queryFirst(breathPhase, phaseType);
+        if (breathEntity) {
+          materialRef.current.uniforms.breathPhase.value =
+            breathEntity.get(breathPhase)?.value ?? 0;
+          materialRef.current.uniforms.phaseType.value = breathEntity.get(phaseType)?.value ?? 0;
+        }
+      } catch {
+        // Silently catch ECS errors during unmount/remount in Triplex
+      }
     }
   });
 
