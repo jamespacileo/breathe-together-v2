@@ -68,6 +68,11 @@ export function YouMarker({ visible = true, label = 'YOU' }: YouMarkerProps) {
   ]);
   const labelPositionRef = useRef(new THREE.Vector3());
 
+  // Pre-allocated vectors for animation loop (avoid GC pressure)
+  const toCameraRef = useRef(new THREE.Vector3());
+  const lineEndRef = useRef(new THREE.Vector3());
+  const upVectorRef = useRef(new THREE.Vector3(0, LINE_LENGTH * 0.7, 0));
+
   // Create outline geometry (same as shard - icosahedron)
   const outlineGeometry = useMemo(() => new THREE.IcosahedronGeometry(0.3, 0), []);
 
@@ -105,7 +110,7 @@ export function YouMarker({ visible = true, label = 'YOU' }: YouMarkerProps) {
     return () => clearInterval(interval);
   }, [positionRef]);
 
-  useFrame(() => {
+  useFrame((_state, delta) => {
     if (!positionRef.current || !groupRef.current) return;
 
     const userPos = positionRef.current;
@@ -118,7 +123,8 @@ export function YouMarker({ visible = true, label = 'YOU' }: YouMarkerProps) {
       return;
     }
 
-    const delta = 1 / 60; // Approximate delta for smoothing
+    // Use actual delta from frame, clamped to prevent huge jumps
+    const clampedDelta = Math.min(delta, 0.1);
 
     // Initialize position on first visible frame
     if (!isInitialized.current) {
@@ -128,7 +134,7 @@ export function YouMarker({ visible = true, label = 'YOU' }: YouMarkerProps) {
     }
 
     // Smooth interpolation for position
-    const lerpFactor = 1 - Math.exp(-POSITION_SMOOTHING * delta);
+    const lerpFactor = 1 - Math.exp(-POSITION_SMOOTHING * clampedDelta);
     smoothedPosition.current.lerp(userPos.position, lerpFactor);
     smoothedScale.current += (userPos.scale - smoothedScale.current) * lerpFactor;
 
@@ -141,7 +147,8 @@ export function YouMarker({ visible = true, label = 'YOU' }: YouMarkerProps) {
     }
 
     // Calculate direction from shard center toward camera (for line direction)
-    const toCamera = new THREE.Vector3()
+    // Uses pre-allocated vector to avoid GC pressure
+    const toCamera = toCameraRef.current
       .subVectors(camera.position, smoothedPosition.current)
       .normalize();
 
@@ -149,10 +156,11 @@ export function YouMarker({ visible = true, label = 'YOU' }: YouMarkerProps) {
     linePointsRef.current[0].copy(smoothedPosition.current);
 
     // Line ends at offset toward camera (perpendicular to view, slightly up and toward camera)
-    const lineEnd = new THREE.Vector3()
+    // Uses pre-allocated vector to avoid GC pressure
+    const lineEnd = lineEndRef.current
       .copy(smoothedPosition.current)
       .addScaledVector(toCamera, LINE_LENGTH * 0.5) // Move toward camera
-      .add(new THREE.Vector3(0, LINE_LENGTH * 0.7, 0)); // Move up
+      .add(upVectorRef.current); // Move up
 
     linePointsRef.current[1].copy(lineEnd);
 
@@ -189,9 +197,11 @@ export function YouMarker({ visible = true, label = 'YOU' }: YouMarkerProps) {
             userSelect: 'none',
           }}
         >
-          <div className="you-marker-label">
-            <span className="you-marker-text">{label}</span>
-          </div>
+          <output className="you-marker-label" aria-label={`Your shard is marked as ${label}`}>
+            <span className="you-marker-text" aria-hidden="true">
+              {label}
+            </span>
+          </output>
 
           <style>{`
             .you-marker-label {

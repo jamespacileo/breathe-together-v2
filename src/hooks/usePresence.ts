@@ -42,11 +42,10 @@ const DEFAULT_CONFIG: ServerConfig = {
 const CONFIG = {
   WS_RECONNECT_DELAY_MS: 3_000,
   WS_TIMEOUT_MS: 5_000,
-  STORAGE_KEYS: {
-    SESSION_ID: 'breathe-together:sessionId',
-    MOOD: 'breathe-together:mood',
-  },
 } as const;
+
+// Use centralized storage keys from USER_TRACKING constant (single source of truth)
+const { STORAGE_KEYS } = USER_TRACKING;
 
 function generateSessionId(): string {
   return crypto.randomUUID();
@@ -54,23 +53,23 @@ function generateSessionId(): string {
 
 function getSessionId(): string {
   if (typeof window === 'undefined') return generateSessionId();
-  let sessionId = localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_ID);
+  let sessionId = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
   if (!sessionId) {
     sessionId = generateSessionId();
-    localStorage.setItem(CONFIG.STORAGE_KEYS.SESSION_ID, sessionId);
+    localStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
   }
   return sessionId;
 }
 
 function getStoredMood(): MoodId {
   if (typeof window === 'undefined') return 'presence';
-  const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
+  const stored = localStorage.getItem(STORAGE_KEYS.MOOD);
   return validateMood(stored);
 }
 
 function storeMood(mood: MoodId): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(CONFIG.STORAGE_KEYS.MOOD, mood);
+    localStorage.setItem(STORAGE_KEYS.MOOD, mood);
   }
 }
 
@@ -84,7 +83,7 @@ export interface UsePresenceResult {
   connectionType: 'websocket' | 'polling' | 'mock';
   /** Current user's session ID (stable across page reloads) */
   sessionId: string;
-  /** Index of current user in users array (-1 if not found) */
+  /** Index of current user in users array (self user is always at index 0) */
   currentUserIndex: number;
 }
 

@@ -125,29 +125,37 @@ export function PhaseText({
         userSelect: 'none',
       }}
     >
-      <div className="phase-text-container">
-        <div className="phase-name" style={{ color: state.phaseColor }}>
+      <output
+        className="phase-text-container"
+        aria-label={`Breathing phase: ${state.phaseName}, ${state.remaining} seconds remaining`}
+        aria-live="polite"
+      >
+        <div className="phase-name" style={{ color: state.phaseColor }} aria-hidden="true">
           {state.phaseName}
         </div>
         {showCountdown && state.remaining > 0 && (
-          <div className="phase-countdown" style={{ color: state.phaseColor }}>
+          <div className="phase-countdown" style={{ color: state.phaseColor }} aria-hidden="true">
             {state.remaining}
           </div>
         )}
-        {/* Progress dots */}
-        <div className="phase-progress">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="phase-dot"
-              style={{
-                backgroundColor: state.phase === i ? state.phaseColor : 'transparent',
-                borderColor: state.phaseColor,
-              }}
-            />
-          ))}
+        {/* Progress dots - 3 phases: INHALE (0), HOLD (1), EXHALE (2)
+            Note: HOLD_OUT (3) has duration 0 in 4-7-8 pattern, so not displayed */}
+        <div className="phase-progress" aria-hidden="true">
+          {[0, 1, 2].map((i) => {
+            const isActive = state.phase === i || (state.phase === 3 && i === 1); // Map HOLD_OUT to HOLD dot
+            return (
+              <div
+                key={i}
+                className={`phase-dot ${isActive ? 'phase-dot-active' : ''}`}
+                style={{
+                  backgroundColor: isActive ? state.phaseColor : 'transparent',
+                  borderColor: state.phaseColor,
+                }}
+              />
+            );
+          })}
         </div>
-      </div>
+      </output>
 
       <style>{`
         .phase-text-container {
@@ -194,7 +202,13 @@ export function PhaseText({
           height: 8px;
           border-radius: 50%;
           border: 1px solid;
-          transition: background-color 0.3s ease;
+          transition: all 0.3s ease;
+        }
+
+        .phase-dot-active {
+          /* Scale up active dot for colorblind accessibility */
+          transform: scale(1.4);
+          box-shadow: 0 0 6px currentColor;
         }
       `}</style>
     </Html>
