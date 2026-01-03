@@ -17,7 +17,7 @@
  * }
  */
 
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 
 /**
  * Returns a ref that always contains the current prop value.

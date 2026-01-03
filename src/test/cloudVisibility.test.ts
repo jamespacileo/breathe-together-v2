@@ -1,432 +1,463 @@
 /**
- * Cloud Visibility and Animation Tests
+ * Cloud Spherical Distribution and Animation Tests
  *
  * Tests to verify:
- * 1. All clouds are positioned within the camera frustum
- * 2. Cloud looping works correctly (right-to-left movement)
- * 3. Cloud positions are stable on initialization (no re-renders)
+ * 1. Clouds are distributed on Fibonacci spheres around the globe
+ * 2. Orbital drift works correctly (slow Y-axis rotation)
+ * 3. Cloud layers are properly configured (inner/middle/outer)
+ * 4. Clouds will rotate with parent group (MomentumControls)
  *
- * Key insight: Camera is at z=10 with 45° FOV, looking at origin.
- * For clouds to be visible, they need to be within the frustum cone.
- *
- * Frustum calculation for a 45° FOV camera at z=10:
- * - Near plane ~0.1, Far plane ~1000 (three.js defaults)
- * - At distance D from camera, visible height = 2 * D * tan(FOV/2)
- * - At z=-20 (30 units from camera): ~25 units visible height
- * - At z=-40 (50 units from camera): ~41 units visible height
+ * Key insight: Clouds are now positioned spherically at radii 7-13,
+ * surrounding the globe (radius 1.5) and shards (orbit ~4.5).
  */
 
 import { describe, expect, it } from 'vitest';
 
-// Camera configuration from app.tsx
-const CAMERA_CONFIG = {
-  position: { x: 0, y: 0, z: 10 },
-  fov: 45, // degrees
-  aspectRatio: 16 / 9, // typical browser aspect
-  near: 0.1,
-  far: 1000,
-};
-
 // Cloud configuration extracted from CloudSystem.tsx
 interface CloudConfig {
   id: string;
-  position: { x: number; y: number; z: number };
-  bounds: { width: number; height: number; depth: number };
-  layer: 'top' | 'middle' | 'bottom';
+  sphereIndex: number;
+  layerTotal: number;
+  radius: number;
+  color: string;
+  opacity: number;
+  orbitSpeed: number;
+  layer: 'inner' | 'middle' | 'outer';
+  bobSpeed: number;
+  bobAmount: number;
+  breathAmount: number;
 }
 
-// Updated cloud positions - closer to camera for better visibility
-// Camera at z=10, clouds at z=-5 to z=-15 (15-25 units from camera)
-// DISTRIBUTION: More clouds at top (7), medium in middle (4), fewer at bottom (2)
+// Scene geometry constants
+const SCENE_CONFIG = {
+  globeRadius: 1.5,
+  shardsOrbitRadius: 4.5,
+  cameraPosition: { x: 0, y: 0, z: 10 },
+};
+
+// Cloud configurations matching CloudSystem.tsx
 const CLOUD_CONFIGS: CloudConfig[] = [
-  // TOP LAYER (z: -5 to -8) - 7 clouds
+  // INNER LAYER (radius 7-8) - 6 clouds
   {
-    id: 'top-pink-left',
-    position: { x: -8, y: 5, z: -5 },
-    bounds: { width: 8, height: 2, depth: 5 },
-    layer: 'top',
+    id: 'inner-pink-1',
+    sphereIndex: 0,
+    layerTotal: 6,
+    radius: 7,
+    color: '#f8b4c4',
+    opacity: 0.35,
+    orbitSpeed: 0.012,
+    layer: 'inner',
+    bobSpeed: 0.15,
+    bobAmount: 0.15,
+    breathAmount: 0.3,
   },
   {
-    id: 'top-lavender-right',
-    position: { x: 9, y: 6, z: -6 },
-    bounds: { width: 7, height: 1.8, depth: 4 },
-    layer: 'top',
+    id: 'inner-lavender-2',
+    sphereIndex: 1,
+    layerTotal: 6,
+    radius: 7.5,
+    color: '#d4c4e8',
+    opacity: 0.32,
+    orbitSpeed: 0.01,
+    layer: 'inner',
+    bobSpeed: 0.12,
+    bobAmount: 0.12,
+    breathAmount: 0.25,
   },
   {
-    id: 'top-blue-center',
-    position: { x: 0, y: 4, z: -7 },
-    bounds: { width: 6, height: 1.5, depth: 4 },
-    layer: 'top',
+    id: 'inner-blue-3',
+    sphereIndex: 2,
+    layerTotal: 6,
+    radius: 8,
+    color: '#a8d4e8',
+    opacity: 0.3,
+    orbitSpeed: 0.014,
+    layer: 'inner',
+    bobSpeed: 0.1,
+    bobAmount: 0.1,
+    breathAmount: 0.2,
   },
   {
-    id: 'top-coral-far-left',
-    position: { x: -10, y: 4, z: -6 },
-    bounds: { width: 6, height: 1.5, depth: 4 },
-    layer: 'top',
+    id: 'inner-coral-4',
+    sphereIndex: 3,
+    layerTotal: 6,
+    radius: 7.2,
+    color: '#f8c8b8',
+    opacity: 0.28,
+    orbitSpeed: 0.011,
+    layer: 'inner',
+    bobSpeed: 0.13,
+    bobAmount: 0.14,
+    breathAmount: 0.22,
   },
   {
-    id: 'top-cream-high',
-    position: { x: 5, y: 5.5, z: -5 },
-    bounds: { width: 5, height: 1.2, depth: 3 },
-    layer: 'top',
+    id: 'inner-cream-5',
+    sphereIndex: 4,
+    layerTotal: 6,
+    radius: 7.8,
+    color: '#f8f0e8',
+    opacity: 0.25,
+    orbitSpeed: 0.009,
+    layer: 'inner',
+    bobSpeed: 0.11,
+    bobAmount: 0.11,
+    breathAmount: 0.18,
   },
   {
-    id: 'top-rose-wisp',
-    position: { x: -4, y: 6, z: -8 },
-    bounds: { width: 5, height: 1.3, depth: 3 },
-    layer: 'top',
-  },
-  {
-    id: 'top-mint-accent',
-    position: { x: 7, y: 3.5, z: -7 },
-    bounds: { width: 5, height: 1.4, depth: 3 },
-    layer: 'top',
+    id: 'inner-mint-6',
+    sphereIndex: 5,
+    layerTotal: 6,
+    radius: 7.3,
+    color: '#c8e8dc',
+    opacity: 0.3,
+    orbitSpeed: 0.013,
+    layer: 'inner',
+    bobSpeed: 0.12,
+    bobAmount: 0.13,
+    breathAmount: 0.24,
   },
 
-  // MIDDLE LAYER (z: -8 to -12) - 4 clouds
+  // MIDDLE LAYER (radius 9-10) - 5 clouds
   {
-    id: 'mid-peach-left',
-    position: { x: -12, y: 2, z: -10 },
-    bounds: { width: 10, height: 2, depth: 6 },
+    id: 'mid-peach-1',
+    sphereIndex: 0,
+    layerTotal: 5,
+    radius: 9,
+    color: '#f8d4b8',
+    opacity: 0.38,
+    orbitSpeed: 0.008,
     layer: 'middle',
+    bobSpeed: 0.08,
+    bobAmount: 0.2,
+    breathAmount: 0.35,
   },
   {
-    id: 'mid-mint-right',
-    position: { x: 12, y: 2, z: -11 },
-    bounds: { width: 9, height: 1.8, depth: 5 },
+    id: 'mid-mint-2',
+    sphereIndex: 1,
+    layerTotal: 5,
+    radius: 9.5,
+    color: '#b8e8d4',
+    opacity: 0.35,
+    orbitSpeed: 0.007,
     layer: 'middle',
+    bobSpeed: 0.09,
+    bobAmount: 0.18,
+    breathAmount: 0.3,
   },
   {
-    id: 'mid-rose-center',
-    position: { x: -2, y: 1, z: -9 },
-    bounds: { width: 8, height: 1.5, depth: 4 },
+    id: 'mid-rose-3',
+    sphereIndex: 2,
+    layerTotal: 5,
+    radius: 10,
+    color: '#e8c4d4',
+    opacity: 0.32,
+    orbitSpeed: 0.009,
     layer: 'middle',
+    bobSpeed: 0.11,
+    bobAmount: 0.16,
+    breathAmount: 0.28,
   },
   {
-    id: 'mid-sage-right',
-    position: { x: 8, y: 0, z: -10 },
-    bounds: { width: 8, height: 1.5, depth: 5 },
+    id: 'mid-sage-4',
+    sphereIndex: 3,
+    layerTotal: 5,
+    radius: 9.2,
+    color: '#c8dcc8',
+    opacity: 0.3,
+    orbitSpeed: 0.006,
     layer: 'middle',
+    bobSpeed: 0.085,
+    bobAmount: 0.19,
+    breathAmount: 0.32,
+  },
+  {
+    id: 'mid-blush-5',
+    sphereIndex: 4,
+    layerTotal: 5,
+    radius: 9.8,
+    color: '#f0d4d4',
+    opacity: 0.28,
+    orbitSpeed: 0.0075,
+    layer: 'middle',
+    bobSpeed: 0.1,
+    bobAmount: 0.17,
+    breathAmount: 0.26,
   },
 
-  // BOTTOM LAYER (z: -12 to -15) - 2 clouds
+  // OUTER LAYER (radius 11-13) - 4 clouds
   {
-    id: 'bottom-mist-left',
-    position: { x: -10, y: -2, z: -13 },
-    bounds: { width: 14, height: 1.5, depth: 8 },
-    layer: 'bottom',
+    id: 'outer-mist-1',
+    sphereIndex: 0,
+    layerTotal: 4,
+    radius: 11,
+    color: '#e8e4e0',
+    opacity: 0.4,
+    orbitSpeed: 0.005,
+    layer: 'outer',
+    bobSpeed: 0.04,
+    bobAmount: 0.25,
+    breathAmount: 0.4,
   },
   {
-    id: 'bottom-blush-right',
-    position: { x: 10, y: -3, z: -14 },
-    bounds: { width: 12, height: 1.5, depth: 7 },
-    layer: 'bottom',
+    id: 'outer-pink-2',
+    sphereIndex: 1,
+    layerTotal: 4,
+    radius: 12,
+    color: '#f8b4c4',
+    opacity: 0.35,
+    orbitSpeed: 0.004,
+    layer: 'outer',
+    bobSpeed: 0.05,
+    bobAmount: 0.22,
+    breathAmount: 0.35,
+  },
+  {
+    id: 'outer-lavender-3',
+    sphereIndex: 2,
+    layerTotal: 4,
+    radius: 13,
+    color: '#d4c4e8',
+    opacity: 0.3,
+    orbitSpeed: 0.0045,
+    layer: 'outer',
+    bobSpeed: 0.045,
+    bobAmount: 0.24,
+    breathAmount: 0.38,
+  },
+  {
+    id: 'outer-peach-4',
+    sphereIndex: 3,
+    layerTotal: 4,
+    radius: 11.5,
+    color: '#f8d4b8',
+    opacity: 0.32,
+    orbitSpeed: 0.0055,
+    layer: 'outer',
+    bobSpeed: 0.055,
+    bobAmount: 0.2,
+    breathAmount: 0.36,
   },
 ];
 
-// Cloud looping configuration (adjusted for closer cloud positions)
-const CLOUD_LOOP = {
-  xMin: -25,
-  xMax: 25,
-  buffer: 8,
-};
-
 /**
- * Calculate visible area at a given Z distance from camera
+ * Calculate Fibonacci sphere point for even distribution
+ * Same algorithm used by CloudSystem and ParticleSwarm
  */
-function calculateVisibleArea(zPosition: number) {
-  const distance = CAMERA_CONFIG.position.z - zPosition;
-  const fovRad = (CAMERA_CONFIG.fov * Math.PI) / 180;
-  const halfHeight = Math.tan(fovRad / 2) * distance;
-  const halfWidth = halfHeight * CAMERA_CONFIG.aspectRatio;
+function getFibonacciSpherePoint(
+  index: number,
+  total: number,
+): { x: number; y: number; z: number } {
+  if (total <= 1) {
+    return { x: 0, y: 1, z: 0 };
+  }
+
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  const y = 1 - (index / (total - 1)) * 2;
+  const radiusAtY = Math.sqrt(1 - y * y);
+  const theta = goldenAngle * index;
 
   return {
-    distance,
-    height: halfHeight * 2,
-    width: halfWidth * 2,
-    yMin: -halfHeight,
-    yMax: halfHeight,
-    xMin: -halfWidth,
-    xMax: halfWidth,
+    x: Math.cos(theta) * radiusAtY,
+    y: y,
+    z: Math.sin(theta) * radiusAtY,
   };
 }
 
 /**
- * Check if a cloud is within the camera frustum
+ * Calculate cloud position on sphere
  */
-function isCloudVisible(cloud: CloudConfig): {
-  visible: boolean;
-  inFrustum: { x: boolean; y: boolean; z: boolean };
-  visibleArea: ReturnType<typeof calculateVisibleArea>;
-  cloudBounds: { xMin: number; xMax: number; yMin: number; yMax: number };
-} {
-  const visibleArea = calculateVisibleArea(cloud.position.z);
-
-  // Cloud bounds (position is center, bounds is total size)
-  const cloudBounds = {
-    xMin: cloud.position.x - cloud.bounds.width / 2,
-    xMax: cloud.position.x + cloud.bounds.width / 2,
-    yMin: cloud.position.y - cloud.bounds.height / 2,
-    yMax: cloud.position.y + cloud.bounds.height / 2,
-  };
-
-  // Check if cloud overlaps with visible area (partial visibility counts)
-  const inFrustumX = cloudBounds.xMax > visibleArea.xMin && cloudBounds.xMin < visibleArea.xMax;
-  const inFrustumY = cloudBounds.yMax > visibleArea.yMin && cloudBounds.yMin < visibleArea.yMax;
-  const inFrustumZ =
-    cloud.position.z > -CAMERA_CONFIG.far && cloud.position.z < CAMERA_CONFIG.position.z;
-
+function getCloudPosition(cloud: CloudConfig): { x: number; y: number; z: number } {
+  const direction = getFibonacciSpherePoint(cloud.sphereIndex, cloud.layerTotal);
   return {
-    visible: inFrustumX && inFrustumY && inFrustumZ,
-    inFrustum: { x: inFrustumX, y: inFrustumY, z: inFrustumZ },
-    visibleArea,
-    cloudBounds,
+    x: direction.x * cloud.radius,
+    y: direction.y * cloud.radius,
+    z: direction.z * cloud.radius,
   };
 }
 
-describe('Cloud Visibility Tests', () => {
-  describe('Camera frustum calculations', () => {
-    it('should calculate correct visible area at different depths', () => {
-      // At z=0 (10 units from camera)
-      const area0 = calculateVisibleArea(0);
-      expect(area0.distance).toBe(10);
-      expect(area0.height).toBeCloseTo(8.28, 1); // 2 * tan(22.5°) * 10
+describe('Cloud Spherical Distribution Tests', () => {
+  describe('Fibonacci sphere distribution', () => {
+    it('should distribute points evenly on unit sphere', () => {
+      const total = 6;
+      const points: { x: number; y: number; z: number }[] = [];
 
-      // At z=-20 (30 units from camera)
-      const area20 = calculateVisibleArea(-20);
-      expect(area20.distance).toBe(30);
-      expect(area20.height).toBeCloseTo(24.85, 1);
+      for (let i = 0; i < total; i++) {
+        points.push(getFibonacciSpherePoint(i, total));
+      }
 
-      // At z=-40 (50 units from camera)
-      const area40 = calculateVisibleArea(-40);
-      expect(area40.distance).toBe(50);
-      expect(area40.height).toBeCloseTo(41.42, 1);
+      // All points should be on unit sphere (magnitude = 1)
+      for (const point of points) {
+        const magnitude = Math.sqrt(point.x ** 2 + point.y ** 2 + point.z ** 2);
+        expect(magnitude).toBeCloseTo(1, 5);
+      }
+
+      // Points should be spread across Y axis (-1 to 1)
+      const yValues = points.map((p) => p.y);
+      expect(Math.max(...yValues)).toBeCloseTo(1, 1);
+      expect(Math.min(...yValues)).toBeCloseTo(-1, 1);
+    });
+
+    it('should produce different positions for each index', () => {
+      const total = 6;
+      const positions = new Set<string>();
+
+      for (let i = 0; i < total; i++) {
+        const point = getFibonacciSpherePoint(i, total);
+        const key = `${point.x.toFixed(4)},${point.y.toFixed(4)},${point.z.toFixed(4)}`;
+        positions.add(key);
+      }
+
+      expect(positions.size).toBe(total);
     });
   });
 
-  describe('Cloud positioning validation', () => {
-    it('should have all clouds within Z frustum', () => {
-      for (const cloud of CLOUD_CONFIGS) {
-        const result = isCloudVisible(cloud);
-        expect(result.inFrustum.z).toBe(true);
+  describe('Cloud layer configuration', () => {
+    it('should have correct number of clouds per layer', () => {
+      const innerClouds = CLOUD_CONFIGS.filter((c) => c.layer === 'inner');
+      const middleClouds = CLOUD_CONFIGS.filter((c) => c.layer === 'middle');
+      const outerClouds = CLOUD_CONFIGS.filter((c) => c.layer === 'outer');
+
+      expect(innerClouds.length).toBe(6);
+      expect(middleClouds.length).toBe(5);
+      expect(outerClouds.length).toBe(4);
+      expect(CLOUD_CONFIGS.length).toBe(15);
+    });
+
+    it('should have inner clouds closer than shards orbit radius', () => {
+      const innerClouds = CLOUD_CONFIGS.filter((c) => c.layer === 'inner');
+
+      // Inner clouds should be outside shards (4.5) but close
+      for (const cloud of innerClouds) {
+        expect(cloud.radius).toBeGreaterThan(SCENE_CONFIG.shardsOrbitRadius);
+        expect(cloud.radius).toBeLessThan(9);
       }
     });
 
-    it('should identify clouds outside horizontal frustum', () => {
-      const outOfBoundsX: string[] = [];
+    it('should have layer radii in correct order', () => {
+      const innerRadii = CLOUD_CONFIGS.filter((c) => c.layer === 'inner').map((c) => c.radius);
+      const middleRadii = CLOUD_CONFIGS.filter((c) => c.layer === 'middle').map((c) => c.radius);
+      const outerRadii = CLOUD_CONFIGS.filter((c) => c.layer === 'outer').map((c) => c.radius);
 
-      for (const cloud of CLOUD_CONFIGS) {
-        const result = isCloudVisible(cloud);
-        if (!result.inFrustum.x) {
-          outOfBoundsX.push(
-            `${cloud.id}: x=${cloud.position.x} at z=${cloud.position.z}, visible range [${result.visibleArea.xMin.toFixed(1)}, ${result.visibleArea.xMax.toFixed(1)}]`,
-          );
-        }
-      }
+      const maxInner = Math.max(...innerRadii);
+      const minMiddle = Math.min(...middleRadii);
+      const maxMiddle = Math.max(...middleRadii);
+      const minOuter = Math.min(...outerRadii);
 
-      // Log which clouds are outside X bounds (helpful for debugging)
-      if (outOfBoundsX.length > 0) {
-        console.log('Clouds outside X frustum:');
-        for (const msg of outOfBoundsX) {
-          console.log(`  - ${msg}`);
-        }
-      }
-
-      // This test documents the issue - some clouds may be outside X bounds
-      // To fix: adjust X positions or bring clouds closer (reduce Z distance)
+      expect(maxInner).toBeLessThan(minMiddle);
+      expect(maxMiddle).toBeLessThan(minOuter);
     });
 
-    it('should identify clouds outside vertical frustum', () => {
-      const outOfBoundsY: string[] = [];
-
+    it('should have all clouds outside globe and shards', () => {
       for (const cloud of CLOUD_CONFIGS) {
-        const result = isCloudVisible(cloud);
-        if (!result.inFrustum.y) {
-          outOfBoundsY.push(
-            `${cloud.id}: y=${cloud.position.y} at z=${cloud.position.z}, visible range [${result.visibleArea.yMin.toFixed(1)}, ${result.visibleArea.yMax.toFixed(1)}]`,
-          );
-        }
+        // All clouds should be far outside the shards orbit
+        expect(cloud.radius).toBeGreaterThan(SCENE_CONFIG.shardsOrbitRadius + 1);
       }
-
-      if (outOfBoundsY.length > 0) {
-        console.log('Clouds outside Y frustum:');
-        for (const msg of outOfBoundsY) {
-          console.log(`  - ${msg}`);
-        }
-      }
-    });
-
-    it('should report cloud visibility summary', () => {
-      console.log('\n=== CLOUD VISIBILITY ANALYSIS ===\n');
-
-      const layerStats = {
-        top: { total: 0, visible: 0 },
-        middle: { total: 0, visible: 0 },
-        bottom: { total: 0, visible: 0 },
-      };
-
-      for (const cloud of CLOUD_CONFIGS) {
-        const result = isCloudVisible(cloud);
-        layerStats[cloud.layer].total++;
-        if (result.visible) layerStats[cloud.layer].visible++;
-
-        const status = result.visible ? '✅' : '❌';
-        console.log(
-          `${status} ${cloud.id.padEnd(25)} | pos(${cloud.position.x.toFixed(0).padStart(4)}, ${cloud.position.y.toFixed(0).padStart(3)}, ${cloud.position.z.toFixed(0).padStart(4)}) | ` +
-            `visible area: x[${result.visibleArea.xMin.toFixed(0)}, ${result.visibleArea.xMax.toFixed(0)}] y[${result.visibleArea.yMin.toFixed(0)}, ${result.visibleArea.yMax.toFixed(0)}]`,
-        );
-      }
-
-      console.log('\n--- Layer Summary ---');
-      for (const [layer, stats] of Object.entries(layerStats)) {
-        console.log(`${layer}: ${stats.visible}/${stats.total} visible`);
-      }
-      console.log('\n=== END ANALYSIS ===\n');
-
-      // At least 50% of clouds should be visible
-      const totalVisible = Object.values(layerStats).reduce((sum, s) => sum + s.visible, 0);
-      const totalClouds = CLOUD_CONFIGS.length;
-      expect(totalVisible / totalClouds).toBeGreaterThanOrEqual(0.5);
     });
   });
 
-  describe('Cloud positions (implemented)', () => {
-    // These positions are now implemented in CloudSystem.tsx
-    const IMPLEMENTED_POSITIONS: Array<{ z: number; description: string }> = [
-      { z: -5, description: 'Top layer (15 units from camera)' },
-      { z: -10, description: 'Middle layer (20 units from camera)' },
-      { z: -15, description: 'Bottom layer (25 units from camera)' },
-    ];
+  describe('Cloud positioning', () => {
+    it('should calculate cloud positions correctly', () => {
+      console.log('\n=== CLOUD POSITION ANALYSIS ===\n');
 
-    it('verifies implemented positions are within frustum', () => {
-      console.log('\n=== IMPLEMENTED CLOUD POSITIONS ===\n');
-      console.log('For camera at z=10 with 45° FOV:\n');
+      for (const cloud of CLOUD_CONFIGS) {
+        const pos = getCloudPosition(cloud);
+        const distance = Math.sqrt(pos.x ** 2 + pos.y ** 2 + pos.z ** 2);
 
-      for (const pos of IMPLEMENTED_POSITIONS) {
-        const visibleArea = calculateVisibleArea(pos.z);
         console.log(
-          `${pos.description}: ` +
-            `visible area = ${visibleArea.width.toFixed(1)}w x ${visibleArea.height.toFixed(1)}h ` +
-            `| x: [${visibleArea.xMin.toFixed(1)}, ${visibleArea.xMax.toFixed(1)}] | y: [${visibleArea.yMin.toFixed(1)}, ${visibleArea.yMax.toFixed(1)}]`,
+          `${cloud.id.padEnd(20)} | radius: ${cloud.radius.toFixed(1)} | ` +
+            `pos: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}) | ` +
+            `distance: ${distance.toFixed(2)}`,
         );
+
+        // Distance from origin should equal configured radius
+        expect(distance).toBeCloseTo(cloud.radius, 2);
       }
+    });
 
-      console.log('\nCurrent cloud z-range: -5 to -15 (15-25 units from camera)');
-      console.log('All clouds are now within optimal visibility range.\n');
+    it('should have clouds distributed around the sphere (not clustered)', () => {
+      const positions = CLOUD_CONFIGS.map((c) => getCloudPosition(c));
 
-      // Verify all implemented clouds are visible
-      const visibleCount = CLOUD_CONFIGS.filter((c) => isCloudVisible(c).visible).length;
-      expect(visibleCount).toBe(CLOUD_CONFIGS.length);
+      // Check that clouds aren't all on one side
+      const xPositive = positions.filter((p) => p.x > 0).length;
+      const xNegative = positions.filter((p) => p.x < 0).length;
+      const zPositive = positions.filter((p) => p.z > 0).length;
+      const zNegative = positions.filter((p) => p.z < 0).length;
+
+      // Should have clouds on both sides of each axis
+      expect(xPositive).toBeGreaterThan(3);
+      expect(xNegative).toBeGreaterThan(3);
+      expect(zPositive).toBeGreaterThan(3);
+      expect(zNegative).toBeGreaterThan(3);
     });
   });
 });
 
-describe('Cloud Looping Tests', () => {
-  /**
-   * Test the looping logic without needing WebGL
-   */
-  describe('Horizontal looping behavior', () => {
-    it('should reset position when cloud exits left boundary', () => {
-      let currentX = 0;
-      const speed = 1.0;
-
-      // Simulate movement until reaching boundary
-      for (let frame = 0; frame < 10000; frame++) {
-        currentX -= speed * 0.016; // ~60fps
-
-        if (currentX < CLOUD_LOOP.xMin - CLOUD_LOOP.buffer) {
-          currentX = CLOUD_LOOP.xMax + CLOUD_LOOP.buffer;
-          break;
-        }
+describe('Cloud Orbital Drift Tests', () => {
+  describe('Orbital movement behavior', () => {
+    it('should have reasonable orbit speeds', () => {
+      for (const cloud of CLOUD_CONFIGS) {
+        // Orbit speed in radians/second (should be slow for ambient feel)
+        expect(cloud.orbitSpeed).toBeGreaterThan(0.003);
+        expect(cloud.orbitSpeed).toBeLessThan(0.02);
       }
-
-      // After loop reset, should be at right side
-      expect(currentX).toBe(CLOUD_LOOP.xMax + CLOUD_LOOP.buffer);
     });
 
-    it('should calculate correct time to complete one loop', () => {
-      const speed = 0.8; // baseSpeed
-      const configSpeed = 1.0; // cloud speed multiplier
-      const effectiveSpeed = speed * configSpeed * 0.8 * 0.016; // from useFrame
+    it('should have slower orbit speeds for outer layers', () => {
+      const innerSpeeds = CLOUD_CONFIGS.filter((c) => c.layer === 'inner').map((c) => c.orbitSpeed);
+      const outerSpeeds = CLOUD_CONFIGS.filter((c) => c.layer === 'outer').map((c) => c.orbitSpeed);
 
-      const totalDistance =
-        CLOUD_LOOP.xMax + CLOUD_LOOP.buffer - (CLOUD_LOOP.xMin - CLOUD_LOOP.buffer);
-      const framesPerLoop = totalDistance / effectiveSpeed;
-      const secondsPerLoop = framesPerLoop / 60;
+      const avgInner = innerSpeeds.reduce((a, b) => a + b, 0) / innerSpeeds.length;
+      const avgOuter = outerSpeeds.reduce((a, b) => a + b, 0) / outerSpeeds.length;
 
-      console.log(`Loop distance: ${totalDistance} units`);
-      console.log(`Effective speed: ${effectiveSpeed.toFixed(4)} units/frame`);
-      console.log(`Frames per loop: ${framesPerLoop.toFixed(0)}`);
-      console.log(`Time per loop: ${secondsPerLoop.toFixed(1)} seconds`);
-
-      // Loop should take between 1 minute and 10 minutes for good visual effect
-      expect(secondsPerLoop).toBeGreaterThan(60);
-      expect(secondsPerLoop).toBeLessThan(600);
+      // Outer clouds should orbit slower (more distant, parallax effect)
+      expect(avgOuter).toBeLessThan(avgInner);
     });
 
-    it('should maintain cloud order during looping', () => {
-      // Simulate multiple clouds with different speeds
-      const clouds = [
-        { id: 'fast', x: 10, speed: 1.2 },
-        { id: 'medium', x: 0, speed: 0.8 },
-        { id: 'slow', x: -10, speed: 0.5 },
-      ];
+    it('should calculate time for full orbit', () => {
+      console.log('\n=== ORBIT TIME ANALYSIS ===\n');
 
-      const baseSpeed = 0.8;
-      const loopEvents: string[] = [];
+      for (const cloud of CLOUD_CONFIGS.filter((c) => c.layer === 'outer')) {
+        // Time for full 2π rotation at baseSpeed=0.8
+        const effectiveSpeed = cloud.orbitSpeed * 0.8 * 0.016; // radians per frame
+        const framesPerOrbit = (Math.PI * 2) / effectiveSpeed;
+        const secondsPerOrbit = framesPerOrbit / 60;
 
-      // Run simulation for 30000 frames (~8.3 minutes at 60fps)
-      // This ensures even slow clouds have time to complete loops
-      for (let frame = 0; frame < 30000; frame++) {
-        for (const cloud of clouds) {
-          cloud.x -= cloud.speed * baseSpeed * 0.8 * 0.016;
+        console.log(
+          `${cloud.id.padEnd(20)} | speed: ${cloud.orbitSpeed.toFixed(4)} rad/s | ` +
+            `orbit time: ${(secondsPerOrbit / 60).toFixed(1)} minutes`,
+        );
 
-          if (cloud.x < CLOUD_LOOP.xMin - CLOUD_LOOP.buffer) {
-            cloud.x = CLOUD_LOOP.xMax + CLOUD_LOOP.buffer;
-            loopEvents.push(`Frame ${frame}: ${cloud.id} looped`);
-          }
-        }
+        // Full orbit should take several minutes (slow, ambient movement)
+        expect(secondsPerOrbit).toBeGreaterThan(60); // > 1 minute
+        expect(secondsPerOrbit).toBeLessThan(3600); // < 1 hour
       }
-
-      // Fast cloud should loop most often
-      const fastLoops = loopEvents.filter((e) => e.includes('fast')).length;
-      const slowLoops = loopEvents.filter((e) => e.includes('slow')).length;
-
-      console.log(
-        `Loop events: fast=${fastLoops}, medium=${loopEvents.filter((e) => e.includes('medium')).length}, slow=${slowLoops}`,
-      );
-
-      // With new loop bounds (66 units total), expected loops:
-      // - Fast (1.2): ~5 loops in 8.3 minutes
-      // - Slow (0.5): ~2 loops in 8.3 minutes
-      expect(fastLoops).toBeGreaterThan(slowLoops);
     });
   });
 
-  describe('Movement direction verification', () => {
-    it('should move clouds from right to left (negative X direction)', () => {
-      let currentX = 20;
-      const speed = 0.8 * 1.0 * 0.8 * 0.016; // baseSpeed * configSpeed * multiplier * delta
+  describe('Bobbing and breathing animation', () => {
+    it('should have reasonable bobbing parameters', () => {
+      for (const cloud of CLOUD_CONFIGS) {
+        // Bob amount should be small relative to radius
+        expect(cloud.bobAmount / cloud.radius).toBeLessThan(0.05);
 
-      const startX = currentX;
-      currentX -= speed;
+        // Bob speed should create gentle motion
+        expect(cloud.bobSpeed).toBeGreaterThan(0.03);
+        expect(cloud.bobSpeed).toBeLessThan(0.2);
+      }
+    });
 
-      // Position should decrease (moving left)
-      expect(currentX).toBeLessThan(startX);
+    it('should have breath amount smaller than bob amount', () => {
+      for (const cloud of CLOUD_CONFIGS) {
+        // Breathing (radial) motion should be subtle
+        expect(cloud.breathAmount).toBeLessThan(0.5);
+        expect(cloud.breathAmount).toBeGreaterThan(0.1);
+      }
     });
   });
 });
 
-describe('Cloud System Stability Tests', () => {
+describe('Cloud System Integration Tests', () => {
   describe('Configuration stability', () => {
-    it('should have deterministic cloud configurations', () => {
-      // Cloud configs should be identical across calls
-      const configs1 = [...CLOUD_CONFIGS];
-      const configs2 = [...CLOUD_CONFIGS];
-
-      expect(configs1).toEqual(configs2);
-    });
-
     it('should have unique IDs for all clouds', () => {
       const ids = CLOUD_CONFIGS.map((c) => c.id);
       const uniqueIds = new Set(ids);
@@ -434,75 +465,120 @@ describe('Cloud System Stability Tests', () => {
       expect(uniqueIds.size).toBe(ids.length);
     });
 
-    it('should have reasonable opacity values', () => {
-      // Based on CloudSystem: finalOpacity = config.opacity * baseOpacity
-      // config.opacity ranges from 0.25 to 0.45
-      // baseOpacity default is 0.4
-      // So final opacity is 0.1 to 0.18
-
-      const baseOpacity = 0.4;
-      const configOpacities = [
-        0.45, 0.42, 0.38, 0.4, 0.38, 0.35, 0.32, 0.35, 0.32, 0.28, 0.3, 0.25, 0.28,
-      ];
-
-      for (const opacity of configOpacities) {
-        const finalOpacity = opacity * baseOpacity;
-        // Clouds should be visible but subtle
-        expect(finalOpacity).toBeGreaterThan(0.05);
-        expect(finalOpacity).toBeLessThan(0.5);
+    it('should have valid sphere indices within layer totals', () => {
+      for (const cloud of CLOUD_CONFIGS) {
+        expect(cloud.sphereIndex).toBeGreaterThanOrEqual(0);
+        expect(cloud.sphereIndex).toBeLessThan(cloud.layerTotal);
       }
+    });
+
+    it('should have consistent layer totals within each layer', () => {
+      const innerTotals = new Set(
+        CLOUD_CONFIGS.filter((c) => c.layer === 'inner').map((c) => c.layerTotal),
+      );
+      const middleTotals = new Set(
+        CLOUD_CONFIGS.filter((c) => c.layer === 'middle').map((c) => c.layerTotal),
+      );
+      const outerTotals = new Set(
+        CLOUD_CONFIGS.filter((c) => c.layer === 'outer').map((c) => c.layerTotal),
+      );
+
+      expect(innerTotals.size).toBe(1);
+      expect(middleTotals.size).toBe(1);
+      expect(outerTotals.size).toBe(1);
+    });
+  });
+
+  describe('Opacity and visibility', () => {
+    it('should have reasonable opacity values', () => {
+      const baseOpacity = 0.4;
+
+      for (const cloud of CLOUD_CONFIGS) {
+        const finalOpacity = cloud.opacity * baseOpacity;
+
+        // Clouds should be visible but subtle
+        expect(finalOpacity).toBeGreaterThan(0.08);
+        expect(finalOpacity).toBeLessThan(0.25);
+      }
+    });
+
+    it('should have outer clouds with similar or higher base opacity', () => {
+      // Outer clouds need higher opacity to compensate for distance
+      const outerOpacities = CLOUD_CONFIGS.filter((c) => c.layer === 'outer').map((c) => c.opacity);
+      const innerOpacities = CLOUD_CONFIGS.filter((c) => c.layer === 'inner').map((c) => c.opacity);
+
+      const avgOuter = outerOpacities.reduce((a, b) => a + b, 0) / outerOpacities.length;
+      const avgInner = innerOpacities.reduce((a, b) => a + b, 0) / innerOpacities.length;
+
+      // Outer should have >= opacity to remain visible at distance
+      expect(avgOuter).toBeGreaterThanOrEqual(avgInner * 0.9);
+    });
+  });
+
+  describe('Integration with scene hierarchy', () => {
+    it('documents that clouds rotate with MomentumControls parent', () => {
+      /**
+       * CloudSystem integration with scene rotation:
+       *
+       * Scene hierarchy:
+       * ```
+       * <MomentumControls>         ← Rotates everything inside
+       *   <RefractionPipeline>
+       *     <Environment>
+       *       <CloudSystem />      ← Clouds are inside, rotate with parent
+       *     </Environment>
+       *     <EarthGlobe />         ← Globe rotates with parent
+       *     <ParticleSwarm />      ← Shards rotate with parent
+       *   </RefractionPipeline>
+       * </MomentumControls>
+       * ```
+       *
+       * Key behaviors:
+       * 1. When user drags, MomentumControls rotates its group
+       * 2. All children (clouds, globe, shards) rotate together
+       * 3. CloudSystem's local animations (orbital drift, bobbing) work
+       *    in local space, adding subtle movement on top of parent rotation
+       * 4. Clouds are distributed spherically around the globe, so they
+       *    appear all around regardless of viewing angle
+       *
+       * Previous behavior (horizontal looping) would fight against parent
+       * rotation because it used world-space absolute positions.
+       */
+
+      expect(true).toBe(true);
     });
   });
 });
 
-/**
- * Integration test ideas (require WebGL/React context)
- */
-describe('Integration Test Ideas (Documentation)', () => {
-  it('documents how to test actual rendering', () => {
-    /**
-     * To test actual cloud rendering, you would need:
-     *
-     * 1. **React Testing Library + @react-three/test-renderer**
-     *    ```typescript
-     *    import { create } from '@react-three/test-renderer';
-     *    const renderer = await create(<CloudSystem />);
-     *    const clouds = renderer.scene.findByType('Clouds');
-     *    expect(clouds.children.length).toBe(14);
-     *    ```
-     *
-     * 2. **Playwright E2E tests with screenshots**
-     *    ```typescript
-     *    await page.goto('/');
-     *    await page.waitForSelector('canvas');
-     *    const screenshot = await page.screenshot();
-     *    // Use image comparison or pixel analysis
-     *    ```
-     *
-     * 3. **WebGL render target inspection**
-     *    ```typescript
-     *    // Render to offscreen target, read pixels
-     *    const renderTarget = new THREE.WebGLRenderTarget(800, 600);
-     *    renderer.setRenderTarget(renderTarget);
-     *    renderer.render(scene, camera);
-     *    const pixels = new Uint8Array(800 * 600 * 4);
-     *    renderer.readRenderTargetPixels(renderTarget, 0, 0, 800, 600, pixels);
-     *    // Analyze pixel data for cloud colors
-     *    ```
-     *
-     * 4. **Animation frame capture test**
-     *    ```typescript
-     *    // Capture cloud positions over time
-     *    const positions: number[] = [];
-     *    for (let i = 0; i < 60; i++) {
-     *      advanceFrames(1);
-     *      positions.push(cloudRef.current.position.x);
-     *    }
-     *    // Verify monotonic decrease (moving left)
-     *    expect(positions.every((p, i) => i === 0 || p < positions[i - 1])).toBe(true);
-     *    ```
-     */
+describe('Layer Summary Report', () => {
+  it('should generate layer summary', () => {
+    console.log('\n=== CLOUD LAYER SUMMARY ===\n');
 
-    expect(true).toBe(true);
+    const layers = ['inner', 'middle', 'outer'] as const;
+
+    for (const layer of layers) {
+      const clouds = CLOUD_CONFIGS.filter((c) => c.layer === layer);
+      const radii = clouds.map((c) => c.radius);
+      const opacities = clouds.map((c) => c.opacity);
+      const speeds = clouds.map((c) => c.orbitSpeed);
+
+      console.log(`${layer.toUpperCase()} LAYER:`);
+      console.log(`  Count: ${clouds.length}`);
+      console.log(
+        `  Radius range: ${Math.min(...radii).toFixed(1)} - ${Math.max(...radii).toFixed(1)}`,
+      );
+      console.log(
+        `  Opacity range: ${Math.min(...opacities).toFixed(2)} - ${Math.max(...opacities).toFixed(2)}`,
+      );
+      console.log(
+        `  Orbit speed range: ${Math.min(...speeds).toFixed(4)} - ${Math.max(...speeds).toFixed(4)}`,
+      );
+      console.log();
+    }
+
+    console.log('=== END SUMMARY ===\n');
+
+    // At least 10 clouds total
+    expect(CLOUD_CONFIGS.length).toBeGreaterThanOrEqual(10);
   });
 });

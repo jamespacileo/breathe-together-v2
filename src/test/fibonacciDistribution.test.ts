@@ -1,0 +1,342 @@
+/**
+ * Fibonacci Distribution Tests
+ *
+ * Tests for verifying that particle distribution remains even over time.
+ *
+ * The Fibonacci sphere algorithm provides optimal even distribution on a sphere,
+ * but various animation effects (orbit drift, wobble, ambient motion) can
+ * degrade this evenness over time.
+ *
+ * Metrics used:
+ * 1. **Angular separation coefficient of variation (CV)**: Measures uniformity
+ *    of nearest-neighbor angular distances. Lower = more uniform.
+ * 2. **Voronoi area variance**: Measures uniformity of spherical caps.
+ */
+
+import type * as THREE from 'three';
+import { describe, expect, it } from 'vitest';
+import {
+  calculateAllParticlePositions,
+  DEFAULT_CONFIG,
+  getFibonacciSpherePoint,
+} from '../lib/collisionGeometry';
+
+/**
+ * Calculate angular distance between two points on a sphere (in radians)
+ */
+function angularDistance(a: THREE.Vector3, b: THREE.Vector3): number {
+  // Normalize vectors to unit sphere
+  const aNorm = a.clone().normalize();
+  const bNorm = b.clone().normalize();
+  // Clamp dot product to avoid NaN from floating point errors
+  const dot = Math.max(-1, Math.min(1, aNorm.dot(bNorm)));
+  return Math.acos(dot);
+}
+
+/**
+ * Find nearest neighbor angular distance for each particle
+ */
+function findNearestNeighborDistances(positions: THREE.Vector3[]): number[] {
+  const distances: number[] = [];
+
+  for (let i = 0; i < positions.length; i++) {
+    let minDist = Infinity;
+    for (let j = 0; j < positions.length; j++) {
+      if (i === j) continue;
+      const dist = angularDistance(positions[i], positions[j]);
+      if (dist < minDist) {
+        minDist = dist;
+      }
+    }
+    distances.push(minDist);
+  }
+
+  return distances;
+}
+
+/**
+ * Calculate coefficient of variation (CV = std / mean)
+ * Lower CV means more uniform distribution
+ */
+function coefficientOfVariation(values: number[]): number {
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
+  const stdDev = Math.sqrt(variance);
+  return stdDev / mean;
+}
+
+/**
+ * Calculate theoretical optimal nearest-neighbor distance for N points on sphere
+ * Based on the covering radius formula for optimal spherical codes
+ */
+function theoreticalOptimalDistance(n: number): number {
+  // For large N, optimal packing gives approximately sqrt(4π/N) radians
+  return Math.sqrt((4 * Math.PI) / n);
+}
+
+/**
+ * Measure distribution quality metrics
+ */
+interface DistributionMetrics {
+  /** Coefficient of variation of nearest neighbor distances (0 = perfect, >0.3 = poor) */
+  cv: number;
+  /** Mean nearest neighbor angular distance (radians) */
+  meanDistance: number;
+  /** Min nearest neighbor distance (radians) */
+  minDistance: number;
+  /** Max nearest neighbor distance (radians) */
+  maxDistance: number;
+  /** Ratio of min/max (1 = perfect, <0.5 = poor) */
+  minMaxRatio: number;
+  /** Theoretical optimal distance for this N */
+  theoreticalOptimal: number;
+}
+
+function measureDistribution(positions: THREE.Vector3[]): DistributionMetrics {
+  const distances = findNearestNeighborDistances(positions);
+  const mean = distances.reduce((a, b) => a + b, 0) / distances.length;
+  const cv = coefficientOfVariation(distances);
+  const min = Math.min(...distances);
+  const max = Math.max(...distances);
+
+  return {
+    cv,
+    meanDistance: mean,
+    minDistance: min,
+    maxDistance: max,
+    minMaxRatio: min / max,
+    theoreticalOptimal: theoreticalOptimalDistance(positions.length),
+  };
+}
+
+describe('Fibonacci Distribution Evenness', () => {
+  describe('Pure Fibonacci sphere (baseline)', () => {
+    it('should have even distribution at initialization (time=0)', () => {
+      const counts = [42, 100, 200];
+
+      for (const count of counts) {
+        // Get pure Fibonacci points (no animation effects)
+        const points: THREE.Vector3[] = [];
+        for (let i = 0; i < count; i++) {
+          points.push(getFibonacciSpherePoint(i, count).multiplyScalar(5)); // Scale to orbit radius
+        }
+
+        const metrics = measureDistribution(points);
+
+        // Pure Fibonacci should have low CV (<0.15)
+        expect(metrics.cv).toBeLessThan(0.15);
+        // Min/max ratio should be reasonable (>0.5)
+        // Note: Fibonacci sphere inherently has some variation due to pole concentration
+        expect(metrics.minMaxRatio).toBeGreaterThan(0.5);
+
+        console.log(`Pure Fibonacci (${count} particles):`, {
+          cv: metrics.cv.toFixed(4),
+          minMaxRatio: metrics.minMaxRatio.toFixed(4),
+          meanDist: (metrics.meanDistance * (180 / Math.PI)).toFixed(2) + '°',
+          theoreticalOpt: (metrics.theoreticalOptimal * (180 / Math.PI)).toFixed(2) + '°',
+        });
+      }
+    });
+  });
+
+  describe('Animated positions (with drift effects)', () => {
+    /**
+     * This test demonstrates that orbit drift degrades distribution over time
+     */
+    it('should show distribution degradation over time due to orbit drift', () => {
+      const particleCount = 100;
+      const timePoints = [0, 10, 30, 60, 120]; // seconds
+
+      console.log('\n=== ORBIT DRIFT ANALYSIS ===');
+      console.log(`Particle count: ${particleCount}`);
+      console.log('Time (s) | CV     | Min/Max | Mean Dist (°)');
+      console.log('---------|--------|---------|-------------');
+
+      const results: { time: number; cv: number; minMaxRatio: number }[] = [];
+
+      for (const time of timePoints) {
+        const positions = calculateAllParticlePositions(0.5, {
+          ...DEFAULT_CONFIG,
+          particleCount,
+          time,
+        });
+
+        const metrics = measureDistribution(positions);
+
+        results.push({ time, cv: metrics.cv, minMaxRatio: metrics.minMaxRatio });
+
+        console.log(
+          `${time.toString().padStart(8)} | ${metrics.cv.toFixed(4)} | ${metrics.minMaxRatio.toFixed(4)}  | ${(metrics.meanDistance * (180 / Math.PI)).toFixed(2)}`,
+        );
+      }
+
+      // The CV should generally increase over time due to drift
+      // This test documents the current behavior
+      const t0 = results.find((r) => r.time === 0)!;
+      const t120 = results.find((r) => r.time === 120)!;
+
+      console.log(
+        `\nDegradation at 120s: CV increased by ${(((t120.cv - t0.cv) / t0.cv) * 100).toFixed(1)}%`,
+      );
+
+      // Currently, expect some degradation (this is the bug we're documenting)
+      // After fix, we should update this test to expect minimal degradation
+      expect(t0.cv).toBeDefined(); // Baseline exists
+      expect(t120.cv).toBeDefined(); // Long-term value exists
+    });
+
+    /**
+     * Test that documents the primary cause: Y-axis orbit drift
+     */
+    it('should identify orbit drift as primary cause of uneven distribution', () => {
+      const particleCount = 100;
+
+      // Compare positions at time=0 vs time=60
+      const positions0 = calculateAllParticlePositions(0.5, {
+        particleCount,
+        time: 0,
+      });
+
+      const positions60 = calculateAllParticlePositions(0.5, {
+        particleCount,
+        time: 60,
+      });
+
+      // Measure how much each particle has drifted (angular displacement)
+      const drifts: number[] = [];
+      for (let i = 0; i < particleCount; i++) {
+        const drift = angularDistance(positions0[i], positions60[i]);
+        drifts.push(drift);
+      }
+
+      const meanDrift = drifts.reduce((a, b) => a + b, 0) / drifts.length;
+      const driftCV = coefficientOfVariation(drifts);
+
+      console.log('\n=== ORBIT DRIFT MEASUREMENT ===');
+      console.log(`Mean drift at 60s: ${(meanDrift * (180 / Math.PI)).toFixed(2)}°`);
+      console.log(`Drift CV: ${driftCV.toFixed(4)} (variance in drift amounts)`);
+
+      // Each particle drifts at a different rate due to variable orbitSpeed
+      // This is the root cause - particles don't maintain relative positions
+      expect(meanDrift).toBeGreaterThan(0); // Confirms particles are moving
+      expect(driftCV).toBeGreaterThan(0.1); // Confirms non-uniform drift
+    });
+  });
+
+  describe('Distribution metrics documentation', () => {
+    /**
+     * This test outputs diagnostic information about distribution quality
+     */
+    it('logs comprehensive distribution metrics for analysis', () => {
+      console.log('\n=== DISTRIBUTION QUALITY REPORT ===\n');
+
+      const counts = [42, 100, 200, 300];
+      const times = [0, 30, 60];
+
+      for (const count of counts) {
+        console.log(`\n--- ${count} particles ---`);
+
+        for (const time of times) {
+          const positions = calculateAllParticlePositions(0.5, {
+            particleCount: count,
+            time,
+          });
+
+          const metrics = measureDistribution(positions);
+
+          const status =
+            metrics.cv < 0.2 ? '✅ GOOD' : metrics.cv < 0.35 ? '⚠️ MODERATE' : '❌ POOR';
+
+          console.log(
+            `  t=${time}s: ${status} CV=${metrics.cv.toFixed(4)}, ` +
+              `min/max=${metrics.minMaxRatio.toFixed(3)}, ` +
+              `range=[${(metrics.minDistance * (180 / Math.PI)).toFixed(1)}° - ` +
+              `${(metrics.maxDistance * (180 / Math.PI)).toFixed(1)}°]`,
+          );
+        }
+      }
+
+      console.log('\n=== END REPORT ===\n');
+
+      expect(true).toBe(true); // Diagnostic test always passes
+    });
+  });
+});
+
+describe('Root Cause Analysis: Orbit Speed Variation', () => {
+  /**
+   * The orbitSpeed varies per particle:
+   *   orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION
+   *
+   * This means particles drift at different rates around the Y-axis,
+   * breaking the Fibonacci distribution.
+   */
+  it('documents orbit speed distribution causing uneven drift', () => {
+    // Constants from ParticleSwarm
+    const ORBIT_BASE_SPEED = 0.015;
+    const ORBIT_SPEED_VARIATION = 0.01;
+
+    const speeds: number[] = [];
+    const particleCount = 100;
+
+    for (let i = 0; i < particleCount; i++) {
+      const orbitSeed = (i * Math.PI + 0.1) % 1;
+      const orbitSpeed = ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION;
+      speeds.push(orbitSpeed);
+    }
+
+    const minSpeed = Math.min(...speeds);
+    const maxSpeed = Math.max(...speeds);
+
+    console.log('\n=== ORBIT SPEED ANALYSIS ===');
+    console.log(`Speed range: ${minSpeed.toFixed(5)} - ${maxSpeed.toFixed(5)} rad/s`);
+    console.log(
+      `Variation: ${(((maxSpeed - minSpeed) / ORBIT_BASE_SPEED) * 100).toFixed(1)}% of base speed`,
+    );
+    console.log(`At 60s: fastest particle drifts ${(maxSpeed * 60 * (180 / Math.PI)).toFixed(1)}°`);
+    console.log(`At 60s: slowest particle drifts ${(minSpeed * 60 * (180 / Math.PI)).toFixed(1)}°`);
+    console.log(
+      `Relative drift at 60s: ${((maxSpeed - minSpeed) * 60 * (180 / Math.PI)).toFixed(1)}° difference`,
+    );
+
+    // This demonstrates the problem: particles can drift up to ~40° apart over 60s
+    expect(maxSpeed).toBeGreaterThan(minSpeed);
+    expect((maxSpeed - minSpeed) / ORBIT_BASE_SPEED).toBeGreaterThan(0.5); // >50% variation
+  });
+});
+
+describe('Potential Fixes (documented)', () => {
+  /**
+   * POTENTIAL FIXES for even distribution:
+   *
+   * 1. **Uniform orbit speed**: All particles rotate at the same rate
+   *    Pro: Simple fix, maintains visual motion
+   *    Con: Loses individual character
+   *
+   * 2. **Periodic redistribution**: Re-apply Fibonacci positions every N seconds
+   *    Pro: Guarantees evenness periodically
+   *    Con: May cause visible snapping
+   *
+   * 3. **Tangential orbit (recommended)**: Instead of Y-axis rotation,
+   *    rotate each particle along its own tangent circle at the same latitude
+   *    Pro: Maintains Fibonacci spacing exactly
+   *    Con: More complex math
+   *
+   * 4. **Spherical harmonic noise**: Replace Y-axis orbit with spherically
+   *    coherent noise that respects the sphere topology
+   *    Pro: Organic motion without clustering
+   *    Con: Complex to implement
+   *
+   * 5. **Distance-aware orbit speed**: Scale orbit speed inversely with latitude
+   *    to compensate for arc length differences
+   *    Pro: Moderate complexity
+   *    Con: May look unnatural
+   */
+  it('documents fix options', () => {
+    console.log('\n=== RECOMMENDED FIXES ===');
+    console.log('1. SIMPLE: Use uniform orbit speed for all particles');
+    console.log('2. MEDIUM: Periodic soft redistribution during hold phases');
+    console.log('3. BEST: Replace Y-axis orbit with latitude-parallel rotation');
+    expect(true).toBe(true);
+  });
+});

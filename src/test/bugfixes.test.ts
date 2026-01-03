@@ -9,7 +9,7 @@
  * 5. JSON parse error handling
  */
 
-import { act, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { usePropRef, usePropRefs } from '../hooks/usePropRef';
 import { calculatePhaseInfo, type PhaseIndex } from '../lib/breathPhase';
