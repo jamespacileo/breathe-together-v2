@@ -737,6 +737,26 @@ export function useDevControls(): DevControlsState {
     setRef.current = set;
   }, [set]);
 
+  // Sync GPU preference from Zustand store after hydration
+  // (Leva initializes before Zustand hydrates from localStorage)
+  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
+  useEffect(() => {
+    // Check if already hydrated
+    if (useRendererStore.persist.hasHydrated()) {
+      const storedValue = useRendererStore.getState().powerPreference;
+      // Type assertion needed: gpuPreference uses onChange so it's not in Leva's inferred type
+      (set as (v: { gpuPreference: PowerPreference }) => void)({ gpuPreference: storedValue });
+    }
+
+    // Also register callback for when hydration completes
+    const unsubscribe = useRendererStore.persist.onFinishHydration(() => {
+      const storedValue = useRendererStore.getState().powerPreference;
+      (set as (v: { gpuPreference: PowerPreference }) => void)({ gpuPreference: storedValue });
+    });
+
+    return unsubscribe;
+  }, [set]);
+
   // Load last used settings on mount
   // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   const hasLoadedRef = useRef(false);
