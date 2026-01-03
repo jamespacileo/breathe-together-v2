@@ -124,13 +124,13 @@ export function BreathingLevel({
                 color={devControls.atmosphereColor}
               />
             )}
-          </RefractionPipeline>
 
-          {/* GeoMarkers - OUTSIDE RefractionPipeline to avoid DoF blur */}
-          {/* Renders holographic country labels that follow globe rotation */}
-          {showGlobe && Object.keys(countryCounts).length > 0 && (
-            <GeoMarkers countryCounts={countryCounts} showNames={false} />
-          )}
+            {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
+            {/* Now inside RefractionPipeline: occluded by globe/shards, has DoF effect */}
+            {showGlobe && Object.keys(countryCounts).length > 0 && (
+              <GeoMarkers countryCounts={countryCounts} showNames={false} />
+            )}
+          </RefractionPipeline>
         </MomentumControls>
       </Suspense>
     </ErrorBoundary>

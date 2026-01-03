@@ -1,26 +1,24 @@
 /**
- * GeoMarkers - Country user count markers on the globe
+ * GeoMarkers - Country user count markers on the globe (3D version)
  *
  * Renders floating holographic labels above countries showing the number
- * of connected users from each location. Uses drei's Html component
- * for billboard-style labels that always face the camera.
+ * of connected users from each location. Uses drei's Billboard + Text
+ * for true 3D integration with proper depth testing.
  *
- * IMPORTANT: This component must be rendered OUTSIDE the RefractionPipeline
- * to avoid being affected by depth-of-field blur post-processing.
- * Place it inside MomentumControls to follow globe rotation.
- *
- * Features:
- * - Positioned at country centroids on globe surface
- * - Billboard mode (always faces camera via sprite prop)
- * - Holographic/ethereal styling to match Monument Valley aesthetic
- * - Smooth scale animation with distance
- * - Auto-rotation synced with EarthGlobe for marker alignment
+ * KEY FEATURES:
+ * - True 3D meshes that participate in depth buffer
+ * - Occluded by objects in front (particle shards)
+ * - Hidden when behind the globe
+ * - Billboard behavior (always faces camera)
+ * - Holographic Fresnel edge glow effect
+ * - Auto-rotation synced with EarthGlobe
  */
 
-import { Html } from '@react-three/drei';
+import { Billboard, RoundedBox, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
-import type { Group } from 'three';
+import type { Group, Mesh } from 'three';
+import * as THREE from 'three';
 
 import { COUNTRY_CENTROIDS, getCountryName, latLngToPosition } from '../../lib/countryCentroids';
 
@@ -47,7 +45,7 @@ interface GeoMarkersProps {
 }
 
 /**
- * Single country marker component - Holographic style
+ * Single country marker component - 3D holographic style
  */
 interface CountryMarkerProps {
   countryCode: string;
@@ -56,70 +54,169 @@ interface CountryMarkerProps {
   showName: boolean;
 }
 
-function CountryMarker({ countryCode, count, position, showName }: CountryMarkerProps) {
-  const name = showName ? getCountryName(countryCode) : countryCode;
+/**
+ * Holographic material with Fresnel edge glow
+ */
+function HolographicMaterial({
+  baseColor = '#ffffff',
+  glowColor = '#7ec5c4',
+}: {
+  baseColor?: string;
+  glowColor?: string;
+}) {
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uBaseColor: { value: new THREE.Color(baseColor) },
+      uGlowColor: { value: new THREE.Color(glowColor) },
+      uOpacity: { value: 0.85 },
+      uFresnelPower: { value: 2.0 },
+    }),
+    [baseColor, glowColor],
+  );
+
+  useFrame((state) => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+    }
+  });
 
   return (
-    <Html
-      position={position}
-      center
-      sprite
-      distanceFactor={4}
-      zIndexRange={[100, 0]}
-      style={{
-        pointerEvents: 'none',
-        userSelect: 'none',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '8px 14px',
-          background:
-            'linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(240,235,230,0.75) 100%)',
-          borderRadius: '16px',
-          border: '2px solid rgba(126,197,196,0.6)',
-          boxShadow:
-            '0 4px 20px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.3), inset 0 1px 0 rgba(255,255,255,0.5)',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-          whiteSpace: 'nowrap',
-        }}
+    <shaderMaterial
+      ref={materialRef}
+      uniforms={uniforms}
+      transparent
+      depthTest={true}
+      depthWrite={true}
+      side={THREE.DoubleSide}
+      vertexShader={`
+        varying vec3 vNormal;
+        varying vec3 vViewPosition;
+
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vViewPosition = -mvPosition.xyz;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `}
+      fragmentShader={`
+        uniform float uTime;
+        uniform vec3 uBaseColor;
+        uniform vec3 uGlowColor;
+        uniform float uOpacity;
+        uniform float uFresnelPower;
+
+        varying vec3 vNormal;
+        varying vec3 vViewPosition;
+
+        void main() {
+          // Fresnel effect for edge glow
+          vec3 viewDir = normalize(vViewPosition);
+          float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), uFresnelPower);
+
+          // Subtle pulse animation
+          float pulse = 0.95 + 0.05 * sin(uTime * 2.0);
+
+          // Mix base color with glow at edges
+          vec3 color = mix(uBaseColor, uGlowColor, fresnel * 0.6);
+
+          // Final opacity with fresnel boost at edges
+          float alpha = uOpacity * pulse + fresnel * 0.15;
+
+          gl_FragColor = vec4(color, alpha);
+        }
+      `}
+    />
+  );
+}
+
+/**
+ * Badge background mesh - rounded rectangle with holographic effect
+ */
+function MarkerBadge({ width, height }: { width: number; height: number }) {
+  return (
+    <RoundedBox args={[width, height, 0.02]} radius={0.04} smoothness={4}>
+      <HolographicMaterial baseColor="#f8f6f4" glowColor="#7ec5c4" />
+    </RoundedBox>
+  );
+}
+
+/**
+ * Count badge - teal pill shape
+ */
+function CountBadge({ count, offsetX }: { count: number; offsetX: number }) {
+  const countStr = String(count);
+  const badgeWidth = 0.08 + countStr.length * 0.03;
+
+  return (
+    <group position={[offsetX, 0, 0.015]}>
+      {/* Teal pill background */}
+      <RoundedBox args={[badgeWidth, 0.07, 0.015]} radius={0.025} smoothness={4}>
+        <meshBasicMaterial
+          color="#5eb3b2"
+          transparent
+          opacity={0.95}
+          depthTest={true}
+          depthWrite={true}
+        />
+      </RoundedBox>
+      {/* Count number */}
+      <Text
+        position={[0, 0, 0.01]}
+        fontSize={0.04}
+        color="#ffffff"
+        anchorX="center"
+        anchorY="middle"
+        fontWeight={700}
+        depthOffset={-1}
       >
-        {/* Country code/name */}
-        <span
-          style={{
-            fontSize: '13px',
-            fontWeight: 600,
-            color: '#5a5a5a',
-            textShadow: '0 1px 0 rgba(255,255,255,0.8)',
-            letterSpacing: '0.8px',
-          }}
+        {count}
+      </Text>
+    </group>
+  );
+}
+
+function CountryMarker({ countryCode, count, position, showName }: CountryMarkerProps) {
+  const name = showName ? getCountryName(countryCode) : countryCode;
+  const meshRef = useRef<Mesh>(null);
+
+  // Calculate dimensions based on text length
+  const nameLength = name.length;
+  const countLength = String(count).length;
+  const badgeWidth = 0.06 + nameLength * 0.025 + 0.08 + countLength * 0.03 + 0.03;
+  const badgeHeight = 0.1;
+
+  // Position offsets for text elements
+  const nameOffsetX = -badgeWidth / 2 + 0.04 + (nameLength * 0.025) / 2;
+  const countOffsetX = badgeWidth / 2 - 0.04 - (0.08 + countLength * 0.03) / 2;
+
+  return (
+    <Billboard follow={true} lockX={false} lockY={false} lockZ={false} position={position}>
+      <group ref={meshRef}>
+        {/* Main badge background */}
+        <MarkerBadge width={badgeWidth} height={badgeHeight} />
+
+        {/* Country code/name text */}
+        <Text
+          position={[nameOffsetX, 0, 0.015]}
+          fontSize={0.038}
+          color="#5a5a5a"
+          anchorX="center"
+          anchorY="middle"
+          fontWeight={600}
+          letterSpacing={0.05}
+          depthOffset={-1}
         >
           {name}
-        </span>
+        </Text>
 
-        {/* User count badge */}
-        <span
-          style={{
-            fontSize: '12px',
-            fontWeight: 700,
-            color: 'white',
-            background: 'linear-gradient(135deg, #7ec5c4 0%, #5eb3b2 100%)',
-            padding: '4px 10px',
-            borderRadius: '12px',
-            boxShadow: '0 3px 8px rgba(94,179,178,0.5), inset 0 1px 0 rgba(255,255,255,0.3)',
-            minWidth: '22px',
-            textAlign: 'center',
-          }}
-        >
-          {count}
-        </span>
-      </div>
-    </Html>
+        {/* Count badge */}
+        <CountBadge count={count} offsetX={countOffsetX} />
+      </group>
+    </Billboard>
   );
 }
 
@@ -127,10 +224,11 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
  * GeoMarkers - Renders user count markers for each country
  *
  * Markers are positioned at country centroids, slightly above the globe surface.
- * Uses drei's Html component for HTML-over-WebGL rendering.
+ * Uses drei's Billboard + Text for true 3D integration with depth testing.
  *
- * PLACEMENT: Must be inside MomentumControls but OUTSIDE RefractionPipeline
- * to follow globe rotation without being affected by DoF blur.
+ * PLACEMENT: Can be placed inside or outside RefractionPipeline.
+ * When inside, markers will have DoF blur applied (cinematic).
+ * When outside, markers stay crisp (HUD-like).
  *
  * ROTATION SYNC: Matches EarthGlobe's auto-rotation (0.0008 rad/frame) so
  * markers stay aligned with their country positions on the texture.
@@ -184,7 +282,7 @@ export function GeoMarkers({
   if (markers.length === 0) return null;
 
   return (
-    <group ref={groupRef} name="Geo Markers">
+    <group ref={groupRef} name="Geo Markers 3D">
       {markers.map((marker) => (
         <CountryMarker
           key={marker.code}
