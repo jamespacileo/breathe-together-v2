@@ -176,9 +176,17 @@ const PERPENDICULAR_AMPLITUDE = 0.03;
 const PERPENDICULAR_FREQUENCY = 0.35;
 
 /**
- * Phase stagger for wave effect (4% of breath cycle)
+ * Phase stagger for radial wave effect
+ * Creates organic ripple where center particles breathe first
+ * Increased from 4% to 15% for more visible wave motion
  */
-const MAX_PHASE_OFFSET = 0.04;
+const MAX_PHASE_OFFSET = 0.15;
+
+/**
+ * Wave propagation speed - how quickly the wave spreads outward
+ * Lower = faster propagation, Higher = more delayed outer particles
+ */
+const WAVE_DELAY_FACTOR = 0.8;
 
 /**
  * Reusable objects for animation loop (pre-allocated to avoid GC pressure)
@@ -213,6 +221,7 @@ function normalizeUsers(users: User[] | Partial<Record<MoodId, number>> | undefi
 
 /**
  * Initialize instance state with physics parameters
+ * Phase offset is now based on radial distance for wave ripple effect
  */
 function createInstanceState(index: number, baseRadius: number): InstanceState {
   const goldenRatio = (1 + Math.sqrt(5)) / 2;
@@ -223,12 +232,26 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
 
   const direction = getFibonacciSpherePoint(index, 1);
 
+  // Calculate radial distance for wave effect
+  // Fibonacci sphere puts points from top (y=1) to bottom (y=-1)
+  // Use absolute Y distance from equator (y=0) for radial wave
+  // Equator particles (y≈0) breathe first, poles (y≈±1) follow
+  const equatorDistance = Math.abs(direction.y);
+
+  // Phase offset based on distance from equator
+  // Equator (distance=0) has 0 offset, poles (distance=1) have max offset
+  // This creates a beautiful wave that ripples from equator to poles
+  const radialPhaseOffset = equatorDistance * MAX_PHASE_OFFSET * WAVE_DELAY_FACTOR;
+
+  // Add slight random variation to prevent mechanical look
+  const randomVariation = ((index * goldenRatio) % 1) * MAX_PHASE_OFFSET * 0.2;
+
   return {
     direction: direction.clone(),
     targetDirection: direction.clone(),
     currentMood: null,
     currentRadius: baseRadius,
-    phaseOffset: ((index * goldenRatio) % 1) * MAX_PHASE_OFFSET,
+    phaseOffset: radialPhaseOffset + randomVariation,
     ambientSeed: index * 137.508,
     rotationSpeedX: 0.7 + rotSeedX * 0.6,
     rotationSpeedY: 0.7 + rotSeedY * 0.6,
@@ -521,10 +544,16 @@ export function ParticleSwarm({
         instanceState.direction.normalize();
       }
 
-      // Physics calculations
+      // Physics calculations with enhanced wave effect
+      // Apply phase offset to create radial breathing wave
+      // Offset affects both radius and scale for more visible wave motion
       const phaseOffsetAmount = instanceState.phaseOffset * (baseRadius - minOrbitRadius);
       const targetWithOffset = targetRadius + phaseOffsetAmount;
       const clampedTarget = Math.max(targetWithOffset, minOrbitRadius);
+
+      // Calculate delayed breath phase for this particle (for scale wave)
+      // This creates the illusion of breath "flowing" through the swarm
+      const delayedBreathPhase = Math.max(0, currentBreathPhase - instanceState.phaseOffset);
 
       const lerpFactor = 1 - Math.exp(-BREATH_LERP_SPEED * clampedDelta);
       instanceState.currentRadius += (clampedTarget - instanceState.currentRadius) * lerpFactor;
@@ -566,7 +595,9 @@ export function ParticleSwarm({
       _tempQuaternion.setFromEuler(_tempEuler);
 
       // Final scale: slot scale × breath scale × base offset
-      const breathScale = 1.0 + currentBreathPhase * 0.05;
+      // Use delayed breath phase for wave effect - particles scale with the wave
+      // Increased scale range from 5% to 12% for more visible breathing
+      const breathScale = 1.0 + delayedBreathPhase * 0.12;
       const finalScale = slotScale * instanceState.baseScaleOffset * breathScale;
       _tempScale.setScalar(finalScale);
 
