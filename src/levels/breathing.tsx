@@ -14,12 +14,20 @@ import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useDevControls } from '../hooks/useDevControls';
 import { usePresence } from '../hooks/usePresence';
+import { useSceneReveal } from '../hooks/useSceneReveal';
 import { useBreathingLevelStore } from '../stores/breathingLevelStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
  * BreathingLevel - Core 3D meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * Scene Loading Strategy (Organic Reveal):
+ * - Scene is visible immediately with camera close to globe
+ * - Fog hides distant elements during asset loading
+ * - Globe breathing animation is the loading indicator (no separate UI)
+ * - When assets load, camera pulls back and fog recedes
+ * - Creates seamless, immersive transition into the meditation
  *
  * This component handles ONLY the 3D scene content.
  * HTML UI is rendered separately via BreathingLevelUI (outside Canvas).
@@ -38,6 +46,21 @@ export function BreathingLevel({
 
   // Dev controls (Leva)
   const devControls = useDevControls();
+
+  // Organic scene reveal: camera pull-back + fog recede
+  // Globe is visible immediately as loading indicator
+  // When assets load, scene expands to full view
+  useSceneReveal({
+    startCameraZ: 4,
+    endCameraZ: 10,
+    startFogNear: 0.1,
+    startFogFar: 3.5,
+    endFogNear: 15,
+    endFogFar: 80,
+    fogColor: '#f5ebe0',
+    duration: 2500,
+    delay: 200,
+  });
 
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
@@ -79,6 +102,7 @@ export function BreathingLevel({
           maxBlur={devControls.maxBlur}
         >
           {/* Environment - clouds, lighting, fog */}
+          {/* Revealed progressively as fog recedes during scene reveal */}
           {showEnvironment && (
             <Environment
               showClouds={devControls.showClouds}
@@ -104,8 +128,12 @@ export function BreathingLevel({
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
+            {/* Globe - visible immediately as the loading indicator */}
+            {/* Breathing animation starts right away, creating organic "loading" */}
             {showGlobe && <EarthGlobe />}
 
+            {/* Particles - revealed as fog recedes during camera pull-back */}
+            {/* Uses deferred users for React 19 concurrent rendering optimization */}
             {showParticles && (
               <ParticleSwarm
                 users={deferredUsers}
@@ -114,6 +142,8 @@ export function BreathingLevel({
               />
             )}
 
+            {/* Atmospheric particles - revealed as fog recedes */}
+            {/* Uses deferred density for React 19 concurrent rendering optimization */}
             {showParticles && (
               <AtmosphericParticles
                 count={Math.round(deferredAtmosphereDensity)}

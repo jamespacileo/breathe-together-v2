@@ -10,6 +10,11 @@ import { useViewport } from './hooks/useViewport';
 import { BreathingLevel, BreathingLevelUI } from './levels/breathing';
 import { KootaSystems } from './providers';
 
+// Preload assets before Canvas mounts (side-effect import)
+// ES modules execute synchronously - this runs before App component renders
+// drei's useTexture.preload() adds to internal cache checked by useTexture
+import './lib/preload';
+
 // Lazy load admin panel (only loads when needed)
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
@@ -32,6 +37,13 @@ function useCurrentPath(): string {
  * - HTML UI renders as siblings, naturally receiving events
  * - No need for exclusion zones or complex cursor management
  *
+ * Scene Loading Strategy (Organic Reveal):
+ * - Scene is visible immediately with camera close to globe
+ * - Fog hides distant elements during loading
+ * - Globe breathing animation acts as the loading indicator
+ * - When assets load, camera pulls back and fog recedes
+ * - No separate loading UI - the scene IS the loading experience
+ *
  * @see https://r3f.docs.pmnd.rs/api/canvas#extracting-events
  */
 export function App() {
@@ -51,6 +63,11 @@ export function App() {
     }),
     [isMobile, isTablet],
   );
+
+  // Note: gl.compile() for shader precompilation was removed because:
+  // 1. Suspense-wrapped components (EarthGlobe with useTexture) aren't in scene yet
+  // 2. The organic reveal (fog + camera animation) handles loading UX gracefully
+  // 3. Shaders compile naturally as fog recedes and elements become visible
 
   // Admin panel route
   if (path === '/admin') {
@@ -82,11 +99,12 @@ export function App() {
       {/* Shared event source - both Canvas and HTML UI are children */}
       <div ref={containerRef} className="relative w-full h-full">
         {/* 3D Canvas - receives events via eventSource, has pointer-events: none */}
+        {/* Scene is visible immediately - organic reveal via camera/fog animation */}
         <Canvas
           eventSource={containerRef}
           eventPrefix="client"
           shadows={false}
-          camera={{ position: [0, 0, 10], fov: 45 }}
+          camera={{ position: [0, 0, 4], fov: 45 }}
           gl={glConfig}
           dpr={isMobile ? [1, 2] : [1, 2]}
           className="!absolute inset-0"
