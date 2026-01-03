@@ -3,7 +3,6 @@ import { Perf } from 'r3f-perf';
 import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { FadeGroup } from '../components/FadeGroup';
 import { MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
@@ -14,14 +13,21 @@ import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles'
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useDevControls } from '../hooks/useDevControls';
-import { useSceneFadeIn } from '../hooks/useFadeIn';
 import { usePresence } from '../hooks/usePresence';
+import { useSceneReveal } from '../hooks/useSceneReveal';
 import { useBreathingLevelStore } from '../stores/breathingLevelStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
  * BreathingLevel - Core 3D meditation environment.
  * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * Scene Loading Strategy (Organic Reveal):
+ * - Scene is visible immediately with camera close to globe
+ * - Fog hides distant elements during asset loading
+ * - Globe breathing animation is the loading indicator (no separate UI)
+ * - When assets load, camera pulls back and fog recedes
+ * - Creates seamless, immersive transition into the meditation
  *
  * This component handles ONLY the 3D scene content.
  * HTML UI is rendered separately via BreathingLevelUI (outside Canvas).
@@ -34,8 +40,6 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-  // Scene readiness for staggered fade-in
-  sceneReady = false,
 }: Partial<BreathingLevelProps> = {}) {
   // Shared state from Zustand store
   const { orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
@@ -43,9 +47,20 @@ export function BreathingLevel({
   // Dev controls (Leva)
   const devControls = useDevControls();
 
-  // Staggered fade-in for cinematic reveal
-  // Only starts animating when sceneReady becomes true
-  const fadeIn = useSceneFadeIn(sceneReady);
+  // Organic scene reveal: camera pull-back + fog recede
+  // Globe is visible immediately as loading indicator
+  // When assets load, scene expands to full view
+  useSceneReveal({
+    startCameraZ: 4,
+    endCameraZ: 10,
+    startFogNear: 0.1,
+    startFogFar: 3.5,
+    endFogNear: 15,
+    endFogFar: 80,
+    fogColor: '#f5ebe0',
+    duration: 2500,
+    delay: 200,
+  });
 
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
@@ -87,20 +102,18 @@ export function BreathingLevel({
           maxBlur={devControls.maxBlur}
         >
           {/* Environment - clouds, lighting, fog */}
-          {/* Fades in first (delay: 0ms) - establishes scene mood */}
+          {/* Revealed progressively as fog recedes during scene reveal */}
           {showEnvironment && (
-            <FadeGroup opacity={fadeIn.environment} name="Environment Fade">
-              <Environment
-                showClouds={devControls.showClouds}
-                showStars={devControls.showStars}
-                cloudOpacity={devControls.cloudOpacity}
-                cloudSpeed={devControls.cloudSpeed}
-                ambientLightColor={devControls.ambientLightColor}
-                ambientLightIntensity={devControls.ambientLightIntensity}
-                keyLightColor={devControls.keyLightColor}
-                keyLightIntensity={devControls.keyLightIntensity}
-              />
-            </FadeGroup>
+            <Environment
+              showClouds={devControls.showClouds}
+              showStars={devControls.showStars}
+              cloudOpacity={devControls.cloudOpacity}
+              cloudSpeed={devControls.cloudSpeed}
+              ambientLightColor={devControls.ambientLightColor}
+              ambientLightIntensity={devControls.ambientLightIntensity}
+              keyLightColor={devControls.keyLightColor}
+              keyLightIntensity={devControls.keyLightIntensity}
+            />
           )}
 
           {/* MomentumControls - iOS-style momentum scrolling for 3D rotation */}
@@ -115,37 +128,30 @@ export function BreathingLevel({
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
             azimuth={[-Infinity, Infinity]}
           >
-            {/* Globe fades in second (delay: 400ms) - central focal point */}
-            {showGlobe && (
-              <FadeGroup opacity={fadeIn.globe} name="Globe Fade">
-                <EarthGlobe />
-              </FadeGroup>
-            )}
+            {/* Globe - visible immediately as the loading indicator */}
+            {/* Breathing animation starts right away, creating organic "loading" */}
+            {showGlobe && <EarthGlobe />}
 
-            {/* Particles fade in third (delay: 800ms) - detail layer */}
+            {/* Particles - revealed as fog recedes during camera pull-back */}
             {/* Uses deferred users for React 19 concurrent rendering optimization */}
             {showParticles && (
-              <FadeGroup opacity={fadeIn.particles} name="Particles Fade">
-                <ParticleSwarm
-                  users={deferredUsers}
-                  baseRadius={orbitRadius}
-                  maxShardSize={shardSize}
-                />
-              </FadeGroup>
+              <ParticleSwarm
+                users={deferredUsers}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
+              />
             )}
 
-            {/* Atmospheric particles fade in last (delay: 1200ms) - ambient polish */}
+            {/* Atmospheric particles - revealed as fog recedes */}
             {/* Uses deferred density for React 19 concurrent rendering optimization */}
             {showParticles && (
-              <FadeGroup opacity={fadeIn.atmosphere} name="Atmosphere Fade">
-                <AtmosphericParticles
-                  count={Math.round(deferredAtmosphereDensity)}
-                  size={devControls.atmosphereParticleSize}
-                  baseOpacity={devControls.atmosphereBaseOpacity}
-                  breathingOpacity={devControls.atmosphereBreathingOpacity}
-                  color={devControls.atmosphereColor}
-                />
-              </FadeGroup>
+              <AtmosphericParticles
+                count={Math.round(deferredAtmosphereDensity)}
+                size={devControls.atmosphereParticleSize}
+                baseOpacity={devControls.atmosphereBaseOpacity}
+                breathingOpacity={devControls.atmosphereBreathingOpacity}
+                color={devControls.atmosphereColor}
+              />
             )}
           </MomentumControls>
         </RefractionPipeline>

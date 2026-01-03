@@ -36,15 +36,6 @@ export interface BreathingLevelProps {
    * @default true
    */
   showEnvironment?: boolean;
-
-  /**
-   * Whether the scene is ready for display.
-   * When true, enables staggered fade-in animations for entities.
-   * Passed from App component after Canvas creation and shader compilation.
-   * @group "Loading"
-   * @default false
-   */
-  sceneReady?: boolean;
 }
 
 // ============================================================================
