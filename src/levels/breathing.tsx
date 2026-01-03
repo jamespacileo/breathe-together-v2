@@ -9,6 +9,7 @@ import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
+import { GlobeRibbonText } from '../entities/earthGlobe/GlobeRibbonText';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
@@ -106,6 +107,9 @@ export function BreathingLevel({
             )}
 
             {showGlobe && <EarthGlobe />}
+
+            {/* Globe Ribbon Text - curved text wrapping around globe */}
+            {showGlobe && <GlobeRibbonText />}
 
             {showParticles && (
               <ParticleSwarm
