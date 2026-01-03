@@ -9,6 +9,7 @@ import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
+import { BreathingRings, GlobeBloom, OrbitalGauges, SyncFilaments } from '../entities/hud';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -26,13 +27,28 @@ import type { BreathingLevelProps } from '../types/sceneProps';
  *
  * User controls: Harmony, Shard Size, Breathing Space, Atmosphere (via Zustand store)
  * Dev controls: Glass effect, DoF, Environment, Debug (via Leva panel)
+ *
+ * Holographic HUD features:
+ * - BreathingRings: Concentric data rings showing breath progress
+ * - SyncFilaments: Connecting lines between synchronized particles
+ * - GlobeBloom: Flower of life transformation on high group sync
  */
 export function BreathingLevel({
   // DEBUG-ONLY: Entity visibility toggles (all default true)
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
-}: Partial<BreathingLevelProps> = {}) {
+  // Holographic HUD toggles (all default true)
+  showHUD = true,
+  showBreathingRings = true,
+  showSyncFilaments = true,
+  showGlobeBloom = true,
+}: Partial<BreathingLevelProps> & {
+  showHUD?: boolean;
+  showBreathingRings?: boolean;
+  showSyncFilaments?: boolean;
+  showGlobeBloom?: boolean;
+} = {}) {
   // Shared state from Zustand store
   const { orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
 
@@ -42,7 +58,7 @@ export function BreathingLevel({
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users } = usePresence();
+  const { users, count: userCount } = usePresence();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -123,6 +139,15 @@ export function BreathingLevel({
                 color={devControls.atmosphereColor}
               />
             )}
+
+            {/* Holographic HUD - Concentric breathing rings around globe */}
+            {showHUD && showBreathingRings && <BreathingRings />}
+
+            {/* Holographic HUD - Connecting filaments between synced particles */}
+            {showHUD && showSyncFilaments && <SyncFilaments opacity={0.6} syncThreshold={0.2} />}
+
+            {/* Holographic HUD - Flower of life bloom on high group sync */}
+            {showHUD && showGlobeBloom && <GlobeBloom userCount={userCount} />}
           </MomentumControls>
         </RefractionPipeline>
       </Suspense>
@@ -138,6 +163,10 @@ export function BreathingLevel({
  * pointer events without conflicting with 3D scene interactions.
  *
  * Uses eventSource pattern on Canvas (see app.tsx).
+ *
+ * Includes:
+ * - SimpleGaiaUI: Main breathing phase display, inspirational text, modals
+ * - OrbitalGauges: Holographic floating data panels (sync score, presence)
  */
 export function BreathingLevelUI() {
   // Shared state from Zustand store
@@ -197,6 +226,9 @@ export function BreathingLevelUI() {
         onShowSettingsChange={setShowSettings}
         presenceCount={presenceCount}
       />
+
+      {/* Holographic HUD - Floating orbital data gauges */}
+      <OrbitalGauges userCount={presenceCount} orbitRadius={orbitRadius} />
     </>
   );
 }

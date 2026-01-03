@@ -5,12 +5,18 @@
  * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
  * - Animated procedural clouds using FBM noise
  * - Subtle vignette effect
+ * - BREATH-REACTIVE color shifts:
+ *   - Inhale (breathPhase → 1): Cool blue/teal tones ("contracted")
+ *   - Exhale (breathPhase → 0): Warm gold/coral tones ("radiant")
  */
 
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
+
+import { breathPhase as breathPhaseTrait } from '../breath/traits';
 
 const vertexShader = `
 varying vec2 vUv;
@@ -22,6 +28,7 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
+uniform float breathPhase;
 varying vec2 vUv;
 
 // Simplex noise functions for cloud-like patterns
@@ -60,11 +67,30 @@ float fbm(vec2 p) {
 }
 
 void main() {
-  // Creamy neutral background - soft warm tones
-  vec3 skyTop = vec3(0.96, 0.94, 0.91);       // #f5f0e8 Warm cream
-  vec3 skyMid = vec3(0.98, 0.95, 0.90);       // #faf2e6 Soft ivory
-  vec3 horizon = vec3(0.99, 0.94, 0.88);      // #fcf0e0 Warm white
-  vec3 warmGlow = vec3(0.98, 0.92, 0.85);     // #faebb9 Subtle warm glow
+  // ============================================
+  // BREATH-REACTIVE COLOR PALETTES
+  // ============================================
+  // Exhale (breathPhase = 0): Warm, radiant gold/coral - expanding energy
+  // Inhale (breathPhase = 1): Cool, contracted blue/teal - gathering energy
+
+  // WARM palette (exhale state) - radiant, expansive
+  vec3 warmTop = vec3(0.96, 0.94, 0.91);      // #f5f0e8 Warm cream
+  vec3 warmMid = vec3(0.99, 0.94, 0.88);      // #fcf0e0 Soft peach
+  vec3 warmHorizon = vec3(0.99, 0.91, 0.84);  // #fce8d6 Warm glow
+  vec3 warmGlow = vec3(0.98, 0.88, 0.78);     // #fae0c7 Golden radiance
+
+  // COOL palette (inhale state) - contracted, centered
+  vec3 coolTop = vec3(0.92, 0.95, 0.97);      // #ebf3f8 Cool sky
+  vec3 coolMid = vec3(0.90, 0.95, 0.96);      // #e6f2f5 Soft teal
+  vec3 coolHorizon = vec3(0.88, 0.94, 0.95);  // #e0f0f2 Aqua mist
+  vec3 coolGlow = vec3(0.86, 0.93, 0.94);     // #dbedee Breath teal
+
+  // Blend between warm and cool based on breath phase
+  // breathPhase 0 = exhale (warm), breathPhase 1 = inhale (cool)
+  vec3 skyTop = mix(warmTop, coolTop, breathPhase);
+  vec3 skyMid = mix(warmMid, coolMid, breathPhase);
+  vec3 horizon = mix(warmHorizon, coolHorizon, breathPhase);
+  vec3 bottomGlow = mix(warmGlow, coolGlow, breathPhase);
 
   // Vertical position for gradient
   float y = vUv.y;
@@ -76,7 +102,7 @@ void main() {
   float t3 = smoothstep(0.0, 0.35, y);  // Bottom transition
 
   // Layer the colors smoothly
-  skyColor = mix(warmGlow, horizon, t3);
+  skyColor = mix(bottomGlow, horizon, t3);
   skyColor = mix(skyColor, skyMid, t2);
   skyColor = mix(skyColor, skyTop, t1);
 
@@ -92,8 +118,10 @@ void main() {
   float cloudMask = smoothstep(0.2, 0.55, clouds * 0.5 + clouds2 * 0.5);
   cloudMask *= smoothstep(0.1, 0.4, y) * smoothstep(0.95, 0.6, y);
 
-  // Cloud color - pure warm white
-  vec3 cloudColor = vec3(1.0, 0.99, 0.97);
+  // Cloud color shifts with breath - warmer during exhale, cooler during inhale
+  vec3 warmCloud = vec3(1.0, 0.98, 0.95);   // Warm white
+  vec3 coolCloud = vec3(0.96, 0.99, 1.0);   // Cool white
+  vec3 cloudColor = mix(warmCloud, coolCloud, breathPhase);
 
   // Blend clouds very subtly into sky
   vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
@@ -113,6 +141,7 @@ void main() {
 
 export function BackgroundGradient() {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const world = useWorld();
 
   // Create geometry with useMemo for proper disposal
   const geometry = useMemo(() => new PlaneGeometry(2, 2), []);
@@ -121,6 +150,7 @@ export function BackgroundGradient() {
     return new ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        breathPhase: { value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -130,10 +160,21 @@ export function BackgroundGradient() {
     });
   }, []);
 
-  // Animate time uniform
+  // Animate time and breathPhase uniforms
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+
+      // Query breath phase from ECS
+      try {
+        const breathEntity = world.queryFirst(breathPhaseTrait);
+        if (breathEntity) {
+          const phase = breathEntity.get(breathPhaseTrait)?.value ?? 0;
+          materialRef.current.uniforms.breathPhase.value = phase;
+        }
+      } catch {
+        // Ignore ECS errors during unmount/remount in Triplex
+      }
     }
   });
 
