@@ -1,22 +1,23 @@
 /**
  * GeoMarkers - Country user count markers on the globe
  *
- * Renders floating HTML labels above countries showing the number
+ * Renders floating holographic labels above countries showing the number
  * of connected users from each location. Uses drei's Html component
  * for billboard-style labels that always face the camera.
  *
+ * IMPORTANT: This component must be rendered OUTSIDE the RefractionPipeline
+ * to avoid being affected by depth-of-field blur post-processing.
+ * Place it inside MomentumControls to follow globe rotation.
+ *
  * Features:
  * - Positioned at country centroids on globe surface
- * - Billboard mode (always faces camera)
- * - Occlusion support (hides behind globe)
- * - Smooth animation on count changes
- * - Monument Valley inspired styling
+ * - Billboard mode (always faces camera via sprite prop)
+ * - Holographic/ethereal styling to match Monument Valley aesthetic
+ * - Smooth scale animation with distance
  */
 
 import { Html } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
-import type * as THREE from 'three';
+import { useMemo } from 'react';
 
 import { COUNTRY_CENTROIDS, getCountryName, latLngToPosition } from '../../lib/countryCentroids';
 
@@ -28,39 +29,18 @@ interface GeoMarkersProps {
   countryCounts: Record<string, number>;
   /** Globe radius for positioning @default 1.5 */
   globeRadius?: number;
-  /** Offset above globe surface @default 0.15 */
+  /** Offset above globe surface @default 0.3 */
   heightOffset?: number;
   /** Whether to show country names @default false */
   showNames?: boolean;
   /** Minimum user count to show marker @default 1 */
   minCount?: number;
-  /** Reference to globe group for rotation sync */
-  globeGroupRef?: React.RefObject<THREE.Group | null>;
+  /** Maximum markers to show (to avoid clutter) @default 10 */
+  maxMarkers?: number;
 }
 
 /**
- * Individual marker label styling
- */
-const markerStyle: React.CSSProperties = {
-  padding: '4px 8px',
-  backgroundColor: 'rgba(255, 255, 255, 0.85)',
-  borderRadius: '12px',
-  fontSize: '11px',
-  fontWeight: 600,
-  fontFamily: 'system-ui, -apple-system, sans-serif',
-  color: '#5a4a3a',
-  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-  backdropFilter: 'blur(4px)',
-  WebkitBackdropFilter: 'blur(4px)',
-  border: '1px solid rgba(255, 255, 255, 0.3)',
-  whiteSpace: 'nowrap',
-  pointerEvents: 'none',
-  userSelect: 'none',
-  transition: 'opacity 0.3s ease',
-};
-
-/**
- * Single country marker component
+ * Single country marker component - Holographic style
  */
 interface CountryMarkerProps {
   countryCode: string;
@@ -76,23 +56,56 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
     <Html
       position={position}
       center
-      distanceFactor={8}
-      occlude="blending"
+      sprite
+      distanceFactor={5}
+      zIndexRange={[100, 0]}
       style={{
-        opacity: 1,
-        transition: 'opacity 0.3s ease',
+        pointerEvents: 'none',
+        userSelect: 'none',
       }}
     >
-      <div style={markerStyle}>
-        <span style={{ marginRight: '4px' }}>{name}</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '5px 10px',
+          background:
+            'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)',
+          borderRadius: '14px',
+          border: '1px solid rgba(255,255,255,0.3)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.25)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {/* Country code/name */}
         <span
           style={{
-            backgroundColor: '#7ec5c4',
-            color: 'white',
-            padding: '2px 6px',
-            borderRadius: '8px',
+            fontSize: '11px',
+            fontWeight: 500,
+            color: 'rgba(255,255,255,0.95)',
+            textShadow: '0 1px 3px rgba(0,0,0,0.3)',
+            letterSpacing: '0.5px',
+          }}
+        >
+          {name}
+        </span>
+
+        {/* User count badge */}
+        <span
+          style={{
             fontSize: '10px',
             fontWeight: 700,
+            color: 'white',
+            background: 'linear-gradient(135deg, #7ec5c4 0%, #5eb3b2 100%)',
+            padding: '3px 8px',
+            borderRadius: '10px',
+            boxShadow: '0 2px 6px rgba(94,179,178,0.4)',
+            minWidth: '18px',
+            textAlign: 'center',
           }}
         >
           {count}
@@ -106,18 +119,19 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
  * GeoMarkers - Renders user count markers for each country
  *
  * Markers are positioned at country centroids, slightly above the globe surface.
- * Uses drei's Html component for HTML-over-WebGL rendering with occlusion.
+ * Uses drei's Html component for HTML-over-WebGL rendering.
+ *
+ * PLACEMENT: Must be inside MomentumControls but OUTSIDE RefractionPipeline
+ * to follow globe rotation without being affected by DoF blur.
  */
 export function GeoMarkers({
   countryCounts,
   globeRadius = 1.5,
-  heightOffset = 0.2,
+  heightOffset = 0.3,
   showNames = false,
   minCount = 1,
-  globeGroupRef,
+  maxMarkers = 10,
 }: GeoMarkersProps) {
-  const groupRef = useRef<THREE.Group>(null);
-
   // Calculate marker positions from country codes
   const markers = useMemo(() => {
     const result: Array<{
@@ -139,22 +153,15 @@ export function GeoMarkers({
       result.push({ code, count, position });
     }
 
-    // Sort by count descending (most users on top in case of overlap)
+    // Sort by count descending and limit to maxMarkers to avoid visual clutter
     result.sort((a, b) => b.count - a.count);
+    return result.slice(0, maxMarkers);
+  }, [countryCounts, globeRadius, heightOffset, minCount, maxMarkers]);
 
-    return result;
-  }, [countryCounts, globeRadius, heightOffset, minCount]);
-
-  // Sync rotation with globe
-  useFrame(() => {
-    if (groupRef.current && globeGroupRef?.current) {
-      // Copy globe's rotation to markers group
-      groupRef.current.rotation.copy(globeGroupRef.current.rotation);
-    }
-  });
+  if (markers.length === 0) return null;
 
   return (
-    <group ref={groupRef} name="Geo Markers">
+    <group name="Geo Markers">
       {markers.map((marker) => (
         <CountryMarker
           key={marker.code}
