@@ -17,25 +17,26 @@
  */
 
 import { Html, Line } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { VISUALS } from '../constants';
+import { breathPhase, orbitRadius } from '../entities/breath/traits';
 import {
   countryData,
+  findKNearestNeighbors,
   globeRotation,
   isCountry,
   isGlobe,
-  isShard,
-  isSwarm,
   shapeCentroid,
-  shapeOrientation,
-  shapeScale,
-  shardIndex,
-  shardNeighbors,
-  swarmState,
 } from '../shared/gizmoTraits';
+
+// Pre-allocated objects for matrix decomposition
+const _tempMatrix = new THREE.Matrix4();
+const _tempPosition = new THREE.Vector3();
+const _tempQuaternion = new THREE.Quaternion();
+const _tempScale = new THREE.Vector3();
 
 interface ShapeGizmosProps {
   showGlobeCentroid?: boolean;
@@ -388,6 +389,7 @@ export function ShapeGizmos({
   axisLength = 1.0,
 }: ShapeGizmosProps) {
   const world = useWorld();
+  const { scene } = useThree();
 
   // State for rendering
   const [shards, setShards] = useState<ShardData[]>([]);
@@ -396,18 +398,19 @@ export function ShapeGizmos({
   const [globeRotationY, setGlobeRotationY] = useState(0);
   const [shardSize, setShardSize] = useState(0.5);
   const frameCountRef = useRef(0);
+  const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
 
   const showShardGizmos = showShardCentroids || showShardWireframes || showShardConnections;
 
-  // Read data from Koota ECS
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ECS data synchronization requires querying multiple entity types and extracting different trait combinations
+  // Read data from scene and Koota ECS
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Scene data synchronization requires matrix decomposition and multiple queries
   useFrame(() => {
     try {
-      // Throttle updates to every 4 frames
+      // Throttle updates to every 2 frames for responsiveness
       frameCountRef.current += 1;
-      if (frameCountRef.current % 4 !== 0) return;
+      if (frameCountRef.current % 2 !== 0) return;
 
-      // Read globe rotation
+      // Read globe rotation from ECS
       if (showCountryCentroids) {
         const globeEntities = world.query(isGlobe, globeRotation);
         for (const globe of globeEntities) {
@@ -418,18 +421,18 @@ export function ShapeGizmos({
         }
       }
 
-      // Read swarm state
+      // Read current orbit from breath system
       if (showSwarmBounds) {
-        const swarmEntities = world.query(isSwarm, swarmState);
-        for (const swarm of swarmEntities) {
-          const state = swarm.get(swarmState);
-          if (state) {
-            setCurrentOrbit(state.currentOrbit);
+        const breath = world.queryFirst(breathPhase, orbitRadius);
+        if (breath) {
+          const orbit = breath.get(orbitRadius);
+          if (orbit) {
+            setCurrentOrbit(orbit.value);
           }
         }
       }
 
-      // Read country positions (only if visible)
+      // Read country positions from ECS (only once)
       if (showCountryCentroids && countries.length === 0) {
         const countryEntities = world.query(isCountry, shapeCentroid, countryData);
         const countryList: CountryGizmoData[] = [];
@@ -448,58 +451,65 @@ export function ShapeGizmos({
         }
       }
 
-      // Read shard data
+      // Read shard data DIRECTLY from InstancedMesh (not ECS)
       if (showShardGizmos) {
-        const shardEntities = world.query(
-          isShard,
-          shardIndex,
-          shapeCentroid,
-          shapeOrientation,
-          shapeScale,
-          shardNeighbors,
-        );
-
-        const shardList: ShardData[] = [];
-        let maxScale = 0;
-
-        for (const shard of shardEntities) {
-          if (shardList.length >= maxShardGizmos) break;
-
-          const idx = shard.get(shardIndex);
-          const centroid = shard.get(shapeCentroid);
-          const orientation = shard.get(shapeOrientation);
-          const scale = shard.get(shapeScale);
-          const neighbors = shard.get(shardNeighbors);
-
-          if (idx && centroid && orientation && scale && neighbors) {
-            const quat = new THREE.Quaternion(
-              orientation.qx,
-              orientation.qy,
-              orientation.qz,
-              orientation.qw,
-            );
-
-            shardList.push({
-              index: idx.index,
-              position: [centroid.x, centroid.y, centroid.z],
-              quaternion: quat,
-              scale: scale.scale,
-              neighbors: neighbors.neighborIndices,
-            });
-
-            if (scale.scale > maxScale) {
-              maxScale = scale.scale;
+        // Find the InstancedMesh if not cached
+        if (!instancedMeshRef.current) {
+          scene.traverse((obj) => {
+            if (obj.name === 'Particle Swarm' && obj instanceof THREE.InstancedMesh) {
+              instancedMeshRef.current = obj;
             }
-          }
+          });
         }
 
-        setShards(shardList);
-        if (maxScale > 0) {
-          setShardSize(maxScale * 0.5); // Estimate geometry radius from scale
+        const mesh = instancedMeshRef.current;
+        if (mesh) {
+          const count = Math.min(mesh.count, maxShardGizmos);
+          const shardList: ShardData[] = [];
+          const positions: Array<{ index: number; x: number; y: number; z: number }> = [];
+          let maxScale = 0;
+
+          // Extract positions from instance matrices
+          for (let i = 0; i < count; i++) {
+            mesh.getMatrixAt(i, _tempMatrix);
+            _tempMatrix.decompose(_tempPosition, _tempQuaternion, _tempScale);
+
+            // Only include visible shards
+            if (_tempScale.x > 0.01) {
+              positions.push({
+                index: i,
+                x: _tempPosition.x,
+                y: _tempPosition.y,
+                z: _tempPosition.z,
+              });
+
+              shardList.push({
+                index: i,
+                position: [_tempPosition.x, _tempPosition.y, _tempPosition.z],
+                quaternion: _tempQuaternion.clone(),
+                scale: _tempScale.x,
+                neighbors: [], // Will fill in below
+              });
+
+              if (_tempScale.x > maxScale) {
+                maxScale = _tempScale.x;
+              }
+            }
+          }
+
+          // Calculate k-nearest neighbors for each shard
+          for (const shard of shardList) {
+            shard.neighbors = findKNearestNeighbors(shard.index, positions, 4);
+          }
+
+          setShards(shardList);
+          if (maxScale > 0) {
+            setShardSize(maxScale * 0.5);
+          }
         }
       }
     } catch (_e) {
-      // Ignore ECS errors during hot-reload
+      // Ignore errors during hot-reload
     }
   });
 
