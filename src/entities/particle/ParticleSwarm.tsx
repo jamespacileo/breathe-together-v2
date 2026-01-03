@@ -21,7 +21,7 @@
  * Shards dynamically resize based on breath phase for more dramatic composition:
  * - Exhale (far from globe): shards expand to 125% - dramatic, expansive feel
  * - Inhale (close to globe): shards contract to 85% - intimate, concentrated feel
- * This also helps prevent shard-globe collisions at close range.
+ * Shards orbit just 0.3 units from globe surface at closest approach.
  *
  * Performance: Uses InstancedMesh for single draw call (1 draw call for all particles)
  * Previously used separate Mesh objects (300 draw calls for 300 particles)
@@ -105,17 +105,17 @@ export interface ParticleSwarmProps {
   baseShardSize?: number;
   /** Globe radius for minimum distance calculation @default 1.5 */
   globeRadius?: number;
-  /** Buffer distance between shard surface and globe surface @default 0.15 */
+  /** Buffer distance between shard surface and globe surface @default 0.05 */
   buffer?: number;
   /**
    * Maximum shard size cap (prevents oversized shards at low counts).
-   * Reduced to 0.4 to allow closer approach to globe on inhale.
-   * @default 0.4
+   * Reduced to 0.25 for intimate close approach to globe on inhale.
+   * @default 0.25
    */
   maxShardSize?: number;
   /**
    * Minimum shard size (prevents tiny shards at high counts).
-   * @default 0.15
+   * @default 0.1
    */
   minShardSize?: number;
   /**
@@ -317,9 +317,9 @@ export function ParticleSwarm({
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
-  buffer = 0.15,
-  maxShardSize = 0.4,
-  minShardSize = 0.15,
+  buffer = 0.05,
+  maxShardSize = 0.25,
+  minShardSize = 0.1,
   performanceCap = 1000,
 }: ParticleSwarmProps) {
   const world = useWorld();
