@@ -19,6 +19,8 @@ export type MoodId = z.infer<typeof MoodIdSchema>;
 export const UserSchema = z.object({
   id: z.string(),
   mood: MoodIdSchema,
+  /** ISO 3166-1 alpha-2 country code (from Cloudflare geolocation) */
+  country: z.string().optional(),
 });
 export type User = z.infer<typeof UserSchema>;
 
@@ -35,6 +37,8 @@ export const PresenceStateSchema = z.object({
   count: z.number(),
   moods: MoodCountsSchema,
   users: z.array(UserSchema),
+  /** Count of users per country (ISO 3166-1 alpha-2 codes) */
+  countryCounts: z.record(z.string(), z.number()),
   timestamp: z.number(),
 });
 export type PresenceState = z.infer<typeof PresenceStateSchema>;

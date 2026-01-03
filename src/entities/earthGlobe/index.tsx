@@ -24,6 +24,7 @@ import * as THREE from 'three';
 
 import { useDisposeGeometries, useDisposeMaterials } from '../../hooks/useDisposeMaterials';
 import { breathPhase } from '../breath/traits';
+import { GeoMarkers } from './GeoMarkers';
 
 // Vertex shader for textured globe with fresnel
 const globeVertexShader = `
@@ -201,6 +202,12 @@ interface EarthGlobeProps {
   showGlow?: boolean;
   /** Show mist/haze layer @default true */
   showMist?: boolean;
+  /** Show geo markers with user counts @default false */
+  showGeoMarkers?: boolean;
+  /** User counts per country (ISO 3166-1 alpha-2 codes) */
+  countryCounts?: Record<string, number>;
+  /** Show full country names on markers @default false */
+  showCountryNames?: boolean;
 }
 
 /**
@@ -217,6 +224,9 @@ export function EarthGlobe({
   sparkleCount = 60,
   showGlow = true,
   showMist = true,
+  showGeoMarkers = false,
+  countryCounts = {},
+  showCountryNames = false,
 }: Partial<EarthGlobeProps> = {}) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
@@ -416,6 +426,16 @@ export function EarthGlobe({
           args={[radius * 1.6, radius * 1.65, 64]}
           rotation={[Math.PI / 2, 0, 0]}
           material={ringMaterial}
+        />
+      )}
+
+      {/* Geo markers showing user counts per country */}
+      {showGeoMarkers && Object.keys(countryCounts).length > 0 && (
+        <GeoMarkers
+          countryCounts={countryCounts}
+          globeRadius={radius}
+          showNames={showCountryNames}
+          globeGroupRef={groupRef}
         />
       )}
     </group>
