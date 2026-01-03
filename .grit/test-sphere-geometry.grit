@@ -1,0 +1,8 @@
+// Test pattern: Detect new THREE.SphereGeometry specifically
+`new THREE.SphereGeometry($$$args)` where {
+  register_diagnostic(
+    span = $args,
+    message = "Found THREE.SphereGeometry construction",
+    severity = "info"
+  )
+}

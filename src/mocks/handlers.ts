@@ -112,6 +112,7 @@ export const handlers = [
   // POST /api/heartbeat - Register presence heartbeat
   http.post('*/api/heartbeat', async ({ request }) => {
     try {
+      // biome-ignore lint/nursery/useAwaitThenable: MSW Request.json() returns Promise<any> per Request API spec
       const body = await request.json();
       const result = HeartbeatRequestSchema.safeParse(body);
 
@@ -137,6 +138,7 @@ export const handlers = [
   // POST /api/leave - Remove session
   http.post('*/api/leave', async ({ request }) => {
     try {
+      // biome-ignore lint/nursery/useAwaitThenable: MSW Request.json() returns Promise<any> per Request API spec
       const body = (await request.json()) as { sessionId?: string };
       const { sessionId } = body;
 

@@ -61,7 +61,7 @@ export function MomentumControls({
   speed = 1.8,
   rotation = [0, 0, 0],
   polar = [-Math.PI * 0.3, Math.PI * 0.3],
-  azimuth = [-Infinity, Infinity],
+  azimuth = [Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY],
   damping = 0.12,
   momentum = 1,
   timeConstant = IOS_DEFAULTS.timeConstant,

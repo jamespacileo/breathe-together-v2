@@ -145,8 +145,12 @@ export function AdminPanel() {
 
   // Initial fetch and polling
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 3000); // Refresh every 3 seconds
+    // Fire-and-forget initial fetch - errors handled internally
+    void fetchData();
+    const interval = setInterval(() => {
+      // Fire-and-forget polling - errors handled internally
+      void fetchData();
+    }, 3000); // Refresh every 3 seconds
     return () => clearInterval(interval);
   }, [fetchData]);
 

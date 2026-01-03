@@ -1,0 +1,109 @@
+// Three.js Memory Leak Detection Rules
+// Detects missing disposal patterns for GPU resources
+//
+// CRITICAL: Three.js objects (geometries, materials, textures, render targets)
+// consume GPU memory and MUST be disposed when no longer needed.
+//
+// Reference: https://threejs.org/docs/#manual/en/introduction/How-to-dispose-of-objects
+
+// Rule 1: Detect useMemo creating geometry without disposal
+// Pattern: useMemo(() => new THREE.*Geometry(), [deps])
+// Expected: Followed by useEffect(() => () => geometry.dispose(), [geometry])
+pattern require_geometry_disposal() {
+  or {
+    // Pattern 1A: useMemo with THREE.Geometry construction
+    bubble `useMemo(() => new THREE.$geometry($$$args), $deps)` as $creation where {
+      $geometry <: r".*Geometry"
+    },
+
+    // Pattern 1B: Direct const assignment
+    bubble `const $var = new THREE.$geometry($$$args)` as $creation where {
+      $geometry <: r".*Geometry"
+    }
+  } where {
+    register_diagnostic(
+      span = $creation,
+      message = "Three.js geometry created without disposal. GPU memory leak: add useEffect(() => () => geometry.dispose(), [geometry])",
+      severity = "error"
+    )
+  }
+}
+
+// Rule 2: Detect material creation without disposal
+// All Material subclasses must be disposed
+pattern require_material_disposal() {
+  or {
+    // useMemo pattern
+    bubble `useMemo(() => new THREE.$material($$$args), $deps)` as $creation where {
+      $material <: r".*Material"
+    },
+
+    // Direct assignment pattern
+    bubble `const $var = new THREE.$material($$$args)` as $creation where {
+      $material <: r".*Material"
+    },
+
+    // ShaderMaterial (common in this codebase)
+    bubble `new THREE.ShaderMaterial($config)` as $creation
+  } where {
+    register_diagnostic(
+      span = $creation,
+      message = "Three.js material created without disposal. Materials consume GPU memory and must be disposed on unmount: useEffect(() => () => material.dispose(), [material])",
+      severity = "error"
+    )
+  }
+}
+
+// Rule 3: Detect texture creation without disposal
+pattern require_texture_disposal() {
+  or {
+    bubble `new THREE.Texture($$$args)` as $creation,
+    bubble `new THREE.DataTexture($$$args)` as $creation,
+    bubble `new THREE.CanvasTexture($$$args)` as $creation,
+    bubble `new THREE.VideoTexture($$$args)` as $creation
+  } where {
+    register_diagnostic(
+      span = $creation,
+      message = "Three.js texture created without disposal. Textures hold image data in GPU memory: useEffect(() => () => texture.dispose(), [texture])",
+      severity = "error"
+    )
+  }
+}
+
+// Rule 4: Detect WebGLRenderTarget without disposal
+pattern require_rendertarget_disposal() {
+  or {
+    bubble `new THREE.WebGLRenderTarget($$$args)` as $creation,
+    bubble `new THREE.WebGLCubeRenderTarget($$$args)` as $creation
+  } where {
+    register_diagnostic(
+      span = $creation,
+      message = "WebGLRenderTarget created without disposal. Render targets consume significant GPU memory: useEffect(() => () => renderTarget.dispose(), [renderTarget])",
+      severity = "error"
+    )
+  }
+}
+
+// Rule 5: Detect WebGLRenderer recreation in component body
+// Renderer should be created in useRef/useEffect, not component body
+pattern no_renderer_in_component_body() {
+  `function $component($props) {
+    $$$body
+  }` where {
+    $$$body <: contains `new THREE.WebGLRenderer($$$args)` as $renderer,
+    register_diagnostic(
+      span = $renderer,
+      message = "Creating WebGLRenderer in component body causes WebGL context leaks. Move to useRef/useEffect: const renderer = useRef(new THREE.WebGLRenderer()).current",
+      severity = "error"
+    )
+  }
+}
+
+// Apply all patterns
+or {
+  require_geometry_disposal(),
+  require_material_disposal(),
+  require_texture_disposal(),
+  require_rendertarget_disposal(),
+  no_renderer_in_component_body()
+}

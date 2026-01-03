@@ -1,0 +1,13 @@
+`new THREE.$type($$$args)` where {
+  $type <: or {
+    `IcosahedronGeometry`,
+    `SphereGeometry`,
+    `BoxGeometry`,
+    `PlaneGeometry`
+  },
+  register_diagnostic(
+    span = $type,
+    message = "Three.js geometry created. Ensure disposal in useEffect cleanup: useEffect(() => () => geometry.dispose(), [geometry])",
+    severity = "warn"
+  )
+}

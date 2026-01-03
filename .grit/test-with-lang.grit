@@ -1,0 +1,9 @@
+language js
+
+`new $constructor($$$args)` where {
+  register_diagnostic(
+    span = $constructor,
+    message = "Found constructor: $constructor",
+    severity = "info"
+  )
+}

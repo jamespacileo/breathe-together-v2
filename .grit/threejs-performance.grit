@@ -1,0 +1,128 @@
+// Three.js Performance Optimization Rules
+// Detects common performance anti-patterns in frame loops
+//
+// CRITICAL: Object allocations in frame loops (useFrame, requestAnimationFrame)
+// cause garbage collection pressure and frame drops.
+//
+// Best Practice: Declare temp objects outside loops, reuse with .set() or .copy()
+//
+// Ported from: @react-three/eslint-plugin
+
+// Rule 1: No 'new' allocations in useFrame
+// Detects: useFrame(() => { new THREE.Vector3() })
+// Fix: Declare const tempVec = new THREE.Vector3() outside useFrame, use tempVec.set()
+pattern no_new_in_useframe() {
+  `useFrame(($state, $delta) => {
+    $$$body
+  })` where {
+    $$$body <: contains `new $constructor($$$args)` as $allocation,
+
+    // Check if constructor is a Three.js temp object type
+    $constructor <: or {
+      `THREE.Vector3`,
+      `THREE.Vector2`,
+      `THREE.Vector4`,
+      `THREE.Quaternion`,
+      `THREE.Euler`,
+      `THREE.Matrix3`,
+      `THREE.Matrix4`,
+      `THREE.Color`,
+      `THREE.Spherical`,
+      `THREE.Cylindrical`
+    },
+
+    register_diagnostic(
+      span = $allocation,
+      message = "Avoid 'new' allocations in useFrame (frame loop). Declare temp objects outside useFrame and reuse: const tempVec = new THREE.Vector3(); useFrame(() => tempVec.set(x,y,z))",
+      severity = "warn"
+    )
+  }
+}
+
+// Rule 2: No .clone() in useFrame
+// Detects: useFrame(() => { vector.clone() })
+// Fix: Use .copy() to existing temp object instead
+pattern no_clone_in_useframe() {
+  `useFrame(($state, $delta) => {
+    $$$body
+  })` where {
+    $$$body <: contains `$object.clone()` as $clone,
+
+    register_diagnostic(
+      span = $clone,
+      message = "Avoid .clone() in useFrame (frame loop). Use .copy() to pre-allocated temp object instead: tempVec.copy(vector)",
+      severity = "warn"
+    )
+  }
+}
+
+// Rule 3: No array allocations in useFrame
+// Detects: useFrame(() => { [x, y, z] })
+// Common mistake when setting positions/colors
+pattern no_array_allocation_in_useframe() {
+  `useFrame(($state, $delta) => {
+    $$$body
+  })` where {
+    $$$body <: contains `[$elem, $$$rest]` as $array where {
+      // Exclude import statements and prop destructuring
+      not $array <: or {
+        within `import $$ from $$`,
+        within `const [$$$] = $$$`,
+        within `[$$$] = $$$`
+      }
+    },
+
+    register_diagnostic(
+      span = $array,
+      message = "Avoid array literal allocations in useFrame. For setting vectors, use .set() or .fromArray() on existing objects.",
+      severity = "info"
+    )
+  }
+}
+
+// Rule 4: Prefer .set() over .copy(new Vector())
+// Detects: position.copy(new THREE.Vector3(x, y, z))
+// Fix: position.set(x, y, z)
+pattern prefer_set_over_copy_new() {
+  `$target.copy(new THREE.$constructor($$$args))` as $pattern where {
+    $constructor <: or {
+      `Vector3`,
+      `Vector2`,
+      `Color`,
+      `Quaternion`,
+      `Euler`
+    },
+
+    register_diagnostic(
+      span = $pattern,
+      message = "Use .set() instead of .copy(new Vector()). More efficient: target.set(x, y, z)",
+      severity = "info"
+    )
+  }
+}
+
+// Rule 5: No object spread in useFrame
+// Detects: useFrame(() => { mesh.position = { ...pos } })
+// Fix: Use .copy() or .set()
+pattern no_object_spread_in_useframe() {
+  `useFrame(($state, $delta) => {
+    $$$body
+  })` where {
+    $$$body <: contains `{...$obj}` as $spread,
+
+    register_diagnostic(
+      span = $spread,
+      message = "Avoid object spread in useFrame. Use .copy() or .set() methods for better performance.",
+      severity = "info"
+    )
+  }
+}
+
+// Apply all performance patterns
+or {
+  no_new_in_useframe(),
+  no_clone_in_useframe(),
+  no_array_allocation_in_useframe(),
+  prefer_set_over_copy_new(),
+  no_object_spread_in_useframe()
+}

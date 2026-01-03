@@ -1,0 +1,8 @@
+// Test pattern: Detect any useMemo
+`useMemo($fn, $deps)` where {
+  register_diagnostic(
+    span = $fn,
+    message = "Found useMemo call",
+    severity = "info"
+  )
+}

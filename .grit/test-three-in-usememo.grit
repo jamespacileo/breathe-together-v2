@@ -1,0 +1,9 @@
+// Test pattern: Detect THREE.* inside useMemo
+`useMemo($fn, $deps)` where {
+  $fn <: contains `new THREE.$type($$$args)`,
+  register_diagnostic(
+    span = $type,
+    message = "Found THREE constructor in useMemo: $type",
+    severity = "info"
+  )
+}

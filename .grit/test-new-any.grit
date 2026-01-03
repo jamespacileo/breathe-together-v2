@@ -1,0 +1,8 @@
+// Test pattern: Detect any 'new' keyword
+`new $constructor($$$args)` where {
+  register_diagnostic(
+    span = $constructor,
+    message = "Found 'new' constructor call: $constructor",
+    severity = "info"
+  )
+}

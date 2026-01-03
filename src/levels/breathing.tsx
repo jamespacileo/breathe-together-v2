@@ -102,7 +102,7 @@ export function BreathingLevel({
             velocityMultiplier={devControls.dragVelocityMultiplier}
             minVelocityThreshold={devControls.dragMinVelocity}
             polar={[-Math.PI * 0.3, Math.PI * 0.3]}
-            azimuth={[-Infinity, Infinity]}
+            azimuth={[Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY]}
           >
             {showGlobe && <EarthGlobe />}
 
