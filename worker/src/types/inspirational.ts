@@ -39,6 +39,7 @@ export interface InspirationMessage {
     theme?: 'gratitude' | 'presence' | 'release' | 'connection';
     intensity?: 'subtle' | 'profound' | 'energetic';
     narrativeContext?: string; // Previous message context for coherence
+    narrativeType?: 'beginning' | 'middle' | 'end' | 'complete-arc'; // Story position
   };
 }
 

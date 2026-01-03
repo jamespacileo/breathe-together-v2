@@ -77,8 +77,13 @@ async function handleHeartbeat(request: Request, env: Env): Promise<Response> {
     const validMood = validateMood(mood);
     const now = Date.now();
 
+    // Extract country from Cloudflare's cf object (free IP geolocation)
+    // biome-ignore lint/suspicious/noExplicitAny: Cloudflare Request.cf types vary by environment
+    const cf = (request as any).cf as { country?: string } | undefined;
+    const country = cf?.country || undefined;
+
     const state = await getAggregate(env.PRESENCE_KV);
-    const updated = addSample(state, sessionId, validMood, now);
+    const updated = addSample(state, sessionId, validMood, now, country);
     await saveAggregate(env.PRESENCE_KV, updated);
 
     const presence = toPresenceState(updated);
@@ -218,7 +223,7 @@ async function handleGenerateInspirationalMessages(request: Request, env: Env): 
         });
       }
 
-      if (!['complete-arc', 'beginning', 'middle', 'end'].includes(storyType)) {
+      if (!storyType || !['complete-arc', 'beginning', 'middle', 'end'].includes(storyType)) {
         return new Response(JSON.stringify({ error: 'Invalid storyType' }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' },
@@ -245,7 +250,8 @@ async function handleGenerateInspirationalMessages(request: Request, env: Env): 
     }
 
     // Load LLM config
-    const llmConfig = loadLLMConfig(env);
+    // biome-ignore lint/suspicious/noExplicitAny: Env type doesn't extend Record<string, string | undefined> but has compatible string properties
+    const llmConfig = loadLLMConfig(env as any);
 
     // Build generation request with context
     const generationRequest: GenerationRequest = {

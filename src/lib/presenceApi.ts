@@ -19,6 +19,7 @@ export type MoodId = z.infer<typeof MoodIdSchema>;
 export const UserSchema = z.object({
   id: z.string(),
   mood: MoodIdSchema,
+  country: z.string().optional(),
 });
 export type User = z.infer<typeof UserSchema>;
 
@@ -30,10 +31,14 @@ export const MoodCountsSchema = z.object({
   connection: z.number(),
 });
 
+/** Country counts record (ISO 3166-1 alpha-2 codes to user counts) */
+export const CountryCountsSchema = z.record(z.string(), z.number());
+
 /** Presence state returned by /api/presence and /api/heartbeat */
 export const PresenceStateSchema = z.object({
   count: z.number(),
   moods: MoodCountsSchema,
+  countries: CountryCountsSchema.optional().default({}),
   users: z.array(UserSchema),
   timestamp: z.number(),
 });

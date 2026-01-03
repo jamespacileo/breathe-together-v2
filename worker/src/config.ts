@@ -29,6 +29,9 @@ export interface SimulationConfig {
 
   /** Mood distribution for simulated users (must sum to 1.0) */
   moodDistribution: Record<MoodId, number>;
+
+  /** Country distribution for simulated users (ISO 3166-1 alpha-2 codes, must sum to 1.0) */
+  countryDistribution: Record<string, number>;
 }
 
 export const SIMULATION_CONFIG: SimulationConfig = {
@@ -53,6 +56,33 @@ export const SIMULATION_CONFIG: SimulationConfig = {
     gratitude: 0.3, // Appreciation
     release: 0.2, // Letting go
     connection: 0.15, // Community
+  },
+
+  // Country distribution (realistic global meditation community)
+  countryDistribution: {
+    US: 0.25, // United States
+    GB: 0.1, // United Kingdom
+    DE: 0.08, // Germany
+    FR: 0.06, // France
+    JP: 0.06, // Japan
+    AU: 0.05, // Australia
+    CA: 0.05, // Canada
+    BR: 0.04, // Brazil
+    IN: 0.04, // India
+    NL: 0.03, // Netherlands
+    ES: 0.03, // Spain
+    IT: 0.03, // Italy
+    SE: 0.02, // Sweden
+    MX: 0.02, // Mexico
+    KR: 0.02, // South Korea
+    PL: 0.02, // Poland
+    AR: 0.02, // Argentina
+    NZ: 0.02, // New Zealand
+    CH: 0.02, // Switzerland
+    BE: 0.02, // Belgium
+    // Remaining 2% distributed across other countries
+    PT: 0.01, // Portugal
+    ZA: 0.01, // South Africa
   },
 };
 

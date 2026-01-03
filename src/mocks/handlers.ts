@@ -74,11 +74,24 @@ function calculatePresence(): PresenceState {
   };
 
   // Build users array from sessions
-  const users: { id: string; mood: MoodId }[] = [];
+  const users: { id: string; mood: MoodId; country?: string }[] = [];
   state.sessions.forEach((session, id) => {
     users.push({ id, mood: session.mood });
   });
   users.sort((a, b) => a.id.localeCompare(b.id));
+
+  // Mock country distribution (similar to simulation config)
+  const mockCountries: Record<string, number> = {
+    US: Math.round(estimatedCount * 0.25),
+    GB: Math.round(estimatedCount * 0.1),
+    DE: Math.round(estimatedCount * 0.08),
+    FR: Math.round(estimatedCount * 0.06),
+    JP: Math.round(estimatedCount * 0.06),
+    AU: Math.round(estimatedCount * 0.05),
+    CA: Math.round(estimatedCount * 0.05),
+    BR: Math.round(estimatedCount * 0.04),
+    IN: Math.round(estimatedCount * 0.04),
+  };
 
   return {
     count: estimatedCount,
@@ -88,6 +101,7 @@ function calculatePresence(): PresenceState {
       release: moodCounts.release + Math.round(state.baseCount * ratios.release),
       connection: moodCounts.connection + Math.round(state.baseCount * ratios.connection),
     },
+    countries: mockCountries,
     users,
     timestamp: now,
   };
