@@ -7,6 +7,7 @@ import { MomentumControls } from '../components/MomentumControls';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
+import { BreathingRing } from '../entities/breathingRing';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
@@ -105,6 +106,9 @@ export function BreathingLevel({
             azimuth={[-Infinity, Infinity]}
           >
             {showGlobe && <EarthGlobe />}
+
+            {/* Breathing progress ring - subtle arc around globe */}
+            {showGlobe && <BreathingRing />}
 
             {showParticles && (
               <ParticleSwarm

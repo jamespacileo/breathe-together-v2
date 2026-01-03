@@ -13,7 +13,6 @@ import { calculatePhaseInfo } from '../lib/breathPhase';
 import { MOOD_COLORS, PHASE_NAMES } from '../styles/designTokens';
 import { AudioSettings } from './AudioSettings';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
-import { BreathingArc } from './BreathingArc';
 import { CSSIcosahedron, MiniIcosahedronPreview } from './CSSIcosahedron';
 import { InspirationalText } from './InspirationalText';
 import { Slider } from './ui/Slider';
@@ -806,12 +805,9 @@ export function SimpleGaiaUI({
             ? `max(${edgePadding + 16}px, env(safe-area-inset-bottom, 24px))`
             : '44px',
           transform: `translateX(-50%) translateY(${hasEntered ? 0 : 16}px)`,
-          gap: isMobile ? '8px' : '10px',
+          gap: isMobile ? '10px' : '12px',
         }}
       >
-        {/* Breathing Arc - Visual progress indicator */}
-        <BreathingArc strokeWidth={isMobile ? 2 : 3} />
-
         {/* Phase Name + Timer Row */}
         <div className="flex items-baseline" style={{ gap: isMobile ? '10px' : '12px' }}>
           <span
