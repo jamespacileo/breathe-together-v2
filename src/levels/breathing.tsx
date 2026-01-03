@@ -141,6 +141,10 @@ export function BreathingLevel({
               showGlobeBounds={devControls.showGlobeBounds}
               showSwarmCentroid={devControls.showSwarmCentroid}
               showSwarmBounds={devControls.showSwarmBounds}
+              showShardCentroids={devControls.showShardCentroids}
+              showShardWireframes={devControls.showShardWireframes}
+              showShardConnections={devControls.showShardConnections}
+              maxShardGizmos={devControls.maxShardGizmos}
               showAxes={devControls.showGizmoAxes}
               showLabels={devControls.showGizmoLabels}
             />

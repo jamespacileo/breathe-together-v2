@@ -77,6 +77,10 @@ export const TUNING_DEFAULTS = {
   showGlobeBounds: false,
   showSwarmCentroid: false,
   showSwarmBounds: false,
+  showShardCentroids: false,
+  showShardWireframes: false,
+  showShardConnections: false,
+  maxShardGizmos: 50,
   showGizmoAxes: true,
   showGizmoLabels: false,
 
@@ -177,6 +181,10 @@ export interface DevControlsState {
   showGlobeBounds: boolean;
   showSwarmCentroid: boolean;
   showSwarmBounds: boolean;
+  showShardCentroids: boolean;
+  showShardWireframes: boolean;
+  showShardConnections: boolean;
+  maxShardGizmos: number;
   showGizmoAxes: boolean;
   showGizmoLabels: boolean;
 
@@ -233,6 +241,10 @@ function getDefaultDevControls(): DevControlsState {
     showGlobeBounds: TUNING_DEFAULTS.showGlobeBounds,
     showSwarmCentroid: TUNING_DEFAULTS.showSwarmCentroid,
     showSwarmBounds: TUNING_DEFAULTS.showSwarmBounds,
+    showShardCentroids: TUNING_DEFAULTS.showShardCentroids,
+    showShardWireframes: TUNING_DEFAULTS.showShardWireframes,
+    showShardConnections: TUNING_DEFAULTS.showShardConnections,
+    maxShardGizmos: TUNING_DEFAULTS.maxShardGizmos,
     showGizmoAxes: TUNING_DEFAULTS.showGizmoAxes,
     showGizmoLabels: TUNING_DEFAULTS.showGizmoLabels,
     showPerfMonitor: TUNING_DEFAULTS.showPerfMonitor,
@@ -696,6 +708,29 @@ export function useDevControls(): DevControlsState {
               value: TUNING_DEFAULTS.showSwarmBounds,
               label: 'Swarm Bounds',
               hint: 'Show particle orbit range (min/max/current radius).\n\n**Shows:** Green (min orbit at inhale), Orange (max at exhale), Yellow (current)',
+            },
+            showShardCentroids: {
+              value: TUNING_DEFAULTS.showShardCentroids,
+              label: 'Shard Centroids',
+              hint: 'Show centroid markers for individual particle shards.\n\n**Use case:** Debug shard positioning and Fibonacci distribution',
+            },
+            showShardWireframes: {
+              value: TUNING_DEFAULTS.showShardWireframes,
+              label: 'Shard Wireframes',
+              hint: 'Show wireframe icosahedrons at each shard position.\n\n**Use case:** Visualize shard geometry and overlap',
+            },
+            showShardConnections: {
+              value: TUNING_DEFAULTS.showShardConnections,
+              label: 'Shard Connections',
+              hint: 'Draw lines connecting adjacent shard centroids.\n\n**Use case:** Visualize Fibonacci sphere topology',
+            },
+            maxShardGizmos: {
+              value: TUNING_DEFAULTS.maxShardGizmos,
+              min: 1,
+              max: 200,
+              step: 1,
+              label: 'Max Shards',
+              hint: 'Maximum number of shard gizmos to render.\n\n**Performance:** Lower values for better FPS when debugging',
             },
             showGizmoAxes: {
               value: TUNING_DEFAULTS.showGizmoAxes,

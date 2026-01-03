@@ -6,20 +6,22 @@
  * - Globe bounding sphere
  * - Particle swarm centroid
  * - Particle swarm bounding sphere (shows breathing range)
- * - Sample shard centroids (for debugging particle positions)
+ * - Individual shard centroids and wireframes
+ * - Connecting lines between shard centroids
  *
  * These gizmos help with:
  * - Debugging shape positioning
  * - Understanding breathing animation bounds
+ * - Visualizing Fibonacci sphere distribution
  * - Anchoring future effects/UI elements to shape positions
  *
  * Controlled via Leva Debug > Gizmos folder
  */
 
 import { Html, Line } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { VISUALS } from '../constants';
 import { breathPhase, orbitRadius } from '../entities/breath/traits';
@@ -48,6 +50,30 @@ interface ShapeGizmosProps {
    * @default false
    */
   showSwarmBounds?: boolean;
+
+  /**
+   * Show centroid markers for individual shards
+   * @default false
+   */
+  showShardCentroids?: boolean;
+
+  /**
+   * Show wireframe icosahedrons at shard positions
+   * @default false
+   */
+  showShardWireframes?: boolean;
+
+  /**
+   * Show lines connecting adjacent shard centroids
+   * @default false
+   */
+  showShardConnections?: boolean;
+
+  /**
+   * Maximum number of shard gizmos to render (for performance)
+   * @default 50
+   */
+  maxShardGizmos?: number;
 
   /**
    * Show XYZ axes on centroids
@@ -226,6 +252,104 @@ function BoundingSphere({
 }
 
 /**
+ * Shard position data extracted from InstancedMesh
+ */
+interface ShardPosition {
+  position: THREE.Vector3;
+  scale: number;
+  index: number;
+}
+
+/**
+ * Pre-allocated objects for matrix decomposition
+ */
+const _tempMatrix = new THREE.Matrix4();
+const _tempPosition = new THREE.Vector3();
+const _tempQuaternion = new THREE.Quaternion();
+const _tempScale = new THREE.Vector3();
+
+/**
+ * Shard Gizmos - renders centroids, wireframes, and connections for particle shards
+ */
+function ShardGizmos({
+  positions,
+  showCentroids,
+  showWireframes,
+  showConnections,
+  showLabels,
+  shardSize,
+}: {
+  positions: ShardPosition[];
+  showCentroids: boolean;
+  showWireframes: boolean;
+  showConnections: boolean;
+  showLabels: boolean;
+  shardSize: number;
+}) {
+  // Memoize wireframe geometry
+  const wireframeGeometry = useMemo(() => new THREE.IcosahedronGeometry(shardSize, 0), [shardSize]);
+
+  // Memoize wireframe material
+  const wireframeMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: '#00ffff',
+        wireframe: true,
+        transparent: true,
+        opacity: 0.6,
+      }),
+    [],
+  );
+
+  // Generate connection line points (connect each shard to its neighbors in Fibonacci order)
+  const connectionPoints = useMemo(() => {
+    if (!showConnections || positions.length < 2) return [];
+
+    const points: [number, number, number][] = [];
+    for (const shard of positions) {
+      const p = shard.position;
+      points.push([p.x, p.y, p.z]);
+    }
+    return points;
+  }, [positions, showConnections]);
+
+  if (positions.length === 0) return null;
+
+  return (
+    <group name="Shard Gizmos">
+      {/* Shard centroids */}
+      {showCentroids &&
+        positions.map((shard) => (
+          <CentroidMarker
+            key={`centroid-${shard.index}`}
+            position={[shard.position.x, shard.position.y, shard.position.z]}
+            color="#ff66ff"
+            size={0.04}
+            label={showLabels ? `#${shard.index}` : undefined}
+          />
+        ))}
+
+      {/* Shard wireframes */}
+      {showWireframes &&
+        positions.map((shard) => (
+          <mesh
+            key={`wireframe-${shard.index}`}
+            position={[shard.position.x, shard.position.y, shard.position.z]}
+            scale={shard.scale}
+            geometry={wireframeGeometry}
+            material={wireframeMaterial}
+          />
+        ))}
+
+      {/* Connection lines between adjacent shards (Fibonacci order) */}
+      {showConnections && connectionPoints.length >= 2 && (
+        <Line points={connectionPoints} color="#ff66ff" lineWidth={1} transparent opacity={0.4} />
+      )}
+    </group>
+  );
+}
+
+/**
  * ShapeGizmos Component
  *
  * Renders debug visualization for shape centroids and bounds.
@@ -236,21 +360,35 @@ export function ShapeGizmos({
   showGlobeBounds = false,
   showSwarmCentroid = false,
   showSwarmBounds = false,
+  showShardCentroids = false,
+  showShardWireframes = false,
+  showShardConnections = false,
+  maxShardGizmos = 50,
   showAxes = true,
   showLabels = false,
   globeRadius = 1.5,
   axisLength = 1.0,
 }: ShapeGizmosProps) {
   const world = useWorld();
+  const { scene } = useThree();
 
   // Track current orbit radius for swarm bounds
   const currentOrbitRef = useRef<number>(VISUALS.PARTICLE_ORBIT_MAX);
-  const [, setForceUpdate] = useState(0);
+  const [shardPositions, setShardPositions] = useState<ShardPosition[]>([]);
+  const [shardSize, setShardSize] = useState(0.5);
   const frameCountRef = useRef(0);
 
-  // Update orbit radius from ECS
+  // Find the particle swarm InstancedMesh
+  const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
+
+  // Check if shard gizmos are enabled
+  const showShardGizmos = showShardCentroids || showShardWireframes || showShardConnections;
+
+  // Update orbit radius and shard positions from scene
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: useFrame needs to handle ECS queries, scene traversal, and matrix decomposition in one loop for performance
   useFrame(() => {
     try {
+      // Update orbit radius from ECS
       const breath = world.queryFirst(breathPhase, orbitRadius);
       if (breath) {
         currentOrbitRef.current = breath.get(orbitRadius)?.value ?? VISUALS.PARTICLE_ORBIT_MAX;
@@ -258,8 +396,43 @@ export function ShapeGizmos({
 
       // Throttle updates to every 4 frames
       frameCountRef.current += 1;
-      if (frameCountRef.current % 4 === 0) {
-        setForceUpdate((v) => v + 1);
+      if (frameCountRef.current % 4 !== 0) return;
+
+      // Find the InstancedMesh if not cached
+      if (!instancedMeshRef.current && showShardGizmos) {
+        scene.traverse((obj) => {
+          if (obj.name === 'Particle Swarm' && obj instanceof THREE.InstancedMesh) {
+            instancedMeshRef.current = obj;
+          }
+        });
+      }
+
+      // Extract shard positions from InstancedMesh
+      if (instancedMeshRef.current && showShardGizmos) {
+        const mesh = instancedMeshRef.current;
+        const positions: ShardPosition[] = [];
+        const count = Math.min(mesh.count, maxShardGizmos);
+
+        // Get shard size from geometry bounding sphere
+        if (mesh.geometry.boundingSphere) {
+          setShardSize(mesh.geometry.boundingSphere.radius);
+        }
+
+        for (let i = 0; i < count; i++) {
+          mesh.getMatrixAt(i, _tempMatrix);
+          _tempMatrix.decompose(_tempPosition, _tempQuaternion, _tempScale);
+
+          // Only include visible shards (scale > 0)
+          if (_tempScale.x > 0.01) {
+            positions.push({
+              position: _tempPosition.clone(),
+              scale: _tempScale.x,
+              index: i,
+            });
+          }
+        }
+
+        setShardPositions(positions);
       }
     } catch (_e) {
       // Ignore ECS errors during hot-reload
@@ -267,7 +440,13 @@ export function ShapeGizmos({
   });
 
   // Don't render if nothing is enabled
-  if (!showGlobeCentroid && !showGlobeBounds && !showSwarmCentroid && !showSwarmBounds) {
+  if (
+    !showGlobeCentroid &&
+    !showGlobeBounds &&
+    !showSwarmCentroid &&
+    !showSwarmBounds &&
+    !showShardGizmos
+  ) {
     return null;
   }
 
@@ -356,6 +535,21 @@ export function ShapeGizmos({
             label={showLabels ? `Current r=${currentOrbitRef.current.toFixed(2)}` : undefined}
           />
         </>
+      )}
+
+      {/* ============================================================
+        INDIVIDUAL SHARD GIZMOS
+        ============================================================ */}
+
+      {showShardGizmos && (
+        <ShardGizmos
+          positions={shardPositions}
+          showCentroids={showShardCentroids}
+          showWireframes={showShardWireframes}
+          showConnections={showShardConnections}
+          showLabels={showLabels}
+          shardSize={shardSize}
+        />
       )}
     </group>
   );
