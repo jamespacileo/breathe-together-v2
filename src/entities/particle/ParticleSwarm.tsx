@@ -17,7 +17,7 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { BREATH_TOTAL_CYCLE, type MoodId } from '../../constants';
+import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -580,13 +580,21 @@ export function ParticleSwarm({
     mesh.instanceMatrix.needsUpdate = true;
   });
 
+  // Set the PARTICLES layer on the instanced mesh for RefractionPipeline detection
+  useEffect(() => {
+    const mesh = instancedMeshRef.current;
+    if (mesh) {
+      // Enable PARTICLES layer (layer 2) for refraction pipeline
+      mesh.layers.enable(RENDER_LAYERS.PARTICLES);
+    }
+  }, []);
+
   return (
     <instancedMesh
       ref={instancedMeshRef}
       args={[geometry, material, performanceCap]}
       frustumCulled={false}
       name="Particle Swarm"
-      userData={{ useRefraction: true }}
     />
   );
 }
