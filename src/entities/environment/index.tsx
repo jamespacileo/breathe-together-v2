@@ -114,8 +114,8 @@ export function Environment({
       {/* These render far behind everything else */}
       {showDepthEffects && !isMobile && (
         <>
-          {/* Horizon glow - luminous glow at distant horizon */}
-          <HorizonGlow opacity={depthOpacity * 0.7} enabled={true} />
+          {/* Horizon glow - 360° luminous glow at distant horizon */}
+          <HorizonGlow opacity={depthOpacity * 1.3} enabled={true} />
 
           {/* Distant nebula - layered cosmic clouds with parallax */}
           <DistantNebula opacity={depthOpacity} enabled={true} />
