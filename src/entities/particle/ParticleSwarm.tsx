@@ -213,15 +213,21 @@ function normalizeUsers(users: User[] | Partial<Record<MoodId, number>> | undefi
 
 /**
  * Initialize instance state with physics parameters
+ *
+ * @param index - Instance index (0 to total-1)
+ * @param total - Total number of instances for Fibonacci distribution
+ * @param baseRadius - Base orbit radius
  */
-function createInstanceState(index: number, baseRadius: number): InstanceState {
+function createInstanceState(index: number, total: number, baseRadius: number): InstanceState {
   const goldenRatio = (1 + Math.sqrt(5)) / 2;
   const rotSeedX = (index * 1.618 + 0.3) % 1;
   const rotSeedY = (index * 2.236 + 0.7) % 1;
   const scaleSeed = (index * goldenRatio + 0.5) % 1;
   const orbitSeed = (index * Math.PI + 0.1) % 1;
 
-  const direction = getFibonacciSpherePoint(index, 1);
+  // Initialize with proper Fibonacci distribution to avoid pole clustering
+  // Use total count to spread instances evenly across the sphere
+  const direction = getFibonacciSpherePoint(index, Math.max(total, 2));
 
   return {
     direction: direction.clone(),
@@ -353,11 +359,11 @@ export function ParticleSwarm({
     }
   }, []);
 
-  // Initialize instance states
+  // Initialize instance states with Fibonacci distribution
   useEffect(() => {
     const states: InstanceState[] = [];
     for (let i = 0; i < performanceCap; i++) {
-      states.push(createInstanceState(i, baseRadius));
+      states.push(createInstanceState(i, performanceCap, baseRadius));
     }
     instanceStatesRef.current = states;
   }, [performanceCap, baseRadius]);
