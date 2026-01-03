@@ -36,6 +36,13 @@ export interface BreathingLevelProps {
    * @default true
    */
   showEnvironment?: boolean;
+
+  /**
+   * Show InspirationalText3D entity (breath-synced 3D text with bloom reveal).
+   * @group "Entity Visibility"
+   * @default true
+   */
+  showInspirationalText3D?: boolean;
 }
 
 // ============================================================================
