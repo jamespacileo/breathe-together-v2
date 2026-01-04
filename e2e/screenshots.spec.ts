@@ -16,7 +16,18 @@ test.describe('Preview Screenshots', () => {
 
     await page.goto('/');
     await page.waitForSelector('canvas', { timeout: 30_000 });
-    await page.waitForTimeout(3000); // Let Three.js stabilize
+
+    // Wait for breathing phase text (indicates app is fully loaded)
+    await page.waitForFunction(
+      () => {
+        const body = document.body.innerText;
+        return body.includes('INHALE') || body.includes('EXHALE') || body.includes('HOLD');
+      },
+      { timeout: 30_000 },
+    );
+
+    // Let WebGL stabilize (shaders, particles, animations)
+    await page.waitForTimeout(8000);
 
     await page.screenshot({ path: join(SCREENSHOTS_DIR, `${viewport}.png`) });
     console.log(`[${viewport}] ✓ captured`);
