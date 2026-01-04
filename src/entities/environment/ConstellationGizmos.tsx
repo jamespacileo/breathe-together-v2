@@ -170,6 +170,16 @@ const InstancedStarMarkers = memo(function InstancedStarMarkers({
     ringRef.current.instanceMatrix.needsUpdate = true;
   }, [stars, radius, gmst, dummy]);
 
+  // Set GIZMOS layer on instanced meshes (excludes from DoF blur)
+  useEffect(() => {
+    if (sphereRef.current) {
+      sphereRef.current.layers.set(RENDER_LAYERS.GIZMOS);
+    }
+    if (ringRef.current) {
+      ringRef.current.layers.set(RENDER_LAYERS.GIZMOS);
+    }
+  }, []);
+
   // Cleanup
   useEffect(() => {
     return () => {
@@ -280,6 +290,13 @@ const BatchedConstellationLines = memo(function BatchedConstellationLines({
     return { geometry: geo, material: mat };
   }, [lines, color]);
 
+  // Set GIZMOS layer (excludes from DoF blur)
+  useEffect(() => {
+    if (linesRef.current) {
+      linesRef.current.layers.set(RENDER_LAYERS.GIZMOS);
+    }
+  }, []);
+
   // Cleanup
   useEffect(() => {
     return () => {
@@ -344,22 +361,17 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
   const gmstRef = useRef(calculateGMST(new Date()));
   const groupRef = useRef<THREE.Group>(null);
 
-  // Set GIZMOS layer on all meshes to exclude from DoF blur
-  // Uses requestAnimationFrame to ensure child components have mounted
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Dependencies trigger re-traverse when visibility props change (new meshes added/removed from scene)
-  useEffect(() => {
+  // Set GIZMOS layer on all meshes every frame to ensure exclusion from DoF blur
+  // This catches any dynamically added children and ensures layers persist
+  useFrame(() => {
     if (!groupRef.current) return;
-    const setLayers = () => {
-      if (!groupRef.current) return;
-      groupRef.current.traverse((object) => {
+    groupRef.current.traverse((object) => {
+      // Only set if not already on GIZMOS layer (avoid unnecessary updates)
+      if (!object.layers.isEnabled(RENDER_LAYERS.GIZMOS)) {
         object.layers.set(RENDER_LAYERS.GIZMOS);
-      });
-    };
-    // Run immediately and after next frame (for dynamically added children)
-    setLayers();
-    const rafId = requestAnimationFrame(setLayers);
-    return () => cancelAnimationFrame(rafId);
-  }, [showStars, showLines, showCelestialFrame, showConstellationLabels]);
+      }
+    });
+  });
 
   // Create star lookup map
   const starMap = useMemo(() => {
