@@ -436,6 +436,7 @@ export function ParticleSwarm({
 
   // Track if we've already signaled for screenshots
   const hasSignaledRef = useRef(false);
+  const signalDelayRef = useRef(0);
 
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation requires multiple force calculations and slot lifecycle management
@@ -465,9 +466,19 @@ export function ParticleSwarm({
     const cycleIndex = getBreathingCycleIndex(elapsedSeconds, BREATH_TOTAL_CYCLE);
 
     // Signal for E2E screenshot tests - fires once when shards become fully visible
-    if (!hasSignaledRef.current && slotManager.fullyActiveCount > 0) {
-      console.log('[SCREENSHOT_READY]', slotManager.fullyActiveCount, 'shards fully visible');
-      hasSignaledRef.current = true;
+    // Wait for 1.0s of full visibility to ensure RefractionPipeline has initialized and rendered
+    if (
+      !hasSignaledRef.current &&
+      slotManager.fullyActiveCount > 0 &&
+      slotManager.fullyActiveCount === normalizedUsers.length
+    ) {
+      signalDelayRef.current += clampedDelta;
+      if (signalDelayRef.current > 1.0) {
+        console.log('[SCREENSHOT_READY]', slotManager.fullyActiveCount, 'shards fully visible');
+        hasSignaledRef.current = true;
+      }
+    } else {
+      signalDelayRef.current = 0;
     }
 
     // Reconcile only on transition INTO hold phase, once per cycle
