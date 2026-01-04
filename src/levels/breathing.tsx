@@ -9,6 +9,7 @@ import { ShapeGizmos } from '../components/ShapeGizmos';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
+import { AtmosphereEffects } from '../entities/atmosphere';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { GlobeRibbonText } from '../entities/earthGlobe/GlobeRibbonText';
@@ -135,6 +136,34 @@ export function BreathingLevel({
             {/* Now inside RefractionPipeline: occluded by globe/shards, has DoF effect */}
             {showGlobe && Object.keys(countryCounts).length > 0 && (
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
+            )}
+
+            {/* Atmosphere Effects - breathing-synchronized visual effects */}
+            {devControls.showAtmosphereEffects && (
+              <AtmosphereEffects
+                showFireflies={devControls.showFireflies}
+                showCloudWisps={devControls.showCloudWisps}
+                showBreathRays={devControls.showBreathRays}
+                showRippleWaves={devControls.showRippleWaves}
+                showConnectionLines={devControls.showConnectionLines}
+                showFloatingSymbols={devControls.showFloatingSymbols}
+                showAurora={devControls.showAurora}
+                showMeteors={devControls.showMeteors}
+                showEnergyField={devControls.showEnergyField}
+                fireflies={{
+                  count: devControls.firefliesCount,
+                  maxOpacity: devControls.firefliesOpacity,
+                }}
+                aurora={{
+                  intensity: devControls.auroraIntensity,
+                }}
+                energyField={{
+                  intensity: devControls.energyFieldIntensity,
+                }}
+                meteors={{
+                  spawnRate: devControls.meteorSpawnRate,
+                }}
+              />
             )}
           </RefractionPipeline>
 
