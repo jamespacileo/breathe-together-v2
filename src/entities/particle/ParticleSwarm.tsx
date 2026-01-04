@@ -434,6 +434,9 @@ export function ParticleSwarm({
     };
   }, [geometry, material]);
 
+  // Track if we've already signaled for screenshots
+  const hasSignaledRef = useRef(false);
+
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation requires multiple force calculations and slot lifecycle management
   useFrame((state, delta) => {
@@ -461,17 +464,18 @@ export function ParticleSwarm({
     const elapsedSeconds = Date.now() / 1000;
     const cycleIndex = getBreathingCycleIndex(elapsedSeconds, BREATH_TOTAL_CYCLE);
 
+    // Signal for E2E screenshot tests - fires once when shards become fully visible
+    if (!hasSignaledRef.current && slotManager.fullyActiveCount > 0) {
+      console.log('[SCREENSHOT_READY]', slotManager.fullyActiveCount, 'shards fully visible');
+      hasSignaledRef.current = true;
+    }
+
     // Reconcile only on transition INTO hold phase, once per cycle
     if (isInHold && !wasInHoldRef.current && slotManager.shouldReconcile(cycleIndex)) {
       slotManager.reconcile(pendingUsersRef.current);
       slotManager.markReconciled(cycleIndex);
 
       const newStableCount = slotManager.stableCount;
-
-      // Signal for E2E screenshot tests - fires when shards become visible
-      if (newStableCount > 0) {
-        console.log('[SCREENSHOT_READY]', newStableCount, 'shards visible');
-      }
 
       if (newStableCount !== prevActiveCountRef.current) {
         redistributePositions(newStableCount);
