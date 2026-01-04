@@ -25,7 +25,6 @@ import {
   magnitudeToSize,
   STARS,
 } from '../../lib/constellationData';
-import { ConstellationGizmos } from './ConstellationGizmos';
 
 interface ConstellationStarsProps {
   /** Enable constellation rendering @default true */
@@ -50,8 +49,6 @@ interface ConstellationStarsProps {
   twinkleSpeed?: number;
   /** Overall opacity @default 0.9 */
   opacity?: number;
-  /** Show debug gizmo @default false */
-  showGizmo?: boolean;
 }
 
 /**
@@ -86,7 +83,6 @@ export const ConstellationStars = memo(function ConstellationStars({
   twinkle = true,
   twinkleSpeed = 1,
   opacity = 0.9,
-  showGizmo = false,
 }: ConstellationStarsProps) {
   const groupRef = useRef<THREE.Group>(null);
   const starsRef = useRef<THREE.Points>(null);
@@ -268,32 +264,27 @@ export const ConstellationStars = memo(function ConstellationStars({
   if (!enabled) return null;
 
   return (
-    <>
-      {/* Debug gizmos - Uses ConstellationGizmos component for star markers, wireframes, and labels */}
-      {showGizmo && <ConstellationGizmos radius={radius} />}
+    /* Rotating celestial sphere with stars */
+    <group ref={groupRef}>
+      {/* Star points - frustumCulled={false} ensures visibility at all angles */}
+      <points ref={starsRef} geometry={geometry} material={material} frustumCulled={false} />
 
-      {/* Rotating celestial sphere with stars */}
-      <group ref={groupRef}>
-        {/* Star points - frustumCulled={false} ensures visibility at all angles */}
-        <points ref={starsRef} geometry={geometry} material={material} frustumCulled={false} />
-
-        {/* Constellation lines */}
-        {showLines &&
-          lineSegments.map((seg, idx) => (
-            <Line
-              key={`${seg.constellation}-${idx}`}
-              points={[seg.start, seg.end]}
-              color={lineColor}
-              lineWidth={lineWidth}
-              transparent
-              opacity={lineOpacity}
-              // Soft dashed pattern for ethereal feel
-              dashed
-              dashSize={2}
-              gapSize={1}
-            />
-          ))}
-      </group>
-    </>
+      {/* Constellation lines */}
+      {showLines &&
+        lineSegments.map((seg, idx) => (
+          <Line
+            key={`${seg.constellation}-${idx}`}
+            points={[seg.start, seg.end]}
+            color={lineColor}
+            lineWidth={lineWidth}
+            transparent
+            opacity={lineOpacity}
+            // Soft dashed pattern for ethereal feel
+            dashed
+            dashSize={2}
+            gapSize={1}
+          />
+        ))}
+    </group>
   );
 });

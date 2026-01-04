@@ -196,7 +196,6 @@ export function Environment({
           starSize={constellationStarSize}
           lineOpacity={constellationLineOpacity}
           opacity={isMobile ? 0.6 : 0.8}
-          showGizmo={showConstellationGizmos}
         />
       )}
 
