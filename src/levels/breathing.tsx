@@ -12,7 +12,7 @@ import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
-import { GalaxyEnvironment } from '../entities/galaxy';
+import { GalaxyBackdrop, GalaxyForeground } from '../entities/galaxy';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -77,6 +77,24 @@ export function BreathingLevel({
         {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
         <AudioDevControls />
 
+        {/* Galaxy Backdrop - renders OUTSIDE MomentumControls as fixed background */}
+        {/* This includes: background shader, sun, constellations - all rendered crisp without DoF */}
+        {showEnvironment && (
+          <GalaxyBackdrop
+            showSun={true}
+            sunPosition={[60, 40, -80]}
+            sunRadius={8}
+            sunIntensity={1.0}
+            showConstellations={true}
+            constellationRadius={25}
+            starSize={1.2}
+            lineOpacity={0.4}
+            enableTwinkle={true}
+            nebulaIntensity={0.8}
+            milkyWayIntensity={0.6}
+          />
+        )}
+
         {/* MomentumControls wraps everything - iOS-style momentum scrolling for 3D rotation */}
         <MomentumControls
           cursor={true}
@@ -98,27 +116,14 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Galaxy Environment - stylized universe with constellations, sun, cosmic dust */}
+            {/* Galaxy Foreground - cosmic dust and lighting inside DoF */}
             {showEnvironment && (
-              <GalaxyEnvironment
-                showSun={true}
-                sunPosition={[60, 40, -80]}
-                sunRadius={8}
-                sunIntensity={1.0}
-                showConstellations={true}
-                constellationRadius={80}
-                starSize={1.0}
-                lineOpacity={0.3}
-                lineColor="#4488aa"
-                enableTwinkle={true}
+              <GalaxyForeground
                 showCosmicDust={true}
                 dustCount={200}
-                dustRadius={60}
-                dustSize={0.8}
-                nebulaIntensity={0.8}
-                milkyWayIntensity={0.6}
-                ambientIntensity={0.15}
-                ambientColor="#334466"
+                dustRadius={20}
+                dustSize={0.6}
+                ambientIntensity={0.2}
               />
             )}
 
