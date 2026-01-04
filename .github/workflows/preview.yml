@@ -393,30 +393,21 @@ jobs:
 
             if (hasScreenshots && r2BaseUrl) {
               const r2Folder = `${r2BaseUrl}/pr-${prNumber}`;
-              const devices = [
-                { name: 'Desktop', prefix: 'desktop', width: 320 },
-                { name: 'Tablet', prefix: 'tablet', width: 200 },
-                { name: 'Mobile', prefix: 'mobile', width: 120 },
-              ];
-              const phases = ['inhale', 'hold', 'exhale'];
 
-              // Build image grid
-              bodyParts.push('| | Inhale | Hold | Exhale |', '|---|---|---|---|');
+              // Simple row of viewport screenshots
+              bodyParts.push('| Desktop | Tablet | Mobile |', '|:---:|:---:|:---:|');
 
-              for (const device of devices) {
-                const row = [`**${device.name}**`];
-                for (const phase of phases) {
-                  const filename = `${device.prefix}-${phase}.png`;
-                  if (screenshotFiles.includes(filename)) {
-                    const url = `${r2Folder}/${filename}`;
-                    row.push(`<a href="${url}"><img src="${url}" width="${device.width}"/></a>`);
-                  } else {
-                    row.push('-');
-                  }
+              const row = [];
+              for (const [name, width] of [['desktop', 280], ['tablet', 180], ['mobile', 100]]) {
+                const filename = `${name}.png`;
+                if (screenshotFiles.includes(filename)) {
+                  const url = `${r2Folder}/${filename}`;
+                  row.push(`<a href="${url}"><img src="${url}" width="${width}"/></a>`);
+                } else {
+                  row.push('-');
                 }
-                bodyParts.push(`| ${row.join(' | ')} |`);
               }
-              bodyParts.push('');
+              bodyParts.push(`| ${row.join(' | ')} |`, '');
             }
 
             bodyParts.push('---', `<sub>Last updated: ${timestamp}</sub>`);
