@@ -13,9 +13,10 @@
  * Previously used separate Mesh objects (300 draw calls for 300 particles)
  */
 
+import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
@@ -81,6 +82,11 @@ export interface ParticleSwarmProps {
    * The number of shards dynamically matches the number of users.
    */
   users?: User[] | Partial<Record<MoodId, number>>;
+  /**
+   * Current user's session ID for tracking their shard.
+   * When provided, enables the user's shard to be visually highlighted.
+   */
+  currentUserId?: string;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
   /**
@@ -109,6 +115,20 @@ export interface ParticleSwarmProps {
    * @default 1000
    */
   performanceCap?: number;
+  /**
+   * Show highlight on current user's shard (wireframe or glow effect).
+   * Requires currentUserId to be set.
+   * @default false
+   */
+  highlightCurrentUser?: boolean;
+  /**
+   * Style of highlight for current user's shard.
+   * - 'wireframe': Adds a wireframe outline around the shard
+   * - 'glow': Adds a subtle glow/pulse effect
+   * - 'scale': Makes the user's shard slightly larger
+   * @default 'wireframe'
+   */
+  highlightStyle?: 'wireframe' | 'glow' | 'scale';
 }
 
 /**
@@ -243,6 +263,7 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
 
 export function ParticleSwarm({
   users,
+  currentUserId,
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
@@ -250,10 +271,20 @@ export function ParticleSwarm({
   maxShardSize = 0.6,
   minShardSize = 0.15,
   performanceCap = 1000,
+  highlightCurrentUser = false,
+  highlightStyle = 'wireframe',
 }: ParticleSwarmProps) {
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
+  const wireframeRef = useRef<THREE.LineSegments>(null);
+  const glowMeshRef = useRef<THREE.Mesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
+
+  // Track current user's slot index (-1 if not found)
+  const currentUserSlotIndexRef = useRef<number>(-1);
+
+  // Track user shard position for the label (updated in useFrame)
+  const [userLabelPosition, setUserLabelPosition] = useState<[number, number, number] | null>(null);
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -321,6 +352,37 @@ export function ParticleSwarm({
 
   // Create shared material with instancing support
   const material = useMemo(() => createFrostedGlassMaterial(true), []);
+
+  // Create wireframe geometry and material for user highlight
+  const wireframeGeometry = useMemo(() => {
+    // Slightly larger than shard for visible outline
+    const geo = new THREE.IcosahedronGeometry(shardSize * 1.15, 0);
+    return new THREE.EdgesGeometry(geo);
+  }, [shardSize]);
+
+  const wireframeMaterial = useMemo(() => {
+    return new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.8,
+      linewidth: 2,
+    });
+  }, []);
+
+  // Create glow geometry and material for user highlight (glow style)
+  const glowGeometry = useMemo(() => {
+    // Larger sphere for glow effect
+    return new THREE.SphereGeometry(shardSize * 2.0, 16, 16);
+  }, [shardSize]);
+
+  const glowMaterial = useMemo(() => {
+    return new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.BackSide, // Render inside-out for halo effect
+    });
+  }, []);
 
   /**
    * Redistribute Fibonacci positions for stable slots (entering + active)
@@ -406,6 +468,12 @@ export function ParticleSwarm({
         }
       }
 
+      // Track current user's slot index on initial render
+      if (currentUserId) {
+        const userSlot = slotManager.getSlotByUserId(currentUserId);
+        currentUserSlotIndexRef.current = userSlot ? userSlot.index : -1;
+      }
+
       // Apply correct colors from slot moods immediately (not waiting for hold phase)
       // This fixes the "all shards start green" issue where DEFAULT_COLOR was shown
       // until the first hold phase triggered color reconciliation
@@ -424,15 +492,19 @@ export function ParticleSwarm({
         mesh.instanceColor.needsUpdate = true;
       }
     }
-  }, [performanceCap, baseRadius, redistributePositions, geometry, material]);
+  }, [performanceCap, baseRadius, redistributePositions, geometry, material, currentUserId]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       geometry.dispose();
       material.dispose();
+      wireframeGeometry.dispose();
+      wireframeMaterial.dispose();
+      glowGeometry.dispose();
+      glowMaterial.dispose();
     };
-  }, [geometry, material]);
+  }, [geometry, material, wireframeGeometry, wireframeMaterial, glowGeometry, glowMaterial]);
 
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation requires multiple force calculations and slot lifecycle management
@@ -470,6 +542,12 @@ export function ParticleSwarm({
       if (newStableCount !== prevActiveCountRef.current) {
         redistributePositions(newStableCount);
         prevActiveCountRef.current = newStableCount;
+      }
+
+      // Track current user's slot index
+      if (currentUserId) {
+        const userSlot = slotManager.getSlotByUserId(currentUserId);
+        currentUserSlotIndexRef.current = userSlot ? userSlot.index : -1;
       }
 
       // Update instance colors based on slot moods
@@ -602,6 +680,76 @@ export function ParticleSwarm({
     // Update instance count for rendering optimization
     mesh.count = Math.max(1, visibleCount);
     mesh.instanceMatrix.needsUpdate = true;
+
+    // Update highlight position for current user
+    const wireframe = wireframeRef.current;
+    const glowMesh = glowMeshRef.current;
+    const userSlotIndex = currentUserSlotIndexRef.current;
+
+    if (highlightCurrentUser && userSlotIndex >= 0 && userSlotIndex < states.length) {
+      const slot = userSlotIndex < slots.length ? slots[userSlotIndex] : null;
+      const slotScale = slot && slot.state !== 'empty' ? slot.scale : 0;
+
+      if (slotScale > 0.001) {
+        // Get the current user's shard matrix
+        mesh.getMatrixAt(userSlotIndex, _tempMatrix);
+        _tempMatrix.decompose(_tempPosition, _tempQuaternion, _tempScale);
+
+        // Update label position (above the shard)
+        const labelOffset = shardSize * 3;
+        setUserLabelPosition([_tempPosition.x, _tempPosition.y + labelOffset, _tempPosition.z]);
+
+        // Style-specific rendering
+        if (highlightStyle === 'wireframe') {
+          // Wireframe outline
+          if (wireframe) {
+            wireframe.position.copy(_tempPosition);
+            wireframe.quaternion.copy(_tempQuaternion);
+            wireframe.scale.copy(_tempScale);
+            wireframe.visible = true;
+            wireframeMaterial.opacity = 0.8;
+          }
+          if (glowMesh) glowMesh.visible = false;
+        } else if (highlightStyle === 'glow') {
+          // Pulsing glow sphere
+          if (glowMesh) {
+            const pulse = 0.3 + Math.sin(time * 3) * 0.15;
+            glowMaterial.opacity = pulse;
+            glowMesh.position.copy(_tempPosition);
+            glowMesh.scale.setScalar(1.0 + Math.sin(time * 2) * 0.1);
+            glowMesh.visible = true;
+          }
+          // Also show wireframe but dimmer
+          if (wireframe) {
+            wireframe.position.copy(_tempPosition);
+            wireframe.quaternion.copy(_tempQuaternion);
+            wireframe.scale.copy(_tempScale);
+            wireframe.visible = true;
+            wireframeMaterial.opacity = 0.4;
+          }
+        } else if (highlightStyle === 'scale') {
+          // Scale up with wireframe
+          if (wireframe) {
+            wireframe.position.copy(_tempPosition);
+            wireframe.quaternion.copy(_tempQuaternion);
+            wireframe.scale.copy(_tempScale).multiplyScalar(1.3);
+            wireframe.visible = true;
+            wireframeMaterial.opacity = 0.8;
+          }
+          if (glowMesh) glowMesh.visible = false;
+        }
+      } else {
+        // Shard not visible
+        if (wireframe) wireframe.visible = false;
+        if (glowMesh) glowMesh.visible = false;
+        setUserLabelPosition(null);
+      }
+    } else {
+      // Highlight disabled or user not found
+      if (wireframe) wireframe.visible = false;
+      if (glowMesh) glowMesh.visible = false;
+      setUserLabelPosition(null);
+    }
   });
 
   // Set the PARTICLES layer on the instanced mesh for RefractionPipeline detection
@@ -614,12 +762,55 @@ export function ParticleSwarm({
   }, []);
 
   return (
-    <instancedMesh
-      ref={instancedMeshRef}
-      args={[geometry, material, performanceCap]}
-      frustumCulled={false}
-      name="Particle Swarm"
-    />
+    <>
+      <instancedMesh
+        ref={instancedMeshRef}
+        args={[geometry, material, performanceCap]}
+        frustumCulled={false}
+        name="Particle Swarm"
+      />
+      {/* Highlight elements for current user's shard */}
+      {highlightCurrentUser && (
+        <>
+          {/* Wireframe outline */}
+          <lineSegments
+            ref={wireframeRef}
+            geometry={wireframeGeometry}
+            material={wireframeMaterial}
+            visible={false}
+            name="User Shard Wireframe"
+          />
+          {/* Glow sphere (for glow style) */}
+          <mesh
+            ref={glowMeshRef}
+            geometry={glowGeometry}
+            material={glowMaterial}
+            visible={false}
+            name="User Shard Glow"
+          />
+          {/* "You" label above the shard */}
+          {userLabelPosition && (
+            <Html position={userLabelPosition} center>
+              <div
+                style={{
+                  background: 'rgba(0, 0, 0, 0.75)',
+                  color: '#ffffff',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'nowrap',
+                  border: '1px solid rgba(255, 255, 255, 0.5)',
+                  pointerEvents: 'none',
+                }}
+              >
+                You
+              </div>
+            </Html>
+          )}
+        </>
+      )}
+    </>
   );
 }
 
