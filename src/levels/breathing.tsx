@@ -8,6 +8,7 @@ import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
+import { BreathTimerRibbon } from '../entities/earthGlobe/BreathTimerRibbon';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { GlobeRibbonText } from '../entities/earthGlobe/GlobeRibbonText';
 import { Environment } from '../entities/environment';
@@ -135,6 +136,9 @@ export function BreathingLevel({
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
           </RefractionPipeline>
+
+          {/* Breath Timer Ribbon - outside RefractionPipeline to avoid DoF blur */}
+          {showGlobe && <BreathTimerRibbon />}
         </MomentumControls>
       </Suspense>
     </ErrorBoundary>
