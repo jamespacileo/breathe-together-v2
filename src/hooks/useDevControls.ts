@@ -692,6 +692,34 @@ export function useDevControls(): DevControlsState {
         // 5.2 Shape Gizmos
         Gizmos: folder(
           {
+            'Enable All': button(() => {
+              if (setRef.current) {
+                setRef.current({
+                  showGlobeCentroid: true,
+                  showGlobeBounds: true,
+                  showCountryCentroids: true,
+                  showSwarmCentroid: true,
+                  showSwarmBounds: true,
+                  showShardCentroids: true,
+                  showShardWireframes: true,
+                  showShardConnections: true,
+                });
+              }
+            }),
+            'Disable All': button(() => {
+              if (setRef.current) {
+                setRef.current({
+                  showGlobeCentroid: false,
+                  showGlobeBounds: false,
+                  showCountryCentroids: false,
+                  showSwarmCentroid: false,
+                  showSwarmBounds: false,
+                  showShardCentroids: false,
+                  showShardWireframes: false,
+                  showShardConnections: false,
+                });
+              }
+            }),
             showGlobeCentroid: {
               value: TUNING_DEFAULTS.showGlobeCentroid,
               label: 'Globe Centroid',
