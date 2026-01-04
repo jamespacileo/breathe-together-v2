@@ -51,6 +51,12 @@ interface CloudSystemProps {
   speed?: number;
   /** Enable cloud system @default true */
   enabled?: boolean;
+  /**
+   * Only show clouds in front hemisphere (positive Z from camera view).
+   * Prevents clouds from blocking distant background shapes.
+   * @default true
+   */
+  frontHemisphereOnly?: boolean;
 }
 
 /**
@@ -430,9 +436,20 @@ export const CloudSystem = memo(function CloudSystem({
   opacity = 0.4,
   speed = 0.8,
   enabled = true,
+  frontHemisphereOnly = true,
 }: CloudSystemProps) {
-  // Memoize the cloud configs array reference (it's already static, but this is defensive)
-  const configs = useMemo(() => CLOUD_CONFIGS, []);
+  // Filter configs to only include clouds in front hemisphere if enabled
+  // This prevents clouds from blocking distant background shapes
+  const configs = useMemo(() => {
+    if (!frontHemisphereOnly) return CLOUD_CONFIGS;
+
+    return CLOUD_CONFIGS.filter((config) => {
+      // Calculate initial direction on Fibonacci sphere
+      const direction = getFibonacciSpherePoint(config.sphereIndex, config.layerTotal);
+      // Keep only clouds with positive Z (in front of globe from camera view)
+      return direction.z > -0.3; // Allow slight negative Z for better coverage
+    });
+  }, [frontHemisphereOnly]);
 
   if (!enabled) return null;
 
