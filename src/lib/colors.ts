@@ -1,30 +1,42 @@
-import { GALAXY_PALETTE } from '../config/galaxyPalette';
+import { GALAXY_PALETTE, SHARD_COLORS } from '../config/galaxyPalette';
 import type { MoodId } from '../constants';
 
 /**
- * Color palettes and mood configurations
+ * Color palettes and mood configurations - Kurzgesagt Theme
+ *
+ * Inspired by the Kurzgesagt "Immune" book cover aesthetic:
+ * - Deep purple/navy space backgrounds
+ * - Vibrant, highly saturated accent colors
+ * - Golden yellow as prominent highlight
+ * - Rainbow of cell-like particle colors
  *
  * Simplified 4-category mood system with positive framing:
  * - gratitude (green) - Appreciating this moment, growth
  * - presence (blue) - Simply being here (covers calm, curiosity, rest)
- * - release (coral) - Letting go
+ * - release (pink) - Letting go
  * - connection (gold) - Here with others, warmth
  */
 
 /**
- * Galaxy Scene Palette - vibrant colors for icosahedral shards
- * Designed for visual harmony with the galaxy/space environment
+ * Galaxy Scene Palette - Kurzgesagt cell colors for icosahedral shards
+ * Designed for visual harmony with the purple space environment
  *
  * Each color maps directly to one mood category (1:1 mapping)
- * Colors have consistent saturation (60-70%) and luminance (50-60%)
+ * Colors have consistent saturation (75-95%) and luminance (50-65%)
  * for visual balance across all moods
  */
 export const GALAXY_SHARD_PALETTE = {
-  gratitude: GALAXY_PALETTE.shards.gratitude, // Green - growth, appreciation
-  presence: GALAXY_PALETTE.shards.presence, // Blue - calm, awareness
-  release: GALAXY_PALETTE.shards.release, // Coral - letting go
-  connection: GALAXY_PALETTE.shards.connection, // Gold - warmth, unity
+  gratitude: GALAXY_PALETTE.shards.gratitude, // Green cell - growth, appreciation
+  presence: GALAXY_PALETTE.shards.presence, // Light blue cell - calm, awareness
+  release: GALAXY_PALETTE.shards.release, // Pink cell - letting go
+  connection: GALAXY_PALETTE.shards.connection, // Gold cell - warmth, unity
 } as const;
+
+/**
+ * Extended Kurzgesagt shard colors for visual variety
+ * Use these for random color selection to create rainbow cell effect
+ */
+export const EXTENDED_SHARD_COLORS = SHARD_COLORS;
 
 /**
  * Monument Valley Palette - legacy colors (kept for reference)

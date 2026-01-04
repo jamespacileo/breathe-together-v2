@@ -111,10 +111,13 @@ float starField(vec2 uv, float scale, float threshold) {
 }
 
 void main() {
-  // Deep space base colors
-  vec3 spaceDeep = vec3(0.02, 0.02, 0.06);      // Near black with blue tint
-  vec3 spaceMid = vec3(0.04, 0.03, 0.10);       // Dark purple
-  vec3 spaceLight = vec3(0.06, 0.05, 0.14);     // Subtle purple glow
+  // Deep space base colors - Kurzgesagt purple theme
+  // #0d0a1a = rgb(13, 10, 26) / 255 = (0.051, 0.039, 0.102)
+  // #1a1040 = rgb(26, 16, 64) / 255 = (0.102, 0.063, 0.251)
+  // #2d1b69 = rgb(45, 27, 105) / 255 = (0.176, 0.106, 0.412)
+  vec3 spaceDeep = vec3(0.051, 0.039, 0.102);   // Deep purple-black (#0d0a1a)
+  vec3 spaceMid = vec3(0.102, 0.063, 0.251);    // Dark purple-navy (#1a1040)
+  vec3 spaceLight = vec3(0.176, 0.106, 0.412);  // Lighter purple (#2d1b69)
 
   // Vertical gradient for sky
   float y = vUv.y;
@@ -133,19 +136,23 @@ void main() {
   float milkyBand = smoothstep(0.3, 0.5, rotatedUv.y) * smoothstep(0.7, 0.5, rotatedUv.y);
   milkyBand *= (0.5 + milkyNoise * 0.5);
 
-  vec3 milkyColor = vec3(0.15, 0.12, 0.20); // Soft purple-white
+  // Milky Way - Kurzgesagt purple-gold tint
+  // #3d2080 = rgb(61, 32, 128) / 255 = (0.239, 0.125, 0.502)
+  vec3 milkyColor = vec3(0.239, 0.125, 0.502); // Vibrant purple (#3d2080)
   spaceColor = mix(spaceColor, milkyColor, milkyBand * milkyWayIntensity * 0.4);
 
-  // Nebula clouds - colored gas clouds
+  // Nebula clouds - Kurzgesagt colored gas clouds
   vec2 nebulaUv1 = vUv * 2.0 + vec2(time * 0.005, time * 0.003);
   vec2 nebulaUv2 = vUv * 1.5 + vec2(-time * 0.003, time * 0.004);
 
   float nebula1 = fbm(nebulaUv1, 3);
   float nebula2 = fbm(nebulaUv2, 3);
 
-  // Nebula colors - subtle purple, blue, and pink
-  vec3 nebulaColor1 = vec3(0.15, 0.05, 0.20) * (nebula1 * 0.5 + 0.5);
-  vec3 nebulaColor2 = vec3(0.05, 0.10, 0.20) * (nebula2 * 0.5 + 0.5);
+  // Nebula colors - vibrant purple and golden accents (Kurzgesagt style)
+  // Purple nebula: #3d2080 tinted
+  // Gold accent: #ffb300 tinted (subtle warm glow)
+  vec3 nebulaColor1 = vec3(0.24, 0.08, 0.32) * (nebula1 * 0.5 + 0.5);  // Purple
+  vec3 nebulaColor2 = vec3(0.30, 0.20, 0.08) * (nebula2 * 0.5 + 0.5);  // Golden
 
   float nebulaMask = smoothstep(0.2, 0.6, nebula1 * nebula2 + 0.3);
   spaceColor += (nebulaColor1 + nebulaColor2) * nebulaMask * nebulaIntensity * 0.3;

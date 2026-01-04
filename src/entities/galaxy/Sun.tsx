@@ -69,9 +69,9 @@ interface SunProps {
   position?: [number, number, number];
   /** Core radius @default 8 */
   radius?: number;
-  /** Core color @default '#fff8e0' */
+  /** Core color - Kurzgesagt warm white @default '#fff8e0' */
   coreColor?: string;
-  /** Corona/glow color @default '#ffaa44' */
+  /** Corona/glow color - Kurzgesagt golden amber @default '#ffb300' */
   coronaColor?: string;
   /** Light intensity multiplier @default 1.0 */
   lightIntensity?: number;
@@ -82,8 +82,8 @@ interface SunProps {
 function SunComponent({
   position = [60, 40, -80],
   radius = 8,
-  coreColor = '#fff8e0',
-  coronaColor = '#ffaa44',
+  coreColor = '#fff8e0', // Kurzgesagt bright warm white
+  coronaColor = '#ffb300', // Kurzgesagt golden amber
   lightIntensity = 1.0,
   breathingSync = true,
 }: SunProps) {

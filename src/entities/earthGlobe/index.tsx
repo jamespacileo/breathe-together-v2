@@ -164,20 +164,21 @@ void main() {
 `;
 
 /**
- * Atmosphere halo configuration - space-themed cool tones
+ * Atmosphere halo configuration - Kurzgesagt cyan tones
+ * Using globe.atmosphere (#26c6da) and globe.glow (#4dd9e8) from palette
  */
 const ATMOSPHERE_LAYERS = [
-  { scale: 1.08, color: '#4db8c4', opacity: 0.12 }, // Inner: bright teal (atmosphere)
-  { scale: 1.14, color: '#66d4e0', opacity: 0.08 }, // Middle: light teal (glow)
-  { scale: 1.22, color: '#aaccff', opacity: 0.04 }, // Outer: pale blue (space transition)
+  { scale: 1.08, color: '#26c6da', opacity: 0.12 }, // Inner: Kurzgesagt cyan (atmosphere)
+  { scale: 1.14, color: '#4dd9e8', opacity: 0.08 }, // Middle: Kurzgesagt light teal (glow)
+  { scale: 1.22, color: '#7c4dff', opacity: 0.04 }, // Outer: Kurzgesagt purple-blue (space transition)
 ];
 
 /**
  * Pre-allocated Color objects for shader uniforms
- * Space-themed cool colors for ethereal glow
+ * Kurzgesagt-themed cool colors for ethereal glow
  */
-const GLOW_COLOR = new THREE.Color('#66d4e0'); // Bright teal glow
-const MIST_COLOR = new THREE.Color('#aaccff'); // Pale blue mist
+const GLOW_COLOR = new THREE.Color('#4dd9e8'); // Kurzgesagt teal glow
+const MIST_COLOR = new THREE.Color('#b388ff'); // Kurzgesagt light purple mist
 
 /**
  * EarthGlobe component props
@@ -304,11 +305,11 @@ export function EarthGlobe({
     [],
   );
 
-  // Create memoized ring material to prevent GPU leak - cool teal for space theme
+  // Create memoized ring material to prevent GPU leak - Kurzgesagt golden accent
   const ringMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: '#4db8c4', // Bright teal matching atmosphere
+        color: '#ffb300', // Kurzgesagt golden amber accent
         transparent: true,
         opacity: 0.2,
         side: THREE.FrontSide, // Ring only viewed from above, no backface needed
@@ -397,7 +398,7 @@ export function EarthGlobe({
       {/* Mist layer - animated noise haze */}
       {showMist && <Sphere args={[radius * 1.15, 32, 32]} material={mistMaterial} />}
 
-      {/* Soft sparkle aura - floating dust particles (space-themed) */}
+      {/* Soft sparkle aura - floating dust particles (Kurzgesagt cosmic dust) */}
       {showSparkles && (
         <Sparkles
           count={sparkleCount}
@@ -405,11 +406,11 @@ export function EarthGlobe({
           scale={[radius * 3.5, radius * 3.5, radius * 3.5]}
           speed={0.25}
           opacity={0.5}
-          color="#aaccff" // Pale blue cosmic dust
+          color="#b388ff" // Kurzgesagt light purple cosmic dust
         />
       )}
 
-      {/* Subtle equator ring - rose gold accent */}
+      {/* Subtle equator ring - Kurzgesagt golden accent */}
       {showRing && (
         <Ring
           ref={ringRef}
