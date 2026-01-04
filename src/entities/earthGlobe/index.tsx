@@ -56,7 +56,7 @@ void main() {
   // Fresnel rim for atmospheric glow
   vec3 viewDir = normalize(vViewPosition);
   float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 4.0); // Tighter falloff
-  vec3 rimColor = vec3(0.94, 0.90, 0.86); // Muted warm cream, closer to background
+  vec3 rimColor = vec3(0.30, 0.72, 0.77); // Cool teal, matching atmosphere (#4db8c4)
 
   // Breathing modulation - subtle brightness shift
   float breathMod = 1.0 + breathPhase * 0.06;
@@ -65,9 +65,9 @@ void main() {
   // Blend texture with fresnel rim - very subtle
   vec3 finalColor = mix(texColor, rimColor, fresnel * 0.18);
 
-  // Subtle top-down lighting - very gentle
+  // Subtle top-down lighting - cool tint from space
   float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.05;
-  finalColor += vec3(0.98, 0.95, 0.92) * topLight;
+  finalColor += vec3(0.85, 0.95, 1.0) * topLight; // Cool blue-white
 
   gl_FragColor = vec4(finalColor, 1.0);
 }
@@ -164,20 +164,20 @@ void main() {
 `;
 
 /**
- * Atmosphere halo configuration - pastel layers around the globe
+ * Atmosphere halo configuration - space-themed cool tones
  */
 const ATMOSPHERE_LAYERS = [
-  { scale: 1.08, color: '#f8d0a8', opacity: 0.08 }, // Inner: warm peach
-  { scale: 1.14, color: '#b8e8d4', opacity: 0.05 }, // Middle: soft teal
-  { scale: 1.22, color: '#c4b8e8', opacity: 0.03 }, // Outer: pale lavender
+  { scale: 1.08, color: '#4db8c4', opacity: 0.12 }, // Inner: bright teal (atmosphere)
+  { scale: 1.14, color: '#66d4e0', opacity: 0.08 }, // Middle: light teal (glow)
+  { scale: 1.22, color: '#aaccff', opacity: 0.04 }, // Outer: pale blue (space transition)
 ];
 
 /**
  * Pre-allocated Color objects for shader uniforms
- * Hoisted to module level to avoid recreation on component remount
+ * Space-themed cool colors for ethereal glow
  */
-const GLOW_COLOR = new THREE.Color('#efe5da'); // Very soft muted cream
-const MIST_COLOR = new THREE.Color('#f0ebe6'); // Soft warm white
+const GLOW_COLOR = new THREE.Color('#66d4e0'); // Bright teal glow
+const MIST_COLOR = new THREE.Color('#aaccff'); // Pale blue mist
 
 /**
  * EarthGlobe component props
@@ -304,13 +304,13 @@ export function EarthGlobe({
     [],
   );
 
-  // Create memoized ring material to prevent GPU leak
+  // Create memoized ring material to prevent GPU leak - cool teal for space theme
   const ringMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: '#e8c4b8',
+        color: '#4db8c4', // Bright teal matching atmosphere
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.2,
         side: THREE.FrontSide, // Ring only viewed from above, no backface needed
         depthWrite: false,
       }),
@@ -397,15 +397,15 @@ export function EarthGlobe({
       {/* Mist layer - animated noise haze */}
       {showMist && <Sphere args={[radius * 1.15, 32, 32]} material={mistMaterial} />}
 
-      {/* Soft sparkle aura - floating dust particles (more visible) */}
+      {/* Soft sparkle aura - floating dust particles (space-themed) */}
       {showSparkles && (
         <Sparkles
           count={sparkleCount}
           size={4}
           scale={[radius * 3.5, radius * 3.5, radius * 3.5]}
           speed={0.25}
-          opacity={0.45}
-          color="#f8d0a8"
+          opacity={0.5}
+          color="#aaccff" // Pale blue cosmic dust
         />
       )}
 

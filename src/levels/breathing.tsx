@@ -9,10 +9,11 @@ import { ShapeGizmos } from '../components/ShapeGizmos';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
+import { GALAXY_PALETTE } from '../config/galaxyPalette';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
-import { GalaxyBackdrop, GalaxyForeground } from '../entities/galaxy';
+import { GalaxyBackdrop, GalaxyForeground, Sun } from '../entities/galaxy';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -77,14 +78,11 @@ export function BreathingLevel({
         {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
         <AudioDevControls />
 
-        {/* Galaxy Backdrop - renders OUTSIDE MomentumControls as fixed background */}
-        {/* This includes: background shader, sun, constellations - all rendered crisp without DoF */}
+        {/* Galaxy Backdrop - renders OUTSIDE MomentumControls as fixed sky background */}
+        {/* Background shader + constellations stay fixed, sun moves with scene */}
         {showEnvironment && (
           <GalaxyBackdrop
-            showSun={true}
-            sunPosition={[60, 40, -80]}
-            sunRadius={8}
-            sunIntensity={1.0}
+            showSun={false}
             showConstellations={true}
             constellationRadius={25}
             starSize={1.2}
@@ -107,7 +105,20 @@ export function BreathingLevel({
           polar={[-Math.PI * 0.3, Math.PI * 0.3]}
           azimuth={[-Infinity, Infinity]}
         >
+          {/* Sun - INSIDE MomentumControls to rotate with scene, OUTSIDE RefractionPipeline for crisp rendering */}
+          {showEnvironment && (
+            <Sun
+              position={[60, 40, -80]}
+              radius={8}
+              lightIntensity={1.0}
+              coreColor={GALAXY_PALETTE.sun.core}
+              coronaColor={GALAXY_PALETTE.sun.corona}
+              breathingSync={true}
+            />
+          )}
+
           {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
+          {/* farSharpStart=25: Objects beyond 25 units stay sharp (backdrop stays crisp) */}
           <RefractionPipeline
             ior={devControls.ior}
             backfaceIntensity={devControls.glassDepth}
@@ -115,6 +126,7 @@ export function BreathingLevel({
             focusDistance={devControls.focusDistance}
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
+            farSharpStart={25}
           >
             {/* Galaxy Foreground - cosmic dust and lighting inside DoF */}
             {showEnvironment && (
