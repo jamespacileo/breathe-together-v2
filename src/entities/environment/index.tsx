@@ -6,6 +6,7 @@ import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
+import { DistantShapes } from './DistantShapes';
 import { EditorGrid } from './EditorGrid';
 import { EtherealGround } from './EtherealGround';
 import { SubtleLightRays } from './SubtleLightRays';
@@ -152,6 +153,42 @@ interface EnvironmentProps {
    * @default 0.5
    */
   bgGroundFade?: number;
+
+  // === Distant Shapes System (3D depth reference) ===
+  /**
+   * Show distant 3D shapes for depth perception.
+   * Simple geometric shapes placed at various distances provide
+   * strong spatial reference through size diminution.
+   * @default true
+   */
+  showDistantShapes?: boolean;
+  /**
+   * Opacity of distant shapes.
+   * Lower values = more subtle/ethereal.
+   * @min 0 @max 0.6 @step 0.05
+   * @default 0.3
+   */
+  distantShapesOpacity?: number;
+  /**
+   * Base color for distant shapes.
+   * Should complement background gradient colors.
+   * @default '#d4ccc4'
+   */
+  distantShapesColor?: string;
+  /**
+   * How much shapes fade with distance (atmospheric perspective).
+   * Higher = more fade, shapes blend into background.
+   * @min 0 @max 1 @step 0.1
+   * @default 0.6
+   */
+  distantShapesFade?: number;
+  /**
+   * Scale multiplier for all distant shapes.
+   * Larger = bigger shapes, further apparent distance.
+   * @min 0.5 @max 2 @step 0.1
+   * @default 1
+   */
+  distantShapesScale?: number;
 }
 
 /**
@@ -198,6 +235,12 @@ export function Environment({
   bgHorizonPosition = 0.35,
   bgPerspectiveStrength = 0,
   bgGroundFade = 0.5,
+  // Distant shapes props
+  showDistantShapes = true,
+  distantShapesOpacity = 0.3,
+  distantShapesColor = '#d4ccc4',
+  distantShapesFade = 0.6,
+  distantShapesScale = 1,
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
@@ -301,6 +344,19 @@ export function Environment({
           shadowOpacity={shadowOpacity}
           showGrid={showGroundGrid}
           gridOpacity={groundGridOpacity}
+        />
+      )}
+
+      {/* Distant 3D shapes for depth perception */}
+      {/* Simple geometric forms at various distances provide spatial reference */}
+      {showDistantShapes && (
+        <DistantShapes
+          enabled={true}
+          opacity={distantShapesOpacity}
+          color={distantShapesColor}
+          atmosphericFade={distantShapesFade}
+          scale={distantShapesScale}
+          animate={!isMobile} // Disable animation on mobile for performance
         />
       )}
 
