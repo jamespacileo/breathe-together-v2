@@ -1,18 +1,16 @@
 /**
- * Ribbon System Configuration
+ * Ribbon System Configuration v2 - Message Pool Architecture
  *
  * Data-driven configuration for the globe ribbon text system.
- * Follows AAA game dev patterns: separate config from logic.
  *
  * ARCHITECTURE:
- * - Layers: Fixed vertical positions (guarantees no overlap)
- * - Styles: Visual properties with randomization ranges
- * - Runtime: Resolves random values within constraints
+ * - Zones: Vertical bands where messages can appear (guarantees no overlap)
+ * - Pools: Message sources (inspiration, welcome, decorative)
+ * - Instances: Individual placements of complete messages within zones
  *
- * To customize:
- * 1. Modify DEFAULT_CONFIG for global changes
- * 2. Create variant configs for different moods/themes
- * 3. Use seed for reproducible randomness
+ * KEY CONCEPT: A "message instance" is a complete message (both lines together)
+ * placed at a random angular position within its zone. Multiple instances of
+ * the same or different messages can coexist.
  */
 
 // =============================================================================
@@ -25,36 +23,56 @@ export interface Range {
   max: number;
 }
 
-/** A layer defines a fixed vertical position on the globe */
-export interface RibbonLayer {
+/** A complete message with two lines */
+export interface Message {
+  line1: string;
+  line2: string;
+  /** Optional language code for multi-language support */
+  language?: string;
+}
+
+/** Message source type */
+export type MessageSource =
+  | 'inspiration' // Current inspirational message from hook
+  | 'welcome' // Multi-language welcome messages
+  | 'decorative' // Decorative patterns
+  | 'custom'; // Custom messages passed via props
+
+/** A zone defines a vertical band where message instances can appear */
+export interface MessageZone {
   /** Unique identifier */
   id: string;
-  /** Vertical offset from equator (-1 to 1 range, 0 = equator) */
-  height: number;
-  /** Base tilt angle in radians */
-  baseTilt: number;
-  /** Tilt variance range (randomized) */
-  tiltVariance: Range;
+  /** Vertical height range (0 = equator, -1/+1 = poles) */
+  heightRange: Range;
+  /** Number of message instances in this zone */
+  instanceCount: number;
+  /** Message source for this zone */
+  source: MessageSource;
+  /** Visual style key */
+  styleKey: 'primary' | 'secondary' | 'accent';
   /** Scroll direction: 1 = with globe, -1 = against */
   scrollDirection: 1 | -1;
-  /** Purpose determines content source */
-  purpose: 'top' | 'bottom' | 'combined' | 'decorative';
-  /** Whether this layer is enabled */
+  /** Base tilt angle in radians */
+  baseTilt: number;
+  /** Tilt variance range */
+  tiltVariance: Range;
+  /** Whether this zone is enabled */
   enabled: boolean;
-  /** Layer priority (higher = renders on top) */
+  /** Render priority (higher = on top) */
   zIndex: number;
+  /** Vertical spacing between line1 and line2 */
+  lineSpacing: number;
 }
 
 /** Visual style with randomization ranges */
 export interface RibbonStyle {
-  /** Color palette (random selection) */
+  /** Color palette (random selection per instance) */
   colors: string[];
   /** Font size range */
   fontSize: Range;
-  /** Base opacity (breath-scaled) */
+  /** Opacity settings */
   opacity: {
     base: number;
-    /** Multiplier during exhale (lower = more fade) */
     breathMin: number;
   };
   /** Scroll speed multiplier range */
@@ -69,24 +87,48 @@ export interface RibbonStyle {
 
 /** Complete ribbon system configuration */
 export interface RibbonSystemConfig {
-  /** Globe radius (for positioning calculations) */
+  /** Globe radius */
   globeRadius: number;
   /** Offset from globe surface */
   surfaceOffset: number;
-  /** Base scroll speed (before per-layer multiplier) */
+  /** Base scroll speed */
   baseScrollSpeed: number;
   /** Globe rotation sync speed */
   globeSyncSpeed: number;
-  /** Layer definitions */
-  layers: RibbonLayer[];
-  /** Style definitions by purpose */
+  /** Zone definitions */
+  zones: MessageZone[];
+  /** Style definitions */
   styles: {
     primary: RibbonStyle;
     secondary: RibbonStyle;
     accent: RibbonStyle;
   };
-  /** Random seed for reproducibility (null = truly random) */
+  /** Random seed (null = truly random) */
   seed: number | null;
+}
+
+/** Resolved instance ready for rendering */
+export interface ResolvedInstance {
+  /** Zone this instance belongs to */
+  zone: MessageZone;
+  /** Instance index within zone */
+  instanceIndex: number;
+  /** Angular position around globe (0-2π) */
+  angularPosition: number;
+  /** Height within zone */
+  height: number;
+  /** Final tilt (baseTilt + random variance) */
+  tilt: number;
+  /** Resolved color from palette */
+  color: string;
+  /** Resolved font size */
+  fontSize: number;
+  /** Scroll speed multiplier */
+  scrollSpeedMultiplier: number;
+  /** Computed radius from globe center */
+  radius: number;
+  /** Style reference */
+  style: RibbonStyle;
 }
 
 // =============================================================================
@@ -94,28 +136,35 @@ export interface RibbonSystemConfig {
 // =============================================================================
 
 /** Teal/cyan palette - calming, oceanic */
-export const PALETTE_TEAL = [
-  '#7ec8c8', // Light teal
-  '#5eb3b2', // Medium teal
-  '#4aa3a3', // Deep teal
-  '#6bc4c4', // Soft teal
-  '#8dd3d3', // Pale teal
-];
+export const PALETTE_TEAL = ['#7ec8c8', '#5eb3b2', '#4aa3a3', '#6bc4c4', '#8dd3d3'];
 
 /** Warm gold palette - comforting, sunrise */
-export const PALETTE_GOLD = [
-  '#d4a574', // Warm gold
-  '#c9956a', // Amber
-  '#deb887', // Soft gold
-  '#e6c9a0', // Light gold
-  '#bf8a5e', // Deep gold
-];
+export const PALETTE_GOLD = ['#d4a574', '#c9956a', '#deb887', '#e6c9a0', '#bf8a5e'];
 
 /** Neutral white palette - subtle, ethereal */
 export const PALETTE_WHITE = ['#ffffff', '#f8f8f8', '#f0f0f0', '#fafafa'];
 
-/** Mixed harmony palette - balanced */
+/** Mixed harmony palette */
 export const PALETTE_HARMONY = [...PALETTE_TEAL.slice(0, 3), ...PALETTE_GOLD.slice(0, 2)];
+
+// =============================================================================
+// Welcome Messages (Multi-Language)
+// =============================================================================
+
+export const WELCOME_MESSAGES: Message[] = [
+  { line1: 'Welcome', line2: 'Breathe together', language: 'en' },
+  { line1: 'Bienvenue', line2: 'Respirons ensemble', language: 'fr' },
+  { line1: 'Willkommen', line2: 'Gemeinsam atmen', language: 'de' },
+  { line1: 'Benvenuto', line2: 'Respiriamo insieme', language: 'it' },
+  { line1: 'Bienvenido', line2: 'Respiremos juntos', language: 'es' },
+  { line1: 'Bem-vindo', line2: 'Respirar juntos', language: 'pt' },
+  { line1: 'ようこそ', line2: '一緒に呼吸しよう', language: 'ja' },
+  { line1: '환영합니다', line2: '함께 호흡해요', language: 'ko' },
+  { line1: '欢迎', line2: '一起呼吸', language: 'zh' },
+  { line1: 'Добро пожаловать', line2: 'Дышим вместе', language: 'ru' },
+  { line1: 'مرحبا', line2: 'نتنفس معا', language: 'ar' },
+  { line1: 'स्वागत है', line2: 'साथ में साँस लें', language: 'hi' },
+];
 
 // =============================================================================
 // Default Configuration
@@ -124,65 +173,66 @@ export const PALETTE_HARMONY = [...PALETTE_TEAL.slice(0, 3), ...PALETTE_GOLD.sli
 export const DEFAULT_CONFIG: RibbonSystemConfig = {
   globeRadius: 1.5,
   surfaceOffset: 0.12,
-  baseScrollSpeed: 0.0015,
+  baseScrollSpeed: 0.0012,
   globeSyncSpeed: 0.0008,
-  seed: null, // Truly random
+  seed: null,
 
-  layers: [
-    // Primary content: Top message
+  zones: [
+    // Primary zone: Inspiration messages (duplicated for visibility)
     {
-      id: 'top-content',
-      height: 0.38,
-      baseTilt: -0.2,
-      tiltVariance: { min: -0.06, max: 0.06 },
+      id: 'inspiration-upper',
+      heightRange: { min: 0.25, max: 0.45 },
+      instanceCount: 3,
+      source: 'inspiration',
+      styleKey: 'primary',
       scrollDirection: -1,
-      purpose: 'top',
+      baseTilt: -0.15,
+      tiltVariance: { min: -0.08, max: 0.08 },
       enabled: true,
       zIndex: 10,
+      lineSpacing: 0.18,
     },
-    // Primary content: Bottom message
+    // Mirror zone: Same inspiration (bottom of globe)
     {
-      id: 'bottom-content',
-      height: -0.38,
-      baseTilt: 0.2,
-      tiltVariance: { min: -0.06, max: 0.06 },
+      id: 'inspiration-lower',
+      heightRange: { min: -0.45, max: -0.25 },
+      instanceCount: 3,
+      source: 'inspiration',
+      styleKey: 'secondary',
       scrollDirection: 1,
-      purpose: 'bottom',
+      baseTilt: 0.15,
+      tiltVariance: { min: -0.08, max: 0.08 },
       enabled: true,
       zIndex: 10,
+      lineSpacing: 0.18,
     },
-    // Accent: Center decorative dots
+    // Equator zone: Multi-language welcome (optional)
     {
-      id: 'center-accent',
-      height: 0,
+      id: 'welcome-equator',
+      heightRange: { min: -0.12, max: 0.12 },
+      instanceCount: 4,
+      source: 'welcome',
+      styleKey: 'primary',
+      scrollDirection: -1,
+      baseTilt: 0.05,
+      tiltVariance: { min: -0.03, max: 0.03 },
+      enabled: false, // Disabled by default, enable for intro
+      zIndex: 8,
+      lineSpacing: 0.15,
+    },
+    // Decorative accent (center)
+    {
+      id: 'decorative-center',
+      heightRange: { min: -0.05, max: 0.05 },
+      instanceCount: 1,
+      source: 'decorative',
+      styleKey: 'accent',
+      scrollDirection: -1,
       baseTilt: 0.08,
       tiltVariance: { min: -0.02, max: 0.02 },
-      scrollDirection: -1,
-      purpose: 'decorative',
       enabled: true,
       zIndex: 5,
-    },
-    // Accent: Upper decorative (optional, disabled by default)
-    {
-      id: 'upper-accent',
-      height: 0.65,
-      baseTilt: -0.3,
-      tiltVariance: { min: -0.05, max: 0.05 },
-      scrollDirection: 1,
-      purpose: 'decorative',
-      enabled: false,
-      zIndex: 3,
-    },
-    // Accent: Lower decorative (optional, disabled by default)
-    {
-      id: 'lower-accent',
-      height: -0.65,
-      baseTilt: 0.3,
-      tiltVariance: { min: -0.05, max: 0.05 },
-      scrollDirection: -1,
-      purpose: 'decorative',
-      enabled: false,
-      zIndex: 3,
+      lineSpacing: 0.1,
     },
   ],
 
@@ -243,63 +293,65 @@ export function randomPick<T>(array: T[], random: () => number = Math.random): T
   return array[Math.floor(random() * array.length)];
 }
 
-/** Resolve a layer's runtime properties with randomization */
-export interface ResolvedRibbon {
-  layer: RibbonLayer;
-  style: RibbonStyle;
-  color: string;
-  fontSize: number;
-  scrollSpeedMultiplier: number;
-  tiltOffset: number;
-  radius: number;
+/** Distribute N items evenly around a circle with random jitter */
+export function distributeAngular(
+  count: number,
+  jitterRange: number = 0.3,
+  random: () => number = Math.random,
+): number[] {
+  const baseStep = (Math.PI * 2) / count;
+  return Array.from({ length: count }, (_, i) => {
+    const base = i * baseStep;
+    const jitter = (random() - 0.5) * baseStep * jitterRange;
+    return (base + jitter + Math.PI * 2) % (Math.PI * 2);
+  });
 }
 
-/** Get style for a layer based on its purpose */
-export function getStyleForLayer(layer: RibbonLayer, config: RibbonSystemConfig): RibbonStyle {
-  switch (layer.purpose) {
-    case 'top':
-    case 'combined':
-      return config.styles.primary;
-    case 'bottom':
-      return config.styles.secondary;
-    case 'decorative':
-      return config.styles.accent;
-    default:
-      return config.styles.primary;
-  }
+/** Get style by key */
+export function getStyleByKey(
+  key: 'primary' | 'secondary' | 'accent',
+  config: RibbonSystemConfig,
+): RibbonStyle {
+  return config.styles[key];
 }
 
-/** Resolve all randomized properties for a layer */
-export function resolveRibbon(
-  layer: RibbonLayer,
+/** Resolve all instances for a zone */
+export function resolveZoneInstances(
+  zone: MessageZone,
   config: RibbonSystemConfig,
   random: () => number = Math.random,
-): ResolvedRibbon {
-  const style = getStyleForLayer(layer, config);
+): ResolvedInstance[] {
+  const style = getStyleByKey(zone.styleKey, config);
+  const angles = distributeAngular(zone.instanceCount, 0.4, random);
 
-  return {
-    layer,
-    style,
+  return angles.map((angularPosition, instanceIndex) => ({
+    zone,
+    instanceIndex,
+    angularPosition,
+    height: randomInRange(zone.heightRange, random),
+    tilt: zone.baseTilt + randomInRange(zone.tiltVariance, random),
     color: randomPick(style.colors, random),
     fontSize: randomInRange(style.fontSize, random),
     scrollSpeedMultiplier: randomInRange(style.scrollSpeed, random),
-    tiltOffset: randomInRange(layer.tiltVariance, random),
     radius: config.globeRadius + config.surfaceOffset,
-  };
+    style,
+  }));
 }
 
-/** Resolve all enabled layers */
-export function resolveAllRibbons(config: RibbonSystemConfig = DEFAULT_CONFIG): ResolvedRibbon[] {
+/** Resolve all enabled zones and their instances */
+export function resolveAllInstances(
+  config: RibbonSystemConfig = DEFAULT_CONFIG,
+): ResolvedInstance[] {
   const random = config.seed !== null ? createSeededRandom(config.seed) : Math.random;
 
-  return config.layers
-    .filter((layer) => layer.enabled)
+  return config.zones
+    .filter((zone) => zone.enabled)
     .sort((a, b) => a.zIndex - b.zIndex)
-    .map((layer) => resolveRibbon(layer, config, random));
+    .flatMap((zone) => resolveZoneInstances(zone, config, random));
 }
 
 // =============================================================================
-// Decorative Text Generators
+// Decorative Patterns
 // =============================================================================
 
 /** Generate decorative dot pattern */
@@ -312,39 +364,55 @@ export function generateStarPattern(length: number = 20): string {
   return Array(length).fill('✦').join('   ');
 }
 
-/** Generate decorative dash pattern */
-export function generateDashPattern(length: number = 30): string {
-  return Array(length).fill('—').join(' ');
-}
-
 // =============================================================================
 // Preset Configurations
 // =============================================================================
 
-/** Minimal config - just the two content ribbons */
+/** Minimal: Just inspiration zones */
 export const MINIMAL_CONFIG: RibbonSystemConfig = {
   ...DEFAULT_CONFIG,
-  layers: DEFAULT_CONFIG.layers.map((layer) => ({
-    ...layer,
-    enabled: layer.purpose === 'top' || layer.purpose === 'bottom',
+  zones: DEFAULT_CONFIG.zones.map((zone) => ({
+    ...zone,
+    enabled: zone.source === 'inspiration',
   })),
 };
 
-/** Rich config - all layers enabled */
+/** Welcome mode: Show multi-language welcome + decorative */
+export const WELCOME_CONFIG: RibbonSystemConfig = {
+  ...DEFAULT_CONFIG,
+  zones: DEFAULT_CONFIG.zones.map((zone) => ({
+    ...zone,
+    enabled: zone.source === 'welcome' || zone.source === 'decorative',
+    instanceCount: zone.source === 'welcome' ? 6 : zone.instanceCount,
+  })),
+};
+
+/** Rich: All zones enabled with more instances */
 export const RICH_CONFIG: RibbonSystemConfig = {
   ...DEFAULT_CONFIG,
-  layers: DEFAULT_CONFIG.layers.map((layer) => ({
-    ...layer,
+  zones: DEFAULT_CONFIG.zones.map((zone) => ({
+    ...zone,
     enabled: true,
+    instanceCount: zone.source === 'inspiration' ? 4 : zone.instanceCount,
   })),
 };
 
-/** Monochrome config - single color palette */
-export const MONOCHROME_CONFIG: RibbonSystemConfig = {
-  ...DEFAULT_CONFIG,
-  styles: {
-    primary: { ...DEFAULT_CONFIG.styles.primary, colors: PALETTE_TEAL },
-    secondary: { ...DEFAULT_CONFIG.styles.secondary, colors: PALETTE_TEAL },
-    accent: { ...DEFAULT_CONFIG.styles.accent, colors: PALETTE_WHITE },
-  },
-};
+// =============================================================================
+// Legacy Compatibility (deprecated, use new types)
+// =============================================================================
+
+/** @deprecated Use MessageZone instead */
+export type RibbonLayer = MessageZone;
+
+/** @deprecated Use ResolvedInstance instead */
+export interface ResolvedRibbon extends ResolvedInstance {
+  layer: MessageZone;
+}
+
+/** @deprecated Use resolveAllInstances instead */
+export function resolveAllRibbons(config: RibbonSystemConfig = DEFAULT_CONFIG): ResolvedRibbon[] {
+  return resolveAllInstances(config).map((instance) => ({
+    ...instance,
+    layer: instance.zone,
+  }));
+}
