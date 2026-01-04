@@ -42,9 +42,16 @@ jobs:
           npm run typecheck &
           TYPECHECK_PID=$!
 
-          # Wait for both and capture exit codes
-          wait $BIOME_PID || exit 1
-          wait $TYPECHECK_PID || exit 1
+          # Wait for both and capture exit codes independently
+          wait "$BIOME_PID"
+          BIOME_EXIT=$?
+          wait "$TYPECHECK_PID"
+          TYPECHECK_EXIT=$?
+
+          if [ "$BIOME_EXIT" -ne 0 ] || [ "$TYPECHECK_EXIT" -ne 0 ]; then
+            echo "❌ Validation failed (Biome: $BIOME_EXIT, TypeCheck: $TYPECHECK_EXIT)"
+            exit 1
+          fi
           echo "✅ All validation checks passed"
 
       - name: Build
@@ -55,14 +62,8 @@ jobs:
           END=$(date +%s)
           echo "duration=$((END - START))s" >> $GITHUB_OUTPUT
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-          retention-days: 1
-
       - name: Job summary
+        if: success()
         run: |
           echo "## ✅ Validation Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

@@ -37,14 +37,23 @@ jobs:
           npm run typecheck &
           TYPECHECK_PID=$!
 
-          wait $BIOME_PID || exit 1
-          wait $TYPECHECK_PID || exit 1
+          # Wait for both and capture exit codes independently
+          wait "$BIOME_PID"
+          BIOME_EXIT=$?
+          wait "$TYPECHECK_PID"
+          TYPECHECK_EXIT=$?
+
+          if [ "$BIOME_EXIT" -ne 0 ] || [ "$TYPECHECK_EXIT" -ne 0 ]; then
+            echo "❌ Validation failed (Biome: $BIOME_EXIT, TypeCheck: $TYPECHECK_EXIT)"
+            exit 1
+          fi
           echo "✅ All validation checks passed"
 
       - name: Build
         run: npm run build
 
       - name: Job summary
+        if: success()
         run: |
           echo "## ✅ Validation Passed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
