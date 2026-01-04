@@ -1,63 +1,67 @@
-import { Stars } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
-import { BackgroundGradient } from './BackgroundGradient';
-import { CloudSystem } from './CloudSystem';
-import { SubtleLightRays } from './SubtleLightRays';
+import { Constellations } from './Constellations';
+import { GalaxyBackground } from './GalaxyBackground';
+import { Sun } from './Sun';
 
 interface EnvironmentProps {
   enabled?: boolean;
-  /** Show volumetric clouds @default true */
-  showClouds?: boolean;
-  /** Show distant stars @default true */
-  showStars?: boolean;
-  /** Cloud opacity @default 0.4 */
-  cloudOpacity?: number;
-  /** Cloud speed multiplier @default 0.3 */
-  cloudSpeed?: number;
-  /** Ambient light color @default '#fff5eb' */
+  /** Show constellations with connecting lines @default true */
+  showConstellations?: boolean;
+  /** Show sun @default true */
+  showSun?: boolean;
+  /** Background star count @default 2000 */
+  backgroundStarCount?: number;
+  /** Constellation line opacity @default 0.4 */
+  constellationLineOpacity?: number;
+  /** Star brightness @default 1.0 */
+  starBrightness?: number;
+  /** Sun glow intensity @default 1.5 */
+  sunGlowIntensity?: number;
+  /** Ambient light color @default '#e6f0ff' */
   ambientLightColor?: string;
-  /** Ambient light intensity @default 0.5 */
+  /** Ambient light intensity @default 0.3 */
   ambientLightIntensity?: number;
-  /** Key light color @default '#ffe4c4' */
+  /** Key light color @default '#fff5e6' */
   keyLightColor?: string;
-  /** Key light intensity @default 0.8 */
+  /** Key light intensity @default 0.5 */
   keyLightIntensity?: number;
 }
 
 /**
- * Environment - Monument Valley inspired atmosphere
+ * Environment - Stylized galaxy/universe scene
  *
  * Features:
- * - Gradient background via RefractionPipeline (shader-based clouds)
- * - Volumetric 3D clouds using drei Cloud component
- * - Warm three-point lighting for soft shadows
- * - Subtle fog for depth
- * - Optional distant stars
+ * - Deep space galaxy background with nebula clouds
+ * - Accurate constellation patterns with connecting lines
+ * - Visible sun with volumetric glow
+ * - Ambient cosmic lighting
+ * - Background star field using Fibonacci sphere distribution
  */
 export function Environment({
   enabled = true,
-  showClouds = true,
-  showStars = true,
-  cloudOpacity = 0.4,
-  cloudSpeed = 0.8,
-  ambientLightColor = '#fff5eb',
-  ambientLightIntensity = 0.5,
-  keyLightColor = '#ffe4c4',
-  keyLightIntensity = 0.8,
+  showConstellations = true,
+  showSun = true,
+  backgroundStarCount = 2000,
+  constellationLineOpacity = 0.4,
+  starBrightness = 1.0,
+  sunGlowIntensity = 1.5,
+  ambientLightColor = '#e6f0ff',
+  ambientLightIntensity = 0.3,
+  keyLightColor = '#fff5e6',
+  keyLightIntensity = 0.5,
 }: EnvironmentProps = {}) {
   const { scene } = useThree();
   const { isMobile, isTablet } = useViewport();
 
   // Reduce star count on mobile/tablet for better performance
-  const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
+  const adjustedStarCount = isMobile ? 800 : isTablet ? 1500 : backgroundStarCount;
 
-  // Clear any scene background - let BackgroundGradient handle it
+  // Clear any scene background - let GalaxyBackground handle it
   useEffect(() => {
     scene.background = null;
-    // Disable fog - it washes out the gradient
     scene.fog = null;
 
     return () => {
@@ -69,53 +73,53 @@ export function Environment({
 
   return (
     <group>
-      {/* Animated gradient background - renders behind everything */}
-      <BackgroundGradient />
+      {/* Deep space galaxy background - renders behind everything */}
+      <GalaxyBackground />
 
-      {/* Memoized cloud system - only initializes once, never re-renders from parent changes */}
-      {/* Includes: top/middle/bottom layers, parallax depths, right-to-left looping */}
-      {showClouds && <CloudSystem opacity={cloudOpacity} speed={cloudSpeed} enabled={true} />}
-
-      {/* Subtle atmospheric details - users feel these more than see them */}
-      {/* Floating dust motes with gentle sparkle */}
-      <AmbientDust count={isMobile ? 40 : 80} opacity={0.12} size={0.012} enabled={true} />
-
-      {/* Subtle diagonal light rays from upper right */}
-      <SubtleLightRays opacity={0.03} enabled={!isMobile} />
-
-      {/* Subtle distant stars - very faint for dreamy atmosphere */}
-      {/* Count is responsive: 150 (mobile) / 300 (tablet) / 500 (desktop) */}
-      {showStars && (
-        <Stars
-          radius={100}
-          depth={50}
-          count={starsCount}
-          factor={2}
-          saturation={0}
-          fade
-          speed={0.5}
+      {/* Constellations with connecting lines */}
+      {showConstellations && (
+        <Constellations
+          showLines={true}
+          backgroundStarCount={adjustedStarCount}
+          brightness={starBrightness}
+          lineOpacity={constellationLineOpacity}
+          enableTwinkle={true}
         />
       )}
 
-      {/* Warm ambient light - fills shadows softly */}
+      {/* Sun with volumetric glow */}
+      {showSun && (
+        <Sun
+          position={[80, 20, -60]}
+          radius={4}
+          color="#fff5e6"
+          glowIntensity={sunGlowIntensity}
+          enablePulse={true}
+        />
+      )}
+
+      {/* Subtle floating dust for atmospheric depth */}
+      {!isMobile && <AmbientDust count={60} opacity={0.08} size={0.01} enabled={true} />}
+
+      {/* Ambient light - soft cosmic fill */}
       <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />
 
-      {/* Key light - warm golden from upper right (sunrise/sunset feel) */}
+      {/* Key light - from sun direction (warm) */}
       <directionalLight
-        position={[10, 15, 5]}
+        position={[80, 20, -60]}
         intensity={keyLightIntensity}
         color={keyLightColor}
         castShadow={false}
       />
 
-      {/* Fill light - cooler tone from left (sky bounce) */}
-      <directionalLight position={[-8, 10, 3]} intensity={0.3} color="#e8f0ff" />
+      {/* Fill light - opposite side (cool blue cosmic light) */}
+      <directionalLight position={[-60, 15, 40]} intensity={0.2} color="#cce6ff" />
 
-      {/* Rim light - subtle backlight for depth */}
-      <directionalLight position={[0, 5, -10]} intensity={0.2} color="#ffd9c4" />
+      {/* Rim light - subtle backlight from below for depth */}
+      <directionalLight position={[0, -30, 0]} intensity={0.15} color="#e6d9ff" />
 
-      {/* Subtle hemisphere light for natural sky/ground color blending */}
-      <hemisphereLight args={['#ffe8d6', '#f5e6d3', 0.4]} />
+      {/* Hemisphere light for cosmic sky/space color blending */}
+      <hemisphereLight args={['#1a1a2e', '#0a0a14', 0.2]} />
     </group>
   );
 }

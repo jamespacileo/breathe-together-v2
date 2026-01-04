@@ -47,20 +47,22 @@ export const TUNING_DEFAULTS = {
   maxBlur: 3,
 
   // Environment (dev-only)
-  showClouds: true,
-  showStars: true,
-  cloudOpacity: 0.4,
-  cloudSpeed: 0.3,
+  showConstellations: true,
+  showSun: true,
+  backgroundStarCount: 2000,
+  constellationLineOpacity: 0.4,
+  starBrightness: 1.0,
+  sunGlowIntensity: 1.5,
 
   // Colors - Background
   bgColorTop: '#f5f0e8',
   bgColorHorizon: '#fcf0e0',
 
   // Colors - Lighting
-  ambientLightColor: '#fff5eb',
-  ambientLightIntensity: 0.5,
-  keyLightColor: '#ffe4c4',
-  keyLightIntensity: 0.8,
+  ambientLightColor: '#e6f0ff',
+  ambientLightIntensity: 0.3,
+  keyLightColor: '#fff5e6',
+  keyLightIntensity: 0.5,
 
   // Colors - Globe
   globeRingColor: '#e8c4b8',
@@ -152,10 +154,12 @@ export interface DevControlsState {
   maxBlur: number;
 
   // Environment
-  showClouds: boolean;
-  showStars: boolean;
-  cloudOpacity: number;
-  cloudSpeed: number;
+  showConstellations: boolean;
+  showSun: boolean;
+  backgroundStarCount: number;
+  constellationLineOpacity: number;
+  starBrightness: number;
+  sunGlowIntensity: number;
 
   // Colors - Background
   bgColorTop: string;
@@ -223,10 +227,12 @@ function getDefaultDevControls(): DevControlsState {
     focusDistance: TUNING_DEFAULTS.focusDistance,
     focalRange: TUNING_DEFAULTS.focalRange,
     maxBlur: TUNING_DEFAULTS.maxBlur,
-    showClouds: TUNING_DEFAULTS.showClouds,
-    showStars: TUNING_DEFAULTS.showStars,
-    cloudOpacity: TUNING_DEFAULTS.cloudOpacity,
-    cloudSpeed: TUNING_DEFAULTS.cloudSpeed,
+    showConstellations: TUNING_DEFAULTS.showConstellations,
+    showSun: TUNING_DEFAULTS.showSun,
+    backgroundStarCount: TUNING_DEFAULTS.backgroundStarCount,
+    constellationLineOpacity: TUNING_DEFAULTS.constellationLineOpacity,
+    starBrightness: TUNING_DEFAULTS.starBrightness,
+    sunGlowIntensity: TUNING_DEFAULTS.sunGlowIntensity,
     bgColorTop: TUNING_DEFAULTS.bgColorTop,
     bgColorHorizon: TUNING_DEFAULTS.bgColorHorizon,
     ambientLightColor: TUNING_DEFAULTS.ambientLightColor,
@@ -521,34 +527,50 @@ export function useDevControls(): DevControlsState {
           { collapsed: true },
         ),
 
-        // 2.4 Environment
+        // 2.4 Environment (Galaxy Scene)
         Environment: folder(
           {
-            showClouds: {
-              value: TUNING_DEFAULTS.showClouds,
-              label: 'Show Clouds',
-              hint: 'Toggle soft cloud sprites in the background. Adds depth and atmosphere.',
+            showConstellations: {
+              value: TUNING_DEFAULTS.showConstellations,
+              label: 'Show Constellations',
+              hint: 'Toggle constellation patterns with connecting lines. Includes major northern hemisphere constellations (Ursa Major, Orion, Cassiopeia, etc.).',
             },
-            showStars: {
-              value: TUNING_DEFAULTS.showStars,
-              label: 'Show Stars',
-              hint: 'Toggle background star field.\n\n**Visibility:** Most noticeable with darker backgrounds (bgColorTop < #e0e0e0)',
+            showSun: {
+              value: TUNING_DEFAULTS.showSun,
+              label: 'Show Sun',
+              hint: 'Toggle sun with volumetric glow.\n\n**Positioned:** Upper right for natural lighting direction',
             },
-            cloudOpacity: {
-              value: TUNING_DEFAULTS.cloudOpacity,
+            backgroundStarCount: {
+              value: TUNING_DEFAULTS.backgroundStarCount,
+              min: 500,
+              max: 5000,
+              step: 100,
+              label: 'Background Stars',
+              hint: 'Number of background stars (non-constellation). Uses Fibonacci sphere distribution for even coverage.\n\n**Performance:** ~0.1ms per 1000 stars on mid-range GPU',
+            },
+            constellationLineOpacity: {
+              value: TUNING_DEFAULTS.constellationLineOpacity,
               min: 0,
               max: 1,
               step: 0.05,
-              label: 'Cloud Opacity',
-              hint: 'Transparency of background clouds. Lower = more subtle.',
+              label: 'Line Opacity',
+              hint: 'Opacity of constellation connecting lines. Higher = more visible patterns.',
             },
-            cloudSpeed: {
-              value: TUNING_DEFAULTS.cloudSpeed,
-              min: 0,
-              max: 1,
-              step: 0.05,
-              label: 'Cloud Speed',
-              hint: 'Animation speed of drifting clouds. 0 = frozen, 1 = fast drift.',
+            starBrightness: {
+              value: TUNING_DEFAULTS.starBrightness,
+              min: 0.3,
+              max: 3.0,
+              step: 0.1,
+              label: 'Star Brightness',
+              hint: 'Emissive intensity of stars. Higher = brighter, more visible against galaxy background.',
+            },
+            sunGlowIntensity: {
+              value: TUNING_DEFAULTS.sunGlowIntensity,
+              min: 0.5,
+              max: 3.0,
+              step: 0.1,
+              label: 'Sun Glow',
+              hint: 'Intensity of sun volumetric glow (corona + atmosphere layers).\n\n**Typical range:** Subtle (0.8) → Balanced (1.5) → Bright (2.5+)',
             },
           },
           { collapsed: true },

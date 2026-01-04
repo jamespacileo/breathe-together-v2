@@ -94,13 +94,15 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Environment - clouds, lighting, fog */}
+            {/* Environment - galaxy background, constellations, sun, cosmic lighting */}
             {showEnvironment && (
               <Environment
-                showClouds={devControls.showClouds}
-                showStars={devControls.showStars}
-                cloudOpacity={devControls.cloudOpacity}
-                cloudSpeed={devControls.cloudSpeed}
+                showConstellations={devControls.showConstellations}
+                showSun={devControls.showSun}
+                backgroundStarCount={devControls.backgroundStarCount}
+                constellationLineOpacity={devControls.constellationLineOpacity}
+                starBrightness={devControls.starBrightness}
+                sunGlowIntensity={devControls.sunGlowIntensity}
                 ambientLightColor={devControls.ambientLightColor}
                 ambientLightIntensity={devControls.ambientLightIntensity}
                 keyLightColor={devControls.keyLightColor}
