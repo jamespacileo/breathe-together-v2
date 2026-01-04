@@ -39,17 +39,16 @@ function getPhasesInOptimalOrder(): Array<'inhale' | 'holdIn' | 'exhale'> {
 }
 
 test.describe('Preview Screenshots', () => {
-  // 120s timeout: CI page loads are 40-50s + 19s breathing cycle + admin navigation
+  // 120s timeout: CI page loads are 40-50s + 19s breathing cycle
   test.setTimeout(120_000);
 
   /**
-   * Single test per viewport - captures ALL screenshots (breathing phases + admin)
-   * This avoids multiple expensive page loads per viewport in CI
+   * Single test per viewport - captures breathing phase screenshots
+   * Admin page removed to fit within CI timeout constraints
    */
-  test('capture all screenshots', async ({ page }, testInfo) => {
+  test('capture breathing phases', async ({ page }, testInfo) => {
     const viewport = testInfo.project.name;
 
-    // 1. Load main page and capture all breathing phases
     await page.goto('/');
     await waitForPageReady(page, true);
 
@@ -71,13 +70,5 @@ test.describe('Preview Screenshots', () => {
       await page.screenshot({ path: join(SCREENSHOTS_DIR, filename) });
       console.log(`[${viewport}] ✓ ${filename}`);
     }
-
-    // 2. Navigate to admin and capture (much faster - no WebGL)
-    await page.goto('/admin');
-    await waitForPageReady(page, false);
-
-    const adminFilename = `${viewport}-admin.png`;
-    await page.screenshot({ path: join(SCREENSHOTS_DIR, adminFilename) });
-    console.log(`[${viewport}] ✓ ${adminFilename}`);
   });
 });
