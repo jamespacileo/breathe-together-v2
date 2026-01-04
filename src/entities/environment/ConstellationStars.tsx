@@ -25,6 +25,7 @@ import {
   magnitudeToSize,
   STARS,
 } from '../../lib/constellationData';
+import { ConstellationGizmos } from './ConstellationGizmos';
 
 interface ConstellationStarsProps {
   /** Enable constellation rendering @default true */
@@ -268,67 +269,8 @@ export const ConstellationStars = memo(function ConstellationStars({
 
   return (
     <>
-      {/* Debug gizmos - OUTSIDE rotating group so they stay fixed */}
-      {showGizmo && (
-        <group name="Constellation Gizmos">
-          {/* Wireframe sphere showing celestial sphere bounds */}
-          <mesh>
-            <sphereGeometry args={[radius, 32, 32]} />
-            <meshBasicMaterial
-              color="#00ff88"
-              wireframe
-              transparent
-              opacity={0.4}
-              depthWrite={false}
-            />
-          </mesh>
-
-          {/* Equatorial plane ring */}
-          <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[radius * 0.98, radius * 1.02, 64]} />
-            <meshBasicMaterial
-              color="#ffff00"
-              transparent
-              opacity={0.6}
-              side={THREE.DoubleSide}
-              depthWrite={false}
-            />
-          </mesh>
-
-          {/* Celestial axes - larger and more visible */}
-          <axesHelper args={[radius * 1.3]} />
-
-          {/* North celestial pole marker - larger */}
-          <mesh position={[0, radius, 0]}>
-            <sphereGeometry args={[1.5, 16, 16]} />
-            <meshBasicMaterial color="#00ffff" depthWrite={false} />
-          </mesh>
-          <mesh position={[0, radius * 1.1, 0]}>
-            <coneGeometry args={[0.8, 2, 8]} />
-            <meshBasicMaterial color="#00ffff" depthWrite={false} />
-          </mesh>
-
-          {/* South celestial pole marker - larger */}
-          <mesh position={[0, -radius, 0]}>
-            <sphereGeometry args={[1.5, 16, 16]} />
-            <meshBasicMaterial color="#ff00ff" depthWrite={false} />
-          </mesh>
-          <mesh position={[0, -radius * 1.1, 0]} rotation={[Math.PI, 0, 0]}>
-            <coneGeometry args={[0.8, 2, 8]} />
-            <meshBasicMaterial color="#ff00ff" depthWrite={false} />
-          </mesh>
-
-          {/* Cardinal direction markers on equatorial plane */}
-          <mesh position={[radius, 0, 0]}>
-            <boxGeometry args={[1, 1, 1]} />
-            <meshBasicMaterial color="#ff0000" depthWrite={false} />
-          </mesh>
-          <mesh position={[0, 0, radius]}>
-            <boxGeometry args={[1, 1, 1]} />
-            <meshBasicMaterial color="#0000ff" depthWrite={false} />
-          </mesh>
-        </group>
-      )}
+      {/* Debug gizmos - Uses ConstellationGizmos component for star markers, wireframes, and labels */}
+      {showGizmo && <ConstellationGizmos radius={radius} />}
 
       {/* Rotating celestial sphere with stars */}
       <group ref={groupRef}>
