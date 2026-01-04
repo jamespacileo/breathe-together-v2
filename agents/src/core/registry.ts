@@ -24,6 +24,8 @@ export function getAgentNamespace(env: Env, agentType: AgentType): DurableObject
       return env.HEALTH;
     case 'content':
       return env.CONTENT;
+    case 'github':
+      return env.GITHUB;
     default:
       throw new Error(`Unknown agent type: ${agentType}`);
   }
@@ -71,7 +73,7 @@ export async function forwardToAgent(
 // Agent Type Guards
 // ============================================================================
 
-const VALID_AGENT_TYPES: AgentType[] = ['orchestrator', 'health', 'content'];
+const VALID_AGENT_TYPES: AgentType[] = ['orchestrator', 'health', 'content', 'github'];
 
 export function isValidAgentType(type: string): type is AgentType {
   return VALID_AGENT_TYPES.includes(type as AgentType);

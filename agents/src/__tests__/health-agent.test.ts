@@ -1,25 +1,40 @@
 /**
- * Health Agent Tests
+ * Health Agent Integration Tests
  *
  * Tests the health monitoring functionality using Miniflare.
  * Run with: npm run agents:test
+ *
+ * NOTE: These tests require network access and may be skipped
+ * in restricted environments (e.g., CI with proxy).
  */
 
+import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type UnstableDevWorker, unstable_dev } from 'wrangler';
+import { type Unstable_DevWorker, unstable_dev } from 'wrangler';
 
-describe('HealthAgent', () => {
-  let worker: UnstableDevWorker;
+// Resolve paths relative to the agents directory
+const agentsDir = path.resolve(__dirname, '../..');
+const srcPath = path.join(agentsDir, 'src/index.ts');
+const configPath = path.join(agentsDir, 'wrangler.toml');
+
+// Check if proxy is enabled (which may cause connection issues)
+const hasProxy = Boolean(process.env.HTTP_PROXY || process.env.HTTPS_PROXY);
+
+// Skip all integration tests if proxy is detected
+const describeIntegration = hasProxy ? describe.skip : describe;
+
+describeIntegration('HealthAgent Integration Tests', () => {
+  let worker: Unstable_DevWorker;
 
   beforeAll(async () => {
     // Start local worker instance
-    worker = await unstable_dev('src/index.ts', {
-      config: 'wrangler.toml',
+    worker = await unstable_dev(srcPath, {
+      config: configPath,
       experimental: { disableExperimentalWarning: true },
       local: true,
       persist: false, // Fresh state for each test run
     });
-  });
+  }, 60000); // 60s timeout for worker startup
 
   afterAll(async () => {
     await worker?.stop();

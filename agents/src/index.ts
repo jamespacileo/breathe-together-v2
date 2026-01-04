@@ -19,6 +19,7 @@ import { handleRequest, handleScheduled } from './router';
 // ============================================================================
 
 export { ContentAgent } from './agents/content';
+export { GitHubAgent } from './agents/github';
 export { HealthAgent } from './agents/health';
 export { OrchestratorAgent } from './agents/orchestrator';
 

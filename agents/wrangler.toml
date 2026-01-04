@@ -2,12 +2,19 @@
 # See: https://developers.cloudflare.com/agents/
 #
 # This worker provides autonomous agents for maintenance, health checks,
-# content management, and scheduled tasks. Separate from the main presence API.
+# content management, GitHub integration, and scheduled tasks.
+# Separate from the main presence API.
 #
 # DEPLOYMENT:
 #   - NOT deployed on PR previews (to avoid clutter)
 #   - Manual deploy: npm run agents:deploy
 #   - Local dev: npm run agents:dev
+#
+# SECRETS (set via wrangler secret put):
+#   - GITHUB_TOKEN: GitHub API access token
+#   - GOOGLE_SERVICE_ACCOUNT_KEY: Vertex AI service account JSON
+#
+# See docs/ENVIRONMENT.md for full configuration documentation.
 
 name = "breathe-together-agents"
 main = "src/index.ts"
@@ -25,12 +32,17 @@ bindings = [
   { name = "ORCHESTRATOR", class_name = "OrchestratorAgent" },
   { name = "HEALTH", class_name = "HealthAgent" },
   { name = "CONTENT", class_name = "ContentAgent" },
+  { name = "GITHUB", class_name = "GitHubAgent" },
 ]
 
 # Migrations for Durable Objects
 [[migrations]]
 tag = "v1"
 new_classes = ["OrchestratorAgent", "HealthAgent", "ContentAgent"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["GitHubAgent"]
 
 # Scheduled triggers for automated maintenance
 # Format: https://developers.cloudflare.com/workers/configuration/cron-triggers/
@@ -40,6 +52,7 @@ crons = [
   "0 */6 * * *",   # Every 6 hours - comprehensive health scan
   "0 4 * * *",     # 4 AM UTC daily - maintenance cleanup
   "0 3 * * 0",     # 3 AM UTC Sunday - weekly deep maintenance
+  "*/5 * * * *",   # Every 5 min - GitHub PR status refresh
 ]
 
 # Access to main worker's KV for cross-service operations
@@ -49,18 +62,60 @@ binding = "PRESENCE_KV"
 id = "7add79fd08af412b9cc1dc509b629040"
 preview_id = "2fc40a001ffd49128837dd0a53de63d9"
 
-# Environment variables (secrets set via wrangler secret)
+# ============================================================================
+# Environment Variables
+# ============================================================================
+
 [vars]
+# Core
 ENVIRONMENT = "development"
 
-# Production environment overrides
+# GitHub Integration
+GITHUB_OWNER = "jamespacileo"
+GITHUB_REPO = "breathe-together-v2"
+GITHUB_API_URL = "https://api.github.com"
+
+# LLM / Vertex AI
+LLM_PROVIDER = "vertex"
+LLM_MODEL = "gemini-2.0-flash-001"
+VERTEX_PROJECT_ID = "breathe-together"
+VERTEX_LOCATION = "us-central1"
+
+# Cloudflare Pages
+PAGES_PROJECT_NAME = "breathe-together-v2"
+
+# ============================================================================
+# Production Environment
+# ============================================================================
+
 [env.production]
 name = "breathe-together-agents"
+
 [env.production.vars]
 ENVIRONMENT = "production"
+GITHUB_OWNER = "jamespacileo"
+GITHUB_REPO = "breathe-together-v2"
+GITHUB_API_URL = "https://api.github.com"
+LLM_PROVIDER = "vertex"
+LLM_MODEL = "gemini-2.0-flash-001"
+VERTEX_PROJECT_ID = "breathe-together"
+VERTEX_LOCATION = "us-central1"
+PAGES_PROJECT_NAME = "breathe-together-v2"
 
-# Staging/preview environment (for manual testing)
+# ============================================================================
+# Staging Environment (for manual testing)
+# ============================================================================
+
 [env.staging]
 name = "breathe-together-agents-staging"
+
 [env.staging.vars]
 ENVIRONMENT = "staging"
+GITHUB_OWNER = "jamespacileo"
+GITHUB_REPO = "breathe-together-v2"
+GITHUB_API_URL = "https://api.github.com"
+LLM_PROVIDER = "vertex"
+LLM_MODEL = "gemini-2.0-flash-001"
+VERTEX_PROJECT_ID = "breathe-together-staging"
+VERTEX_LOCATION = "us-central1"
+PAGES_PROJECT_NAME = "breathe-together-v2"

@@ -15,12 +15,29 @@ export interface Env {
   ORCHESTRATOR: DurableObjectNamespace;
   HEALTH: DurableObjectNamespace;
   CONTENT: DurableObjectNamespace;
+  GITHUB: DurableObjectNamespace;
 
   // KV bindings (shared with presence worker)
   PRESENCE_KV: KVNamespace;
 
-  // Environment variables
+  // Core environment variables
   ENVIRONMENT: string;
+
+  // GitHub integration
+  GITHUB_TOKEN?: string; // Secret
+  GITHUB_OWNER: string;
+  GITHUB_REPO: string;
+  GITHUB_API_URL: string;
+
+  // LLM / Vertex AI configuration
+  LLM_PROVIDER: 'vertex' | 'openai' | 'anthropic';
+  LLM_MODEL: string;
+  VERTEX_PROJECT_ID: string;
+  VERTEX_LOCATION: string;
+  GOOGLE_SERVICE_ACCOUNT_KEY?: string; // Secret
+
+  // Cloudflare Pages
+  PAGES_PROJECT_NAME: string;
 }
 
 // ============================================================================
@@ -55,7 +72,7 @@ export interface TaskResult<T = unknown> {
 // Agent Types
 // ============================================================================
 
-export type AgentType = 'orchestrator' | 'health' | 'content';
+export type AgentType = 'orchestrator' | 'health' | 'content' | 'github';
 
 export interface AgentMetadata {
   type: AgentType;
@@ -129,12 +146,15 @@ export type ScheduleType =
   | 'health-quick' // Every 15 min
   | 'health-full' // Every 6 hours
   | 'maintenance-daily' // 4 AM UTC
-  | 'maintenance-weekly'; // Sunday 3 AM UTC
+  | 'maintenance-weekly' // Sunday 3 AM UTC
+  | 'github-refresh'; // Every 5 min
 
 export interface ScheduledTask {
   type: ScheduleType;
   cron: string;
   pipeline?: string;
+  agent?: AgentType;
+  task?: string;
   description: string;
 }
 
@@ -142,6 +162,8 @@ export const SCHEDULED_TASKS: ScheduledTask[] = [
   {
     type: 'health-quick',
     cron: '*/15 * * * *',
+    agent: 'health',
+    task: 'runHealthScan',
     description: 'Quick health check of critical endpoints',
   },
   {
@@ -161,6 +183,13 @@ export const SCHEDULED_TASKS: ScheduledTask[] = [
     cron: '0 3 * * 0',
     pipeline: 'weekly-maintenance',
     description: 'Deep maintenance including data compaction',
+  },
+  {
+    type: 'github-refresh',
+    cron: '*/5 * * * *',
+    agent: 'github',
+    task: 'refreshPRData',
+    description: 'Refresh open PR status and deployments',
   },
 ];
 

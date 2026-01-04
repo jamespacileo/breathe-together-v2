@@ -293,6 +293,15 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
       pipelineId = 'weekly-maintenance';
       break;
 
+    case '*/5 * * * *':
+      _scheduleType = 'github-refresh';
+      // GitHub PR status refresh - direct task
+      await forwardToAgent(env, 'github', '/tasks', {
+        method: 'POST',
+        body: { name: 'refreshPRData', payload: {} },
+      });
+      return;
+
     default:
       console.warn(`[Scheduled] Unknown cron: ${cron}`);
       return;

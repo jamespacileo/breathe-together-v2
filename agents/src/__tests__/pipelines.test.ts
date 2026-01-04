@@ -73,7 +73,8 @@ describe('Pipelines', () => {
       for (const pipeline of scheduledPipelines) {
         // Basic cron validation (5 fields)
         const parts = pipeline.schedule?.split(' ');
-        expect(parts.length).toBe(5);
+        expect(parts).toBeDefined();
+        expect(parts?.length).toBe(5);
       }
     });
   });
