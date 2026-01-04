@@ -93,7 +93,6 @@ export function BreathingLevel({
             focusDistance={devControls.focusDistance}
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
-            skipBackground={devControls.useStageVariant && devControls.stageVariant !== 'default'}
           >
             {/* Environment - clouds, lighting, fog (or stage variant) */}
             {showEnvironment && (
