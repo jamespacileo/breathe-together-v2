@@ -1,10 +1,12 @@
 import { Stars } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
+import * as THREE from 'three';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
+import { EditorGrid } from './EditorGrid';
 import { SubtleLightRays } from './SubtleLightRays';
 
 interface EnvironmentProps {
@@ -25,6 +27,16 @@ interface EnvironmentProps {
   keyLightColor?: string;
   /** Key light intensity @default 0.8 */
   keyLightIntensity?: number;
+  /** Stage mode - editor-style view with grid floor @default false */
+  stageMode?: boolean;
+  /** Show grid floor in stage mode @default true */
+  showGridFloor?: boolean;
+  /** Grid size in world units @default 20 */
+  gridSize?: number;
+  /** Number of grid divisions @default 20 */
+  gridDivisions?: number;
+  /** Grid line color @default '#666666' */
+  gridColor?: string;
 }
 
 /**
@@ -47,26 +59,67 @@ export function Environment({
   ambientLightIntensity = 0.5,
   keyLightColor = '#ffe4c4',
   keyLightIntensity = 0.8,
+  stageMode = false,
+  showGridFloor = true,
+  gridSize = 20,
+  gridDivisions = 20,
+  gridColor = '#666666',
 }: EnvironmentProps = {}) {
-  const { scene } = useThree();
+  const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
 
   // Reduce star count on mobile/tablet for better performance
   const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
 
-  // Clear any scene background - let BackgroundGradient handle it
+  // Handle background based on stage mode
   useEffect(() => {
-    scene.background = null;
+    if (stageMode) {
+      // Stage mode: dark gray background like 3D editors
+      scene.background = new THREE.Color('#1a1a1a');
+      // Also set clear color for consistency
+      gl.setClearColor('#1a1a1a', 1);
+    } else {
+      // Normal mode: let BackgroundGradient handle it
+      scene.background = null;
+    }
     // Disable fog - it washes out the gradient
     scene.fog = null;
 
     return () => {
       scene.fog = null;
+      scene.background = null;
     };
-  }, [scene]);
+  }, [scene, gl, stageMode]);
 
   if (!enabled) return null;
 
+  // Stage mode: minimal environment with grid floor
+  if (stageMode) {
+    return (
+      <group>
+        {/* Wireframe grid floor */}
+        {showGridFloor && (
+          <EditorGrid size={gridSize} divisions={gridDivisions} color={gridColor} showAxes={true} />
+        )}
+
+        {/* Neutral white ambient light for even illumination */}
+        <ambientLight intensity={0.6} color="#ffffff" />
+
+        {/* Key light - white directional from upper right */}
+        <directionalLight
+          position={[10, 15, 5]}
+          intensity={0.8}
+          color="#ffffff"
+          castShadow={false}
+        />
+
+        {/* Fill light - from left for balanced shadows */}
+        <directionalLight position={[-8, 10, 3]} intensity={0.4} color="#ffffff" />
+      </group>
+    );
+  }
+
+  // Normal mode: full Monument Valley atmosphere
   return (
     <group>
       {/* Animated gradient background - renders behind everything */}

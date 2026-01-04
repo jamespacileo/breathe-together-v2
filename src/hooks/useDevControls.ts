@@ -67,6 +67,13 @@ export const TUNING_DEFAULTS = {
   globeRingOpacity: 0.15,
   globeAtmosphereTint: '#f8d0a8',
 
+  // Stage Mode (dev-only) - editor-style view
+  stageMode: false,
+  showGridFloor: true,
+  gridSize: 20,
+  gridDivisions: 20,
+  gridColor: '#666666',
+
   // Debug (dev-only)
   showOrbitBounds: false,
   showPhaseMarkers: false,
@@ -172,6 +179,13 @@ export interface DevControlsState {
   globeRingOpacity: number;
   globeAtmosphereTint: string;
 
+  // Stage Mode
+  stageMode: boolean;
+  showGridFloor: boolean;
+  gridSize: number;
+  gridDivisions: number;
+  gridColor: string;
+
   // Debug
   showOrbitBounds: boolean;
   showPhaseMarkers: boolean;
@@ -236,6 +250,11 @@ function getDefaultDevControls(): DevControlsState {
     globeRingColor: TUNING_DEFAULTS.globeRingColor,
     globeRingOpacity: TUNING_DEFAULTS.globeRingOpacity,
     globeAtmosphereTint: TUNING_DEFAULTS.globeAtmosphereTint,
+    stageMode: TUNING_DEFAULTS.stageMode,
+    showGridFloor: TUNING_DEFAULTS.showGridFloor,
+    gridSize: TUNING_DEFAULTS.gridSize,
+    gridDivisions: TUNING_DEFAULTS.gridDivisions,
+    gridColor: TUNING_DEFAULTS.gridColor,
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
@@ -663,11 +682,55 @@ export function useDevControls(): DevControlsState {
     ),
 
     // ==========================================
-    // 5. DEBUG (consolidates Debug + Performance Monitor)
+    // 5. STAGE MODE (editor-style view)
+    // ==========================================
+    'Stage Mode': folder(
+      {
+        stageMode: {
+          value: TUNING_DEFAULTS.stageMode,
+          label: 'Enable Stage Mode',
+          hint: 'Toggle editor-style view. Disables background, clouds, stars, and shows wireframe grid.\n\n**Use case:** Debug positioning and entity layouts like in a 3D editor',
+        },
+        showGridFloor: {
+          value: TUNING_DEFAULTS.showGridFloor,
+          label: 'Show Grid Floor',
+          hint: 'Show wireframe grid floor when stage mode is enabled.\n\n**Shows:** Horizontal grid plane at y=0',
+          render: (get) => get('Stage Mode.stageMode'),
+        },
+        gridSize: {
+          value: TUNING_DEFAULTS.gridSize,
+          min: 5,
+          max: 100,
+          step: 5,
+          label: 'Grid Size',
+          hint: 'Total size of the grid floor in world units.',
+          render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
+        },
+        gridDivisions: {
+          value: TUNING_DEFAULTS.gridDivisions,
+          min: 5,
+          max: 50,
+          step: 5,
+          label: 'Grid Divisions',
+          hint: 'Number of subdivisions in the grid.',
+          render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
+        },
+        gridColor: {
+          value: TUNING_DEFAULTS.gridColor,
+          label: 'Grid Color',
+          hint: 'Color of the wireframe grid lines.',
+          render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
+        },
+      },
+      { collapsed: false, order: 3 },
+    ),
+
+    // ==========================================
+    // 6. DEBUG (consolidates Debug + Performance Monitor)
     // ==========================================
     Debug: folder(
       {
-        // 5.1 Visualization
+        // 6.1 Visualization
         Visualization: folder(
           {
             showOrbitBounds: {
@@ -838,7 +901,7 @@ export function useDevControls(): DevControlsState {
           { collapsed: true },
         ),
       },
-      { collapsed: true, order: 3 },
+      { collapsed: true, order: 4 },
     ),
   }));
 
