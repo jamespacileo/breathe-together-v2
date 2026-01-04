@@ -2,15 +2,20 @@
  * RefractionPipeline - 4-pass FBO rendering for frosted glass refraction + depth of field
  *
  * Implements the Monument Valley reference rendering pipeline:
- * Pass 1: Render background gradient → envFBO texture (cached when static)
- * Pass 2: Render scene with backface material → backfaceFBO texture (half resolution)
- * Pass 3: Render scene with refraction material → compositeFBO (with depth)
+ * Pass 1: Render scene (excluding particles) → envFBO texture (for refraction sampling)
+ * Pass 2: Render particles with backface material → backfaceFBO texture (half resolution)
+ * Pass 3: Render full scene with refraction material → compositeFBO (with depth)
  * Pass 4: Apply depth of field blur → screen
+ *
+ * Background handling:
+ * - The pipeline does NOT handle backgrounds - that's the scene's responsibility
+ * - Set scene.background for solid colors, or use drei Environment with background prop
+ * - Stage variants can use backdrop meshes (spheres, planes) on the ENVIRONMENT layer
+ * - envFBO captures whatever background exists in the scene
  *
  * Performance optimizations (Jan 2025):
  * - THREE.Layers for selective rendering (RENDER_LAYERS.PARTICLES for refraction)
  * - Half-resolution backface pass (50% width/height, bilinear filtering)
- * - Environment FBO caching (re-renders only every ENV_CACHE_FRAMES frames)
  * - On-demand rendering support via invalidate()
  */
 
@@ -155,44 +160,6 @@ void main() {
 }
 `;
 
-// Background gradient shader (same as BackgroundGradient.tsx)
-const bgVertexShader = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = vec4(position, 1.0);
-}
-`;
-
-const bgFragmentShader = `
-varying vec2 vUv;
-void main() {
-  // Soft pastel gradient matching Monument Valley aesthetic
-  vec3 warmCream = vec3(0.98, 0.96, 0.92);    // Top - warm cream
-  vec3 softBlush = vec3(0.96, 0.91, 0.87);    // Bottom - soft blush/peach
-
-  // Simple vertical gradient (bottom to top)
-  float t = vUv.y;
-  vec3 color = mix(softBlush, warmCream, t);
-
-  // Soft radial vignette (subtle warm edges)
-  vec2 center = vUv - 0.5;
-  float dist = length(center);
-  float vignette = smoothstep(0.8, 0.2, dist);
-  vec3 edgeTint = vec3(0.92, 0.86, 0.82); // Warm shadow at edges
-  color = mix(edgeTint, color, vignette * 0.85 + 0.15);
-
-  // Very subtle center brightening
-  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.03;
-  color += vec3(1.0, 0.99, 0.97) * centerGlow;
-
-  // Minimal paper texture noise
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
-
-  gl_FragColor = vec4(color + noise, 1.0);
-}
-`;
-
 // Depth of Field vertex shader - simple fullscreen quad
 const dofVertexShader = `
 varying vec2 vUv;
@@ -271,13 +238,6 @@ void main() {
   gl_FragColor = vec4(color, 1.0);
 }
 `;
-
-/**
- * Environment FBO cache interval (frames)
- * Background gradient is static, so we can cache it for multiple frames.
- * Set to 10 = re-render background every 10 frames (6 times/sec if running at 60fps)
- */
-const ENV_CACHE_FRAMES = 10;
 
 /**
  * Backface resolution scale (0.5 = half resolution)
@@ -370,20 +330,9 @@ export function RefractionPipeline({
     return cam;
   }, []);
 
-  // Create background scene with ortho camera
-  const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
-    const bgScene = new THREE.Scene();
-    const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-
-    const bgMaterial = new THREE.ShaderMaterial({
-      vertexShader: bgVertexShader,
-      fragmentShader: bgFragmentShader,
-    });
-    const bgGeometry = new THREE.PlaneGeometry(2, 2);
-    const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
-    bgScene.add(bgMesh);
-
-    return { bgScene, orthoCamera, bgMesh };
+  // Create ortho camera for DoF fullscreen pass
+  const orthoCamera = useMemo(() => {
+    return new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   }, []);
 
   // Create DoF scene for final composite
@@ -466,8 +415,6 @@ export function RefractionPipeline({
     compositeFBO.setSize(size.width, size.height);
     refractionMaterial.uniforms.resolution.value.set(size.width, size.height);
     dofMaterial.uniforms.resolution.value.set(size.width, size.height);
-    // Force env FBO re-render on resize
-    envNeedsUpdateRef.current = true;
   }, [
     size.width,
     size.height,
@@ -490,10 +437,6 @@ export function RefractionPipeline({
   const frameCountRef = useRef(0);
   const MESH_CHECK_INTERVAL = 30;
 
-  // Environment FBO cache - track when we last rendered it
-  const envCacheFrameRef = useRef(0);
-  const envNeedsUpdateRef = useRef(true); // Force initial render
-
   // Cleanup
   useEffect(() => {
     return () => {
@@ -505,8 +448,6 @@ export function RefractionPipeline({
       backfaceMaterial.dispose();
       refractionMaterial.dispose();
       dofMaterial.dispose();
-      bgMesh.geometry.dispose();
-      (bgMesh.material as THREE.Material).dispose();
       dofMesh.geometry.dispose();
       (dofMesh.material as THREE.Material).dispose();
     };
@@ -517,14 +458,13 @@ export function RefractionPipeline({
     backfaceMaterial,
     refractionMaterial,
     dofMaterial,
-    bgMesh,
     dofMesh,
   ]);
 
   // 4-pass rendering loop with performance optimizations:
   // - Layer-based mesh detection (RENDER_LAYERS.PARTICLES)
-  // - Environment FBO caching (re-render every ENV_CACHE_FRAMES)
-  // - Half-resolution backface pass
+  // - Half-resolution backface pass for performance
+  // - Scene-based envFBO (captures whatever background the scene has)
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Multi-pass refraction pipeline requires mesh detection, material swapping, 4 FBO passes, and DoF toggle - splitting would reduce readability of the sequential rendering logic
   useFrame(() => {
     frameCountRef.current++;
@@ -569,19 +509,16 @@ export function RefractionPipeline({
       meshDataRef.current.set(mesh, mesh.material);
     }
 
-    // Pass 1: Render background to envFBO (CACHED for ENV_CACHE_FRAMES)
-    // Background gradient is static, so we only need to re-render it periodically
-    const framesSinceEnvRender = frameCountRef.current - envCacheFrameRef.current;
-    if (envNeedsUpdateRef.current || framesSinceEnvRender >= ENV_CACHE_FRAMES) {
-      gl.setRenderTarget(envFBO);
-      gl.clear();
-      gl.render(bgScene, orthoCamera);
-      envCacheFrameRef.current = frameCountRef.current;
-      envNeedsUpdateRef.current = false;
-    }
+    // Pass 1: Render scene EXCLUDING particles to envFBO
+    // This captures the background (scene.background) + all non-particle objects
+    // The refraction shader samples from this to show "what's behind" the glass
+    layerCamera.layers.enableAll();
+    layerCamera.layers.disable(RENDER_LAYERS.PARTICLES);
+    gl.setRenderTarget(envFBO);
+    gl.clear();
+    gl.render(scene, layerCamera);
 
-    // Pass 2: Swap to backface material, render to half-res backfaceFBO
-    // Only render PARTICLES layer meshes
+    // Pass 2: Swap to backface material, render particles to half-res backfaceFBO
     for (const mesh of meshes) {
       mesh.material = backfaceMaterial;
     }
@@ -603,11 +540,9 @@ export function RefractionPipeline({
     layerCamera.layers.enableAll();
 
     if (enableDepthOfField) {
-      // Pass 3: Render composite to compositeFBO (with depth for DoF)
+      // Pass 3: Render full scene to compositeFBO (with depth for DoF)
       gl.setRenderTarget(compositeFBO);
       gl.clear();
-      gl.render(bgScene, orthoCamera);
-      gl.clearDepth();
       gl.render(scene, camera);
 
       // Restore original materials
@@ -625,11 +560,9 @@ export function RefractionPipeline({
       dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
       gl.render(dofScene, orthoCamera);
     } else {
-      // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
+      // Optimized path: Render directly to screen (saves 1 FBO pass)
       gl.setRenderTarget(null);
       gl.clear();
-      gl.render(bgScene, orthoCamera);
-      gl.clearDepth();
       gl.render(scene, camera);
 
       // Restore original materials

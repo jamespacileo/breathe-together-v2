@@ -5,10 +5,15 @@ import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
+import { type StageVariant, StageVariants } from './StageVariants';
 import { SubtleLightRays } from './SubtleLightRays';
 
 interface EnvironmentProps {
   enabled?: boolean;
+  /** Use experimental stage variant instead of default environment @default false */
+  useStageVariant?: boolean;
+  /** Stage variant to use when useStageVariant is true @default 'default' */
+  stageVariant?: StageVariant | 'default';
   /** Show volumetric clouds @default true */
   showClouds?: boolean;
   /** Show distant stars @default true */
@@ -39,6 +44,8 @@ interface EnvironmentProps {
  */
 export function Environment({
   enabled = true,
+  useStageVariant = false,
+  stageVariant = 'default',
   showClouds = true,
   showStars = true,
   cloudOpacity = 0.4,
@@ -54,19 +61,35 @@ export function Environment({
   // Reduce star count on mobile/tablet for better performance
   const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
 
-  // Clear any scene background - let BackgroundGradient handle it
+  // Clear scene.background - BackgroundGradient (default) or BackdropSphere (variants) handle backgrounds
   useEffect(() => {
+    // Always clear scene.background - we use mesh-based backgrounds instead
+    // This prevents conflicts with RefractionPipeline's multi-pass rendering
     scene.background = null;
     // Disable fog - it washes out the gradient
     scene.fog = null;
 
     return () => {
+      scene.background = null;
       scene.fog = null;
     };
   }, [scene]);
 
   if (!enabled) return null;
 
+  // Use stage variant if enabled and not 'default'
+  if (useStageVariant && stageVariant !== 'default') {
+    return (
+      <StageVariants
+        variant={stageVariant}
+        showClouds={showClouds}
+        cloudOpacity={cloudOpacity}
+        cloudSpeed={cloudSpeed}
+      />
+    );
+  }
+
+  // Default Monument Valley style environment
   return (
     <group>
       {/* Animated gradient background - renders behind everything */}
