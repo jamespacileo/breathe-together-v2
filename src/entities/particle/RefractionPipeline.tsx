@@ -167,27 +167,27 @@ void main() {
 const bgFragmentShader = `
 varying vec2 vUv;
 void main() {
-  // Soft pastel gradient matching Monument Valley aesthetic
-  vec3 warmCream = vec3(0.98, 0.96, 0.92);    // Top - warm cream
-  vec3 softBlush = vec3(0.96, 0.91, 0.87);    // Bottom - soft blush/peach
+  // Deep space gradient for cosmic theme
+  vec3 deepSpace = vec3(0.04, 0.04, 0.08);    // Top - deep space blue
+  vec3 cosmicPurple = vec3(0.06, 0.04, 0.10); // Bottom - cosmic purple
 
   // Simple vertical gradient (bottom to top)
   float t = vUv.y;
-  vec3 color = mix(softBlush, warmCream, t);
+  vec3 color = mix(cosmicPurple, deepSpace, t);
 
-  // Soft radial vignette (subtle warm edges)
+  // Soft radial vignette (subtle darker edges)
   vec2 center = vUv - 0.5;
   float dist = length(center);
   float vignette = smoothstep(0.8, 0.2, dist);
-  vec3 edgeTint = vec3(0.92, 0.86, 0.82); // Warm shadow at edges
+  vec3 edgeTint = vec3(0.02, 0.02, 0.05); // Darker shadow at edges
   color = mix(edgeTint, color, vignette * 0.85 + 0.15);
 
-  // Very subtle center brightening
-  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.03;
-  color += vec3(1.0, 0.99, 0.97) * centerGlow;
+  // Very subtle center brightening (starlight glow)
+  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.04;
+  color += vec3(0.08, 0.10, 0.15) * centerGlow; // Cool blue glow
 
-  // Minimal paper texture noise
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
+  // Minimal cosmic noise
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.02;
 
   gl_FragColor = vec4(color + noise, 1.0);
 }

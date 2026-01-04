@@ -31,15 +31,14 @@ interface EnvironmentProps {
 }
 
 /**
- * Environment - Stylized galaxy/universe scene
+ * Environment - Stylized galaxy/universe scene lighting
  *
  * Features:
- * - Deep space galaxy background with nebula clouds
  * - Ambient cosmic lighting
- * - Atmospheric dust particles
+ * - Atmospheric dust particles (inside DoF for depth)
  *
- * NOTE: Constellations and Sun are rendered separately outside DoF pipeline
- * to maintain sharp focus. See EnvironmentOverlay component.
+ * NOTE: Galaxy background, constellations, and sun are rendered in EnvironmentOverlay
+ * outside the DoF pipeline to maintain sharp focus.
  */
 export function Environment({
   enabled = true,
@@ -68,10 +67,7 @@ export function Environment({
 
   return (
     <group>
-      {/* Deep space galaxy background - renders behind everything */}
-      <GalaxyBackground />
-
-      {/* Subtle floating dust for atmospheric depth */}
+      {/* Subtle floating dust for atmospheric depth (inside DoF for realism) */}
       {!isMobile && <AmbientDust count={60} opacity={0.08} size={0.01} enabled={true} />}
 
       {/* Ambient light - soft cosmic fill */}
@@ -98,10 +94,12 @@ export function Environment({
 }
 
 /**
- * EnvironmentOverlay - Sharp overlay elements (stars, sun)
+ * EnvironmentOverlay - Sharp overlay elements (background, stars, sun)
  *
  * Rendered OUTSIDE the DoF pipeline to maintain sharp focus.
  * These elements should always be crisp like the UI overlays.
+ *
+ * NOTE: This group should be placed INSIDE MomentumControls so sun rotates with scene.
  */
 export function EnvironmentOverlay({
   enabled = true,
@@ -130,6 +128,9 @@ export function EnvironmentOverlay({
 
   return (
     <group>
+      {/* Galaxy background - always sharp, no DoF */}
+      <GalaxyBackground />
+
       {/* Constellations with connecting lines - always sharp, no DoF */}
       {showConstellations && (
         <Constellations
@@ -141,7 +142,7 @@ export function EnvironmentOverlay({
         />
       )}
 
-      {/* Sun with volumetric glow - always sharp, no DoF */}
+      {/* Sun with volumetric glow - always sharp, no DoF, rotates with scene */}
       {showSun && (
         <Sun
           position={[80, 20, -60]}

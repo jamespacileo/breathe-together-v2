@@ -40,11 +40,11 @@ export const TUNING_DEFAULTS = {
   atmosphereBreathingOpacity: 0.15,
   atmosphereColor: '#8c7b6c',
 
-  // Depth of Field (dev-only)
-  enableDepthOfField: true,
+  // Depth of Field (dev-only) - disabled by default for sharp cosmic scene
+  enableDepthOfField: false,
   focusDistance: 15,
-  focalRange: 8,
-  maxBlur: 3,
+  focalRange: 20, // Wider range for less blur when enabled
+  maxBlur: 1.5, // Reduced blur intensity
 
   // Environment (dev-only)
   showConstellations: true,

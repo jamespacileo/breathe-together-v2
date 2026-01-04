@@ -164,20 +164,22 @@ void main() {
 `;
 
 /**
- * Atmosphere halo configuration - pastel layers around the globe
+ * Atmosphere halo configuration - cosmic nebula layers around the globe
+ * Updated for dark space/galaxy theme
  */
 const ATMOSPHERE_LAYERS = [
-  { scale: 1.08, color: '#f8d0a8', opacity: 0.08 }, // Inner: warm peach
-  { scale: 1.14, color: '#b8e8d4', opacity: 0.05 }, // Middle: soft teal
-  { scale: 1.22, color: '#c4b8e8', opacity: 0.03 }, // Outer: pale lavender
+  { scale: 1.08, color: '#5DD9C1', opacity: 0.1 }, // Inner: cosmic teal (presence)
+  { scale: 1.14, color: '#6699CC', opacity: 0.06 }, // Middle: stellar blue (release)
+  { scale: 1.22, color: '#D87BA8', opacity: 0.04 }, // Outer: nebula pink (connection)
 ];
 
 /**
  * Pre-allocated Color objects for shader uniforms
  * Hoisted to module level to avoid recreation on component remount
+ * Updated for cosmic theme - cool blue-white starlight
  */
-const GLOW_COLOR = new THREE.Color('#efe5da'); // Very soft muted cream
-const MIST_COLOR = new THREE.Color('#f0ebe6'); // Soft warm white
+const GLOW_COLOR = new THREE.Color('#c8e0f5'); // Cool cosmic blue-white
+const MIST_COLOR = new THREE.Color('#d4e5f7'); // Soft cool starlight
 
 /**
  * EarthGlobe component props
@@ -305,12 +307,13 @@ export function EarthGlobe({
   );
 
   // Create memoized ring material to prevent GPU leak
+  // Updated for cosmic theme - nebula pink accent
   const ringMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: '#e8c4b8',
+        color: '#D87BA8', // Nebula pink from cosmic palette
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.12,
         side: THREE.FrontSide, // Ring only viewed from above, no backface needed
         depthWrite: false,
       }),
@@ -397,19 +400,19 @@ export function EarthGlobe({
       {/* Mist layer - animated noise haze */}
       {showMist && <Sphere args={[radius * 1.15, 32, 32]} material={mistMaterial} />}
 
-      {/* Soft sparkle aura - floating dust particles (more visible) */}
+      {/* Soft sparkle aura - floating dust particles (cosmic starlight) */}
       {showSparkles && (
         <Sparkles
           count={sparkleCount}
           size={4}
           scale={[radius * 3.5, radius * 3.5, radius * 3.5]}
           speed={0.25}
-          opacity={0.45}
-          color="#f8d0a8"
+          opacity={0.35}
+          color="#c8e0f5" // Cool cosmic blue-white
         />
       )}
 
-      {/* Subtle equator ring - rose gold accent */}
+      {/* Subtle equator ring - nebula pink accent */}
       {showRing && (
         <Ring
           ref={ringRef}
