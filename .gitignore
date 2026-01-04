@@ -9,3 +9,6 @@ pnpm-lock.yaml
 .vite
 
 .env.secrets
+# Playwright
+e2e/test-results/
+screenshots/

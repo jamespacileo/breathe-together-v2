@@ -283,32 +283,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-chromium-v1.49.1
+          key: playwright-${{ runner.os }}-v1.49.1
 
-      - name: Install Playwright
-        run: |
-          npm install playwright@1.49.1
-          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
-            npx playwright install chromium --with-deps
-          else
-            npx playwright install-deps chromium
-          fi
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      - name: Install Playwright deps only
+        run: npx playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
 
       - name: Wait for preview to be ready
         run: node .github/scripts/wait-for-preview.mjs
 
       - name: Capture screenshots
         id: capture
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ env.PREVIEW_URL }}
+          SCREENSHOTS_DIR: ./screenshots
         run: |
-          node .github/scripts/screenshot.mjs
+          npx playwright test screenshots --project=desktop --project=tablet --project=mobile --reporter=list
           if [ -d "./screenshots" ] && [ "$(ls -A ./screenshots/*.png 2>/dev/null | wc -l)" -gt 0 ]; then
             echo "has_screenshots=true" >> $GITHUB_OUTPUT
+            echo "Captured $(ls ./screenshots/*.png | wc -l) screenshots"
           else
             echo "has_screenshots=false" >> $GITHUB_OUTPUT
             exit 1
