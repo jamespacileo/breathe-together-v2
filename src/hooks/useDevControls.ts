@@ -67,6 +67,13 @@ export const TUNING_DEFAULTS = {
   globeRingOpacity: 0.15,
   globeAtmosphereTint: '#f8d0a8',
 
+  // Stage Mode (dev-only) - minimal studio view
+  stageMode: false,
+  showGridFloor: true,
+  gridSize: 30,
+  gridDivisions: 6,
+  gridColor: '#e0e0e0',
+
   // Debug (dev-only)
   showOrbitBounds: false,
   showPhaseMarkers: false,
@@ -176,6 +183,13 @@ export interface DevControlsState {
   globeRingOpacity: number;
   globeAtmosphereTint: string;
 
+  // Stage Mode
+  stageMode: boolean;
+  showGridFloor: boolean;
+  gridSize: number;
+  gridDivisions: number;
+  gridColor: string;
+
   // Debug
   showOrbitBounds: boolean;
   showPhaseMarkers: boolean;
@@ -244,6 +258,11 @@ function getDefaultDevControls(): DevControlsState {
     globeRingColor: TUNING_DEFAULTS.globeRingColor,
     globeRingOpacity: TUNING_DEFAULTS.globeRingOpacity,
     globeAtmosphereTint: TUNING_DEFAULTS.globeAtmosphereTint,
+    stageMode: TUNING_DEFAULTS.stageMode,
+    showGridFloor: TUNING_DEFAULTS.showGridFloor,
+    gridSize: TUNING_DEFAULTS.gridSize,
+    gridDivisions: TUNING_DEFAULTS.gridDivisions,
+    gridColor: TUNING_DEFAULTS.gridColor,
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
@@ -673,11 +692,55 @@ export function useDevControls(): DevControlsState {
     ),
 
     // ==========================================
-    // 5. DEBUG (consolidates Debug + Performance Monitor)
+    // 5. STAGE MODE (minimal studio view)
+    // ==========================================
+    'Stage Mode': folder(
+      {
+        stageMode: {
+          value: TUNING_DEFAULTS.stageMode,
+          label: 'Enable Stage Mode',
+          hint: 'Toggle minimal studio view with warm white background, sparse grid, and soft radial shadow.\n\n**Use case:** Debug positioning in a clean, elegant environment',
+        },
+        showGridFloor: {
+          value: TUNING_DEFAULTS.showGridFloor,
+          label: 'Show Floor',
+          hint: 'Show studio floor with sparse grid, axis crosshair, and soft shadow.\n\n**Features:** Radial shadow + sparse reference lines + X/Z axes',
+          render: (get) => get('Stage Mode.stageMode'),
+        },
+        gridSize: {
+          value: TUNING_DEFAULTS.gridSize,
+          min: 15,
+          max: 60,
+          step: 5,
+          label: 'Floor Size',
+          hint: 'Total size of the floor in world units.',
+          render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
+        },
+        gridDivisions: {
+          value: TUNING_DEFAULTS.gridDivisions,
+          min: 4,
+          max: 12,
+          step: 2,
+          label: 'Grid Lines',
+          hint: 'Number of reference lines (sparse). 4-6 is minimal, 8-12 for more precision.',
+          render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
+        },
+        gridColor: {
+          value: TUNING_DEFAULTS.gridColor,
+          label: 'Grid Color',
+          hint: 'Color of reference lines. Very light colors (#e0e0e0) blend elegantly.',
+          render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
+        },
+      },
+      { collapsed: false, order: 3 },
+    ),
+
+    // ==========================================
+    // 6. DEBUG (consolidates Debug + Performance Monitor)
     // ==========================================
     Debug: folder(
       {
-        // 5.1 Visualization
+        // 6.1 Visualization
         Visualization: folder(
           {
             showOrbitBounds: {
@@ -866,7 +929,7 @@ export function useDevControls(): DevControlsState {
           { collapsed: true },
         ),
       },
-      { collapsed: true, order: 3 },
+      { collapsed: true, order: 4 },
     ),
   }));
 

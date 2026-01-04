@@ -98,7 +98,7 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Environment - clouds, lighting, fog */}
+            {/* Environment - clouds, lighting, fog (or grid floor in stage mode) */}
             {showEnvironment && (
               <Environment
                 showClouds={devControls.showClouds}
@@ -109,6 +109,11 @@ export function BreathingLevel({
                 ambientLightIntensity={devControls.ambientLightIntensity}
                 keyLightColor={devControls.keyLightColor}
                 keyLightIntensity={devControls.keyLightIntensity}
+                stageMode={devControls.stageMode}
+                showGridFloor={devControls.showGridFloor}
+                gridSize={devControls.gridSize}
+                gridDivisions={devControls.gridDivisions}
+                gridColor={devControls.gridColor}
               />
             )}
 
