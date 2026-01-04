@@ -38,12 +38,12 @@ import {
   shardNeighbors,
   swarmState,
 } from '../shared/gizmoTraits';
-
-// Pre-allocated objects for matrix decomposition
-const _tempMatrix = new THREE.Matrix4();
-const _tempPosition = new THREE.Vector3();
-const _tempQuaternion = new THREE.Quaternion();
-const _tempScale = new THREE.Vector3();
+import {
+  tempMatrix as _tempMatrix,
+  tempPosition as _tempPosition,
+  tempQuaternion as _tempQuaternion,
+  tempScale as _tempScale,
+} from '../shared/tempObjects';
 
 // Configuration
 const NEIGHBOR_COUNT = 4; // Number of neighbors to connect each shard to

@@ -25,16 +25,15 @@ import { VISUALS } from '../constants';
 import { breathPhase, orbitRadius } from '../entities/breath/traits';
 import { COUNTRY_CENTROIDS, latLngToPosition } from '../lib/countryCentroids';
 import { findKNearestNeighbors } from '../shared/gizmoTraits';
-
-// Pre-allocated objects for matrix decomposition and transforms
-const _tempMatrix = new THREE.Matrix4();
-const _tempPosition = new THREE.Vector3();
-const _tempQuaternion = new THREE.Quaternion();
-const _tempScale = new THREE.Vector3();
-// Additional pre-allocated objects for render loops
-const _tempPosition2 = new THREE.Vector3();
-const _rotationMatrix = new THREE.Matrix4();
-const _ringOrientation = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+import {
+  ringOrientation as _ringOrientation,
+  tempRotationMatrix as _rotationMatrix,
+  tempMatrix as _tempMatrix,
+  tempPosition as _tempPosition,
+  tempPosition2 as _tempPosition2,
+  tempQuaternion as _tempQuaternion,
+  tempScale as _tempScale,
+} from '../shared/tempObjects';
 
 interface ShapeGizmosProps {
   showGlobeCentroid?: boolean;

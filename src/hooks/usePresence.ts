@@ -53,23 +53,37 @@ function generateSessionId(): string {
 
 function getSessionId(): string {
   if (typeof window === 'undefined') return generateSessionId();
-  let sessionId = localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_ID);
-  if (!sessionId) {
-    sessionId = generateSessionId();
-    localStorage.setItem(CONFIG.STORAGE_KEYS.SESSION_ID, sessionId);
+  try {
+    let sessionId = localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_ID);
+    if (!sessionId) {
+      sessionId = generateSessionId();
+      localStorage.setItem(CONFIG.STORAGE_KEYS.SESSION_ID, sessionId);
+    }
+    return sessionId;
+  } catch {
+    // localStorage unavailable (incognito mode, sandboxed iframe, etc.)
+    return generateSessionId();
   }
-  return sessionId;
 }
 
 function getStoredMood(): MoodId {
   if (typeof window === 'undefined') return 'presence';
-  const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
-  return validateMood(stored);
+  try {
+    const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
+    return validateMood(stored);
+  } catch {
+    // localStorage unavailable
+    return 'presence';
+  }
 }
 
 function storeMood(mood: MoodId): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(CONFIG.STORAGE_KEYS.MOOD, mood);
+    try {
+      localStorage.setItem(CONFIG.STORAGE_KEYS.MOOD, mood);
+    } catch {
+      // localStorage unavailable - silently ignore
+    }
   }
 }
 

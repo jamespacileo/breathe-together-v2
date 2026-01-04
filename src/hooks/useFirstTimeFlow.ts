@@ -61,10 +61,29 @@ const DEFAULT_FIRST_TIME_MESSAGES: InspirationMessage[] = [
   },
 ];
 
+/**
+ * Safe localStorage access - returns null if unavailable (incognito mode, etc.)
+ */
+function safeGetItem(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // localStorage unavailable - silently ignore
+  }
+}
+
 export function useFirstTimeFlow(
   sessionId: string,
   options: UseFirstTimeFlowOptions = {},
-): { isFirstTime: boolean; isLoading: boolean } {
+): { isFirstTime: boolean } {
   const { enabled = true, durationMinutes = 5, messages = DEFAULT_FIRST_TIME_MESSAGES } = options;
 
   const hasRunRef = useRef(false);
@@ -74,11 +93,11 @@ export function useFirstTimeFlow(
 
     async function checkAndApplyFirstTimeFlow() {
       // Check if user has visited before (stored in localStorage)
-      const hasVisited = localStorage.getItem(FIRST_TIME_KEY);
+      const hasVisited = safeGetItem(FIRST_TIME_KEY);
       if (hasVisited) return;
 
       // Mark as visited
-      localStorage.setItem(FIRST_TIME_KEY, String(Date.now()));
+      safeSetItem(FIRST_TIME_KEY, String(Date.now()));
 
       try {
         // Apply first-time flow override
@@ -99,10 +118,7 @@ export function useFirstTimeFlow(
     hasRunRef.current = true;
   }, [sessionId, enabled, durationMinutes, messages]);
 
-  const isFirstTime = !localStorage.getItem(FIRST_TIME_KEY);
+  const isFirstTime = !safeGetItem(FIRST_TIME_KEY);
 
-  return {
-    isFirstTime,
-    isLoading: false,
-  };
+  return { isFirstTime };
 }

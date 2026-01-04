@@ -92,6 +92,15 @@ export function SimpleGaiaUI({
   const [showMoodSelect, setShowMoodSelect] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
 
+  // Track mounted state to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // React 19 useTransition for non-urgent updates (modals, animations)
   // Keeps UI responsive during modal opens/closes and mood selections
   const [, startTransition] = useTransition();
@@ -306,6 +315,7 @@ export function SimpleGaiaUI({
     });
     // Small delay before closing to show selection feedback
     setTimeout(() => {
+      if (!isMountedRef.current) return;
       startTransition(() => {
         setShowMoodSelect(false);
       });
@@ -319,6 +329,7 @@ export function SimpleGaiaUI({
     // Show mood selection after welcome dismisses if no mood selected yet
     if (!selectedMood) {
       setTimeout(() => {
+        if (!isMountedRef.current) return;
         startTransition(() => {
           setShowMoodSelect(true);
         });
