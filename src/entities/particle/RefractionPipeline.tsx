@@ -606,8 +606,8 @@ export function RefractionPipeline({
       // Pass 3: Render composite to compositeFBO (with depth for DoF)
       gl.setRenderTarget(compositeFBO);
       gl.clear();
-      gl.render(bgScene, orthoCamera);
-      gl.clearDepth();
+      // Note: We DON'T render bgScene here anymore - let the actual scene background
+      // (BackgroundGradient + ParallaxBackground) render as part of the scene
       gl.render(scene, camera);
 
       // Restore original materials
@@ -628,8 +628,7 @@ export function RefractionPipeline({
       // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
       gl.setRenderTarget(null);
       gl.clear();
-      gl.render(bgScene, orthoCamera);
-      gl.clearDepth();
+      // Note: We DON'T render bgScene here anymore - let the actual scene background show
       gl.render(scene, camera);
 
       // Restore original materials
