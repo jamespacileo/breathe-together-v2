@@ -635,16 +635,6 @@ export function useDevControls(): DevControlsState {
               label: 'Sun Intensity',
               hint: 'Overall brightness/opacity of the sun. Higher values create more prominent glow.',
             },
-            showSunGizmo: {
-              value: TUNING_DEFAULTS.showSunGizmo,
-              label: '🔧 Sun Gizmo',
-              hint: 'Show debug gizmo for sun position and size. Displays wireframe sphere, axes helper, and position label.',
-            },
-            showConstellationGizmos: {
-              value: TUNING_DEFAULTS.showConstellationGizmos,
-              label: '🔧 Star Gizmos',
-              hint: 'Show debug gizmos for constellation stars. Displays celestial sphere wireframe and star position markers.',
-            },
           },
           { collapsed: false },
         ),
@@ -798,6 +788,8 @@ export function useDevControls(): DevControlsState {
                   showShardCentroids: true,
                   showShardWireframes: true,
                   showShardConnections: true,
+                  showSunGizmo: true,
+                  showConstellationGizmos: true,
                 });
               }
             }),
@@ -812,6 +804,8 @@ export function useDevControls(): DevControlsState {
                   showShardCentroids: false,
                   showShardWireframes: false,
                   showShardConnections: false,
+                  showSunGizmo: false,
+                  showConstellationGizmos: false,
                 });
               }
             }),
@@ -872,6 +866,16 @@ export function useDevControls(): DevControlsState {
               value: TUNING_DEFAULTS.showGizmoLabels,
               label: 'Show Labels',
               hint: 'Display coordinate and radius labels on gizmos.\n\n**Use case:** Precise debugging of positions and bounds',
+            },
+            showSunGizmo: {
+              value: TUNING_DEFAULTS.showSunGizmo,
+              label: 'Sun Gizmo',
+              hint: 'Show debug gizmo for sun position and size.\n\n**Shows:** Wireframe sphere, axes helper, distance ring',
+            },
+            showConstellationGizmos: {
+              value: TUNING_DEFAULTS.showConstellationGizmos,
+              label: 'Constellation Gizmos',
+              hint: 'Show debug gizmos for constellation stars.\n\n**Shows:** Celestial sphere wireframe, equatorial plane, pole markers',
             },
           },
           { collapsed: true },
