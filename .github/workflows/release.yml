@@ -65,6 +65,85 @@ jobs:
           wranglerVersion: "4.54.0"
           command: deploy --config wrangler.toml
 
+  deploy-agents:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Deploy Agents
+    outputs:
+      agents-url: ${{ steps.get-url.outputs.agents-url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run agents tests
+        run: npm run agents:test
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Deploy Agents Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: agents
+          wranglerVersion: "4.54.0"
+          command: deploy --env production
+          secrets: |
+            GITHUB_TOKEN
+            GOOGLE_SERVICE_ACCOUNT_KEY
+        env:
+          GITHUB_TOKEN: ${{ secrets.AGENTS_GITHUB_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+
+      - name: Get deployment URL
+        id: get-url
+        run: |
+          echo "agents-url=https://breathe-together-agents.palladio-registry.workers.dev" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Deployment (Tagged)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.ref,
+              environment: 'agents-production',
+              auto_merge: false,
+              required_contexts: [],
+              description: `Agents Worker release ${version}`,
+              payload: {
+                version: version,
+                deployed_at: new Date().toISOString(),
+              },
+            });
+
+            if (deployment.data.id) {
+              await github.rest.repos.createDeploymentStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                deployment_id: deployment.data.id,
+                state: 'success',
+                environment_url: 'https://breathe-together-agents.palladio-registry.workers.dev',
+                description: `Agents Worker ${version} deployed successfully`,
+              });
+            }
+
   deploy-frontend:
     needs: deploy-worker
     runs-on: ubuntu-latest
@@ -101,7 +180,7 @@ jobs:
           echo "frontend-url=https://breathe-together-v2.palladio-registry.workers.dev" >> $GITHUB_OUTPUT
 
   create-release:
-    needs: [deploy-worker, deploy-frontend]
+    needs: [deploy-worker, deploy-agents, deploy-frontend]
     runs-on: ubuntu-latest
     name: Create GitHub Release
     permissions:
@@ -147,7 +226,8 @@ jobs:
             echo "## 🔗 Deployment Links"
             echo ""
             echo "- **Frontend**: https://breathe-together-v2.palladio-registry.workers.dev"
-            echo "- **Worker API**: https://breathe-together-presence.palladio-registry.workers.dev"
+            echo "- **Presence API**: https://breathe-together-presence.palladio-registry.workers.dev"
+            echo "- **Agents API**: https://breathe-together-agents.palladio-registry.workers.dev"
             echo ""
             echo "## 📊 Stats"
             echo ""
@@ -232,11 +312,20 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Frontend:*\n<${{ needs.deploy-frontend.outputs.frontend-url }}|breathe-together-v2.palladio-registry.workers.dev>"
+                      "text": "*Frontend:*\n<${{ needs.deploy-frontend.outputs.frontend-url }}|breathe-together-v2>"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Worker API:*\n<${{ needs.deploy-worker.outputs.worker-url }}|breathe-together-presence.palladio-registry.workers.dev>"
+                      "text": "*Presence API:*\n<${{ needs.deploy-worker.outputs.worker-url }}|breathe-together-presence>"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Agents API:*\n<${{ needs.deploy-agents.outputs.agents-url }}|breathe-together-agents>"
                     }
                   ]
                 },
@@ -286,7 +375,7 @@ jobs:
             }
 
   notify-failure:
-    needs: [build, deploy-worker, deploy-frontend, create-release]
+    needs: [build, deploy-worker, deploy-agents, deploy-frontend, create-release]
     if: failure()
     runs-on: ubuntu-latest
     name: Notify Release Failure
@@ -330,7 +419,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "⚠️ *Failed Jobs:*\n${{ needs.build.result == 'failure' && '• Build\n' || '' }}${{ needs.deploy-worker.result == 'failure' && '• Deploy Worker\n' || '' }}${{ needs.deploy-frontend.result == 'failure' && '• Deploy Frontend\n' || '' }}${{ needs.create-release.result == 'failure' && '• Create Release\n' || '' }}"
+                    "text": "⚠️ *Failed Jobs:*\n${{ needs.build.result == 'failure' && '• Build\n' || '' }}${{ needs.deploy-worker.result == 'failure' && '• Deploy Worker\n' || '' }}${{ needs.deploy-agents.result == 'failure' && '• Deploy Agents\n' || '' }}${{ needs.deploy-frontend.result == 'failure' && '• Deploy Frontend\n' || '' }}${{ needs.create-release.result == 'failure' && '• Create Release\n' || '' }}"
                   }
                 },
                 {

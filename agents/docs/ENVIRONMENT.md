@@ -251,6 +251,61 @@ Missing configuration will log warnings but not crash the worker (graceful degra
 
 ---
 
+## GitHub Actions Deployment
+
+The agents service is deployed automatically via GitHub Actions.
+
+### Required Repository Secrets
+
+Configure these in **Repository Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|--------|-------------|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers permissions |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
+| `AGENTS_GITHUB_TOKEN` | GitHub PAT for agents to access repository data |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | Vertex AI service account JSON |
+
+### Creating Secrets
+
+```bash
+# CLOUDFLARE_API_TOKEN
+# Create at: https://dash.cloudflare.com/profile/api-tokens
+# Use template: "Edit Cloudflare Workers"
+
+# CLOUDFLARE_ACCOUNT_ID
+# Found at: https://dash.cloudflare.com → right sidebar
+
+# AGENTS_GITHUB_TOKEN
+# Create at: https://github.com/settings/tokens
+# Required scopes: repo, actions:read, checks:read
+
+# GOOGLE_SERVICE_ACCOUNT_KEY
+# Create service account in GCP with "Vertex AI User" role
+# Download JSON key → paste as secret value
+```
+
+### Deployment Triggers
+
+| Trigger | Workflow | Environment |
+|---------|----------|-------------|
+| Push to `main` (agents/** changed) | `agents-deploy.yml` | Production |
+| Version tag (`v*.*.*`) | `release.yml` | Production (tagged) |
+| PR (agents/** changed) | `preview.yml` | Validation only |
+
+### GitHub Deployments
+
+Tagged deployments create GitHub Deployment records visible at:
+**Repository → Deployments → agents-production**
+
+Each deployment includes:
+- Version tag
+- Deployment timestamp
+- Environment URL
+- Status (success/failure)
+
+---
+
 ## Security Best Practices
 
 1. **Never commit secrets** - Use `.gitignore` for `.dev.vars`
