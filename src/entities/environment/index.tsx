@@ -88,6 +88,9 @@ export function Environment({
         showKeyLight={true}
         keyIntensity={keyLightIntensity}
         keyColor={keyLightColor}
+        showClouds={showClouds}
+        cloudOpacity={cloudOpacity}
+        cloudSpeed={cloudSpeed}
       />
     );
   }

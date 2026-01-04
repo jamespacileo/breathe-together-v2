@@ -317,6 +317,12 @@ interface RefractionPipelineProps {
    * @default 3
    */
   maxBlur?: number;
+  /**
+   * Skip the built-in background gradient rendering.
+   * Set to true when using custom stage/environment backgrounds.
+   * @default false
+   */
+  skipBackground?: boolean;
   /** Children meshes to render with refraction */
   children?: React.ReactNode;
 }
@@ -328,6 +334,7 @@ export function RefractionPipeline({
   focusDistance = 15,
   focalRange = 8,
   maxBlur = 3,
+  skipBackground = false,
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
@@ -571,8 +578,12 @@ export function RefractionPipeline({
 
     // Pass 1: Render background to envFBO (CACHED for ENV_CACHE_FRAMES)
     // Background gradient is static, so we only need to re-render it periodically
+    // Skip this pass when using custom stage backgrounds (skipBackground=true)
     const framesSinceEnvRender = frameCountRef.current - envCacheFrameRef.current;
-    if (envNeedsUpdateRef.current || framesSinceEnvRender >= ENV_CACHE_FRAMES) {
+    if (
+      !skipBackground &&
+      (envNeedsUpdateRef.current || framesSinceEnvRender >= ENV_CACHE_FRAMES)
+    ) {
       gl.setRenderTarget(envFBO);
       gl.clear();
       gl.render(bgScene, orthoCamera);
@@ -606,8 +617,11 @@ export function RefractionPipeline({
       // Pass 3: Render composite to compositeFBO (with depth for DoF)
       gl.setRenderTarget(compositeFBO);
       gl.clear();
-      gl.render(bgScene, orthoCamera);
-      gl.clearDepth();
+      // Only render built-in background if not using custom stage
+      if (!skipBackground) {
+        gl.render(bgScene, orthoCamera);
+        gl.clearDepth();
+      }
       gl.render(scene, camera);
 
       // Restore original materials
@@ -628,8 +642,11 @@ export function RefractionPipeline({
       // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
       gl.setRenderTarget(null);
       gl.clear();
-      gl.render(bgScene, orthoCamera);
-      gl.clearDepth();
+      // Only render built-in background if not using custom stage
+      if (!skipBackground) {
+        gl.render(bgScene, orthoCamera);
+        gl.clearDepth();
+      }
       gl.render(scene, camera);
 
       // Restore original materials

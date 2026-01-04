@@ -15,18 +15,12 @@
  * - Aurora effect: codepen.io/favina/pen/bemzVK
  */
 
-import {
-  ContactShadows,
-  Environment as DreiEnvironment,
-  GradientTexture,
-  Sky,
-  Sparkles,
-  Stars,
-} from '@react-three/drei';
+import { ContactShadows, GradientTexture, Sparkles, Stars } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useViewport } from '../../hooks/useViewport';
+import { CloudSystem } from './CloudSystem';
 
 export type StageVariant = 'portal' | 'cosmos' | 'aurora' | 'void';
 
@@ -44,6 +38,12 @@ interface StageVariantsProps {
   keyIntensity?: number;
   /** Key light color @default '#ffffff' */
   keyColor?: string;
+  /** Show clouds @default false */
+  showClouds?: boolean;
+  /** Cloud opacity @default 0.4 */
+  cloudOpacity?: number;
+  /** Cloud speed @default 0.3 */
+  cloudSpeed?: number;
 }
 
 /**
@@ -610,6 +610,9 @@ export function StageVariants({
   showKeyLight = true,
   keyIntensity = 0.8,
   keyColor = '#ffffff',
+  showClouds = false,
+  cloudOpacity = 0.4,
+  cloudSpeed = 0.3,
 }: StageVariantsProps) {
   // Each variant handles its own lighting, but we can add overrides
   const showOverrideLights = showAmbientLight || showKeyLight;
@@ -621,6 +624,9 @@ export function StageVariants({
       {variant === 'cosmos' && <CosmosStage />}
       {variant === 'aurora' && <AuroraStage />}
       {variant === 'void' && <VoidStage />}
+
+      {/* Optional clouds - can be added to any stage */}
+      {showClouds && <CloudSystem opacity={cloudOpacity} speed={cloudSpeed} enabled={true} />}
 
       {/* Optional override lights - these add on top of variant lighting */}
       {showOverrideLights && (
