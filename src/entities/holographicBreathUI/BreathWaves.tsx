@@ -6,9 +6,11 @@
  *
  * Features:
  * - 3 horizontal bands at different heights
- * - Phase-based color transitions (teal → white → gold)
+ * - Phase-based color (teal for inhale, gold for exhale)
  * - Scale animation synchronized to breath phase
  * - Subtle rotation for organic movement
+ *
+ * Uses simple MeshBasicMaterial for reliable rendering.
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -24,19 +26,9 @@ import { HOLO_COLORS } from './materials';
  * Wave band configuration with stable IDs for React keys
  */
 const WAVE_CONFIG = [
-  { id: 'wave-upper', height: 0.6, baseRadius: 1.8, tube: 0.008, offset: 0 },
-  { id: 'wave-center', height: 0, baseRadius: 2.0, tube: 0.012, offset: Math.PI / 3 },
-  { id: 'wave-lower', height: -0.6, baseRadius: 1.8, tube: 0.008, offset: (Math.PI * 2) / 3 },
-];
-
-/**
- * Phase colors for wave transitions
- */
-const PHASE_COLORS = [
-  new THREE.Color(HOLO_COLORS.INHALE), // Phase 0: Teal
-  new THREE.Color(HOLO_COLORS.HOLD), // Phase 1: White
-  new THREE.Color(HOLO_COLORS.EXHALE), // Phase 2: Gold
-  new THREE.Color(HOLO_COLORS.INHALE), // Phase 3: Back to teal
+  { id: 'wave-upper', height: 0.5, baseRadius: 1.85, tube: 0.012, phaseOffset: 0 },
+  { id: 'wave-center', height: 0, baseRadius: 2.0, tube: 0.015, phaseOffset: 0.33 },
+  { id: 'wave-lower', height: -0.5, baseRadius: 1.85, tube: 0.012, phaseOffset: 0.66 },
 ];
 
 interface BreathWavesProps {
@@ -59,8 +51,8 @@ interface BreathWavesProps {
  */
 export function BreathWaves({
   enabled = true,
-  baseOpacity = 0.25,
-  breathScale = 0.15,
+  baseOpacity = 0.3,
+  breathScale = 0.1,
   enableRotation = true,
   debugPhase = -1,
   debugBreathPhase = -1,
@@ -68,6 +60,10 @@ export function BreathWaves({
   const groupRef = useRef<THREE.Group>(null);
   const meshRefs = useRef<(THREE.Mesh | null)[]>([]);
   const world = useWorld();
+
+  // Pre-calculate colors
+  const inhaleColor = useMemo(() => new THREE.Color(HOLO_COLORS.INHALE), []);
+  const exhaleColor = useMemo(() => new THREE.Color(HOLO_COLORS.EXHALE), []);
 
   // Create geometries and materials
   const { geometries, materials } = useMemo(() => {
@@ -121,10 +117,6 @@ export function BreathWaves({
       }
     }
 
-    // Get colors for current and next phase
-    const currentColor = PHASE_COLORS[currentPhase % 4];
-    const nextColor = PHASE_COLORS[(currentPhase + 1) % 4];
-
     // Update each wave band
     meshRefs.current.forEach((mesh, index) => {
       if (!mesh) return;
@@ -133,20 +125,30 @@ export function BreathWaves({
       const material = materials[index];
 
       // Breathing scale animation (different phase offset per band)
-      const phaseOffset = config.offset;
-      const breathValue = Math.sin((currentBreathPhase + phaseOffset) * Math.PI);
+      const offsetBreath = (currentBreathPhase + config.phaseOffset) % 1;
+      const breathValue = Math.sin(offsetBreath * Math.PI);
       const scale = 1 + breathValue * breathScale;
       mesh.scale.set(scale, scale, scale);
 
-      // Color interpolation between phases
-      const lerpedColor = currentColor.clone().lerp(nextColor, currentBreathPhase * 0.3);
-      material.color.copy(lerpedColor);
+      // Color based on phase: inhale = teal, exhale = gold
+      const isInhaling = currentPhase === 0;
+      const isExhaling = currentPhase === 2;
+
+      if (isInhaling) {
+        material.color.copy(inhaleColor);
+      } else if (isExhaling) {
+        material.color.copy(exhaleColor);
+      } else {
+        // Hold phase - blend between colors
+        material.color.copy(inhaleColor).lerp(exhaleColor, 0.5);
+      }
 
       // Opacity breathing
       material.opacity = baseOpacity + breathValue * 0.15;
 
       // Subtle vertical wave motion
-      mesh.position.y = config.height + Math.sin(state.clock.elapsedTime + phaseOffset) * 0.02;
+      mesh.position.z =
+        config.height + Math.sin(state.clock.elapsedTime + config.phaseOffset * Math.PI * 2) * 0.02;
     });
   });
 

@@ -6,73 +6,46 @@
  * - Middle ring (white): Hold phase (7s)
  * - Outer ring (gold): Exhale phase (8s)
  *
- * Active ring glows brightly and shows progress fill.
+ * Active ring glows brightly and scales up.
  * Inactive rings stay dim and semi-transparent.
+ *
+ * Uses simple MeshBasicMaterial for reliable rendering.
  */
 
 import { Ring } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useMemo, useRef } from 'react';
-import type * as THREE from 'three';
+import * as THREE from 'three';
 
 import { useDisposeMaterials } from '../../hooks/useDisposeMaterials';
-import { breathPhase, phaseType, rawProgress } from '../breath/traits';
-import { createRingMaterial, HOLO_COLORS } from './materials';
-
-/**
- * Get breath state from ECS or debug values
- */
-function getBreathState(
-  world: ReturnType<typeof useWorld>,
-  debugPhase: number,
-  debugProgress: number,
-): { phase: number; progress: number; breathValue: number } {
-  if (debugPhase >= 0) {
-    const progress = debugProgress >= 0 ? debugProgress : 0.5;
-    return { phase: debugPhase, progress, breathValue: progress };
-  }
-
-  try {
-    const breathEntity = world.queryFirst(breathPhase);
-    if (breathEntity) {
-      return {
-        phase: breathEntity.get(phaseType)?.value ?? 0,
-        progress: breathEntity.get(rawProgress)?.value ?? 0,
-        breathValue: breathEntity.get(breathPhase)?.value ?? 0,
-      };
-    }
-  } catch {
-    // Ignore ECS errors during unmount
-  }
-
-  return { phase: 0, progress: 0, breathValue: 0 };
-}
+import { breathPhase, phaseType } from '../breath/traits';
+import { HOLO_COLORS } from './materials';
 
 /**
  * Ring configuration for each breathing phase
  */
 const RING_CONFIG = [
   {
+    id: 'ring-inhale',
     phase: 0, // Inhale
-    innerRadius: 1.7,
-    outerRadius: 1.75,
+    innerRadius: 1.72,
+    outerRadius: 1.78,
     color: HOLO_COLORS.RING_INHALE,
-    label: '4',
   },
   {
+    id: 'ring-hold',
     phase: 1, // Hold
-    innerRadius: 1.85,
-    outerRadius: 1.9,
+    innerRadius: 1.88,
+    outerRadius: 1.94,
     color: HOLO_COLORS.RING_HOLD,
-    label: '7',
   },
   {
+    id: 'ring-exhale',
     phase: 2, // Exhale
-    innerRadius: 2.0,
-    outerRadius: 2.05,
+    innerRadius: 2.04,
+    outerRadius: 2.1,
     color: HOLO_COLORS.RING_EXHALE,
-    label: '8',
   },
 ];
 
@@ -85,26 +58,6 @@ interface PhaseRingsProps {
   rotationSpeed?: number;
   /** Debug mode - force specific phase @default -1 */
   debugPhase?: number;
-  /** Debug mode - force specific progress @default -1 */
-  debugProgress?: number;
-}
-
-/**
- * Update ring materials based on current breath state
- */
-function updateRingMaterials(
-  materials: Array<{ phase: number; material: THREE.ShaderMaterial }>,
-  breathState: { phase: number; progress: number; breathValue: number },
-  elapsedTime: number,
-) {
-  for (const { phase, material } of materials) {
-    const isActive = phase === breathState.phase;
-    material.uniforms.uTime.value = elapsedTime;
-    material.uniforms.uBreathPhase.value = breathState.breathValue;
-    material.uniforms.uIsActive.value = isActive ? 1.0 : 0.0;
-    material.uniforms.uProgress.value = isActive ? breathState.progress : 0;
-    material.uniforms.uOpacity.value = isActive ? 0.6 : 0.15;
-  }
 }
 
 /**
@@ -115,17 +68,23 @@ export function PhaseRings({
   enableRotation = true,
   rotationSpeed = 0.0004,
   debugPhase = -1,
-  debugProgress = -1,
 }: PhaseRingsProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const ringRefs = useRef<(THREE.Mesh | null)[]>([]);
   const world = useWorld();
 
-  // Create materials for each ring
+  // Create simple materials for each ring
   const materials = useMemo(
     () =>
       RING_CONFIG.map((config) => ({
         ...config,
-        material: createRingMaterial(config.color),
+        material: new THREE.MeshBasicMaterial({
+          color: config.color,
+          transparent: true,
+          opacity: 0.2,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
       })),
     [],
   );
@@ -134,7 +93,7 @@ export function PhaseRings({
   useDisposeMaterials(materials.map((m) => m.material));
 
   // Animation loop
-  useFrame((state) => {
+  useFrame(() => {
     if (!groupRef.current) return;
 
     // Slow rotation
@@ -142,16 +101,54 @@ export function PhaseRings({
       groupRef.current.rotation.z += rotationSpeed;
     }
 
-    // Get breath state and update materials
-    const breathState = getBreathState(world, debugPhase, debugProgress);
-    updateRingMaterials(materials, breathState, state.clock.elapsedTime);
+    // Get breath state
+    let currentPhase = 0;
+
+    if (debugPhase >= 0) {
+      currentPhase = debugPhase;
+    } else {
+      try {
+        const breathEntity = world.queryFirst(breathPhase);
+        if (breathEntity) {
+          currentPhase = breathEntity.get(phaseType)?.value ?? 0;
+        }
+      } catch {
+        // Ignore ECS errors during unmount
+      }
+    }
+
+    // Update each ring material and scale
+    materials.forEach(({ phase, material, color }, index) => {
+      const isActive = phase === currentPhase;
+      const mesh = ringRefs.current[index];
+
+      // Update opacity: active = bright, inactive = dim
+      material.opacity = isActive ? 0.7 : 0.15;
+
+      // Update color: active = brighter version
+      if (isActive) {
+        const brightColor = new THREE.Color(color).multiplyScalar(1.3);
+        material.color.copy(brightColor);
+      } else {
+        material.color.set(color);
+      }
+
+      // Scale animation for active ring
+      if (mesh) {
+        const targetScale = isActive ? 1.05 : 1.0;
+        mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, 1), 0.1);
+      }
+    });
   });
 
   return (
-    <group ref={groupRef} name="PhaseRings" rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-      {materials.map(({ phase, innerRadius, outerRadius, material }) => (
+    <group ref={groupRef} name="PhaseRings" rotation={[Math.PI / 2, 0, 0]}>
+      {materials.map(({ id, innerRadius, outerRadius, material }, index) => (
         <Ring
-          key={phase}
+          key={id}
+          ref={(el) => {
+            ringRefs.current[index] = el as THREE.Mesh | null;
+          }}
           args={[innerRadius * scale, outerRadius * scale, 64]}
           material={material}
         />

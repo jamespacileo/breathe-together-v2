@@ -13,7 +13,7 @@
 import { Billboard, RoundedBox, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 import { breathPhase, phaseType, rawProgress } from '../breath/traits';
@@ -56,13 +56,12 @@ interface PhaseGlyphProps {
  */
 function PhaseGlyph({ label, color, position, isActive, progress }: PhaseGlyphProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const baseScale = isActive ? 1.2 : 0.8;
 
   // Animate scale when active
   useFrame((state) => {
     if (!groupRef.current) return;
 
-    const targetScale = isActive ? 1.2 + Math.sin(state.clock.elapsedTime * 2.5) * 0.05 : 0.8;
+    const targetScale = isActive ? 1.15 + Math.sin(state.clock.elapsedTime * 2.5) * 0.03 : 0.85;
 
     // Smooth interpolation
     const currentScale = groupRef.current.scale.x;
@@ -70,18 +69,18 @@ function PhaseGlyph({ label, color, position, isActive, progress }: PhaseGlyphPr
     groupRef.current.scale.setScalar(newScale);
   });
 
-  const badgeWidth = 0.22;
-  const badgeHeight = 0.28;
+  const badgeWidth = 0.24;
+  const badgeHeight = 0.3;
 
   return (
     <Billboard follow={true} lockX={false} lockY={false} lockZ={false} position={position}>
-      <group ref={groupRef} scale={baseScale}>
+      <group ref={groupRef} scale={isActive ? 1.15 : 0.85}>
         {/* Background badge */}
         <RoundedBox args={[badgeWidth, badgeHeight, 0.02]} radius={0.06} smoothness={4}>
           <meshBasicMaterial
             color={isActive ? color : '#a0a0a0'}
             transparent
-            opacity={isActive ? 0.9 : 0.3}
+            opacity={isActive ? 0.85 : 0.25}
             side={THREE.DoubleSide}
           />
         </RoundedBox>
@@ -89,7 +88,7 @@ function PhaseGlyph({ label, color, position, isActive, progress }: PhaseGlyphPr
         {/* Glyph number */}
         <Text
           position={[0, 0, 0.015]}
-          fontSize={0.14}
+          fontSize={0.15}
           color={isActive ? '#ffffff' : '#888888'}
           anchorX="center"
           anchorY="middle"
@@ -98,19 +97,19 @@ function PhaseGlyph({ label, color, position, isActive, progress }: PhaseGlyphPr
           {label}
         </Text>
 
-        {/* Progress indicator (small arc below number) */}
+        {/* Progress indicator (small bar below number) */}
         {isActive && progress > 0 && (
-          <mesh position={[0, -0.1, 0.02]}>
-            <planeGeometry args={[badgeWidth * 0.7 * progress, 0.02]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
+          <mesh position={[0, -0.11, 0.02]}>
+            <planeGeometry args={[badgeWidth * 0.7 * progress, 0.025]} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.9} />
           </mesh>
         )}
 
         {/* Glow ring when active */}
         {isActive && (
           <mesh position={[0, 0, -0.01]}>
-            <ringGeometry args={[0.12, 0.15, 32]} />
-            <meshBasicMaterial color={color} transparent opacity={0.4} side={THREE.DoubleSide} />
+            <ringGeometry args={[0.13, 0.16, 32]} />
+            <meshBasicMaterial color={color} transparent opacity={0.35} side={THREE.DoubleSide} />
           </mesh>
         )}
       </group>
@@ -147,8 +146,12 @@ export function PhaseGlyphs({
   const groupRef = useRef<THREE.Group>(null);
   const world = useWorld();
 
-  // Track current state
-  const stateRef = useRef({ phase: 0, progress: 0 });
+  // Use state for re-rendering when phase changes
+  const [currentPhase, setCurrentPhase] = useState(0);
+  const [currentProgress, setCurrentProgress] = useState(0);
+
+  // Track last phase to detect changes
+  const lastPhaseRef = useRef(-1);
 
   // Calculate positions for each glyph
   const positions = useMemo(() => {
@@ -159,7 +162,7 @@ export function PhaseGlyphs({
     });
   }, [orbitRadius, height]);
 
-  // Animation loop
+  // Animation loop - update state when phase changes
   useFrame(() => {
     if (!groupRef.current) return;
 
@@ -169,20 +172,32 @@ export function PhaseGlyphs({
     }
 
     // Get breath state from ECS
+    let newPhase = 0;
+    let newProgress = 0;
+
     if (debugPhase >= 0) {
-      stateRef.current.phase = debugPhase;
-      stateRef.current.progress = debugProgress >= 0 ? debugProgress : 0.5;
+      newPhase = debugPhase;
+      newProgress = debugProgress >= 0 ? debugProgress : 0.5;
     } else {
       try {
         const breathEntity = world.queryFirst(breathPhase);
         if (breathEntity) {
-          stateRef.current.phase = breathEntity.get(phaseType)?.value ?? 0;
-          stateRef.current.progress = breathEntity.get(rawProgress)?.value ?? 0;
+          newPhase = breathEntity.get(phaseType)?.value ?? 0;
+          newProgress = breathEntity.get(rawProgress)?.value ?? 0;
         }
       } catch {
         // Ignore ECS errors during unmount
       }
     }
+
+    // Only update state when phase changes to avoid excessive re-renders
+    if (newPhase !== lastPhaseRef.current) {
+      lastPhaseRef.current = newPhase;
+      setCurrentPhase(newPhase);
+    }
+
+    // Update progress more frequently (every 5 frames) for smooth bar animation
+    setCurrentProgress(newProgress);
   });
 
   return (
@@ -193,8 +208,8 @@ export function PhaseGlyphs({
           label={label}
           color={color}
           position={positions[index]}
-          isActive={stateRef.current.phase === phase}
-          progress={stateRef.current.phase === phase ? stateRef.current.progress : 0}
+          isActive={currentPhase === phase}
+          progress={currentPhase === phase ? currentProgress : 0}
         />
       ))}
     </group>

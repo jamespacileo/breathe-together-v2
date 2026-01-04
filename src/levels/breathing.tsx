@@ -120,17 +120,6 @@ export function BreathingLevel({
 
             {showGlobe && <EarthGlobe />}
 
-            {/* Holographic Breath UI - 3D breathing cycle visualization */}
-            {/* Replaces HTML UI with in-scene phase rings, glyphs, and waves */}
-            {showHolographicUI && (
-              <HolographicBreathUI
-                showRings={showPhaseRings}
-                showGlyphs={showPhaseGlyphs}
-                showWaves={showBreathWaves}
-                globeRadius={1.5}
-              />
-            )}
-
             {/* Ribbon System - configurable text ribbons around the globe */}
             {/* Layers: top message, bottom message, decorative accents */}
             {/* Features: randomized colors, parallax scroll, breath-synced opacity */}
@@ -160,6 +149,18 @@ export function BreathingLevel({
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
           </RefractionPipeline>
+
+          {/* Holographic Breath UI - 3D breathing cycle visualization */}
+          {/* Rendered OUTSIDE RefractionPipeline to avoid DoF blur */}
+          {/* Provides clear, readable phase indicators around the globe */}
+          {showHolographicUI && (
+            <HolographicBreathUI
+              showRings={showPhaseRings}
+              showGlyphs={showPhaseGlyphs}
+              showWaves={showBreathWaves}
+              globeRadius={1.5}
+            />
+          )}
 
           {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
           {DEV_MODE_ENABLED && (

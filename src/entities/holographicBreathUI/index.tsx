@@ -104,14 +104,7 @@ export function HolographicBreathUI({
   return (
     <group name="HolographicBreathUI" scale={scale}>
       {/* Concentric phase rings at equator */}
-      {showRings && (
-        <PhaseRings
-          scale={1.0}
-          enableRotation={true}
-          debugPhase={debugPhase}
-          debugProgress={debugProgress}
-        />
-      )}
+      {showRings && <PhaseRings scale={1.0} enableRotation={true} debugPhase={debugPhase} />}
 
       {/* Floating 4·7·8 phase numbers */}
       {showGlyphs && (
