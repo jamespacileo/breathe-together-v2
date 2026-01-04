@@ -36,6 +36,50 @@ export interface BreathingLevelProps {
    * @default true
    */
   showEnvironment?: boolean;
+
+  /**
+   * Show holographic 3D UI elements around the globe.
+   * When enabled, displays breathing progress ring, phase labels, timer,
+   * 4·7·8 markers, and presence constellation in 3D space.
+   * @group "Holographic UI"
+   * @default false
+   */
+  showHolographicUI?: boolean;
+
+  /**
+   * Show holographic progress ring around globe equator.
+   * @group "Holographic UI"
+   * @default true
+   */
+  showHoloProgressRing?: boolean;
+
+  /**
+   * Show holographic phase labels (INHALE/HOLD/EXHALE) above globe.
+   * @group "Holographic UI"
+   * @default true
+   */
+  showHoloPhaseLabels?: boolean;
+
+  /**
+   * Show holographic timer ribbon below globe.
+   * @group "Holographic UI"
+   * @default true
+   */
+  showHoloTimer?: boolean;
+
+  /**
+   * Show holographic 4·7·8 phase markers.
+   * @group "Holographic UI"
+   * @default true
+   */
+  showHoloPhaseMarkers?: boolean;
+
+  /**
+   * Show presence constellation (user count as stars).
+   * @group "Holographic UI"
+   * @default true
+   */
+  showHoloPresence?: boolean;
 }
 
 // ============================================================================

@@ -99,7 +99,7 @@ export function App() {
           <KootaSystems breathSystemEnabled={true}>
             <AudioProvider>
               <BreathEntity />
-              <BreathingLevel />
+              <BreathingLevel showHolographicUI={true} />
             </AudioProvider>
           </KootaSystems>
         </Canvas>

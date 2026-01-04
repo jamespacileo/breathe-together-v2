@@ -13,6 +13,7 @@ import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
+import { HolographicBreathingUI } from '../entities/holographicUI';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -37,6 +38,13 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
+  // Holographic UI toggles
+  showHolographicUI = false,
+  showHoloProgressRing = true,
+  showHoloPhaseLabels = true,
+  showHoloTimer = true,
+  showHoloPhaseMarkers = true,
+  showHoloPresence = true,
 }: Partial<BreathingLevelProps> = {}) {
   // Initialize inspirational text system (sets up ambient pool + welcome sequence)
   useInspirationInit();
@@ -50,7 +58,7 @@ export function BreathingLevel({
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users, countryCounts } = usePresence();
+  const { users, countryCounts, count: presenceCount } = usePresence();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -143,6 +151,20 @@ export function BreathingLevel({
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
           </RefractionPipeline>
+
+          {/* Holographic Breathing UI - 3D UI elements around the globe */}
+          {/* Rendered OUTSIDE RefractionPipeline for crisp text and to avoid distortion */}
+          {showHolographicUI && (
+            <HolographicBreathingUI
+              globeRadius={1.5}
+              presenceCount={presenceCount}
+              showProgressRing={showHoloProgressRing}
+              showPhaseLabels={showHoloPhaseLabels}
+              showTimer={showHoloTimer}
+              showPhaseMarkers={showHoloPhaseMarkers}
+              showPresence={showHoloPresence}
+            />
+          )}
 
           {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
           {DEV_MODE_ENABLED && (
