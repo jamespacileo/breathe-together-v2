@@ -1,52 +1,29 @@
 /**
- * Astronomical calculations for realistic celestial positioning.
+ * Astronomical calculations using astronomy-engine library.
  *
- * Converts Right Ascension (RA) and Declination (Dec) coordinates
- * to 3D positions based on current UTC time and observer location.
+ * Provides accurate celestial positioning for sun, moon, and stars
+ * using high-precision algorithms from the astronomy-engine library.
  *
  * References:
+ * - astronomy-engine: https://github.com/cosinekitty/astronomy
  * - Meeus, Jean. "Astronomical Algorithms" (1991)
- * - USNO Astronomical Almanac
  */
 
-// Earth's axial tilt in radians (obliquity of the ecliptic)
-const OBLIQUITY = 23.4393 * (Math.PI / 180);
+import * as Astronomy from 'astronomy-engine';
 
-// Julian date constants
-const J2000 = 2451545.0; // Julian date for J2000.0 epoch (2000-01-01 12:00 TT)
-const UNIX_J2000 = 946728000000; // Unix timestamp for J2000.0 in ms
-
-/**
- * Convert a Date to Julian Date
- */
-export function dateToJulian(date: Date): number {
-  return date.getTime() / 86400000 + 2440587.5;
-}
-
-/**
- * Calculate Julian centuries since J2000.0
- */
-export function julianCenturies(jd: number): number {
-  return (jd - J2000) / 36525;
-}
+// Default observer at center of Earth (for geocentric calculations)
+const GEOCENTRIC_OBSERVER = new Astronomy.Observer(0, 0, 0);
 
 /**
  * Calculate Greenwich Mean Sidereal Time (GMST) in radians
  * This determines the rotation of the celestial sphere at a given time
  */
 export function calculateGMST(date: Date): number {
-  const jd = dateToJulian(date);
-  const T = julianCenturies(jd);
-
-  // GMST at 0h UT in degrees (IAU 2006 precession model simplified)
-  let gmst =
-    280.46061837 + 360.98564736629 * (jd - J2000) + 0.000387933 * T * T - (T * T * T) / 38710000;
-
-  // Normalize to 0-360 degrees
-  gmst = ((gmst % 360) + 360) % 360;
-
-  // Convert to radians
-  return gmst * (Math.PI / 180);
+  // Use astronomy-engine for precise sidereal time
+  const time = Astronomy.MakeTime(date);
+  // SiderealTime returns hours, convert to radians
+  const gmstHours = Astronomy.SiderealTime(time);
+  return gmstHours * (Math.PI / 12);
 }
 
 /**
@@ -87,98 +64,60 @@ export function celestialToCartesian(
 
 /**
  * Calculate the Sun's position in celestial coordinates
- * Uses simplified astronomical almanac formulas
+ * Uses astronomy-engine for high-precision calculations
  *
  * @param date - Current date/time
- * @returns { ra, dec, distance } - RA in hours, Dec in degrees
+ * @returns { ra, dec, eclipticLong } - RA in hours, Dec in degrees
  */
 export function calculateSunPosition(date: Date): {
   ra: number;
   dec: number;
   eclipticLong: number;
 } {
-  // Days since J2000.0
-  const d = (date.getTime() - UNIX_J2000) / 86400000;
+  const time = Astronomy.MakeTime(date);
 
-  // Mean longitude of the Sun (degrees)
-  let L = 280.46 + 0.9856474 * d;
-  L = ((L % 360) + 360) % 360;
+  // Get Sun's equatorial coordinates (geocentric)
+  const equ = Astronomy.Equator(Astronomy.Body.Sun, time, GEOCENTRIC_OBSERVER, true, true);
 
-  // Mean anomaly (degrees)
-  let g = 357.528 + 0.9856003 * d;
-  g = ((g % 360) + 360) % 360;
-  const gRad = g * (Math.PI / 180);
+  // Get Sun's ecliptic coordinates for ecliptic longitude
+  const ecl = Astronomy.SunPosition(time);
 
-  // Ecliptic longitude (degrees)
-  let eclipticLong = L + 1.915 * Math.sin(gRad) + 0.02 * Math.sin(2 * gRad);
-  eclipticLong = ((eclipticLong % 360) + 360) % 360;
-  const eclipticLongRad = eclipticLong * (Math.PI / 180);
-
-  // Convert ecliptic to equatorial coordinates
-  // RA in radians
-  const raRad = Math.atan2(
-    Math.cos(OBLIQUITY) * Math.sin(eclipticLongRad),
-    Math.cos(eclipticLongRad),
-  );
-
-  // Dec in radians
-  const decRad = Math.asin(Math.sin(OBLIQUITY) * Math.sin(eclipticLongRad));
-
-  // Convert RA to hours (0-24)
-  const ra = ((raRad * 12) / Math.PI + 24) % 24;
-
-  // Convert Dec to degrees
-  const dec = decRad * (180 / Math.PI);
-
-  return { ra, dec, eclipticLong };
+  return {
+    ra: equ.ra,
+    dec: equ.dec,
+    eclipticLong: ecl.elon,
+  };
 }
 
 /**
- * Calculate moon position (simplified)
- * Returns approximate celestial coordinates
+ * Calculate moon position using astronomy-engine
+ * Returns celestial coordinates
  */
 export function calculateMoonPosition(date: Date): { ra: number; dec: number } {
-  // Days since J2000.0
-  const d = (date.getTime() - UNIX_J2000) / 86400000;
+  const time = Astronomy.MakeTime(date);
 
-  // Mean longitude (degrees)
-  let L = 218.32 + 13.1763966 * d;
-  L = ((L % 360) + 360) % 360;
+  // Get Moon's equatorial coordinates (geocentric)
+  const equ = Astronomy.Equator(Astronomy.Body.Moon, time, GEOCENTRIC_OBSERVER, true, true);
 
-  // Mean anomaly (degrees)
-  let M = 134.963 + 13.064993 * d;
-  M = ((M % 360) + 360) % 360;
-  const MRad = M * (Math.PI / 180);
+  return {
+    ra: equ.ra,
+    dec: equ.dec,
+  };
+}
 
-  // Mean distance (degrees)
-  let F = 93.272 + 13.2293506 * d;
-  F = ((F % 360) + 360) % 360;
-
-  // Ecliptic longitude
-  let eclipticLong = L + 6.29 * Math.sin(MRad);
-  eclipticLong = ((eclipticLong % 360) + 360) % 360;
-  const eclipticLongRad = eclipticLong * (Math.PI / 180);
-
-  // Ecliptic latitude (simplified)
-  const eclipticLat = 5.13 * Math.sin(F * (Math.PI / 180));
-  const eclipticLatRad = eclipticLat * (Math.PI / 180);
-
-  // Convert to equatorial coordinates
-  const raRad = Math.atan2(
-    Math.cos(OBLIQUITY) * Math.sin(eclipticLongRad) -
-      Math.tan(eclipticLatRad) * Math.sin(OBLIQUITY),
-    Math.cos(eclipticLongRad),
-  );
-
-  const decRad = Math.asin(
-    Math.sin(eclipticLatRad) * Math.cos(OBLIQUITY) +
-      Math.cos(eclipticLatRad) * Math.sin(OBLIQUITY) * Math.sin(eclipticLongRad),
-  );
-
-  const ra = ((raRad * 12) / Math.PI + 24) % 24;
-  const dec = decRad * (180 / Math.PI);
-
-  return { ra, dec };
+/**
+ * Get the constellation containing a given celestial position
+ *
+ * @param ra - Right Ascension in hours (0-24)
+ * @param dec - Declination in degrees (-90 to +90)
+ * @returns Constellation info with symbol and name
+ */
+export function getConstellation(ra: number, dec: number): { symbol: string; name: string } {
+  const result = Astronomy.Constellation(ra, dec);
+  return {
+    symbol: result.symbol,
+    name: result.name,
+  };
 }
 
 /**
@@ -227,35 +166,62 @@ export function isAboveHorizon(y: number): boolean {
 
 /**
  * Calculate altitude and azimuth for a celestial position
- * Used for determining visibility and brightness
+ * Uses astronomy-engine for observer-based horizontal coordinates
+ *
+ * @param ra - Right Ascension in hours
+ * @param dec - Declination in degrees
+ * @param date - Date/time of observation
+ * @param lat - Observer latitude in degrees
+ * @param lon - Observer longitude in degrees
  */
 export function calculateAltAz(
   ra: number,
   dec: number,
-  gmst: number,
+  date: Date = new Date(),
   lat: number = 40, // Default to mid-northern latitude
+  lon: number = 0, // Default to prime meridian
 ): { altitude: number; azimuth: number } {
-  const raRad = ra * (Math.PI / 12);
-  const decRad = dec * (Math.PI / 180);
-  const latRad = lat * (Math.PI / 180);
+  const time = Astronomy.MakeTime(date);
+  const observer = new Astronomy.Observer(lat, lon, 0);
 
-  // Hour angle
-  const ha = gmst - raRad;
+  // Use Horizon function directly with RA/Dec
+  const hor = Astronomy.Horizon(time, observer, ra, dec, 'normal');
 
-  // Altitude
-  const sinAlt =
-    Math.sin(decRad) * Math.sin(latRad) + Math.cos(decRad) * Math.cos(latRad) * Math.cos(ha);
-  const altitude = Math.asin(sinAlt) * (180 / Math.PI);
-
-  // Azimuth
-  const cosAz =
-    (Math.sin(decRad) - Math.sin(latRad) * sinAlt) /
-    (Math.cos(latRad) * Math.cos(Math.asin(sinAlt)));
-  let azimuth = Math.acos(Math.max(-1, Math.min(1, cosAz))) * (180 / Math.PI);
-
-  if (Math.sin(ha) > 0) {
-    azimuth = 360 - azimuth;
-  }
-
-  return { altitude, azimuth };
+  return {
+    altitude: hor.altitude,
+    azimuth: hor.azimuth,
+  };
 }
+
+/**
+ * Get planet position in celestial coordinates
+ *
+ * @param body - Planet name (Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune)
+ * @param date - Date/time for calculation
+ */
+export function getPlanetPosition(
+  body: 'Mercury' | 'Venus' | 'Mars' | 'Jupiter' | 'Saturn' | 'Uranus' | 'Neptune',
+  date: Date = new Date(),
+): { ra: number; dec: number } {
+  const time = Astronomy.MakeTime(date);
+  const bodyEnum = Astronomy.Body[body];
+  const equ = Astronomy.Equator(bodyEnum, time, GEOCENTRIC_OBSERVER, true, true);
+
+  return {
+    ra: equ.ra,
+    dec: equ.dec,
+  };
+}
+
+/**
+ * Calculate moon phase (0-1 where 0=new, 0.5=full)
+ */
+export function getMoonPhase(date: Date = new Date()): number {
+  const time = Astronomy.MakeTime(date);
+  const phase = Astronomy.MoonPhase(time);
+  return phase / 360; // Convert 0-360 to 0-1
+}
+
+// Re-export useful types from astronomy-engine
+export type { AstroTime } from 'astronomy-engine';
+export { Body as CelestialBody } from 'astronomy-engine';

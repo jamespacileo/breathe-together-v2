@@ -267,58 +267,91 @@ export const ConstellationStars = memo(function ConstellationStars({
   if (!enabled) return null;
 
   return (
-    <group ref={groupRef}>
-      {/* Star points - frustumCulled={false} ensures visibility at all angles */}
-      <points ref={starsRef} geometry={geometry} material={material} frustumCulled={false} />
-
-      {/* Constellation lines */}
-      {showLines &&
-        lineSegments.map((seg, idx) => (
-          <Line
-            key={`${seg.constellation}-${idx}`}
-            points={[seg.start, seg.end]}
-            color={lineColor}
-            lineWidth={lineWidth}
-            transparent
-            opacity={lineOpacity}
-            // Soft dashed pattern for ethereal feel
-            dashed
-            dashSize={2}
-            gapSize={1}
-          />
-        ))}
-
-      {/* Debug gizmos - celestial sphere wireframe and axes */}
+    <>
+      {/* Debug gizmos - OUTSIDE rotating group so they stay fixed */}
       {showGizmo && (
-        <>
+        <group name="Constellation Gizmos">
           {/* Wireframe sphere showing celestial sphere bounds */}
           <mesh>
-            <sphereGeometry args={[radius, 24, 24]} />
-            <meshBasicMaterial color="#00ff88" wireframe transparent opacity={0.3} />
+            <sphereGeometry args={[radius, 32, 32]} />
+            <meshBasicMaterial
+              color="#00ff88"
+              wireframe
+              transparent
+              opacity={0.4}
+              depthWrite={false}
+            />
           </mesh>
 
           {/* Equatorial plane ring */}
           <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[radius - 0.1, radius + 0.1, 64]} />
-            <meshBasicMaterial color="#00ff88" transparent opacity={0.5} side={THREE.DoubleSide} />
+            <ringGeometry args={[radius * 0.98, radius * 1.02, 64]} />
+            <meshBasicMaterial
+              color="#ffff00"
+              transparent
+              opacity={0.6}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
           </mesh>
 
-          {/* Celestial poles axis (Y-axis = north celestial pole) */}
-          <axesHelper args={[radius * 1.2]} />
+          {/* Celestial axes - larger and more visible */}
+          <axesHelper args={[radius * 1.3]} />
 
-          {/* North celestial pole marker */}
+          {/* North celestial pole marker - larger */}
           <mesh position={[0, radius, 0]}>
-            <sphereGeometry args={[0.5, 8, 8]} />
-            <meshBasicMaterial color="#00ffff" />
+            <sphereGeometry args={[1.5, 16, 16]} />
+            <meshBasicMaterial color="#00ffff" depthWrite={false} />
+          </mesh>
+          <mesh position={[0, radius * 1.1, 0]}>
+            <coneGeometry args={[0.8, 2, 8]} />
+            <meshBasicMaterial color="#00ffff" depthWrite={false} />
           </mesh>
 
-          {/* South celestial pole marker */}
+          {/* South celestial pole marker - larger */}
           <mesh position={[0, -radius, 0]}>
-            <sphereGeometry args={[0.5, 8, 8]} />
-            <meshBasicMaterial color="#ff00ff" />
+            <sphereGeometry args={[1.5, 16, 16]} />
+            <meshBasicMaterial color="#ff00ff" depthWrite={false} />
           </mesh>
-        </>
+          <mesh position={[0, -radius * 1.1, 0]} rotation={[Math.PI, 0, 0]}>
+            <coneGeometry args={[0.8, 2, 8]} />
+            <meshBasicMaterial color="#ff00ff" depthWrite={false} />
+          </mesh>
+
+          {/* Cardinal direction markers on equatorial plane */}
+          <mesh position={[radius, 0, 0]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshBasicMaterial color="#ff0000" depthWrite={false} />
+          </mesh>
+          <mesh position={[0, 0, radius]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshBasicMaterial color="#0000ff" depthWrite={false} />
+          </mesh>
+        </group>
       )}
-    </group>
+
+      {/* Rotating celestial sphere with stars */}
+      <group ref={groupRef}>
+        {/* Star points - frustumCulled={false} ensures visibility at all angles */}
+        <points ref={starsRef} geometry={geometry} material={material} frustumCulled={false} />
+
+        {/* Constellation lines */}
+        {showLines &&
+          lineSegments.map((seg, idx) => (
+            <Line
+              key={`${seg.constellation}-${idx}`}
+              points={[seg.start, seg.end]}
+              color={lineColor}
+              lineWidth={lineWidth}
+              transparent
+              opacity={lineOpacity}
+              // Soft dashed pattern for ethereal feel
+              dashed
+              dashSize={2}
+              gapSize={1}
+            />
+          ))}
+      </group>
+    </>
   );
 });
