@@ -1,94 +1,155 @@
 /**
- * FrostedGlassMaterial - Enhanced shader material for icosahedral shards
+ * KurzgesagtCellMaterial - Vibrant cell-like shader for space-themed shards
  *
- * Features subtle visual effects that users won't consciously notice but will feel:
- * - Soft fresnel rim glow (edge lighting like the globe)
- * - Breathing luminosity pulse (subtle brightness variation)
- * - Per-instance mood colors with gentle saturation boost
- * - Subtle inner glow on exhale phase
+ * Inspired by Kurzgesagt's "Immune" book illustrations:
+ * - Solid vibrant colors with flat shading
+ * - Soft radial gradient from bright center to slightly darker edges
+ * - Crisp highlight rim for depth (Kurzgesagt's signature cell edge)
+ * - Subtle faceted shading for geometric feel
  *
- * For the refraction effect to work:
- * 1. Mesh must have userData.useRefraction = true
- * 2. InstancedMesh must have instanceColor attribute set
- * 3. RefractionPipeline must be present in the scene tree
+ * CRITICAL: Uses Three.js colorspace_fragment for proper sRGB output!
+ * Without this, colors appear washed out/desaturated due to linear->sRGB conversion.
+ *
+ * References:
+ * - https://discourse.threejs.org/t/updates-to-color-management-in-three-js-r152/50791
+ * - https://threejs.org/manual/en/color-management.html
  *
  * Performance: Uses InstancedMesh for single draw call (300+ particles = 1 draw call)
  */
 
 import * as THREE from 'three';
 
-// Vertex shader - passes normals and instance colors to fragment
-// Uses THREE.js built-in instanceColor attribute for per-instance colors
+// Vertex shader - passes position, normals and instance colors to fragment
+// Supports both regular meshes and InstancedMesh
 const shardVertexShader = `
 varying vec3 vNormal;
 varying vec3 vViewPosition;
 varying vec3 vColor;
+varying vec3 vWorldPosition;
+varying vec3 vLocalPosition;
 
 void main() {
-  vNormal = normalize(normalMatrix * normal);
-
   // Use instance color from InstancedMesh (set via setColorAt)
+  // NOTE: instanceColor is already in linear-sRGB space (THREE.Color auto-converts)
   #ifdef USE_INSTANCING_COLOR
     vColor = instanceColor;
   #else
-    vColor = vec3(0.85, 0.75, 0.65); // Fallback warm neutral
+    vColor = vec3(0.16, 0.71, 0.96); // Fallback: Kurzgesagt presence blue (linear approx)
   #endif
 
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  // Store local position for faceted shading
+  vLocalPosition = position;
+
+  // Handle instancing for transforms
+  #ifdef USE_INSTANCING
+    vec3 transformedNormal = mat3(normalMatrix) * mat3(instanceMatrix) * normal;
+    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+  #else
+    vec3 transformedNormal = normalMatrix * normal;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+  #endif
+
+  vNormal = normalize(transformedNormal);
   vViewPosition = -mvPosition.xyz;
-  gl_Position = projectionMatrix * mvPosition;
+  vWorldPosition = worldPos.xyz;
+
+  #ifdef USE_INSTANCING
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  #else
+    gl_Position = projectionMatrix * mvPosition;
+  #endif
 }
 `;
 
-// Fragment shader - fresnel rim + breathing luminosity
+// Fragment shader - Kurzgesagt cell look with proper sRGB output
+// Key: flat vibrant base + radial gradient + crisp rim highlight
 const shardFragmentShader = `
+#include <common>
+#include <color_pars_fragment>
+
 uniform float breathPhase;
 uniform float time;
 
 varying vec3 vNormal;
 varying vec3 vViewPosition;
 varying vec3 vColor;
+varying vec3 vWorldPosition;
+varying vec3 vLocalPosition;
 
 void main() {
   vec3 viewDir = normalize(vViewPosition);
+  vec3 normal = normalize(vNormal);
 
-  // Fresnel rim effect - soft edge glow
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+  // === FRESNEL FOR EDGE DETECTION ===
+  float NdotV = max(dot(normal, viewDir), 0.0);
+  float fresnel = pow(1.0 - NdotV, 3.0);
 
-  // Breathing luminosity pulse - subtle brightness shift
-  // Peak brightness during hold phases (phase 0.25-0.5 and 0.75-1.0)
-  float breathLuminosity = 1.0 + breathPhase * 0.12;
+  // === KURZGESAGT FLAT SHADING BASE ===
+  // Start with the pure vibrant color (already in linear space from THREE.Color)
+  vec3 baseColor = vColor;
 
-  // Subtle saturation boost based on viewing angle
-  // Faces pointing toward camera are slightly more saturated
-  float facingBoost = max(dot(vNormal, viewDir), 0.0) * 0.08;
+  // === FACETED SHADING ===
+  // Subtle variation based on face normal for geometric feel
+  // This creates the low-poly look without complex lighting
+  float facetShade = 0.92 + normal.y * 0.08; // Faces pointing up are slightly brighter
+  baseColor *= facetShade;
 
-  // Apply mood color with luminosity and saturation
-  vec3 baseColor = vColor * breathLuminosity;
+  // === RADIAL GRADIENT (Kurzgesagt cell style) ===
+  // Cells have brighter centers, slightly darker toward edges
+  // This creates depth without complex lighting
+  float centerBright = 1.0 - fresnel * 0.12;
+  baseColor *= centerBright;
 
-  // Mix in a warm white rim glow (like the globe)
-  vec3 rimColor = vec3(0.98, 0.96, 0.94); // Soft warm white
-  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.25);
+  // === BREATHING GLOW ===
+  // Subtle luminosity pulse synced to breath (0.95 to 1.05 range - very subtle)
+  float breathGlow = 0.95 + breathPhase * 0.1;
+  baseColor *= breathGlow;
 
-  // Subtle inner luminance - very gentle glow from within
-  float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
-  colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
+  // === CRISP RIM HIGHLIGHT (Kurzgesagt signature) ===
+  // Cells have a bright edge highlight that makes them pop
+  // Use a lighter, more saturated version of the base color
+  vec3 rimColor = vColor * 1.4 + vec3(0.2); // Brighter + slight white addition
+  rimColor = clamp(rimColor, 0.0, 1.5); // Allow slight HDR for bloom
 
-  // Slight desaturation toward edges for atmospheric feel
-  vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
-  vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
+  // Sharp rim blend - Kurzgesagt uses distinct edges, not soft gradients
+  float rimMask = smoothstep(0.3, 0.7, fresnel);
+  vec3 finalColor = mix(baseColor, rimColor, rimMask * 0.5);
 
-  gl_FragColor = vec4(finalColor, 1.0);
+  // === SUBTLE SPECULAR HIGHLIGHT ===
+  // A tiny bright spot for that polished cell look
+  vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3)); // Sun direction
+  vec3 halfVec = normalize(lightDir + viewDir);
+  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
+  finalColor += vColor * spec * 0.15;
+
+  // === OPACITY ===
+  // Fully opaque for solid cell look (Kurzgesagt cells are solid, not transparent)
+  float alpha = 0.95;
+
+  // Output with proper color space conversion
+  // This is CRITICAL - without it, colors appear washed out!
+  gl_FragColor = vec4(finalColor, alpha);
+
+  // Convert from linear working space to sRGB output space
+  #include <colorspace_fragment>
 }
 `;
 
 /**
- * Creates an enhanced frosted glass shader material for icosahedral shards
+ * Creates a vibrant Kurzgesagt-style cell material for shards
  *
- * Returns a ShaderMaterial with:
- * - Fresnel rim glow (soft edge lighting)
- * - Breathing luminosity (synced brightness pulse)
- * - Per-instance color support (via USE_INSTANCING_COLOR define)
+ * Key features:
+ * - PROPER sRGB color output (fixes washed-out colors)
+ * - Flat shading with radial gradient (brighter center)
+ * - Crisp rim highlights (Kurzgesagt signature edge glow)
+ * - Subtle faceted shading for geometric look
+ * - Breathing-synchronized brightness
+ *
+ * The material uses Three.js colorspace_fragment to properly convert
+ * from linear working space to sRGB display space. Without this,
+ * colors appear desaturated/washed out.
  *
  * @param instanced - Whether to enable instancing color support (default: true)
  */
@@ -101,6 +162,8 @@ export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMateri
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,
     defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
-    side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
+    transparent: true,
+    depthWrite: true,
+    side: THREE.FrontSide,
   });
 }

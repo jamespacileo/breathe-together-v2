@@ -81,9 +81,13 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates gem-like frosted crystal look
-// Improved Dec 2024: Bright luminous gem pastels with faceted shading (Monument Valley style)
+// Refraction fragment shader - creates vibrant Kurzgesagt-style glass crystals
+// Updated Jan 2026: Vibrant colors with proper sRGB output
+// CRITICAL: Uses colorspace_fragment for proper linear→sRGB conversion
 const refractionFragmentShader = `
+#include <common>
+#include <color_pars_fragment>
+
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
 uniform vec2 resolution;
@@ -94,8 +98,10 @@ varying vec3 vColor;
 varying vec3 worldNormal;
 varying vec3 eyeVector;
 
-// Key light from upper-right-front
-const vec3 keyLightDir = normalize(vec3(0.5, 0.7, 0.4));
+// Key light from sun direction (upper-right-back)
+const vec3 keyLightDir = normalize(vec3(0.6, 0.4, -0.8));
+// Cool fill light from opposite side
+const vec3 fillLightDir = normalize(vec3(-0.4, 0.3, 0.5));
 
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution;
@@ -105,53 +111,57 @@ void main() {
   vec3 normal = normalize(worldNormal * (1.0 - backfaceIntensity) - backfaceNormal * backfaceIntensity);
   vec3 refracted = refract(eyeVector, normal, 1.0 / ior);
 
-  // Refraction for gem-like depth
+  // Subtle refraction for glass depth
   vec2 refractUv = uv + refracted.xy * 0.04;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === BRIGHT LUMINOUS GEM COLOR ===
-  // Keep high saturation with brightness boost
-  vec3 warmWhite = vec3(1.0, 0.98, 0.95);
-  // 85% color intensity - vibrant
-  vec3 gemColor = mix(warmWhite, vColor, 0.85);
-  // Brightness boost for luminous feel
-  gemColor *= 1.15;
+  // === KURZGESAGT VIBRANT GLASS COLOR ===
+  // Keep colors vibrant - 95% color, only 5% white tint for slight glow
+  vec3 glassColor = vColor * 0.95 + vec3(0.05);
 
-  // === FACETED SHADING (gem look) ===
-  float diffuse = max(dot(normal, keyLightDir), 0.0);
-  // Wrap lighting - higher base for brighter shadows
-  float wrapped = diffuse * 0.5 + 0.5;
-  // Shading range: lit faces very bright, shadow faces still bright (0.65 - 1.0)
-  float shading = wrapped * 0.35 + 0.65;
+  // === SOFT DIFFUSE SHADING ===
+  float keyDiffuse = max(dot(normal, keyLightDir), 0.0);
+  float fillDiffuse = max(dot(normal, fillLightDir), 0.0) * 0.3;
+  float totalDiffuse = keyDiffuse + fillDiffuse;
 
-  // === GEM BODY WITH INNER GLOW ===
-  vec3 shadedGem = gemColor * shading;
+  // Softer wrap lighting for ethereal feel
+  float wrapped = totalDiffuse * 0.4 + 0.6;
+  float shading = wrapped * 0.3 + 0.7; // Lighter shading to preserve saturation
 
-  // Inner luminosity - gems glow from within (stronger)
-  float innerGlow = (1.0 - diffuse) * 0.2;
-  shadedGem += gemColor * innerGlow;
+  // === GLASS BODY WITH SUBSURFACE GLOW ===
+  vec3 shadedGlass = glassColor * shading;
 
-  // Tinted refraction for depth
-  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), gemColor, 0.35);
+  // Strong subsurface scattering - color bleeds through
+  float subsurface = (1.0 - keyDiffuse) * 0.25;
+  shadedGlass += vColor * subsurface;
 
-  // Mix: gem body (65%) with refraction (35%) for crystalline depth
-  vec3 bodyColor = mix(tintedRefraction, shadedGem, 0.65);
+  // Light refraction tint - mostly glass color with subtle environment
+  vec3 tintedRefraction = tex.rgb * 0.3 + shadedGlass * 0.7;
 
-  // === FRESNEL RIM (crystalline edge glow) ===
-  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
-  vec3 rimColor = vec3(1.0, 0.99, 0.97);
-  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.3);
+  // Mix: 75% glass color, 25% refraction (vibrant over glassy)
+  vec3 bodyColor = mix(tintedRefraction, shadedGlass, 0.75);
 
-  // === SPECULAR HIGHLIGHT (gem sparkle) ===
+  // === FRESNEL RIM (Kurzgesagt signature edge glow) ===
+  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
+  // Bright color-tinted rim for that cell membrane look
+  vec3 rimColor = vColor * 1.3 + vec3(0.15); // Brighter, saturated rim
+  rimColor = clamp(rimColor, 0.0, 1.5); // Allow slight HDR
+  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.45);
+
+  // === SPECULAR HIGHLIGHT (glass sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
-  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.3;
+  float spec = pow(max(dot(normal, halfVec), 0.0), 48.0);
+  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.35;
 
-  // === TOP AMBIENT ===
-  float topLight = max(normal.y, 0.0) * 0.12;
-  colorWithRim += vec3(1.0, 0.99, 0.97) * topLight;
+  // === SUBTLE TOP AMBIENT ===
+  float topLight = max(normal.y, 0.0) * 0.06;
+  colorWithRim += vColor * topLight * 0.5; // Tinted ambient
 
   gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
+
+  // CRITICAL: Convert from linear working space to sRGB output space
+  // Without this, colors appear washed out and desaturated!
+  #include <colorspace_fragment>
 }
 `;
 
@@ -167,27 +177,23 @@ void main() {
 const bgFragmentShader = `
 varying vec2 vUv;
 void main() {
-  // Soft pastel gradient matching Monument Valley aesthetic
-  vec3 warmCream = vec3(0.98, 0.96, 0.92);    // Top - warm cream
-  vec3 softBlush = vec3(0.96, 0.91, 0.87);    // Bottom - soft blush/peach
+  // Deep space background - transparent to show GalaxyBackground behind
+  // Using very dark blue-purple to match galaxy theme
+  vec3 deepSpace = vec3(0.039, 0.039, 0.078);    // #0a0a14 - deep background
+  vec3 midSpace = vec3(0.051, 0.063, 0.125);     // #0d1020 - mid background
 
-  // Simple vertical gradient (bottom to top)
+  // Subtle vertical gradient (darker at bottom, slightly lighter at top)
   float t = vUv.y;
-  vec3 color = mix(softBlush, warmCream, t);
+  vec3 color = mix(deepSpace, midSpace, t * 0.5);
 
-  // Soft radial vignette (subtle warm edges)
+  // Subtle radial vignette (darker at edges)
   vec2 center = vUv - 0.5;
   float dist = length(center);
-  float vignette = smoothstep(0.8, 0.2, dist);
-  vec3 edgeTint = vec3(0.92, 0.86, 0.82); // Warm shadow at edges
-  color = mix(edgeTint, color, vignette * 0.85 + 0.15);
+  float vignette = smoothstep(1.0, 0.0, dist);
+  color = mix(deepSpace * 0.8, color, vignette * 0.7 + 0.3);
 
-  // Very subtle center brightening
-  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.03;
-  color += vec3(1.0, 0.99, 0.97) * centerGlow;
-
-  // Minimal paper texture noise
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
+  // Very subtle noise for depth
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.01;
 
   gl_FragColor = vec4(color + noise, 1.0);
 }
@@ -203,12 +209,14 @@ void main() {
 `;
 
 // Depth of Field fragment shader - bokeh-style blur based on depth
+// Modified: Added "far sharp" zone so distant backdrop objects stay crisp
 const dofFragmentShader = `
 uniform sampler2D colorTexture;
 uniform sampler2D depthTexture;
 uniform float focusDistance;    // Focus distance in world units (normalized 0-1)
 uniform float focalRange;       // Range around focus that stays sharp
 uniform float maxBlur;          // Maximum blur radius
+uniform float farSharpStart;    // Distance where far objects start becoming sharp again
 uniform float cameraNear;
 uniform float cameraFar;
 uniform vec2 resolution;
@@ -251,12 +259,18 @@ void main() {
   float normalizedDepth = (linearDepth - cameraNear) / (cameraFar - cameraNear);
 
   // Calculate circle of confusion (blur amount)
-  // Only blur objects FURTHER than focus distance (behind the focal plane)
-  // Objects closer to camera stay sharp
+  // Blur objects between focus distance and far sharp start
+  // Objects closer to camera stay sharp, AND objects beyond farSharpStart stay sharp
   float distanceBeyondFocus = max(0.0, normalizedDepth - focusDistance);
 
-  // Smooth falloff - only applies to objects beyond focus
+  // Far sharp zone: objects beyond farSharpStart become sharp again (for backdrop)
+  float farSharpFactor = smoothstep(farSharpStart, farSharpStart + 0.1, normalizedDepth);
+
+  // Smooth falloff - only applies to objects in the mid-range
   float coc = smoothstep(0.0, focalRange, distanceBeyondFocus) * maxBlur;
+
+  // Reduce blur for far objects (backdrop stays crisp)
+  coc *= (1.0 - farSharpFactor);
 
   // Apply blur based on CoC
   vec3 color;
@@ -317,6 +331,13 @@ interface RefractionPipelineProps {
    * @default 3
    */
   maxBlur?: number;
+  /**
+   * Distance where far objects start becoming sharp again (backdrop).
+   * Objects beyond this distance won't be blurred.
+   * @min 20 @max 200 @step 5
+   * @default 50
+   */
+  farSharpStart?: number;
   /** Children meshes to render with refraction */
   children?: React.ReactNode;
 }
@@ -328,6 +349,7 @@ export function RefractionPipeline({
   focusDistance = 15,
   focalRange = 8,
   maxBlur = 3,
+  farSharpStart = 50,
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
@@ -397,6 +419,7 @@ export function RefractionPipeline({
         focusDistance: { value: focusDistance / perspCamera.far },
         focalRange: { value: focalRange / perspCamera.far },
         maxBlur: { value: maxBlur },
+        farSharpStart: { value: farSharpStart / perspCamera.far },
         cameraNear: { value: perspCamera.near },
         cameraFar: { value: perspCamera.far },
         resolution: { value: new THREE.Vector2(size.width, size.height) },
@@ -417,6 +440,7 @@ export function RefractionPipeline({
     focusDistance,
     focalRange,
     maxBlur,
+    farSharpStart,
   ]);
 
   // Create materials
@@ -454,9 +478,18 @@ export function RefractionPipeline({
     dofMaterial.uniforms.focusDistance.value = focusDistance / perspCamera.far;
     dofMaterial.uniforms.focalRange.value = focalRange / perspCamera.far;
     dofMaterial.uniforms.maxBlur.value = maxBlur;
+    dofMaterial.uniforms.farSharpStart.value = farSharpStart / perspCamera.far;
     dofMaterial.uniforms.cameraNear.value = perspCamera.near;
     dofMaterial.uniforms.cameraFar.value = perspCamera.far;
-  }, [focusDistance, focalRange, maxBlur, perspCamera.near, perspCamera.far, dofMaterial]);
+  }, [
+    focusDistance,
+    focalRange,
+    maxBlur,
+    farSharpStart,
+    perspCamera.near,
+    perspCamera.far,
+    dofMaterial,
+  ]);
 
   // Update resolution on resize
   useEffect(() => {
