@@ -644,3 +644,641 @@ jobs:
 - [ ] Saga pattern for pipelines
 - [ ] Light event sourcing for audits
 - [ ] OpenTelemetry integration
+
+---
+
+## 7. Long-Running Multi-Step Agents (Cloudflare-Native)
+
+This section proposes advanced agents that leverage Cloudflare's native services for multi-step workflows. All proposals are specifically designed for Cloudflare Workers environment (no local filesystem or local process execution).
+
+### 7.1 Cloudflare-Native Building Blocks
+
+#### Cloudflare Sandbox SDK
+**What it provides:**
+- Container-based code execution environment
+- Virtual filesystem with full read/write access
+- Git clone operations (clone repos, checkout branches)
+- Process management (npm install, npm test, etc.)
+- Claude Code integration for AI-assisted code analysis
+
+**Use cases:** Code review, automated testing, dependency analysis, code generation
+
+#### Cloudflare Browser Rendering
+**What it provides:**
+- Headless Chrome on Cloudflare's edge
+- Puppeteer/Playwright API via Workers binding
+- Session persistence with Durable Objects
+- Screenshots, PDFs, web scraping
+
+**Use cases:** Visual regression testing, PR preview screenshots, accessibility audits
+
+#### @cloudflare/playwright-mcp
+**What it provides:**
+- MCP server for browser automation
+- Accessibility snapshot mode (faster, text-based)
+- Screenshot mode for visual interactions
+- Remote MCP server architecture (SSE/HTTP)
+
+#### Cloudflare's Managed MCP Servers
+Available servers:
+- **Workers Bindings MCP** - KV, R2, D1, DO access
+- **Observability MCP** - Logs, analytics, traces
+- **Browser Rendering MCP** - Screenshot tools
+
+---
+
+### 7.2 Proposal A: PR Preview QA Agent (Recommended)
+
+**Purpose:** Automatically validate PR preview deployments with visual regression, accessibility, and performance testing.
+
+**Architecture:**
+
+```mermaid
+flowchart TB
+    subgraph "GitHub Events"
+        GH[deployment_status webhook]
+    end
+
+    subgraph "Cloudflare Workers"
+        DO[Durable Object<br/>PR QA Agent]
+        BROWSER[Browser Rendering API]
+        R2[(R2 Storage<br/>Screenshots)]
+        SQL[(DO SQL<br/>Test Results)]
+    end
+
+    subgraph "Browser Automation"
+        PLAYWRIGHT[@cloudflare/playwright-mcp]
+        A11Y[Accessibility Snapshots]
+        PERF[Performance Metrics]
+        VISUAL[Visual Regression]
+    end
+
+    subgraph "Outputs"
+        PR_COMMENT[PR Comment<br/>with Report]
+        DIFF_IMAGES[Visual Diff<br/>Images]
+    end
+
+    GH -->|POST /webhook| DO
+    DO -->|spawn session| BROWSER
+    BROWSER --> PLAYWRIGHT
+    PLAYWRIGHT --> A11Y
+    PLAYWRIGHT --> PERF
+    PLAYWRIGHT --> VISUAL
+    A11Y -->|store| SQL
+    PERF -->|store| SQL
+    VISUAL -->|baseline + diff| R2
+    DO -->|post comment| PR_COMMENT
+    R2 -->|serve| DIFF_IMAGES
+```
+
+**Workflow:**
+
+1. **Trigger:** `deployment_status` webhook fires when PR preview deploys
+2. **Browser Session:** Agent spawns Browser Rendering session via Durable Object
+3. **Accessibility Audit:**
+   - Navigate to preview URL
+   - Generate accessibility snapshot via @cloudflare/playwright-mcp
+   - Run axe-core checks
+   - Store results in DO SQL
+4. **Visual Regression:**
+   - Capture screenshots of key pages/components
+   - Compare against baseline (main branch) stored in R2
+   - Generate visual diff images
+   - Store new baseline if on main
+5. **Performance Metrics:**
+   - Capture Core Web Vitals (LCP, FID, CLS)
+   - Compare against previous deployment
+   - Flag regressions > 10%
+6. **Report Generation:**
+   - Compile results into markdown table
+   - Include visual diff thumbnails (R2 URLs)
+   - Post as PR comment via GitHub API
+
+**Implementation:**
+
+```typescript
+// agents/src/agents/pr-qa-agent.ts
+import { Agent, type Connection } from "@anthropic/agent-sdk";
+import { DurableObject } from "cloudflare:workers";
+
+interface PRQAState {
+  prNumber: number;
+  previewUrl: string;
+  baselineUrl?: string;
+  testResults: TestResult[];
+  status: 'pending' | 'running' | 'completed' | 'failed';
+}
+
+export class PRQAAgent extends DurableObject<Env> {
+  private browser?: BrowserSession;
+
+  async runQA(previewUrl: string, prNumber: number): Promise<QAReport> {
+    // 1. Initialize browser session
+    this.browser = await this.env.BROWSER.open({
+      // Session persists across requests via DO
+      keep_alive: 600000, // 10 minutes
+    });
+
+    // 2. Run accessibility audit
+    const a11yResults = await this.runAccessibilityAudit(previewUrl);
+
+    // 3. Capture screenshots for visual regression
+    const screenshots = await this.captureScreenshots(previewUrl);
+
+    // 4. Compare with baseline
+    const visualDiffs = await this.compareWithBaseline(screenshots);
+
+    // 5. Capture performance metrics
+    const perfMetrics = await this.capturePerformanceMetrics(previewUrl);
+
+    // 6. Store results
+    await this.storeResults(prNumber, { a11yResults, visualDiffs, perfMetrics });
+
+    // 7. Generate and post report
+    return this.generateReport(prNumber);
+  }
+
+  private async runAccessibilityAudit(url: string): Promise<A11yResult[]> {
+    const page = await this.browser!.newPage();
+    await page.goto(url, { waitUntil: 'networkidle' });
+
+    // Use accessibility snapshot mode (faster than screenshots)
+    const snapshot = await page.accessibility.snapshot();
+
+    // Run axe-core
+    await page.addScriptTag({ url: 'https://cdn.jsdelivr.net/npm/axe-core/axe.min.js' });
+    const violations = await page.evaluate(() =>
+      (window as any).axe.run()
+    );
+
+    return violations.violations;
+  }
+
+  private async captureScreenshots(url: string): Promise<Screenshot[]> {
+    const pages = ['/', '/about', '/breathing'];
+    const screenshots: Screenshot[] = [];
+
+    for (const path of pages) {
+      const page = await this.browser!.newPage();
+      await page.goto(`${url}${path}`, { waitUntil: 'networkidle' });
+
+      const buffer = await page.screenshot({ fullPage: true });
+
+      // Store in R2
+      const key = `screenshots/${Date.now()}/${path.replace('/', 'index')}.png`;
+      await this.env.R2_BUCKET.put(key, buffer);
+
+      screenshots.push({ path, key, url: `${this.env.R2_PUBLIC_URL}/${key}` });
+    }
+
+    return screenshots;
+  }
+}
+```
+
+**Pros:**
+| Advantage | Detail |
+|-----------|--------|
+| True browser testing | Real Chrome, not jsdom simulation |
+| Visual regression | Catches CSS/layout bugs humans miss |
+| Accessibility built-in | WCAG compliance automation |
+| Edge deployment | Fast globally, no cold starts |
+| Persistent sessions | Durable Objects maintain browser state |
+| No infrastructure | Fully serverless |
+
+**Cons:**
+| Disadvantage | Mitigation |
+|--------------|------------|
+| Browser session costs | Limit pages tested, cache aggressively |
+| R2 storage for images | Lifecycle rules to delete old screenshots |
+| Complex setup | Template/starter available |
+| 10-minute max session | Chain multiple invocations |
+
+**Recommendation:** ✅ **Strongly Recommended** - High value, moderate complexity
+
+---
+
+### 7.3 Proposal B: Sandbox Code Review Agent
+
+**Purpose:** Clone PRs, run static analysis, execute tests, and provide AI-assisted code review with actual code execution.
+
+**Architecture:**
+
+```mermaid
+flowchart TB
+    subgraph "GitHub Events"
+        PR[pull_request webhook]
+    end
+
+    subgraph "Cloudflare Workers"
+        DO[Durable Object<br/>Review Agent]
+        SANDBOX[Sandbox SDK<br/>Container]
+        SQL[(DO SQL<br/>Review History)]
+    end
+
+    subgraph "Sandbox Operations"
+        GIT[Git Clone]
+        NPM[npm install]
+        LINT[ESLint/Biome]
+        TEST[npm test]
+        TYPECHECK[tsc --noEmit]
+    end
+
+    subgraph "AI Analysis"
+        CLAUDE[Claude API<br/>Code Review]
+    end
+
+    subgraph "Outputs"
+        PR_REVIEW[PR Review<br/>with Line Comments]
+        CHECK_RUN[GitHub Check Run]
+    end
+
+    PR -->|POST /webhook| DO
+    DO -->|spawn| SANDBOX
+    SANDBOX --> GIT
+    GIT --> NPM
+    NPM --> LINT
+    NPM --> TEST
+    NPM --> TYPECHECK
+    LINT -->|results| DO
+    TEST -->|results| DO
+    TYPECHECK -->|results| DO
+    DO -->|analyze diff + results| CLAUDE
+    CLAUDE -->|review| DO
+    DO -->|post review| PR_REVIEW
+    DO -->|create| CHECK_RUN
+```
+
+**Workflow:**
+
+1. **Trigger:** `pull_request.opened` or `pull_request.synchronize` webhook
+2. **Sandbox Creation:** Spawn container with Sandbox SDK
+3. **Repository Setup:**
+   ```bash
+   git clone --depth=1 --branch=pr-branch $REPO_URL
+   cd repo && npm ci
+   ```
+4. **Static Analysis:**
+   - Run ESLint/Biome with JSON output
+   - Run TypeScript type checking
+   - Collect all diagnostics
+5. **Test Execution:**
+   - Run `npm test` with coverage
+   - Parse test results
+   - Identify failing tests
+6. **AI Code Review:**
+   - Send PR diff + diagnostic results to Claude
+   - Generate contextual review comments
+   - Suggest fixes for common issues
+7. **Post Results:**
+   - Create GitHub Check Run with summary
+   - Post line-level review comments
+   - Update PR status
+
+**Implementation:**
+
+```typescript
+// agents/src/agents/code-review-agent.ts
+import { Sandbox } from "@anthropic/sandbox-sdk";
+
+export class CodeReviewAgent extends DurableObject<Env> {
+  async reviewPR(owner: string, repo: string, prNumber: number): Promise<ReviewResult> {
+    // 1. Create sandbox container
+    const sandbox = await Sandbox.create({
+      template: "node-20", // Pre-configured Node.js environment
+    });
+
+    try {
+      // 2. Clone PR branch
+      const prData = await this.fetchPRData(owner, repo, prNumber);
+      await sandbox.exec(`git clone --depth=1 --branch=${prData.head.ref} https://github.com/${owner}/${repo}.git repo`);
+      await sandbox.exec("cd repo && npm ci");
+
+      // 3. Run static analysis
+      const lintResults = await sandbox.exec("cd repo && npm run lint -- --format=json", {
+        returnOutput: true,
+        ignoreExitCode: true, // Don't fail on lint errors
+      });
+
+      const typeResults = await sandbox.exec("cd repo && npm run typecheck 2>&1", {
+        returnOutput: true,
+        ignoreExitCode: true,
+      });
+
+      // 4. Run tests
+      const testResults = await sandbox.exec("cd repo && npm test -- --json", {
+        returnOutput: true,
+        ignoreExitCode: true,
+        timeout: 300000, // 5 minutes
+      });
+
+      // 5. Get PR diff
+      const diff = await this.fetchPRDiff(owner, repo, prNumber);
+
+      // 6. AI-assisted review
+      const review = await this.generateAIReview({
+        diff,
+        lintResults: JSON.parse(lintResults.stdout),
+        typeResults: typeResults.stdout,
+        testResults: JSON.parse(testResults.stdout),
+      });
+
+      // 7. Post results
+      await this.postReview(owner, repo, prNumber, review);
+
+      return { success: true, review };
+    } finally {
+      // Always cleanup sandbox
+      await sandbox.destroy();
+    }
+  }
+
+  private async generateAIReview(context: ReviewContext): Promise<Review> {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": this.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4096,
+        system: `You are a code reviewer. Analyze the PR diff and diagnostic results.
+                 Provide specific, actionable feedback. Focus on:
+                 1. Bugs and logic errors
+                 2. Security vulnerabilities
+                 3. Performance issues
+                 4. Code style and maintainability
+                 Format: JSON with 'summary' and 'comments' array with {path, line, body}`,
+        messages: [{ role: "user", content: JSON.stringify(context) }],
+      }),
+    });
+
+    return response.json();
+  }
+}
+```
+
+**Pros:**
+| Advantage | Detail |
+|-----------|--------|
+| Real code execution | Actually runs tests, not just analysis |
+| Full filesystem | Git clone, npm install, file manipulation |
+| AI-powered insights | Claude analyzes actual output |
+| Consistent environment | Container ensures reproducibility |
+| No GitHub runner cost | Cloudflare handles compute |
+
+**Cons:**
+| Disadvantage | Mitigation |
+|--------------|------------|
+| Container spin-up time | Pre-warm with `template` option |
+| 10-minute default timeout | Chain invocations for long tests |
+| Storage limits | Clone specific paths, not full repo |
+| Sandbox costs | Limit to PRs from trusted contributors |
+
+**Recommendation:** ✅ **Recommended** - High complexity but unique value
+
+---
+
+### 7.4 Proposal C: Release Orchestration Agent
+
+**Purpose:** Coordinate multi-step release process: changelog generation, version bumping, deployment verification, and rollback.
+
+**Architecture:**
+
+```mermaid
+flowchart TB
+    subgraph "Triggers"
+        MANUAL[Manual Trigger<br/>/release command]
+        MERGE[PR Merge to main]
+    end
+
+    subgraph "Cloudflare Workers"
+        DO[Durable Object<br/>Release Agent]
+        ALARM[DO Alarm<br/>Step Scheduler]
+        SQL[(DO SQL<br/>Release State)]
+    end
+
+    subgraph "Sandbox Operations"
+        CHANGELOG[Generate Changelog]
+        VERSION[Bump Version]
+        BUILD[Build & Test]
+    end
+
+    subgraph "Browser Verification"
+        BROWSER[Browser Rendering]
+        SMOKE[Smoke Tests]
+        PERF[Performance Check]
+    end
+
+    subgraph "Outputs"
+        GITHUB_RELEASE[GitHub Release]
+        CF_DEPLOY[Cloudflare Deploy]
+        SLACK[Slack Notification]
+    end
+
+    MANUAL --> DO
+    MERGE --> DO
+    DO --> ALARM
+    ALARM -->|step 1| CHANGELOG
+    ALARM -->|step 2| VERSION
+    ALARM -->|step 3| BUILD
+    BUILD -->|deploy| CF_DEPLOY
+    ALARM -->|step 4| BROWSER
+    BROWSER --> SMOKE
+    BROWSER --> PERF
+    SMOKE -->|pass| GITHUB_RELEASE
+    SMOKE -->|fail| DO
+    DO -->|rollback| CF_DEPLOY
+    GITHUB_RELEASE --> SLACK
+```
+
+**State Machine:**
+
+```typescript
+type ReleaseState =
+  | { status: 'pending'; triggeredBy: string }
+  | { status: 'generating-changelog'; commits: string[] }
+  | { status: 'bumping-version'; newVersion: string }
+  | { status: 'building'; buildId: string }
+  | { status: 'deploying'; deploymentId: string }
+  | { status: 'verifying'; previewUrl: string }
+  | { status: 'completed'; releaseUrl: string }
+  | { status: 'rolled-back'; reason: string }
+  | { status: 'failed'; error: string };
+```
+
+**Pros:**
+| Advantage | Detail |
+|-----------|--------|
+| Atomic releases | All-or-nothing with rollback |
+| Verification built-in | Browser tests production |
+| Audit trail | Full state history in DO SQL |
+| Self-healing | Auto-rollback on failure |
+
+**Cons:**
+| Disadvantage | Mitigation |
+|--------------|------------|
+| Complex state machine | Use established patterns (XState) |
+| Multiple service deps | Graceful degradation |
+| Long-running process | DO alarms for step scheduling |
+
+**Recommendation:** ⚠️ **Consider** - High value for mature projects
+
+---
+
+### 7.5 Proposal D: Issue Triage & Context Agent
+
+**Purpose:** Automatically analyze new issues, add relevant labels, suggest related issues/PRs, and provide codebase context.
+
+**Architecture:**
+
+```mermaid
+flowchart TB
+    subgraph "GitHub Events"
+        ISSUE[issues.opened webhook]
+    end
+
+    subgraph "Cloudflare Workers"
+        DO[Durable Object<br/>Triage Agent]
+        KV[(KV Store<br/>Label Cache)]
+        VEC[(Vectorize<br/>Issue Embeddings)]
+    end
+
+    subgraph "Sandbox Analysis"
+        SANDBOX[Sandbox SDK]
+        SEARCH[Code Search]
+        CONTEXT[Context Extraction]
+    end
+
+    subgraph "AI Processing"
+        EMBED[Generate Embedding]
+        SIMILAR[Find Similar Issues]
+        CLASSIFY[Classify Issue Type]
+    end
+
+    subgraph "Outputs"
+        LABELS[Add Labels]
+        COMMENT[Context Comment]
+        ASSIGN[Suggest Assignee]
+    end
+
+    ISSUE --> DO
+    DO --> EMBED
+    EMBED --> VEC
+    VEC --> SIMILAR
+    DO --> CLASSIFY
+    CLASSIFY --> LABELS
+    DO --> SANDBOX
+    SANDBOX --> SEARCH
+    SANDBOX --> CONTEXT
+    CONTEXT --> COMMENT
+    SIMILAR --> COMMENT
+    DO --> ASSIGN
+```
+
+**Pros:**
+| Advantage | Detail |
+|-----------|--------|
+| Instant triage | Issues labeled in seconds |
+| Duplicate detection | Vectorize finds similar issues |
+| Context provision | Sandbox searches codebase |
+| Reduces maintainer toil | Auto-assignment suggestions |
+
+**Cons:**
+| Disadvantage | Mitigation |
+|--------------|------------|
+| Vectorize costs | Limit to issue title + first 500 chars |
+| AI misclassification | Add confidence scores, human override |
+| Cold start for search | Cache common searches |
+
+**Recommendation:** ⚠️ **Consider** - Good ROI for high-volume repos
+
+---
+
+### 7.6 Comparison Matrix
+
+| Feature | PR Preview QA | Code Review | Release Orchestration | Issue Triage |
+|---------|---------------|-------------|----------------------|--------------|
+| **Cloudflare Services** |
+| Browser Rendering | ✅ Primary | ❌ | ✅ Verification | ❌ |
+| Sandbox SDK | ❌ | ✅ Primary | ✅ Build/Version | ✅ Code Search |
+| Durable Objects | ✅ Session | ✅ State | ✅ State Machine | ✅ Cache |
+| R2 | ✅ Screenshots | ❌ | ❌ | ❌ |
+| Vectorize | ❌ | ❌ | ❌ | ✅ Embeddings |
+| **Complexity** |
+| Setup Effort | Medium | High | High | Medium |
+| Maintenance | Low | Medium | Medium | Low |
+| **Value** |
+| Bug Prevention | High | High | Medium | Low |
+| Developer Experience | High | High | Medium | High |
+| Automation Level | Full | Full | Full | Partial |
+| **Cost Estimate** |
+| Monthly (small project) | $5-15 | $10-30 | $5-10 | $5-15 |
+| Monthly (large project) | $30-100 | $50-200 | $20-50 | $20-50 |
+
+---
+
+### 7.7 Recommended Implementation Order
+
+**Phase 1: PR Preview QA Agent (Week 1-2)**
+- [ ] Set up Browser Rendering binding
+- [ ] Implement basic screenshot capture
+- [ ] Add accessibility audit (axe-core)
+- [ ] Create PR comment posting
+- [ ] Add visual diff with R2 storage
+
+**Phase 2: Code Review Agent (Week 3-4)**
+- [ ] Set up Sandbox SDK binding
+- [ ] Implement git clone workflow
+- [ ] Add lint/typecheck execution
+- [ ] Integrate Claude for review generation
+- [ ] Create GitHub Check Run integration
+
+**Phase 3: Issue Triage (Week 5)**
+- [ ] Set up Vectorize binding
+- [ ] Create issue embedding pipeline
+- [ ] Implement similarity search
+- [ ] Add auto-labeling logic
+
+**Phase 4: Release Orchestration (Week 6+)**
+- [ ] Design state machine
+- [ ] Implement changelog generation
+- [ ] Add deployment verification
+- [ ] Create rollback mechanism
+
+---
+
+### 7.8 Quick Start: PR Preview QA Agent
+
+Minimal implementation to get started:
+
+```typescript
+// wrangler.toml additions
+[browser]
+binding = "BROWSER"
+
+[[r2_buckets]]
+binding = "SCREENSHOTS"
+bucket_name = "pr-screenshots"
+
+// agents/src/index.ts
+export default {
+  async fetch(request: Request, env: Env) {
+    if (request.method === "POST" && new URL(request.url).pathname === "/webhook/deployment") {
+      const { deployment_status } = await request.json();
+
+      if (deployment_status.state === "success") {
+        const stub = env.PR_QA.get(env.PR_QA.idFromName(`pr-${deployment_status.deployment.payload.pr_number}`));
+        await stub.runQA(deployment_status.target_url, deployment_status.deployment.payload.pr_number);
+      }
+    }
+    return new Response("OK");
+  }
+};
+
+export { PRQAAgent } from "./agents/pr-qa-agent";
+```
+
+This provides a foundation for the most impactful agent while using Cloudflare-native services throughout.
