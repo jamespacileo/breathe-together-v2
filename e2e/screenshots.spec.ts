@@ -27,7 +27,7 @@ test.describe('Preview Screenshots', () => {
     );
 
     // Let WebGL stabilize (shaders, particles, animations)
-    await page.waitForTimeout(8000);
+    await page.waitForTimeout(5000);
 
     await page.screenshot({ path: join(SCREENSHOTS_DIR, `${viewport}.png`) });
     console.log(`[${viewport}] ✓ captured`);
