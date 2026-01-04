@@ -2,13 +2,17 @@
  * KurzgesagtCellMaterial - Vibrant cell-like shader for space-themed shards
  *
  * Inspired by Kurzgesagt's "Immune" book illustrations:
- * - Solid vibrant colors (not muddy or desaturated)
- * - Subtle fresnel rim glow
- * - Soft inner gradients
- * - Breathing-synchronized brightness
+ * - Solid vibrant colors with flat shading
+ * - Soft radial gradient from bright center to slightly darker edges
+ * - Crisp highlight rim for depth (Kurzgesagt's signature cell edge)
+ * - Subtle faceted shading for geometric feel
  *
- * IMPORTANT: This shader preserves the input colors!
- * Previous version was muddying colors with excessive hue shifting and scanlines.
+ * CRITICAL: Uses Three.js colorspace_fragment for proper sRGB output!
+ * Without this, colors appear washed out/desaturated due to linear->sRGB conversion.
+ *
+ * References:
+ * - https://discourse.threejs.org/t/updates-to-color-management-in-three-js-r152/50791
+ * - https://threejs.org/manual/en/color-management.html
  *
  * Performance: Uses InstancedMesh for single draw call (300+ particles = 1 draw call)
  */
@@ -22,14 +26,19 @@ varying vec3 vNormal;
 varying vec3 vViewPosition;
 varying vec3 vColor;
 varying vec3 vWorldPosition;
+varying vec3 vLocalPosition;
 
 void main() {
   // Use instance color from InstancedMesh (set via setColorAt)
+  // NOTE: instanceColor is already in linear-sRGB space (THREE.Color auto-converts)
   #ifdef USE_INSTANCING_COLOR
     vColor = instanceColor;
   #else
-    vColor = vec3(0.4, 0.7, 0.9); // Fallback cool blue
+    vColor = vec3(0.16, 0.71, 0.96); // Fallback: Kurzgesagt presence blue (linear approx)
   #endif
+
+  // Store local position for faceted shading
+  vLocalPosition = position;
 
   // Handle instancing for transforms
   #ifdef USE_INSTANCING
@@ -54,8 +63,12 @@ void main() {
 }
 `;
 
-// Fragment shader - Kurzgesagt cell look: vibrant colors with subtle rim glow
+// Fragment shader - Kurzgesagt cell look with proper sRGB output
+// Key: flat vibrant base + radial gradient + crisp rim highlight
 const shardFragmentShader = `
+#include <common>
+#include <color_pars_fragment>
+
 uniform float breathPhase;
 uniform float time;
 
@@ -63,58 +76,80 @@ varying vec3 vNormal;
 varying vec3 vViewPosition;
 varying vec3 vColor;
 varying vec3 vWorldPosition;
+varying vec3 vLocalPosition;
 
 void main() {
   vec3 viewDir = normalize(vViewPosition);
+  vec3 normal = normalize(vNormal);
 
-  // === FRESNEL FOR SOFT RIM ===
-  // Subtle edge detection - NOT for color shifting, just for rim highlight
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+  // === FRESNEL FOR EDGE DETECTION ===
+  float NdotV = max(dot(normal, viewDir), 0.0);
+  float fresnel = pow(1.0 - NdotV, 3.0);
 
-  // === PRESERVE THE ORIGINAL VIBRANT COLOR ===
-  // No hue shifting, no scanlines - just the pure Kurzgesagt color
+  // === KURZGESAGT FLAT SHADING BASE ===
+  // Start with the pure vibrant color (already in linear space from THREE.Color)
   vec3 baseColor = vColor;
 
-  // === BREATHING LUMINOSITY ===
-  // Subtle brightness pulse synced to breath (0.9 to 1.1 range)
-  float breathGlow = 0.9 + breathPhase * 0.2;
+  // === FACETED SHADING ===
+  // Subtle variation based on face normal for geometric feel
+  // This creates the low-poly look without complex lighting
+  float facetShade = 0.92 + normal.y * 0.08; // Faces pointing up are slightly brighter
+  baseColor *= facetShade;
+
+  // === RADIAL GRADIENT (Kurzgesagt cell style) ===
+  // Cells have brighter centers, slightly darker toward edges
+  // This creates depth without complex lighting
+  float centerBright = 1.0 - fresnel * 0.12;
+  baseColor *= centerBright;
+
+  // === BREATHING GLOW ===
+  // Subtle luminosity pulse synced to breath (0.95 to 1.05 range - very subtle)
+  float breathGlow = 0.95 + breathPhase * 0.1;
   baseColor *= breathGlow;
 
-  // === SOFT INNER GRADIENT ===
-  // Slightly brighter center, dimmer edges (opposite of fresnel)
-  float innerGlow = 1.0 - fresnel * 0.15;
-  baseColor *= innerGlow;
+  // === CRISP RIM HIGHLIGHT (Kurzgesagt signature) ===
+  // Cells have a bright edge highlight that makes them pop
+  // Use a lighter, more saturated version of the base color
+  vec3 rimColor = vColor * 1.4 + vec3(0.2); // Brighter + slight white addition
+  rimColor = clamp(rimColor, 0.0, 1.5); // Allow slight HDR for bloom
 
-  // === SUBTLE RIM HIGHLIGHT ===
-  // Soft white-ish rim for depth (Kurzgesagt style edge highlight)
-  vec3 rimColor = vColor * 1.3 + vec3(0.15); // Lighter version of base color
-  vec3 finalColor = mix(baseColor, rimColor, fresnel * 0.35);
+  // Sharp rim blend - Kurzgesagt uses distinct edges, not soft gradients
+  float rimMask = smoothstep(0.3, 0.7, fresnel);
+  vec3 finalColor = mix(baseColor, rimColor, rimMask * 0.5);
 
-  // === SUBTLE SHIMMER (very subtle) ===
-  // Minimal variation to keep it alive without muddying
-  float shimmer = sin(time * 1.5 + vWorldPosition.x * 5.0 + vWorldPosition.z * 5.0) * 0.03 + 1.0;
-  finalColor *= shimmer;
+  // === SUBTLE SPECULAR HIGHLIGHT ===
+  // A tiny bright spot for that polished cell look
+  vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3)); // Sun direction
+  vec3 halfVec = normalize(lightDir + viewDir);
+  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
+  finalColor += vColor * spec * 0.15;
 
   // === OPACITY ===
-  // Mostly opaque like Kurzgesagt cells, slight transparency at edges
-  float alpha = 0.85 + (1.0 - fresnel) * 0.15;
+  // Fully opaque for solid cell look (Kurzgesagt cells are solid, not transparent)
+  float alpha = 0.95;
 
-  // Clamp to prevent over-saturation
-  finalColor = clamp(finalColor, 0.0, 1.0);
-
+  // Output with proper color space conversion
+  // This is CRITICAL - without it, colors appear washed out!
   gl_FragColor = vec4(finalColor, alpha);
+
+  // Convert from linear working space to sRGB output space
+  #include <colorspace_fragment>
 }
 `;
 
 /**
  * Creates a vibrant Kurzgesagt-style cell material for shards
  *
- * Returns a ShaderMaterial with:
- * - Preserved vibrant input colors (no muddy transformations)
- * - Subtle fresnel rim highlight
+ * Key features:
+ * - PROPER sRGB color output (fixes washed-out colors)
+ * - Flat shading with radial gradient (brighter center)
+ * - Crisp rim highlights (Kurzgesagt signature edge glow)
+ * - Subtle faceted shading for geometric look
  * - Breathing-synchronized brightness
- * - Mostly opaque with slight edge transparency
- * - Per-instance color support
+ *
+ * The material uses Three.js colorspace_fragment to properly convert
+ * from linear working space to sRGB display space. Without this,
+ * colors appear desaturated/washed out.
  *
  * @param instanced - Whether to enable instancing color support (default: true)
  */
@@ -128,7 +163,7 @@ export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMateri
     fragmentShader: shardFragmentShader,
     defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
     transparent: true,
-    depthWrite: true, // Enable depth write for solid-ish appearance
-    side: THREE.FrontSide, // Only front side for cleaner look
+    depthWrite: true,
+    side: THREE.FrontSide,
   });
 }
