@@ -124,4 +124,6 @@ export const RENDER_LAYERS = {
   PARTICLES: 2,
   /** Atmospheric effects (reserved for future use) */
   EFFECTS: 3,
+  /** Debug gizmos - excluded from DoF blur, rendered after post-processing */
+  GIZMOS: 4,
 } as const;

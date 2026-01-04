@@ -599,11 +599,15 @@ export function RefractionPipeline({
       mesh.material = refractionMaterial;
     }
 
-    // Reset camera layers to render all for composite pass
+    // Reset camera layers to render all for composite pass (except gizmos)
     layerCamera.layers.enableAll();
+    // Exclude gizmos from DoF - they render after post-processing
+    camera.layers.enableAll();
+    camera.layers.disable(RENDER_LAYERS.GIZMOS);
 
     if (enableDepthOfField) {
       // Pass 3: Render composite to compositeFBO (with depth for DoF)
+      // Gizmos are excluded via camera.layers.disable(GIZMOS)
       gl.setRenderTarget(compositeFBO);
       gl.clear();
       gl.render(bgScene, orthoCamera);
@@ -624,6 +628,13 @@ export function RefractionPipeline({
       dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
       dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
       gl.render(dofScene, orthoCamera);
+
+      // Pass 5: Render gizmos directly to screen (no DoF blur)
+      // Re-enable gizmos layer and render only gizmos
+      camera.layers.set(RENDER_LAYERS.GIZMOS);
+      gl.render(scene, camera);
+      // Restore camera to render all layers for next frame
+      camera.layers.enableAll();
     } else {
       // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
       gl.setRenderTarget(null);
@@ -639,6 +650,12 @@ export function RefractionPipeline({
           mesh.material = original;
         }
       }
+
+      // Render gizmos directly to screen (after main scene, no blur)
+      camera.layers.set(RENDER_LAYERS.GIZMOS);
+      gl.render(scene, camera);
+      // Restore camera to render all layers for next frame
+      camera.layers.enableAll();
     }
   }, 1); // Priority 1 to run before default render
 

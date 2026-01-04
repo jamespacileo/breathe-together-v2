@@ -23,6 +23,7 @@ import { useWorld } from 'koota/react';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
+import { RENDER_LAYERS } from '../../constants';
 import { calculateGMST, celestialToCartesian } from '../../lib/astronomy';
 import {
   CONSTELLATION_LINES,
@@ -341,6 +342,24 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
 }: ConstellationGizmosProps) {
   const world = useWorld();
   const gmstRef = useRef(calculateGMST(new Date()));
+  const groupRef = useRef<THREE.Group>(null);
+
+  // Set GIZMOS layer on all meshes to exclude from DoF blur
+  // Uses requestAnimationFrame to ensure child components have mounted
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Dependencies trigger re-traverse when visibility props change (new meshes added/removed from scene)
+  useEffect(() => {
+    if (!groupRef.current) return;
+    const setLayers = () => {
+      if (!groupRef.current) return;
+      groupRef.current.traverse((object) => {
+        object.layers.set(RENDER_LAYERS.GIZMOS);
+      });
+    };
+    // Run immediately and after next frame (for dynamically added children)
+    setLayers();
+    const rafId = requestAnimationFrame(setLayers);
+    return () => cancelAnimationFrame(rafId);
+  }, [showStars, showLines, showCelestialFrame, showConstellationLabels]);
 
   // Create star lookup map
   const starMap = useMemo(() => {
@@ -405,7 +424,7 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
   }, [radius, currentGmst, starMap]);
 
   return (
-    <group name="Constellation Gizmos">
+    <group ref={groupRef} name="Constellation Gizmos">
       {/* Celestial reference frame - subtle */}
       {showCelestialFrame && (
         <>
