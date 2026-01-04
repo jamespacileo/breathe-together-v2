@@ -159,13 +159,13 @@ export const DEFAULT_CONFIG: RibbonSystemConfig = {
   seed: null,
 
   zones: [
-    // === INSPIRATION LAYER (Primary - on surface) ===
+    // === INSPIRATION BANDS (Single clean ribbons) ===
     {
       id: 'inspiration-main',
-      height: 0.35,
-      heightVariance: { min: -0.05, max: 0.05 },
+      height: 0.32,
+      heightVariance: { min: 0, max: 0 }, // No variance - clean horizontal
       radiusOffset: 0,
-      instanceCount: 3,
+      instanceCount: 1, // Single band (2 segments = 360°)
       source: 'inspiration',
       styleKey: 'primary',
       scrollDirection: -1,
@@ -174,10 +174,10 @@ export const DEFAULT_CONFIG: RibbonSystemConfig = {
     },
     {
       id: 'inspiration-lower',
-      height: -0.35,
-      heightVariance: { min: -0.05, max: 0.05 },
+      height: -0.32,
+      heightVariance: { min: 0, max: 0 },
       radiusOffset: 0,
-      instanceCount: 3,
+      instanceCount: 1,
       source: 'inspiration',
       styleKey: 'secondary',
       scrollDirection: 1,
@@ -185,30 +185,30 @@ export const DEFAULT_CONFIG: RibbonSystemConfig = {
       zIndex: 10,
     },
 
-    // === WELCOME LAYER (Outer shell - creates depth) ===
+    // === WELCOME LAYER (Outer shell - multi-language) ===
     {
       id: 'welcome-outer',
       height: 0,
-      heightVariance: { min: -0.08, max: 0.08 },
-      radiusOffset: 0.25, // Outer shell!
-      instanceCount: 6,
+      heightVariance: { min: 0, max: 0 },
+      radiusOffset: 0.3, // Outer shell
+      instanceCount: 1,
       source: 'welcome',
       styleKey: 'accent',
       scrollDirection: 1,
-      enabled: false, // Enable for intro sequence
+      enabled: false,
       zIndex: 5,
     },
 
-    // === AMBIENT LAYER (Inner whisper - subtle depth) ===
+    // === DECORATIVE (Subtle accent) ===
     {
-      id: 'ambient-inner',
-      height: 0.55,
-      heightVariance: { min: -0.03, max: 0.03 },
-      radiusOffset: -0.05, // Slightly inside
-      instanceCount: 2,
+      id: 'decorative-high',
+      height: 0.58,
+      heightVariance: { min: 0, max: 0 },
+      radiusOffset: 0,
+      instanceCount: 1,
       source: 'decorative',
       styleKey: 'accent',
-      scrollDirection: -1,
+      scrollDirection: 1,
       enabled: true,
       zIndex: 3,
     },
