@@ -46,17 +46,18 @@ void main() {
   // Calculate position
   vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
 
-  // Twinkle calculation
-  float twinkle = 0.7 + 0.3 * sin(time * 2.0 + twinklePhase * 6.28);
+  // Twinkle calculation - more visible range
+  float twinkle = 0.8 + 0.2 * sin(time * 2.0 + twinklePhase * 6.28);
 
-  // Size based on brightness and twinkle
-  float size = baseSize * brightness * twinkle;
+  // Size based on brightness and twinkle - boosted for visibility
+  float size = baseSize * brightness * twinkle * 1.5;
 
   // Distance-based attenuation (stars further away appear smaller)
   float dist = length(mvPosition.xyz);
-  size *= 300.0 / dist;
+  size *= 400.0 / dist;
 
-  gl_PointSize = size;
+  // Minimum size to ensure visibility
+  gl_PointSize = max(size, 3.0);
   gl_Position = projectionMatrix * mvPosition;
 
   vBrightness = brightness;
@@ -64,7 +65,7 @@ void main() {
 }
 `;
 
-// Fragment shader for glowing stars
+// Fragment shader for glowing stars - boosted visibility
 const starFragmentShader = `
 varying float vBrightness;
 varying float vTwinkle;
@@ -74,16 +75,20 @@ void main() {
   vec2 center = gl_PointCoord - 0.5;
   float dist = length(center);
 
-  // Sharp core with soft glow
-  float core = smoothstep(0.5, 0.1, dist);
-  float glow = smoothstep(0.5, 0.0, dist) * 0.5;
+  // Sharp bright core with extended glow
+  float core = smoothstep(0.5, 0.05, dist);
+  float glow = smoothstep(0.5, 0.0, dist) * 0.8;
 
-  float alpha = (core + glow) * vBrightness * vTwinkle;
+  // Boosted alpha for much better visibility
+  float alpha = (core + glow) * vBrightness * vTwinkle * 1.5;
 
-  // Star color - slight blue tint for brighter stars
-  vec3 color = mix(vec3(1.0, 0.95, 0.9), vec3(0.9, 0.95, 1.0), vBrightness);
+  // Star color - bright white core with slight warm tint
+  vec3 color = mix(vec3(1.0, 0.98, 0.95), vec3(0.95, 0.98, 1.0), vBrightness);
 
-  gl_FragColor = vec4(color, alpha);
+  // Boost overall brightness
+  color *= 1.2;
+
+  gl_FragColor = vec4(color, min(alpha, 1.0));
 }
 `;
 
@@ -98,15 +103,17 @@ void main() {
 }
 `;
 
-// Line fragment shader - brightened for visibility
+// Line fragment shader - significantly brightened for visibility
 const lineFragmentShader = `
 uniform float opacity;
 varying vec3 vColor;
 
 void main() {
-  // Brighten line colors for better visibility against dark space
-  vec3 brightColor = vColor * 1.5 + vec3(0.2);
-  gl_FragColor = vec4(brightColor, opacity);
+  // Significantly brighten line colors for clear visibility against dark space
+  vec3 brightColor = vColor * 2.0 + vec3(0.4);
+  // Boost opacity for visibility
+  float boostedOpacity = min(opacity * 1.5, 1.0);
+  gl_FragColor = vec4(brightColor, boostedOpacity);
 }
 `;
 

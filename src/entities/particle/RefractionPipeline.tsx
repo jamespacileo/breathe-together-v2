@@ -81,8 +81,8 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates gem-like frosted crystal look
-// Improved Dec 2024: Bright luminous gem pastels with faceted shading (Monument Valley style)
+// Refraction fragment shader - creates crystal glass with solid edges and transparent center
+// Updated Jan 2026: Glass transparency effect - edges solid/bright, centers see-through
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
@@ -105,53 +105,60 @@ void main() {
   vec3 normal = normalize(worldNormal * (1.0 - backfaceIntensity) - backfaceNormal * backfaceIntensity);
   vec3 refracted = refract(eyeVector, normal, 1.0 / ior);
 
-  // Refraction for gem-like depth
-  vec2 refractUv = uv + refracted.xy * 0.04;
+  // Strong refraction distortion for glass depth
+  vec2 refractUv = uv + refracted.xy * 0.08;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === BRIGHT LUMINOUS GEM COLOR ===
-  // Keep high saturation with brightness boost
+  // === FRESNEL - key to glass effect ===
+  // High fresnel = edge (facing away from camera)
+  // Low fresnel = center (facing camera)
+  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.0);
+
+  // === CRYSTAL EDGE GLOW ===
+  // Bright white/tinted edges like light catching glass
   vec3 warmWhite = vec3(1.0, 0.98, 0.95);
-  // 85% color intensity - vibrant
-  vec3 gemColor = mix(warmWhite, vColor, 0.85);
-  // Brightness boost for luminous feel
-  gemColor *= 1.15;
+  vec3 edgeColor = mix(warmWhite, vColor * 1.2, 0.3);
 
-  // === FACETED SHADING (gem look) ===
+  // === TRANSPARENT CENTER ===
+  // Centers show refracted background (glass see-through effect)
+  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor * 0.8, 0.4);
+
+  // === FACETED SHADING for dimension ===
   float diffuse = max(dot(normal, keyLightDir), 0.0);
-  // Wrap lighting - higher base for brighter shadows
   float wrapped = diffuse * 0.5 + 0.5;
-  // Shading range: lit faces very bright, shadow faces still bright (0.65 - 1.0)
-  float shading = wrapped * 0.35 + 0.65;
 
-  // === GEM BODY WITH INNER GLOW ===
-  vec3 shadedGem = gemColor * shading;
+  // === MIX: Glass transparency based on fresnel ===
+  // Edges: 90% solid edge color, 10% refraction
+  // Centers: 20% tint color, 80% refracted background (transparent look)
+  float edgeFactor = fresnel; // How much edge vs center
+  vec3 edgeMix = edgeColor * wrapped; // Lit edges
+  vec3 centerMix = tintedRefraction; // See-through center
 
-  // Inner luminosity - gems glow from within (stronger)
-  float innerGlow = (1.0 - diffuse) * 0.2;
-  shadedGem += gemColor * innerGlow;
+  // Blend based on fresnel: edges are solid, centers are transparent
+  vec3 glassColor = mix(centerMix, edgeMix, edgeFactor * 0.85 + 0.15);
 
-  // Tinted refraction for depth
-  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), gemColor, 0.35);
-
-  // Mix: gem body (65%) with refraction (35%) for crystalline depth
-  vec3 bodyColor = mix(tintedRefraction, shadedGem, 0.65);
-
-  // === FRESNEL RIM (crystalline edge glow) ===
-  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
-  vec3 rimColor = vec3(1.0, 0.99, 0.97);
-  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.3);
-
-  // === SPECULAR HIGHLIGHT (gem sparkle) ===
+  // === BRIGHT SPECULAR HIGHLIGHTS (crystal sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
-  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.3;
+  float spec = pow(max(dot(normal, halfVec), 0.0), 64.0);
+  glassColor += vec3(1.0, 1.0, 1.0) * spec * 0.6;
 
-  // === TOP AMBIENT ===
-  float topLight = max(normal.y, 0.0) * 0.12;
-  colorWithRim += vec3(1.0, 0.99, 0.97) * topLight;
+  // === SECONDARY SPECULAR for extra sparkle ===
+  vec3 halfVec2 = normalize(vec3(-0.3, 0.8, 0.3) - eyeVector);
+  float spec2 = pow(max(dot(normal, halfVec2), 0.0), 48.0);
+  glassColor += vec3(1.0, 0.98, 0.95) * spec2 * 0.3;
 
-  gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
+  // === RIM HIGHLIGHT - bright edges like light through glass ===
+  glassColor += edgeColor * fresnel * 0.4;
+
+  // === INNER GLOW - subtle color from within ===
+  float innerGlow = (1.0 - fresnel) * 0.15;
+  glassColor += vColor * innerGlow;
+
+  // === TOP LIGHT - soft ambient from above ===
+  float topLight = max(normal.y, 0.0) * 0.08;
+  glassColor += warmWhite * topLight;
+
+  gl_FragColor = vec4(min(glassColor, vec3(1.0)), 1.0);
 }
 `;
 
@@ -201,6 +208,7 @@ void main() {
 `;
 
 // Depth of Field fragment shader - bokeh-style blur based on depth
+// Modified to NOT blur very distant objects (background, constellations, sun)
 const dofFragmentShader = `
 uniform sampler2D colorTexture;
 uniform sampler2D depthTexture;
@@ -248,13 +256,24 @@ void main() {
   // Normalize depth to camera range
   float normalizedDepth = (linearDepth - cameraNear) / (cameraFar - cameraNear);
 
+  // === BACKGROUND PROTECTION ===
+  // Don't blur distant objects (constellations at 80 units, sun at ~78 units)
+  // With camera far = 200, threshold of 0.3 = 60 units protects all background
+  float backgroundThreshold = 0.3; // Objects beyond 30% of camera far plane stay sharp
+  bool isBackground = normalizedDepth > backgroundThreshold || depth > 0.999;
+
   // Calculate circle of confusion (blur amount)
   // Only blur objects FURTHER than focus distance (behind the focal plane)
-  // Objects closer to camera stay sharp
+  // BUT NOT objects that are part of the background/environment
   float distanceBeyondFocus = max(0.0, normalizedDepth - focusDistance);
 
-  // Smooth falloff - only applies to objects beyond focus
+  // Smooth falloff - only applies to mid-range objects beyond focus
   float coc = smoothstep(0.0, focalRange, distanceBeyondFocus) * maxBlur;
+
+  // Disable blur for background elements
+  if (isBackground) {
+    coc = 0.0;
+  }
 
   // Apply blur based on CoC
   vec3 color;
