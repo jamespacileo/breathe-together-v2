@@ -10,6 +10,7 @@ import {
 import { BREATH_TOTAL_CYCLE, MOOD_IDS, MOOD_METADATA, type MoodId } from '../constants';
 import { getResponsiveSpacing, useViewport } from '../hooks/useViewport';
 import { calculatePhaseInfo } from '../lib/breathPhase';
+import { useBreathingLevelStore } from '../stores/breathingLevelStore';
 import { MOOD_COLORS, PHASE_NAMES } from '../styles/designTokens';
 import { AudioSettings } from './AudioSettings';
 import { BreathCycleIndicator } from './BreathCycleIndicator';
@@ -334,7 +335,8 @@ export function SimpleGaiaUI({
         ${isVisible ? 'opacity-100' : 'opacity-0'}`}
     >
       {/* Inspirational Text - Above & Beyond style messages */}
-      <InspirationalText />
+      {/* Hidden when ribbon inspirational mode is active (text shows on 3D globe instead) */}
+      {!useBreathingLevelStore.getState().ribbonInspirationalMode && <InspirationalText />}
 
       {/* Top-Left: App Branding + Settings */}
       <div
