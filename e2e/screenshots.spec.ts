@@ -39,27 +39,31 @@ function getPhasesInOptimalOrder(): Array<'inhale' | 'holdIn' | 'exhale'> {
 }
 
 test.describe('Preview Screenshots', () => {
-  // 45s timeout: ~15s page load + ~19s full cycle + buffer
-  test.setTimeout(45_000);
+  // 60s timeout: ~30s page load + ~19s full cycle + admin page
+  test.setTimeout(60_000);
 
-  test('capture breathing phases', async ({ page }, testInfo) => {
+  /**
+   * Single test per viewport - captures ALL screenshots (breathing phases + admin)
+   * This avoids multiple expensive page loads per viewport in CI
+   */
+  test('capture all screenshots', async ({ page }, testInfo) => {
     const viewport = testInfo.project.name;
 
+    // 1. Load main page and capture all breathing phases
     await page.goto('/');
     await waitForPageReady(page, true);
 
-    // Capture phases in optimal order (starting from current phase)
     const phases = getPhasesInOptimalOrder();
-    console.log(`[${viewport}] Optimal phase order: ${phases.join(' → ')}`);
+    console.log(`[${viewport}] Phase order: ${phases.join(' → ')}`);
 
     for (const phase of phases) {
       const alreadyInPhase = isInPhase(phase);
       const ms = getMsUntilPhase(phase);
 
       if (alreadyInPhase) {
-        console.log(`[${viewport}] Already in ${phase}`);
+        console.log(`[${viewport}] In ${phase}`);
       } else if (ms > 0) {
-        console.log(`[${viewport}] Waiting ${(ms / 1000).toFixed(1)}s for ${phase}`);
+        console.log(`[${viewport}] Wait ${(ms / 1000).toFixed(1)}s → ${phase}`);
         await page.waitForTimeout(ms);
       }
 
@@ -67,16 +71,13 @@ test.describe('Preview Screenshots', () => {
       await page.screenshot({ path: join(SCREENSHOTS_DIR, filename) });
       console.log(`[${viewport}] ✓ ${filename}`);
     }
-  });
 
-  test('capture admin page', async ({ page }, testInfo) => {
-    const viewport = testInfo.project.name;
-
+    // 2. Navigate to admin and capture (much faster - no WebGL)
     await page.goto('/admin');
     await waitForPageReady(page, false);
 
-    const filename = `${viewport}-admin.png`;
-    await page.screenshot({ path: join(SCREENSHOTS_DIR, filename) });
-    console.log(`[${viewport}] ✓ ${filename}`);
+    const adminFilename = `${viewport}-admin.png`;
+    await page.screenshot({ path: join(SCREENSHOTS_DIR, adminFilename) });
+    console.log(`[${viewport}] ✓ ${adminFilename}`);
   });
 });
