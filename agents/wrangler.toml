@@ -1,0 +1,66 @@
+# Cloudflare Agents SDK - Utility Agents for Breathe Together
+# See: https://developers.cloudflare.com/agents/
+#
+# This worker provides autonomous agents for maintenance, health checks,
+# content management, and scheduled tasks. Separate from the main presence API.
+#
+# DEPLOYMENT:
+#   - NOT deployed on PR previews (to avoid clutter)
+#   - Manual deploy: npm run agents:deploy
+#   - Local dev: npm run agents:dev
+
+name = "breathe-together-agents"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Development settings
+[dev]
+port = 8788  # Different port from presence worker (8787)
+local_protocol = "http"
+
+# Durable Objects for stateful agents
+# Each agent class gets its own persistent SQLite database
+[durable_objects]
+bindings = [
+  { name = "ORCHESTRATOR", class_name = "OrchestratorAgent" },
+  { name = "HEALTH", class_name = "HealthAgent" },
+  { name = "CONTENT", class_name = "ContentAgent" },
+]
+
+# Migrations for Durable Objects
+[[migrations]]
+tag = "v1"
+new_classes = ["OrchestratorAgent", "HealthAgent", "ContentAgent"]
+
+# Scheduled triggers for automated maintenance
+# Format: https://developers.cloudflare.com/workers/configuration/cron-triggers/
+[triggers]
+crons = [
+  "*/15 * * * *",  # Every 15 min - quick health checks
+  "0 */6 * * *",   # Every 6 hours - comprehensive health scan
+  "0 4 * * *",     # 4 AM UTC daily - maintenance cleanup
+  "0 3 * * 0",     # 3 AM UTC Sunday - weekly deep maintenance
+]
+
+# Access to main worker's KV for cross-service operations
+# This allows agents to interact with presence data, inspirational content, etc.
+[[kv_namespaces]]
+binding = "PRESENCE_KV"
+id = "7add79fd08af412b9cc1dc509b629040"
+preview_id = "2fc40a001ffd49128837dd0a53de63d9"
+
+# Environment variables (secrets set via wrangler secret)
+[vars]
+ENVIRONMENT = "development"
+
+# Production environment overrides
+[env.production]
+name = "breathe-together-agents"
+[env.production.vars]
+ENVIRONMENT = "production"
+
+# Staging/preview environment (for manual testing)
+[env.staging]
+name = "breathe-together-agents-staging"
+[env.staging.vars]
+ENVIRONMENT = "staging"
