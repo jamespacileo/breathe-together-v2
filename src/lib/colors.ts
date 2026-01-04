@@ -11,16 +11,21 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Monument Valley Palette - vibrant gem colors for icosahedral shards
- * These colors are processed through the gem shader for the illustrative look
+ * Kurzgesagt-Inspired Cosmic Palette - vibrant colors for crystal shards
+ *
+ * Designed for maximum visibility against dark cosmic backgrounds.
+ * Based on Kurzgesagt/In a Nutshell visual style:
+ * - High saturation (>0.5) for pop
+ * - Warm coral, electric teal, sunny gold, soft pink tones
+ * - Sufficient luminance for glass refraction effect
  *
  * Each color maps directly to one mood category (1:1 mapping)
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  gratitude: '#ffbe0b', // Warm Gold - appreciation, thankfulness
-  presence: '#06d6a0', // Teal/Mint - being here, calm, curiosity, rest
-  release: '#118ab2', // Deep Blue - letting go, processing
-  connection: '#ef476f', // Warm Rose - love, community, togetherness
+  gratitude: '#FFAB40', // Warm Amber - appreciation, golden warmth (sat=1.0, lum=0.52)
+  presence: '#4DD0E1', // Electric Cyan - being here, vibrant clarity (sat=0.71, lum=0.52)
+  release: '#64FFDA', // Mint Green - letting go, fresh energy (sat=1.0, lum=0.79)
+  connection: '#FF4081', // Vibrant Pink - love, passionate warmth (sat=1.0, lum=0.28)
 } as const;
 
 /**

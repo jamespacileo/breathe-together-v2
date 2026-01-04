@@ -81,8 +81,8 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates gem-like frosted crystal look
-// Improved Dec 2024: Bright luminous gem pastels with faceted shading (Monument Valley style)
+// Refraction fragment shader - Kurzgesagt-inspired vibrant crystal glass
+// Updated Jan 2026: Preserves color vibrancy while adding glass transparency
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
@@ -105,57 +105,67 @@ void main() {
   vec3 normal = normalize(worldNormal * (1.0 - backfaceIntensity) - backfaceNormal * backfaceIntensity);
   vec3 refracted = refract(eyeVector, normal, 1.0 / ior);
 
-  // Refraction for gem-like depth
-  vec2 refractUv = uv + refracted.xy * 0.04;
+  // Moderate refraction distortion
+  vec2 refractUv = uv + refracted.xy * 0.06;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === BRIGHT LUMINOUS GEM COLOR ===
-  // Keep high saturation with brightness boost
-  vec3 warmWhite = vec3(1.0, 0.98, 0.95);
-  // 85% color intensity - vibrant
-  vec3 gemColor = mix(warmWhite, vColor, 0.85);
-  // Brightness boost for luminous feel
-  gemColor *= 1.15;
-
-  // === FACETED SHADING (gem look) ===
-  float diffuse = max(dot(normal, keyLightDir), 0.0);
-  // Wrap lighting - higher base for brighter shadows
-  float wrapped = diffuse * 0.5 + 0.5;
-  // Shading range: lit faces very bright, shadow faces still bright (0.65 - 1.0)
-  float shading = wrapped * 0.35 + 0.65;
-
-  // === GEM BODY WITH INNER GLOW ===
-  vec3 shadedGem = gemColor * shading;
-
-  // Inner luminosity - gems glow from within (stronger)
-  float innerGlow = (1.0 - diffuse) * 0.2;
-  shadedGem += gemColor * innerGlow;
-
-  // Tinted refraction for depth
-  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), gemColor, 0.35);
-
-  // Mix: gem body (65%) with refraction (35%) for crystalline depth
-  vec3 bodyColor = mix(tintedRefraction, shadedGem, 0.65);
-
-  // === FRESNEL RIM (crystalline edge glow) ===
+  // === FRESNEL - key to glass effect ===
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
-  vec3 rimColor = vec3(1.0, 0.99, 0.97);
-  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.3);
 
-  // === SPECULAR HIGHLIGHT (gem sparkle) ===
+  // === PRESERVE COLOR VIBRANCY ===
+  // Boost the input color to compensate for blending losses
+  vec3 vibrantColor = vColor * 1.3;
+
+  // === CRYSTAL EDGE GLOW ===
+  // Edges catch light - mix of white and boosted color
+  vec3 warmWhite = vec3(1.0, 0.98, 0.95);
+  vec3 edgeColor = mix(warmWhite, vibrantColor, 0.5);
+
+  // === TRANSPARENT CENTER with color tint ===
+  // Centers show refracted background tinted with the shard color
+  vec3 tintedRefraction = tex.rgb * 0.4 + vibrantColor * 0.6;
+
+  // === FACETED SHADING for dimension ===
+  float diffuse = max(dot(normal, keyLightDir), 0.0);
+  float wrapped = diffuse * 0.4 + 0.6; // Higher base = brighter overall
+
+  // === GLASS BODY - vibrant color dominant ===
+  vec3 bodyColor = vibrantColor * wrapped;
+
+  // Add subtle refraction for depth
+  bodyColor = mix(bodyColor, tintedRefraction, 0.25);
+
+  // === FRESNEL BLEND ===
+  // Edges: bright white/tinted glow
+  // Centers: vibrant body color
+  vec3 glassColor = mix(bodyColor, edgeColor, fresnel * 0.6);
+
+  // === SPECULAR HIGHLIGHTS (crystal sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
-  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.3;
+  float spec = pow(max(dot(normal, halfVec), 0.0), 48.0);
+  glassColor += warmWhite * spec * 0.5;
+
+  // === SECONDARY SPECULAR ===
+  vec3 halfVec2 = normalize(vec3(-0.3, 0.8, 0.3) - eyeVector);
+  float spec2 = pow(max(dot(normal, halfVec2), 0.0), 32.0);
+  glassColor += warmWhite * spec2 * 0.25;
+
+  // === RIM HIGHLIGHT - bright edges ===
+  glassColor += edgeColor * fresnel * 0.35;
+
+  // === INNER GLOW - color from within ===
+  float innerGlow = (1.0 - fresnel) * 0.2;
+  glassColor += vibrantColor * innerGlow;
 
   // === TOP AMBIENT ===
-  float topLight = max(normal.y, 0.0) * 0.12;
-  colorWithRim += vec3(1.0, 0.99, 0.97) * topLight;
+  float topLight = max(normal.y, 0.0) * 0.1;
+  glassColor += warmWhite * topLight;
 
-  gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
+  gl_FragColor = vec4(min(glassColor, vec3(1.0)), 1.0);
 }
 `;
 
-// Background gradient shader (same as BackgroundGradient.tsx)
+// Background gradient shader - Kurzgesagt + painted night sky aesthetic
 const bgVertexShader = `
 varying vec2 vUv;
 void main() {
@@ -165,31 +175,183 @@ void main() {
 `;
 
 const bgFragmentShader = `
+uniform float time;
 varying vec2 vUv;
+
+// Hash for pseudo-random values
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+// Smooth noise
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+// FBM for soft cloud-like shapes
+float fbm(vec2 p) {
+  float f = 0.0;
+  f += 0.5000 * noise(p); p *= 2.02;
+  f += 0.2500 * noise(p); p *= 2.03;
+  f += 0.1250 * noise(p); p *= 2.01;
+  f += 0.0625 * noise(p);
+  return f / 0.9375;
+}
+
+// Star function - enhanced for better visibility against dark sky
+float star(vec2 uv, float scale, float threshold) {
+  vec2 grid = floor(uv * scale);
+  vec2 gridUv = fract(uv * scale);
+  float h = hash(grid);
+  if (h > threshold) {
+    vec2 starPos = vec2(hash(grid + 0.1), hash(grid + 0.2));
+    float dist = length(gridUv - starPos);
+    float brightness = (h - threshold) / (1.0 - threshold);
+    // Bright core with extended soft glow
+    float core = smoothstep(0.025, 0.0, dist) * 1.5;
+    float innerGlow = smoothstep(0.06, 0.0, dist) * 0.8;
+    float outerGlow = smoothstep(0.12, 0.0, dist) * 0.3;
+    return (core + innerGlow + outerGlow) * brightness;
+  }
+  return 0.0;
+}
+
 void main() {
-  // Soft pastel gradient matching Monument Valley aesthetic
-  vec3 warmCream = vec3(0.98, 0.96, 0.92);    // Top - warm cream
-  vec3 softBlush = vec3(0.96, 0.91, 0.87);    // Bottom - soft blush/peach
-
-  // Simple vertical gradient (bottom to top)
-  float t = vUv.y;
-  vec3 color = mix(softBlush, warmCream, t);
-
-  // Soft radial vignette (subtle warm edges)
-  vec2 center = vUv - 0.5;
+  vec2 uv = vUv;
+  vec2 center = uv - 0.5;
   float dist = length(center);
-  float vignette = smoothstep(0.8, 0.2, dist);
-  vec3 edgeTint = vec3(0.92, 0.86, 0.82); // Warm shadow at edges
-  color = mix(edgeTint, color, vignette * 0.85 + 0.15);
 
-  // Very subtle center brightening
-  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.03;
-  color += vec3(1.0, 0.99, 0.97) * centerGlow;
+  // === KURZGESAGT NIGHT SKY PALETTE ===
+  // Rich, saturated colors that feel painted
+  vec3 deepIndigo = vec3(0.05, 0.03, 0.12);     // Deep indigo base
+  vec3 midnightBlue = vec3(0.08, 0.06, 0.18);   // Rich midnight blue
+  vec3 cosmicPurple = vec3(0.12, 0.05, 0.20);   // Kurzgesagt purple
+  vec3 darkTeal = vec3(0.03, 0.08, 0.12);       // Dark teal accent
+  vec3 warmDust = vec3(0.15, 0.08, 0.10);       // Warm dust tone
 
-  // Minimal paper texture noise
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
+  // === PAINTERLY BASE GRADIENT ===
+  // Multi-stop gradient for depth
+  float radialT = smoothstep(0.0, 0.8, dist);
+  vec3 baseColor = mix(midnightBlue, deepIndigo, radialT);
 
-  gl_FragColor = vec4(color + noise, 1.0);
+  // Add purple warmth toward one side (like light pollution glow)
+  float warmSide = smoothstep(0.0, 1.0, uv.x * 0.5 + uv.y * 0.5);
+  baseColor = mix(baseColor, cosmicPurple, warmSide * 0.3);
+
+  // === SOFT NEBULA CLOUDS ===
+  // Large, soft nebula forms - enhanced for Kurzgesagt-style visibility
+  float slowTime = time * 0.02;
+
+  // Primary nebula - large purple cloud (boosted)
+  vec2 nebula1Uv = uv * 1.5 + vec2(slowTime * 0.3, slowTime * 0.1);
+  float nebula1 = fbm(nebula1Uv);
+  nebula1 = smoothstep(0.3, 0.6, nebula1);  // Wider range for more visible clouds
+  vec3 nebula1Color = cosmicPurple * 2.2;   // Boosted color intensity
+
+  // Secondary nebula - teal accent cloud (boosted)
+  vec2 nebula2Uv = uv * 2.0 + vec2(-slowTime * 0.2, slowTime * 0.15) + 50.0;
+  float nebula2 = fbm(nebula2Uv);
+  nebula2 = smoothstep(0.35, 0.65, nebula2);
+  vec3 nebula2Color = darkTeal * 3.0;       // Stronger teal presence
+
+  // Warm dust cloud (more visible)
+  vec2 dustUv = uv * 2.5 + vec2(slowTime * 0.1, -slowTime * 0.2) + 100.0;
+  float dust = fbm(dustUv);
+  dust = smoothstep(0.4, 0.65, dust) * 0.7;  // More visible dust
+  vec3 dustColor = warmDust * 1.8;
+
+  // Third nebula - rose/pink for Kurzgesagt warmth
+  vec2 nebula3Uv = uv * 1.8 + vec2(slowTime * 0.15, -slowTime * 0.1) + 200.0;
+  float nebula3 = fbm(nebula3Uv);
+  nebula3 = smoothstep(0.4, 0.7, nebula3);
+  vec3 roseNebula = vec3(0.18, 0.06, 0.12) * 2.0;  // Space rose
+
+  // Combine nebulae with boosted blending
+  vec3 nebulaColor = vec3(0.0);
+  nebulaColor += nebula1Color * nebula1 * 0.6 * (1.0 - dist * 0.4);  // Boosted from 0.4
+  nebulaColor += nebula2Color * nebula2 * 0.5 * smoothstep(0.8, 0.2, dist);  // Boosted from 0.3
+  nebulaColor += dustColor * dust * 0.4;  // Boosted from 0.25
+  nebulaColor += roseNebula * nebula3 * 0.35 * smoothstep(0.7, 0.3, uv.x);  // New rose nebula
+
+  // === STAR FIELD ===
+  // Multiple layers for depth and variety - boosted for visibility
+  float stars = 0.0;
+
+  // Dense small stars (distant) - increased density and brightness
+  stars += star(uv, 200.0, 0.96) * 0.6;
+  stars += star(uv + 0.33, 150.0, 0.965) * 0.7;
+  stars += star(uv + 0.5, 180.0, 0.97) * 0.5;
+
+  // Medium stars
+  stars += star(uv + 0.66, 80.0, 0.98) * 0.9;
+  stars += star(uv + 0.75, 100.0, 0.985) * 0.8;
+
+  // Bright stars (rare)
+  stars += star(uv + 0.99, 40.0, 0.99) * 1.2;
+
+  // Very bright accent stars
+  stars += star(uv + 1.33, 20.0, 0.995) * 1.6;
+
+  // Boost overall star intensity
+  stars *= 1.4;
+
+  // Star color - slight variation with more pronounced warmth
+  vec3 starColor = vec3(0.95, 0.97, 1.0) * stars;
+
+  // Some warm stars (more frequent)
+  float warmStarMask = step(0.92, hash(floor(uv * 60.0)));
+  starColor = mix(starColor, vec3(1.0, 0.9, 0.75) * stars, warmStarMask);
+
+  // Some blue stars
+  float blueStarMask = step(0.96, hash(floor(uv * 80.0 + 50.0)));
+  starColor = mix(starColor, vec3(0.8, 0.9, 1.0) * stars * 1.1, blueStarMask);
+
+  // === MILKY WAY BAND ===
+  // Soft diagonal band of increased star density
+  float angle = 0.3;
+  vec2 rotUv = vec2(
+    uv.x * cos(angle) - uv.y * sin(angle),
+    uv.x * sin(angle) + uv.y * cos(angle)
+  );
+  float bandDist = abs(rotUv.y - 0.5);
+  float milkyWay = smoothstep(0.3, 0.0, bandDist);
+
+  // Add extra stars in milky way
+  float milkyStars = star(uv * 1.5, 300.0, 0.95) * milkyWay * 0.6;
+  starColor += vec3(0.85, 0.88, 0.95) * milkyStars;
+
+  // Soft glow in milky way
+  vec3 milkyGlow = midnightBlue * 1.5 * milkyWay * 0.15;
+
+  // === PAINTERLY TEXTURE ===
+  // Subtle grain for painted look
+  float grain = (hash(uv * 500.0 + time * 0.1) - 0.5) * 0.02;
+
+  // Soft brush-stroke texture
+  float brushNoise = fbm(uv * 8.0) * 0.03;
+
+  // === VIGNETTE ===
+  float vignette = 1.0 - smoothstep(0.3, 0.9, dist) * 0.4;
+
+  // === COMBINE ALL LAYERS ===
+  vec3 finalColor = baseColor;
+  finalColor += nebulaColor;
+  finalColor += milkyGlow;
+  finalColor += starColor;
+  finalColor += grain + brushNoise;
+  finalColor *= vignette;
+
+  // Slight color boost for Kurzgesagt vibrancy
+  finalColor = pow(finalColor, vec3(0.95));
+
+  gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
@@ -203,6 +365,7 @@ void main() {
 `;
 
 // Depth of Field fragment shader - bokeh-style blur based on depth
+// Modified to NOT blur very distant objects (background, constellations, sun)
 const dofFragmentShader = `
 uniform sampler2D colorTexture;
 uniform sampler2D depthTexture;
@@ -250,13 +413,24 @@ void main() {
   // Normalize depth to camera range
   float normalizedDepth = (linearDepth - cameraNear) / (cameraFar - cameraNear);
 
+  // === BACKGROUND PROTECTION ===
+  // Don't blur distant objects (constellations at 80 units, sun at ~78 units)
+  // With camera far = 200, threshold of 0.3 = 60 units protects all background
+  float backgroundThreshold = 0.3; // Objects beyond 30% of camera far plane stay sharp
+  bool isBackground = normalizedDepth > backgroundThreshold || depth > 0.999;
+
   // Calculate circle of confusion (blur amount)
   // Only blur objects FURTHER than focus distance (behind the focal plane)
-  // Objects closer to camera stay sharp
+  // BUT NOT objects that are part of the background/environment
   float distanceBeyondFocus = max(0.0, normalizedDepth - focusDistance);
 
-  // Smooth falloff - only applies to objects beyond focus
+  // Smooth falloff - only applies to mid-range objects beyond focus
   float coc = smoothstep(0.0, focalRange, distanceBeyondFocus) * maxBlur;
+
+  // Disable blur for background elements
+  if (isBackground) {
+    coc = 0.0;
+  }
 
   // Apply blur based on CoC
   vec3 color;
@@ -371,11 +545,14 @@ export function RefractionPipeline({
   }, []);
 
   // Create background scene with ortho camera
-  const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
+  const { bgScene, orthoCamera, bgMesh, bgMaterial } = useMemo(() => {
     const bgScene = new THREE.Scene();
     const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     const bgMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+      },
       vertexShader: bgVertexShader,
       fragmentShader: bgFragmentShader,
     });
@@ -383,7 +560,7 @@ export function RefractionPipeline({
     const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
     bgScene.add(bgMesh);
 
-    return { bgScene, orthoCamera, bgMesh };
+    return { bgScene, orthoCamera, bgMesh, bgMaterial };
   }, []);
 
   // Create DoF scene for final composite
@@ -570,9 +747,11 @@ export function RefractionPipeline({
     }
 
     // Pass 1: Render background to envFBO (CACHED for ENV_CACHE_FRAMES)
-    // Background gradient is static, so we only need to re-render it periodically
+    // Background has subtle animation, cached at intervals for performance
     const framesSinceEnvRender = frameCountRef.current - envCacheFrameRef.current;
     if (envNeedsUpdateRef.current || framesSinceEnvRender >= ENV_CACHE_FRAMES) {
+      // Update time uniform for background animation
+      bgMaterial.uniforms.time.value = frameCountRef.current * 0.016; // ~60fps timing
       gl.setRenderTarget(envFBO);
       gl.clear();
       gl.render(bgScene, orthoCamera);
