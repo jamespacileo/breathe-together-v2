@@ -11,16 +11,17 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Monument Valley Palette - vibrant gem colors for icosahedral shards
- * These colors are processed through the gem shader for the illustrative look
+ * Cosmic Meditation Palette - ethereal colors for icosahedral crystal shards
+ * Semi-transparent glass crystals with soft cosmic glow
  *
  * Each color maps directly to one mood category (1:1 mapping)
+ * Colors are desaturated and luminous for cosmic/glass aesthetic
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  gratitude: '#ffbe0b', // Warm Gold - appreciation, thankfulness
-  presence: '#06d6a0', // Teal/Mint - being here, calm, curiosity, rest
-  release: '#118ab2', // Deep Blue - letting go, processing
-  connection: '#ef476f', // Warm Rose - love, community, togetherness
+  gratitude: '#c4a6ff', // Soft Lavender - appreciation, ethereal warmth
+  presence: '#88c8e8', // Celestial Blue - being here, calm clarity
+  release: '#a8d4c8', // Nebula Mint - letting go, cosmic freshness
+  connection: '#e8b4c8', // Starlight Rose - love, gentle cosmic warmth
 } as const;
 
 /**

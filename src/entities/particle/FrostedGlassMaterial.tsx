@@ -40,7 +40,7 @@ void main() {
 }
 `;
 
-// Fragment shader - fresnel rim + breathing luminosity
+// Fragment shader - glass crystal with solid edges and transparent center
 const shardFragmentShader = `
 uniform float breathPhase;
 uniform float time;
@@ -52,33 +52,52 @@ varying vec3 vColor;
 void main() {
   vec3 viewDir = normalize(vViewPosition);
 
-  // Fresnel rim effect - soft edge glow
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+  // Fresnel for edge detection - edges face away from camera
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.0);
 
   // Breathing luminosity pulse - subtle brightness shift
-  // Peak brightness during hold phases (phase 0.25-0.5 and 0.75-1.0)
-  float breathLuminosity = 1.0 + breathPhase * 0.12;
+  float breathLuminosity = 1.0 + breathPhase * 0.15;
 
-  // Subtle saturation boost based on viewing angle
-  // Faces pointing toward camera are slightly more saturated
-  float facingBoost = max(dot(vNormal, viewDir), 0.0) * 0.08;
+  // === GLASS TRANSPARENCY ===
+  // Edges are solid, center is transparent (crystal glass effect)
+  // High fresnel = edge = more opaque
+  // Low fresnel = center = more transparent
+  float edgeOpacity = fresnel * 0.9 + 0.1; // Edges: 0.1-1.0
+  float centerTransparency = 1.0 - fresnel; // Centers more transparent
 
-  // Apply mood color with luminosity and saturation
+  // Base opacity: solid at edges, glass-like in center
+  float baseAlpha = mix(0.15, 0.95, fresnel);
+
+  // Add slight inner glow that pulses with breath
+  float innerGlow = centerTransparency * 0.3 * (1.0 + breathPhase * 0.5);
+
+  // === COLOR ===
+  // Apply mood color with ethereal luminosity
   vec3 baseColor = vColor * breathLuminosity;
 
-  // Mix in a warm white rim glow (like the globe)
-  vec3 rimColor = vec3(0.98, 0.96, 0.94); // Soft warm white
-  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.25);
+  // Bright white edge highlight (crystal refraction look)
+  vec3 edgeColor = vec3(1.0, 0.98, 0.96);
+  vec3 colorWithEdge = mix(baseColor, edgeColor, fresnel * 0.6);
 
-  // Subtle inner luminance - very gentle glow from within
-  float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
-  colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
+  // Subtle inner color glow
+  vec3 glowColor = vColor * 1.3;
+  colorWithEdge += glowColor * innerGlow * 0.4;
 
-  // Slight desaturation toward edges for atmospheric feel
-  vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
-  vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
+  // Add subtle iridescence based on normal direction
+  float iridescence = sin(dot(vNormal, vec3(1.0, 0.5, 0.2)) * 3.0 + time * 0.5) * 0.5 + 0.5;
+  colorWithEdge += vec3(0.1, 0.05, 0.15) * iridescence * fresnel * 0.3;
 
-  gl_FragColor = vec4(finalColor, 1.0);
+  // Slight color shift for depth - warmer at edges
+  vec3 warmShift = vec3(0.02, 0.01, -0.01);
+  colorWithEdge += warmShift * fresnel;
+
+  // Final alpha: solid edges, transparent center
+  float alpha = baseAlpha;
+
+  // Boost overall visibility slightly
+  alpha = clamp(alpha * 1.1, 0.0, 1.0);
+
+  gl_FragColor = vec4(colorWithEdge, alpha);
 }
 `;
 
@@ -101,6 +120,9 @@ export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMateri
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,
     defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
-    side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
+    transparent: true,
+    depthWrite: false, // Required for proper transparency sorting
+    blending: THREE.NormalBlending,
+    side: THREE.DoubleSide, // Show both sides for glass effect
   });
 }

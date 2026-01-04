@@ -98,13 +98,15 @@ void main() {
 }
 `;
 
-// Line fragment shader
+// Line fragment shader - brightened for visibility
 const lineFragmentShader = `
 uniform float opacity;
 varying vec3 vColor;
 
 void main() {
-  gl_FragColor = vec4(vColor, opacity);
+  // Brighten line colors for better visibility against dark space
+  vec3 brightColor = vColor * 1.5 + vec3(0.2);
+  gl_FragColor = vec4(brightColor, opacity);
 }
 `;
 
@@ -262,14 +264,18 @@ export const ConstellationSystem = memo(function ConstellationSystem({
   if (!visible) return null;
 
   return (
-    <group>
-      {/* Constellation lines */}
-      <lineSegments geometry={lineGeometry}>
+    <group renderOrder={100}>
+      {/* Constellation lines - render first so stars appear on top */}
+      <lineSegments geometry={lineGeometry} renderOrder={100}>
         <primitive object={lineMaterial} ref={linesMaterialRef} attach="material" />
       </lineSegments>
 
-      {/* Constellation stars */}
-      <instancedMesh ref={starsRef} args={[starGeometry, starMaterial, TOTAL_CONSTELLATION_STARS]}>
+      {/* Constellation stars - render after lines */}
+      <instancedMesh
+        ref={starsRef}
+        args={[starGeometry, starMaterial, TOTAL_CONSTELLATION_STARS]}
+        renderOrder={101}
+      >
         <primitive object={starMaterial} ref={starsMaterialRef} attach="material" />
       </instancedMesh>
     </group>
