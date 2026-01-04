@@ -10,16 +10,11 @@
  * - Very subtle - users feel them more than see them
  *
  * Performance: Just 3 transparent planes, minimal GPU impact
- *
- * MIGRATED TO TSL (Three.js Shading Language) - January 2026
  */
 
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
-import type { Mesh } from 'three';
-import { AdditiveBlending, Color, DoubleSide, PlaneGeometry } from 'three';
-import { abs, add, Fn, mul, sin, smoothstep, sub, uniform, uv, vec4 } from 'three/tsl';
-import { MeshBasicNodeMaterial } from 'three/webgpu';
+import * as THREE from 'three';
 
 interface SubtleLightRaysProps {
   /** Maximum opacity of rays @default 0.04 */
@@ -27,6 +22,41 @@ interface SubtleLightRaysProps {
   /** Enable light rays @default true */
   enabled?: boolean;
 }
+
+// Shader for gradient light ray
+const rayVertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const rayFragmentShader = `
+  varying vec2 vUv;
+  uniform float uOpacity;
+  uniform float uTime;
+  uniform vec3 uColor;
+
+  void main() {
+    // Gradient from center outward (both X edges fade)
+    float gradientX = 1.0 - abs(vUv.x - 0.5) * 2.0;
+    gradientX = smoothstep(0.0, 0.8, gradientX);
+
+    // Gradient from bottom to top
+    float gradientY = smoothstep(0.0, 0.3, vUv.y) * smoothstep(1.0, 0.7, vUv.y);
+
+    // Combine gradients
+    float alpha = gradientX * gradientY;
+
+    // Very subtle noise variation along the ray
+    float noise = sin(vUv.y * 10.0 + uTime * 0.5) * 0.1 + 0.9;
+
+    alpha *= noise * uOpacity;
+
+    gl_FragColor = vec4(uColor, alpha);
+  }
+`;
 
 interface RayConfig {
   id: string;
@@ -80,66 +110,38 @@ const LightRay = memo(function LightRay({
   config: RayConfig;
   baseOpacity: number;
 }) {
-  const materialRef = useRef<MeshBasicNodeMaterial>(null);
-  const meshRef = useRef<Mesh>(null);
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
 
-  const geometry = useMemo(() => new PlaneGeometry(1, 1), []);
+  const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
   const material = useMemo(() => {
-    const mat = new MeshBasicNodeMaterial();
-    mat.transparent = true;
-    mat.depthWrite = false;
-    mat.side = DoubleSide;
-    mat.blending = AdditiveBlending;
-
-    // Uniforms for animation
-    const opacityUniform = uniform(baseOpacity * config.opacityMultiplier);
-    const timeUniform = uniform(config.phaseOffset);
-
-    // Store uniforms for external access
-    mat.userData.opacity = opacityUniform;
-    mat.userData.time = timeUniform;
-
-    const color = new Color(config.color);
-
-    // Build color node using TSL
-    const colorNode = Fn(() => {
-      const uvCoord = uv();
-
-      // Gradient from center outward (both X edges fade)
-      // gradientX = 1.0 - abs(vUv.x - 0.5) * 2.0
-      const gradientXRaw = sub(1.0, mul(abs(sub(uvCoord.x, 0.5)), 2.0));
-      const gradientX = smoothstep(0.0, 0.8, gradientXRaw);
-
-      // Gradient from bottom to top
-      const gradientY = mul(smoothstep(0.0, 0.3, uvCoord.y), smoothstep(1.0, 0.7, uvCoord.y));
-
-      // Combine gradients
-      const alphaBase = mul(gradientX, gradientY);
-
-      // Very subtle noise variation along the ray
-      const noise = add(mul(sin(add(mul(uvCoord.y, 10.0), mul(timeUniform, 0.5))), 0.1), 0.9);
-
-      const alpha = mul(mul(alphaBase, noise), opacityUniform);
-
-      return vec4(color.r, color.g, color.b, alpha);
-    })();
-
-    mat.colorNode = colorNode;
-
-    return mat;
+    const color = new THREE.Color(config.color);
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uOpacity: { value: baseOpacity * config.opacityMultiplier },
+        uTime: { value: config.phaseOffset },
+        uColor: { value: color },
+      },
+      vertexShader: rayVertexShader,
+      fragmentShader: rayFragmentShader,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
   }, [config, baseOpacity]);
 
   // Animate ray opacity with gentle breathing
   useFrame((state) => {
-    if (!material.userData.opacity || !material.userData.time) return;
+    if (!materialRef.current) return;
 
     const time = state.clock.elapsedTime * config.speed + config.phaseOffset;
 
     // Gentle pulsing opacity
     const pulse = Math.sin(time) * 0.3 + 0.7; // 0.4 to 1.0
-    material.userData.opacity.value = baseOpacity * config.opacityMultiplier * pulse;
-    material.userData.time.value = state.clock.elapsedTime;
+    materialRef.current.uniforms.uOpacity.value = baseOpacity * config.opacityMultiplier * pulse;
+    materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
   });
 
   // Cleanup

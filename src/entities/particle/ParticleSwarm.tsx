@@ -571,12 +571,10 @@ export function ParticleSwarm({
     // Update slot animations
     slotManager.updateAnimations(clampedDelta);
 
-    // Update shader uniforms (TSL uses userData for uniform nodes)
-    if (material.userData.breathPhase) {
-      material.userData.breathPhase.value = currentBreathPhase;
-    }
-    if (material.userData.time) {
-      material.userData.time.value = time;
+    // Update shader uniforms
+    if (material.uniforms) {
+      material.uniforms.breathPhase.value = currentBreathPhase;
+      material.uniforms.time.value = time;
     }
 
     // Position lerp factor for smooth redistribution

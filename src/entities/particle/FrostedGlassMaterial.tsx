@@ -13,124 +13,94 @@
  * 3. RefractionPipeline must be present in the scene tree
  *
  * Performance: Uses InstancedMesh for single draw call (300+ particles = 1 draw call)
- *
- * MIGRATED TO TSL (Three.js Shading Language) - January 2026
  */
 
-import { FrontSide } from 'three';
-import {
-  add,
-  attribute,
-  cameraPosition,
-  dot,
-  Fn,
-  max,
-  mix,
-  mul,
-  normalize,
-  positionWorld,
-  pow,
-  sub,
-  transformedNormalWorld,
-  uniform,
-  vec3,
-} from 'three/tsl';
-import { MeshBasicNodeMaterial } from 'three/webgpu';
+import * as THREE from 'three';
+
+// Vertex shader - passes normals and instance colors to fragment
+// Uses THREE.js built-in instanceColor attribute for per-instance colors
+const shardVertexShader = `
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+varying vec3 vColor;
+
+void main() {
+  vNormal = normalize(normalMatrix * normal);
+
+  // Use instance color from InstancedMesh (set via setColorAt)
+  #ifdef USE_INSTANCING_COLOR
+    vColor = instanceColor;
+  #else
+    vColor = vec3(0.85, 0.75, 0.65); // Fallback warm neutral
+  #endif
+
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vViewPosition = -mvPosition.xyz;
+  gl_Position = projectionMatrix * mvPosition;
+}
+`;
+
+// Fragment shader - fresnel rim + breathing luminosity
+const shardFragmentShader = `
+uniform float breathPhase;
+uniform float time;
+
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+varying vec3 vColor;
+
+void main() {
+  vec3 viewDir = normalize(vViewPosition);
+
+  // Fresnel rim effect - soft edge glow
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+
+  // Breathing luminosity pulse - subtle brightness shift
+  // Peak brightness during hold phases (phase 0.25-0.5 and 0.75-1.0)
+  float breathLuminosity = 1.0 + breathPhase * 0.12;
+
+  // Subtle saturation boost based on viewing angle
+  // Faces pointing toward camera are slightly more saturated
+  float facingBoost = max(dot(vNormal, viewDir), 0.0) * 0.08;
+
+  // Apply mood color with luminosity and saturation
+  vec3 baseColor = vColor * breathLuminosity;
+
+  // Mix in a warm white rim glow (like the globe)
+  vec3 rimColor = vec3(0.98, 0.96, 0.94); // Soft warm white
+  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.25);
+
+  // Subtle inner luminance - very gentle glow from within
+  float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
+  colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
+
+  // Slight desaturation toward edges for atmospheric feel
+  vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
+  vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
+
+  gl_FragColor = vec4(finalColor, 1.0);
+}
+`;
 
 /**
  * Creates an enhanced frosted glass shader material for icosahedral shards
  *
- * Returns a NodeMaterial with:
+ * Returns a ShaderMaterial with:
  * - Fresnel rim glow (soft edge lighting)
  * - Breathing luminosity (synced brightness pulse)
- * - Per-instance color support (via instanceColor attribute)
+ * - Per-instance color support (via USE_INSTANCING_COLOR define)
  *
  * @param instanced - Whether to enable instancing color support (default: true)
  */
-export function createFrostedGlassMaterial(instanced = true) {
-  const material = new MeshBasicNodeMaterial();
-  material.side = FrontSide; // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
-
-  // Uniforms for animation
-  const breathPhaseUniform = uniform(0);
-  const timeUniform = uniform(0);
-
-  // Store uniforms for external access via userData
-  material.userData.breathPhase = breathPhaseUniform;
-  material.userData.time = timeUniform;
-
-  // Build shader using TSL nodes
-  const colorNode = Fn(() => {
-    // Get world normal (transformed)
-    const normal = transformedNormalWorld;
-
-    // Calculate view direction from world position to camera
-    const worldPos = positionWorld;
-    const viewDir = normalize(sub(cameraPosition, worldPos));
-
-    // Fresnel rim effect - soft edge glow
-    // fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.5)
-    const fresnel = pow(sub(1.0, max(dot(normal, viewDir), 0.0)), 2.5);
-
-    // Breathing luminosity pulse - subtle brightness shift
-    // breathLuminosity = 1.0 + breathPhase * 0.12
-    const breathLuminosity = add(1.0, mul(breathPhaseUniform, 0.12));
-
-    // Subtle saturation boost based on viewing angle
-    // facingBoost = max(dot(normal, viewDir), 0.0) * 0.08
-    const facingBoost = mul(max(dot(normal, viewDir), 0.0), 0.08);
-
-    // Get instance color or fallback to warm neutral
-    // In TSL, instance colors come from the instanceColor attribute
-    const baseColor = instanced ? attribute('instanceColor', 'vec3') : vec3(0.85, 0.75, 0.65);
-
-    // Apply mood color with luminosity
-    // colorWithLuminosity = baseColor * breathLuminosity
-    const colorWithLuminosity = mul(baseColor, breathLuminosity);
-
-    // Mix in a warm white rim glow (like the globe)
-    // rimColor = vec3(0.98, 0.96, 0.94)
-    // colorWithRim = mix(colorWithLuminosity, rimColor, fresnel * 0.25)
-    const rimColor = vec3(0.98, 0.96, 0.94);
-    const colorWithRim = mix(colorWithLuminosity, rimColor, mul(fresnel, 0.25));
-
-    // Subtle inner luminance - very gentle glow from within
-    // innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3)
-    const innerGlow = mul(mul(sub(1.0, fresnel), 0.05), add(1.0, mul(breathPhaseUniform, 0.3)));
-    const innerGlowColor = vec3(1.0, 0.98, 0.95);
-    const colorWithInnerGlow = add(colorWithRim, mul(innerGlowColor, innerGlow));
-
-    // Slight desaturation toward edges for atmospheric feel
-    // desaturated = vec3(dot(colorWithInnerGlow, vec3(0.299, 0.587, 0.114)))
-    const luminance = dot(colorWithInnerGlow, vec3(0.299, 0.587, 0.114));
-    const desaturated = vec3(luminance, luminance, luminance);
-
-    // finalColor = mix(desaturated, colorWithInnerGlow, 0.85 + facingBoost)
-    const finalColor = mix(desaturated, colorWithInnerGlow, add(0.85, facingBoost));
-
-    return finalColor;
-  })();
-
-  material.colorNode = colorNode;
-
-  // Provide uniforms-like interface for backward compatibility
-  // This allows existing code that uses material.uniforms to still work
-  Object.defineProperty(material, 'uniforms', {
-    get() {
-      return {
-        breathPhase: { value: breathPhaseUniform.value },
-        time: { value: timeUniform.value },
-      };
+export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      breathPhase: { value: 0 },
+      time: { value: 0 },
     },
-    set(val: { breathPhase?: { value: number }; time?: { value: number } }) {
-      if (val.breathPhase !== undefined) {
-        breathPhaseUniform.value = val.breathPhase.value;
-      }
-      if (val.time !== undefined) {
-        timeUniform.value = val.time.value;
-      }
-    },
+    vertexShader: shardVertexShader,
+    fragmentShader: shardFragmentShader,
+    defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
+    side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
   });
-
-  return material;
 }
