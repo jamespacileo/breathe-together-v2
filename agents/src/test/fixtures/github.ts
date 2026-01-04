@@ -114,31 +114,4 @@ export const mockDeploymentStatus = {
   created_at: '2024-01-15T14:12:00Z',
 };
 
-export const mockDeploymentStatusPending = {
-  id: 1002,
-  state: 'pending',
-  environment_url: null,
-  created_at: '2024-01-15T14:11:00Z',
-};
-
 export const mockDeployments = [mockDeployment];
-
-// ============================================================================
-// API Response Builders
-// ============================================================================
-
-export function buildPullRequestsResponse(prs = mockPullRequests) {
-  return prs;
-}
-
-export function buildWorkflowRunsResponse(runs = mockWorkflowRuns) {
-  return { workflow_runs: runs };
-}
-
-export function buildDeploymentsResponse(deployments = mockDeployments) {
-  return deployments;
-}
-
-export function buildDeploymentStatusesResponse(statuses = [mockDeploymentStatus]) {
-  return statuses;
-}

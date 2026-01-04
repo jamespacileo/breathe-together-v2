@@ -5,16 +5,19 @@
  */
 
 import { HttpResponse, http } from 'msw';
+import { setupServer } from 'msw/node';
 import {
-  buildDeploymentStatusesResponse,
-  buildDeploymentsResponse,
-  buildPullRequestsResponse,
-  buildWorkflowRunsResponse,
   mockDeploymentStatus,
+  mockDeployments,
+  mockPullRequests,
+  mockWorkflowRuns,
 } from '../fixtures/github';
 
+// URL constants - exported for use in tests
 const GITHUB_API_BASE = 'https://api.github.com';
 const REPO_PATH = '/repos/jamespacileo/breathe-together-v2';
+
+export const GITHUB_API_URL = `${GITHUB_API_BASE}${REPO_PATH}`;
 
 // ============================================================================
 // Pull Requests Handlers
@@ -27,7 +30,7 @@ export const pullRequestsHandler = http.get(
     const state = url.searchParams.get('state') || 'open';
 
     // Filter by state if needed
-    const prs = buildPullRequestsResponse().filter((pr) => pr.state === state || state === 'all');
+    const prs = mockPullRequests.filter((pr) => pr.state === state || state === 'all');
 
     return HttpResponse.json(prs);
   },
@@ -37,7 +40,7 @@ export const pullRequestHandler = http.get(
   `${GITHUB_API_BASE}${REPO_PATH}/pulls/:number`,
   ({ params }) => {
     const prNumber = Number(params.number);
-    const pr = buildPullRequestsResponse().find((p) => p.number === prNumber);
+    const pr = mockPullRequests.find((p) => p.number === prNumber);
 
     if (!pr) {
       return HttpResponse.json({ message: 'Not Found' }, { status: 404 });
@@ -58,7 +61,7 @@ export const workflowRunsHandler = http.get(
     const branch = url.searchParams.get('branch');
     const perPage = Number(url.searchParams.get('per_page')) || 20;
 
-    let runs = buildWorkflowRunsResponse().workflow_runs;
+    let runs = [...mockWorkflowRuns];
 
     // Filter by branch if specified
     if (branch) {
@@ -76,7 +79,7 @@ export const workflowRunHandler = http.get(
   `${GITHUB_API_BASE}${REPO_PATH}/actions/runs/:id`,
   ({ params }) => {
     const runId = Number(params.id);
-    const run = buildWorkflowRunsResponse().workflow_runs.find((r) => r.id === runId);
+    const run = mockWorkflowRuns.find((r) => r.id === runId);
 
     if (!run) {
       return HttpResponse.json({ message: 'Not Found' }, { status: 404 });
@@ -90,53 +93,22 @@ export const workflowRunHandler = http.get(
 // Deployments Handlers
 // ============================================================================
 
-export const deploymentsHandler = http.get(
-  `${GITHUB_API_BASE}${REPO_PATH}/deployments`,
-  ({ request }) => {
-    const url = new URL(request.url);
-    const _perPage = Number(url.searchParams.get('per_page')) || 30;
-
-    return HttpResponse.json(buildDeploymentsResponse());
-  },
-);
+export const deploymentsHandler = http.get(`${GITHUB_API_BASE}${REPO_PATH}/deployments`, () => {
+  return HttpResponse.json(mockDeployments);
+});
 
 export const deploymentStatusesHandler = http.get(
   `${GITHUB_API_BASE}${REPO_PATH}/deployments/:id/statuses`,
   () => {
-    return HttpResponse.json(buildDeploymentStatusesResponse([mockDeploymentStatus]));
+    return HttpResponse.json([mockDeploymentStatus]);
   },
 );
 
 // ============================================================================
-// Error Handlers (for testing error scenarios)
+// Combined Handlers & Server
 // ============================================================================
 
-export const githubErrorHandler = http.get(`${GITHUB_API_BASE}${REPO_PATH}/*`, () => {
-  return HttpResponse.json({ message: 'Internal Server Error' }, { status: 500 });
-});
-
-export const githubRateLimitHandler = http.get(`${GITHUB_API_BASE}${REPO_PATH}/*`, () => {
-  return HttpResponse.json(
-    { message: 'API rate limit exceeded' },
-    {
-      status: 403,
-      headers: {
-        'X-RateLimit-Remaining': '0',
-        'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 3600),
-      },
-    },
-  );
-});
-
-export const githubUnauthorizedHandler = http.get(`${GITHUB_API_BASE}${REPO_PATH}/*`, () => {
-  return HttpResponse.json({ message: 'Bad credentials' }, { status: 401 });
-});
-
-// ============================================================================
-// Combined Handlers
-// ============================================================================
-
-export const githubHandlers = [
+const githubHandlers = [
   pullRequestsHandler,
   pullRequestHandler,
   workflowRunsHandler,
@@ -144,3 +116,6 @@ export const githubHandlers = [
   deploymentsHandler,
   deploymentStatusesHandler,
 ];
+
+// Create and export the MSW server with GitHub handlers
+export const server = setupServer(...githubHandlers);

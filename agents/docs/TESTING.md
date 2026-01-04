@@ -40,21 +40,15 @@ npm run agents:test -- src/test/integration
 
 ```
 agents/src/test/
-├── setup.ts                    # Global test setup (MSW server)
-│
-├── fixtures/                   # Test data
-│   └── github.ts              # GitHub API fixtures (PRs, workflows, deployments)
-│
-├── mocks/                      # MSW handlers
-│   ├── github.ts              # GitHub API mock handlers
-│   ├── handlers.ts            # Combined handlers export
-│   └── server.ts              # MSW server setup
-│
-├── unit/                       # Unit tests (fast, no worker)
-│   ├── pipelines.test.ts      # Pipeline definitions
-│   └── github-agent.test.ts   # GitHub agent + API mocking with MSW
-│
-└── integration/                # Integration tests (requires worker)
+├── setup.ts                    # Global test setup (MSW lifecycle)
+├── fixtures/
+│   └── github.ts              # GitHub API mock data (PRs, workflows, deployments)
+├── mocks/
+│   └── github.ts              # MSW handlers + server (exports: server, GITHUB_API_URL)
+├── unit/
+│   ├── pipelines.test.ts      # Pipeline definitions and schedules
+│   └── github-agent.test.ts   # GitHub agent config + API mocking
+└── integration/
     └── health-agent.test.ts   # Health agent with Miniflare
 ```
 
@@ -69,7 +63,7 @@ We use [MSW (Mock Service Worker)](https://mswjs.io/) to mock external APIs like
 ```typescript
 // src/test/setup.ts
 import { afterAll, afterEach, beforeAll } from 'vitest';
-import { server } from './mocks/server';
+import { server } from './mocks/github';
 
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'warn' });
@@ -113,19 +107,26 @@ export const mockWorkflowRun = {
 
 ```typescript
 // src/test/mocks/github.ts
+import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
-import { mockPullRequest } from '../fixtures/github';
+import { mockPullRequests } from '../fixtures/github';
 
-export const pullRequestsHandler = http.get(
-  'https://api.github.com/repos/:owner/:repo/pulls',
+// URL constant - exported for use in tests
+export const GITHUB_API_URL = 'https://api.github.com/repos/owner/repo';
+
+const pullRequestsHandler = http.get(
+  `${GITHUB_API_URL}/pulls`,
   ({ request }) => {
     const url = new URL(request.url);
     const state = url.searchParams.get('state') || 'open';
-    return HttpResponse.json([mockPullRequest]);
+    return HttpResponse.json(mockPullRequests.filter(pr => pr.state === state));
   }
 );
 
-export const githubHandlers = [pullRequestsHandler];
+const githubHandlers = [pullRequestsHandler];
+
+// Export the MSW server with handlers
+export const server = setupServer(...githubHandlers);
 ```
 
 ### Using MSW in Tests
@@ -134,13 +135,11 @@ export const githubHandlers = [pullRequestsHandler];
 // src/test/unit/github-agent.test.ts
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { server } from '../mocks/server';
+import { GITHUB_API_URL, server } from '../mocks/github';
 
 describe('GitHub API Interactions', () => {
   it('fetches open pull requests', async () => {
-    const response = await fetch(
-      'https://api.github.com/repos/owner/repo/pulls?state=open'
-    );
+    const response = await fetch(`${GITHUB_API_URL}/pulls?state=open`);
 
     expect(response.ok).toBe(true);
     const data = await response.json();
@@ -150,7 +149,7 @@ describe('GitHub API Interactions', () => {
   it('handles API errors', async () => {
     // Override handler for this test only
     server.use(
-      http.get('https://api.github.com/repos/:owner/:repo/pulls', () => {
+      http.get(`${GITHUB_API_URL}/pulls`, () => {
         return HttpResponse.json(
           { message: 'Internal Server Error' },
           { status: 500 }
@@ -158,9 +157,7 @@ describe('GitHub API Interactions', () => {
       }, { once: true })
     );
 
-    const response = await fetch(
-      'https://api.github.com/repos/owner/repo/pulls'
-    );
+    const response = await fetch(`${GITHUB_API_URL}/pulls`);
 
     expect(response.status).toBe(500);
   });
