@@ -8,10 +8,13 @@
  *
  * Shapes are simple geometric primitives (pillars, pyramids, spheres)
  * rendered with subtle colors that fade into the background.
+ *
+ * IMPORTANT: Uses renderOrder=-999 to render AFTER BackgroundGradient (-1000)
+ * but BEFORE other scene content, so shapes appear in the background layer.
  */
 
 import { useFrame } from '@react-three/fiber';
-import { memo, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 interface DistantShapesProps {
@@ -42,57 +45,58 @@ interface ShapeConfig {
 
 // Configuration for distant shapes - positioned around the scene
 // Inspired by Monument Valley's layered landscape
+// NOTE: distanceFade values increased significantly for visibility through BackgroundGradient
 const SHAPE_CONFIGS: ShapeConfig[] = [
-  // === FAR BACKGROUND (Z: -60 to -80) - Very faded, large shapes ===
+  // === FAR BACKGROUND (Z: -60 to -80) - Large shapes, higher opacity to pierce through ===
   {
     id: 'far-pillar-left',
     type: 'pillar',
     position: [-45, -8, -70],
     scale: [3, 25, 3],
-    color: '#e0d8d0',
-    distanceFade: 0.15,
+    color: '#c8beb4', // Darker for visibility
+    distanceFade: 0.5, // Increased from 0.15
   },
   {
     id: 'far-pillar-right',
     type: 'pillar',
     position: [50, -10, -75],
     scale: [4, 30, 4],
-    color: '#ddd5cd',
-    distanceFade: 0.12,
+    color: '#c4bab0',
+    distanceFade: 0.45, // Increased from 0.12
   },
   {
     id: 'far-pyramid-center',
     type: 'pyramid',
     position: [0, -15, -80],
     scale: [20, 15, 20],
-    color: '#e5ddd5',
-    distanceFade: 0.1,
+    color: '#d0c6bc',
+    distanceFade: 0.4, // Increased from 0.1
   },
 
-  // === MID BACKGROUND (Z: -35 to -50) - Moderately faded ===
+  // === MID BACKGROUND (Z: -35 to -50) - Moderately visible ===
   {
     id: 'mid-pillar-left',
     type: 'pillar',
     position: [-30, -5, -40],
     scale: [2, 15, 2],
-    color: '#d8d0c8',
-    distanceFade: 0.25,
+    color: '#beb4aa',
+    distanceFade: 0.65, // Increased from 0.25
   },
   {
     id: 'mid-sphere-right',
     type: 'sphere',
     position: [35, 5, -45],
     scale: [4, 4, 4],
-    color: '#e0d8d0',
-    distanceFade: 0.2,
+    color: '#c8beb4',
+    distanceFade: 0.6, // Increased from 0.2
   },
   {
     id: 'mid-cone-left',
     type: 'cone',
     position: [-40, -3, -50],
     scale: [3, 8, 3],
-    color: '#ddd5cd',
-    distanceFade: 0.18,
+    color: '#c4bab0',
+    distanceFade: 0.55, // Increased from 0.18
   },
   {
     id: 'mid-torus-right',
@@ -100,34 +104,34 @@ const SHAPE_CONFIGS: ShapeConfig[] = [
     position: [28, 8, -38],
     scale: [2, 2, 2],
     rotation: [Math.PI / 4, 0, Math.PI / 6],
-    color: '#d4ccc4',
-    distanceFade: 0.28,
+    color: '#b4aaa0',
+    distanceFade: 0.7, // Increased from 0.28
   },
 
-  // === NEAR BACKGROUND (Z: -20 to -30) - More visible ===
+  // === NEAR BACKGROUND (Z: -20 to -30) - Most visible ===
   {
     id: 'near-pillar-far-left',
     type: 'pillar',
     position: [-25, -2, -25],
     scale: [1.5, 10, 1.5],
-    color: '#cec6be',
-    distanceFade: 0.4,
+    color: '#a8a098',
+    distanceFade: 0.85, // Increased from 0.4
   },
   {
     id: 'near-pyramid-right',
     type: 'pyramid',
     position: [22, -4, -28],
     scale: [5, 6, 5],
-    color: '#d0c8c0',
-    distanceFade: 0.35,
+    color: '#b0a8a0',
+    distanceFade: 0.8, // Increased from 0.35
   },
   {
     id: 'near-sphere-left',
     type: 'sphere',
     position: [-18, 3, -22],
     scale: [1.5, 1.5, 1.5],
-    color: '#c8c0b8',
-    distanceFade: 0.45,
+    color: '#a09890',
+    distanceFade: 0.9, // Increased from 0.45
   },
 
   // === SIDE SHAPES (far left/right, various Z) - Frame the scene ===
@@ -136,16 +140,16 @@ const SHAPE_CONFIGS: ShapeConfig[] = [
     type: 'pillar',
     position: [-55, -6, -30],
     scale: [2.5, 18, 2.5],
-    color: '#dcd4cc',
-    distanceFade: 0.22,
+    color: '#c0b6ac',
+    distanceFade: 0.6, // Increased from 0.22
   },
   {
     id: 'side-pillar-right',
     type: 'pillar',
     position: [55, -8, -35],
     scale: [3, 22, 3],
-    color: '#d8d0c8',
-    distanceFade: 0.2,
+    color: '#beb4aa',
+    distanceFade: 0.55, // Increased from 0.2
   },
 ];
 
@@ -171,7 +175,8 @@ const DistantShape = memo(function DistantShape({
   const timeOffset = useMemo(() => Math.random() * 100, []);
 
   // Calculate final opacity with atmospheric fade
-  const finalOpacity = baseOpacity * config.distanceFade * (1 - atmosphericFade * 0.5);
+  // Reduced atmospheric fade multiplier for better visibility
+  const finalOpacity = baseOpacity * config.distanceFade * (1 - atmosphericFade * 0.2);
 
   // Blend shape color with base color
   const shapeColor = useMemo(() => {
@@ -199,12 +204,14 @@ const DistantShape = memo(function DistantShape({
   }, [config.type]);
 
   // Create material with atmospheric color
+  // depthWrite: false ensures shapes render as background elements
   const material = useMemo(() => {
     return new THREE.MeshBasicMaterial({
       color: shapeColor,
       transparent: true,
       opacity: finalOpacity,
-      fog: true,
+      fog: false, // Disable fog - we handle atmospheric fade manually
+      depthWrite: false, // Don't write to depth buffer - background element
     });
   }, [shapeColor, finalOpacity]);
 
@@ -240,6 +247,8 @@ const DistantShape = memo(function DistantShape({
       position={position}
       scale={scale}
       rotation={config.rotation || [0, 0, 0]}
+      // Render after BackgroundGradient (-1000) but before main scene content
+      renderOrder={-999}
       // Mark for testing
       name={`distant-shape-${config.id}`}
       userData={{ isDistantShape: true, shapeId: config.id }}

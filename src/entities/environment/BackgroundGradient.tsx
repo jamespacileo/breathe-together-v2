@@ -154,11 +154,11 @@ void main() {
 
   // Subtle radial darkening toward edges (depth of field feel)
   float radialDepth = smoothstep(0.0, 0.7, radialDist);
-  baseColor = mix(baseColor, baseColor * 0.95, radialDepth * depthIntensity * 0.3);
+  baseColor = mix(baseColor, baseColor * 0.97, radialDepth * depthIntensity * 0.2);
 
-  // Subtle lightening toward center (focal point)
-  float centerGlow = 1.0 - smoothstep(0.0, 0.4, radialDist);
-  baseColor = mix(baseColor, vec3(1.0, 0.99, 0.97), centerGlow * depthIntensity * 0.15);
+  // Very subtle lightening toward center (focal point) - reduced to not wash out distant shapes
+  float centerGlow = 1.0 - smoothstep(0.0, 0.3, radialDist);
+  baseColor = mix(baseColor, vec3(1.0, 0.99, 0.97), centerGlow * depthIntensity * 0.05);
 
   // === PERSPECTIVE GRID (very subtle) ===
   if (perspectiveStrength > 0.001) {
@@ -189,9 +189,10 @@ void main() {
   vec3 color = mix(baseColor, cloudColor, cloudMask * 0.15);
 
   // === ATMOSPHERIC HAZE AT HORIZON ===
-  // Subtle brightening at horizon line (atmospheric scattering)
-  float horizonHaze = exp(-pow((y - horizonY) * 8.0, 2.0));
-  color = mix(color, vec3(1.0, 0.98, 0.95), horizonHaze * depthIntensity * 0.12);
+  // Very subtle brightening at horizon line (atmospheric scattering)
+  // Reduced intensity to not wash out distant shapes
+  float horizonHaze = exp(-pow((y - horizonY) * 10.0, 2.0));
+  color = mix(color, vec3(1.0, 0.98, 0.95), horizonHaze * depthIntensity * 0.06);
 
   // === VIGNETTE (depth of field) ===
   vec2 vignetteUv = vUv * 2.0 - 1.0;

@@ -48,8 +48,8 @@ describe('DistantShapes Component', () => {
     const baseColor = new THREE.Color(color);
 
     for (const shapeConfig of SHAPE_CONFIGS) {
-      // Calculate final opacity with atmospheric fade
-      const finalOpacity = opacity * shapeConfig.distanceFade * (1 - atmosphericFade * 0.5);
+      // Calculate final opacity with atmospheric fade (reduced multiplier for visibility)
+      const finalOpacity = opacity * shapeConfig.distanceFade * (1 - atmosphericFade * 0.2);
 
       // Blend colors
       const shapeColor = new THREE.Color(shapeConfig.color);
