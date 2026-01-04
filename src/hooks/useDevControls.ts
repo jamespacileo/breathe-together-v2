@@ -74,6 +74,16 @@ export const TUNING_DEFAULTS = {
   gridDivisions: 6,
   gridColor: '#e0e0e0',
 
+  // Scene Depth (dev-only) - parallax and atmospheric perspective
+  showParallaxClouds: true,
+  parallaxIntensity: 1.0,
+  parallaxOpacity: 0.35,
+  showGroundGlow: true,
+  groundGlowOpacity: 0.15,
+  groundGlowColor: '#f8e8d8',
+  showHazeLayers: true,
+  hazeOpacity: 0.08,
+
   // Debug (dev-only)
   showOrbitBounds: false,
   showPhaseMarkers: false,
@@ -190,6 +200,16 @@ export interface DevControlsState {
   gridDivisions: number;
   gridColor: string;
 
+  // Scene Depth
+  showParallaxClouds: boolean;
+  parallaxIntensity: number;
+  parallaxOpacity: number;
+  showGroundGlow: boolean;
+  groundGlowOpacity: number;
+  groundGlowColor: string;
+  showHazeLayers: boolean;
+  hazeOpacity: number;
+
   // Debug
   showOrbitBounds: boolean;
   showPhaseMarkers: boolean;
@@ -263,6 +283,15 @@ function getDefaultDevControls(): DevControlsState {
     gridSize: TUNING_DEFAULTS.gridSize,
     gridDivisions: TUNING_DEFAULTS.gridDivisions,
     gridColor: TUNING_DEFAULTS.gridColor,
+    // Scene Depth
+    showParallaxClouds: TUNING_DEFAULTS.showParallaxClouds,
+    parallaxIntensity: TUNING_DEFAULTS.parallaxIntensity,
+    parallaxOpacity: TUNING_DEFAULTS.parallaxOpacity,
+    showGroundGlow: TUNING_DEFAULTS.showGroundGlow,
+    groundGlowOpacity: TUNING_DEFAULTS.groundGlowOpacity,
+    groundGlowColor: TUNING_DEFAULTS.groundGlowColor,
+    showHazeLayers: TUNING_DEFAULTS.showHazeLayers,
+    hazeOpacity: TUNING_DEFAULTS.hazeOpacity,
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
@@ -736,7 +765,93 @@ export function useDevControls(): DevControlsState {
     ),
 
     // ==========================================
-    // 6. DEBUG (consolidates Debug + Performance Monitor)
+    // 6. SCENE DEPTH (parallax & atmospheric perspective)
+    // ==========================================
+    'Scene Depth': folder(
+      {
+        // Parallax Background
+        'Parallax Clouds': folder(
+          {
+            showParallaxClouds: {
+              value: TUNING_DEFAULTS.showParallaxClouds,
+              label: 'Enable',
+              hint: 'Show distant parallax clouds OUTSIDE MomentumControls.\n\n**Effect:** Creates depth when rotating the scene - clouds stay mostly fixed while globe rotates',
+            },
+            parallaxIntensity: {
+              value: TUNING_DEFAULTS.parallaxIntensity,
+              min: 0,
+              max: 2,
+              step: 0.1,
+              label: 'Parallax Amount',
+              hint: 'How much clouds respond to camera rotation. 0 = fixed, 1 = natural, 2 = exaggerated parallax.\n\n**Recommended:** 0.8-1.2 for subtle depth',
+              render: (get) => get('Scene Depth.Parallax Clouds.showParallaxClouds'),
+            },
+            parallaxOpacity: {
+              value: TUNING_DEFAULTS.parallaxOpacity,
+              min: 0.1,
+              max: 0.6,
+              step: 0.05,
+              label: 'Cloud Opacity',
+              hint: 'Transparency of parallax clouds. Lower = more subtle, higher = more prominent background.\n\n**Balance with:** Inner clouds (Environment > cloudOpacity)',
+              render: (get) => get('Scene Depth.Parallax Clouds.showParallaxClouds'),
+            },
+          },
+          { collapsed: false },
+        ),
+
+        // Ground Glow
+        'Ground Glow': folder(
+          {
+            showGroundGlow: {
+              value: TUNING_DEFAULTS.showGroundGlow,
+              label: 'Enable',
+              hint: 'Show soft radial glow beneath the globe for spatial grounding.\n\n**Effect:** Provides vertical reference without hard edges like stage mode grid',
+            },
+            groundGlowOpacity: {
+              value: TUNING_DEFAULTS.groundGlowOpacity,
+              min: 0.05,
+              max: 0.4,
+              step: 0.05,
+              label: 'Glow Intensity',
+              hint: 'Opacity of ground glow. Very subtle (0.1-0.15) or more prominent (0.25+).\n\n**Syncs with:** Breathing animation for subtle pulsing',
+              render: (get) => get('Scene Depth.Ground Glow.showGroundGlow'),
+            },
+            groundGlowColor: {
+              value: TUNING_DEFAULTS.groundGlowColor,
+              label: 'Glow Color',
+              hint: 'Color of ground glow. Warm tones (#f8e8d8) complement the Monument Valley palette.',
+              render: (get) => get('Scene Depth.Ground Glow.showGroundGlow'),
+            },
+          },
+          { collapsed: false },
+        ),
+
+        // Haze Layers
+        'Atmospheric Haze': folder(
+          {
+            showHazeLayers: {
+              value: TUNING_DEFAULTS.showHazeLayers,
+              label: 'Enable',
+              hint: 'Show visible haze planes at different depths.\n\n**Effect:** Adds atmospheric depth beyond what fog alone provides. Disabled on mobile for performance.',
+            },
+            hazeOpacity: {
+              value: TUNING_DEFAULTS.hazeOpacity,
+              min: 0.02,
+              max: 0.2,
+              step: 0.02,
+              label: 'Haze Density',
+              hint: 'Opacity of haze layers. Very subtle (0.04-0.08) is usually best.\n\n**Too high:** Scene looks foggy. **Too low:** No visible effect.',
+              render: (get) => get('Scene Depth.Atmospheric Haze.showHazeLayers'),
+            },
+          },
+          { collapsed: false },
+        ),
+      },
+      { collapsed: false, order: 4 },
+    ),
+
+    // ==========================================
+    // 7. DEBUG (consolidates Debug + Performance Monitor)
     // ==========================================
     Debug: folder(
       {

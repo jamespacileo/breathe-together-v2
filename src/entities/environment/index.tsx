@@ -4,10 +4,17 @@ import { useEffect } from 'react';
 import * as THREE from 'three';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
+import { AtmosphericPerspective, HazeLayer } from './AtmosphericPerspective';
 import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
 import { EditorGrid } from './EditorGrid';
+import { GroundGlow } from './GroundGlow';
 import { SubtleLightRays } from './SubtleLightRays';
+
+export { AtmosphericPerspective, HazeLayer } from './AtmosphericPerspective';
+export { GroundGlow } from './GroundGlow';
+// Re-export depth components for use in breathing.tsx
+export { ParallaxBackground } from './ParallaxBackground';
 
 interface EnvironmentProps {
   enabled?: boolean;
@@ -37,6 +44,17 @@ interface EnvironmentProps {
   gridDivisions?: number;
   /** Grid line color @default '#666666' */
   gridColor?: string;
+  // === DEPTH ENHANCEMENT PROPS ===
+  /** Show ground glow for spatial grounding @default true */
+  showGroundGlow?: boolean;
+  /** Ground glow opacity @default 0.15 */
+  groundGlowOpacity?: number;
+  /** Ground glow color @default '#f8e8d8' */
+  groundGlowColor?: string;
+  /** Show haze layers for atmospheric depth @default true */
+  showHazeLayers?: boolean;
+  /** Haze opacity @default 0.08 */
+  hazeOpacity?: number;
 }
 
 /**
@@ -64,6 +82,12 @@ export function Environment({
   gridSize = 20,
   gridDivisions = 20,
   gridColor = '#666666',
+  // Depth enhancement defaults
+  showGroundGlow = true,
+  groundGlowOpacity = 0.15,
+  groundGlowColor = '#f8e8d8',
+  showHazeLayers = true,
+  hazeOpacity = 0.08,
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
@@ -78,12 +102,13 @@ export function Environment({
       const studioWhite = new THREE.Color('#f8f6f3');
       scene.background = studioWhite;
       gl.setClearColor(studioWhite, 1);
+      // Disable fog in stage mode for clarity
+      scene.fog = null;
     } else {
       // Normal mode: let BackgroundGradient handle it
       scene.background = null;
+      // Fog is managed by AtmosphericPerspective component when enabled
     }
-    // Disable fog - it washes out the gradient
-    scene.fog = null;
 
     return () => {
       scene.fog = null;
@@ -128,14 +153,18 @@ export function Environment({
     );
   }
 
-  // Normal mode: full Monument Valley atmosphere
+  // Normal mode: full Monument Valley atmosphere with depth enhancement
   return (
     <group>
       {/* Animated gradient background - renders behind everything */}
       <BackgroundGradient />
 
-      {/* Memoized cloud system - only initializes once, never re-renders from parent changes */}
-      {/* Includes: top/middle/bottom layers, parallax depths, right-to-left looping */}
+      {/* === DEPTH ZONE 1: Far background haze layers === */}
+      {/* Creates atmospheric depth through visible haze planes at distance */}
+      {showHazeLayers && !isMobile && <HazeLayer opacity={hazeOpacity} enabled={true} />}
+
+      {/* === DEPTH ZONE 2: Mid-distance clouds === */}
+      {/* Memoized cloud system - rotates with scene (inside MomentumControls) */}
       {showClouds && <CloudSystem opacity={cloudOpacity} speed={cloudSpeed} enabled={true} />}
 
       {/* Subtle atmospheric details - users feel these more than see them */}
@@ -144,6 +173,18 @@ export function Environment({
 
       {/* Subtle diagonal light rays from upper right */}
       <SubtleLightRays opacity={0.03} enabled={!isMobile} />
+
+      {/* === DEPTH ZONE 3: Ground plane reference === */}
+      {/* Soft radial glow beneath the globe for spatial grounding */}
+      {showGroundGlow && (
+        <GroundGlow
+          opacity={groundGlowOpacity}
+          color={groundGlowColor}
+          radius={12}
+          yPosition={-4}
+          breathSync={true}
+        />
+      )}
 
       {/* Subtle distant stars - very faint for dreamy atmosphere */}
       {/* Count is responsive: 150 (mobile) / 300 (tablet) / 500 (desktop) */}
