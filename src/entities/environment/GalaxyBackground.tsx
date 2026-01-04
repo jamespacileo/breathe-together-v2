@@ -12,7 +12,6 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
-import { RENDER_LAYERS } from '../../constants';
 
 const vertexShader = `
 varying vec2 vUv;
@@ -127,7 +126,6 @@ void main() {
 
 export function GalaxyBackground() {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
 
   const geometry = useMemo(() => new PlaneGeometry(2, 2), []);
 
@@ -142,13 +140,6 @@ export function GalaxyBackground() {
       depthWrite: false,
       side: DoubleSide,
     });
-  }, []);
-
-  // Set layer to OVERLAY for sharp rendering after DoF
-  useEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.layers.set(RENDER_LAYERS.OVERLAY);
-    }
   }, []);
 
   // Animate time uniform
@@ -166,8 +157,10 @@ export function GalaxyBackground() {
     };
   }, [geometry, material]);
 
+  // Note: Defaults to layer 0 (ENVIRONMENT) - will be blurred by DoF for atmospheric depth
+  // Only stars/constellations/sun use OVERLAY layer for sharp focus
   return (
-    <mesh ref={meshRef} renderOrder={-1000} frustumCulled={false} geometry={geometry}>
+    <mesh renderOrder={-1000} frustumCulled={false} geometry={geometry}>
       <primitive object={material} ref={materialRef} attach="material" />
     </mesh>
   );

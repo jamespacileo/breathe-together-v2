@@ -94,9 +94,9 @@ export function Constellations({
 
   const constellationMaterial = useMemo(() => {
     return new MeshStandardMaterial({
-      color: new Color('#ffffff'),
-      emissive: new Color('#ffffee'), // Warmer white for more glow
-      emissiveIntensity: brightness * 3.5, // Increased from 1.5 for visibility
+      color: new Color('#e8f4ff'), // Cool blue-white like real stars
+      emissive: new Color('#b8d8ff'), // Bright blue-white glow
+      emissiveIntensity: brightness * 4.5, // Increased for vivid stellar glow
       toneMapped: false,
       metalness: 0,
       roughness: 1,
@@ -105,9 +105,9 @@ export function Constellations({
 
   const backgroundMaterial = useMemo(() => {
     return new MeshStandardMaterial({
-      color: new Color('#ffffff'),
-      emissive: new Color('#ffffff'),
-      emissiveIntensity: brightness * 1.0, // Increased from 0.3 for visibility
+      color: new Color('#dde8ff'), // Soft blue-white
+      emissive: new Color('#9ec5ff'), // Gentle blue glow
+      emissiveIntensity: brightness * 1.2, // Slightly brighter for deep space feel
       toneMapped: false,
       metalness: 0,
       roughness: 1,
@@ -116,10 +116,11 @@ export function Constellations({
 
   const lineMaterial = useMemo(() => {
     return new LineBasicMaterial({
-      color: new Color('#aaccff'), // Brighter blue for constellation lines
-      opacity: lineOpacity * 1.5, // Increased opacity for visibility
+      color: new Color('#7da3d9'), // Celestial blue for constellation lines
+      opacity: lineOpacity * 2.0, // Enhanced visibility
       transparent: true,
       toneMapped: false,
+      linewidth: 2, // Thicker lines (note: may not work on all platforms)
     });
   }, [lineOpacity]);
 
