@@ -6,12 +6,14 @@ on:
 
 # Cancel previous runs when new commits are pushed to save resources
 concurrency:
-  group: preview-${{ github.event.pull_request.number }}
+  group: preview-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   # CI/CD validation checks (runs in parallel with preview)
   validate:
+    # Only run on actual pull_request events (not push events that may trigger incorrectly)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     name: Code Validation
     steps:
@@ -40,6 +42,8 @@ jobs:
 
   # Deploy worker preview first
   deploy-worker-preview:
+    # Only run on actual pull_request events (not push events that may trigger incorrectly)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     name: Deploy Worker Preview
     steps:
@@ -541,7 +545,7 @@ jobs:
   # Notify when validation checks pass
   notify-validation-success:
     needs: validate
-    if: success()
+    if: success() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     name: Notify Validation Success
     steps:
@@ -602,7 +606,7 @@ jobs:
   # Notify on failures (validation or deployment)
   notify-failure:
     needs: [validate, deploy-worker-preview, deploy-preview]
-    if: always() && (needs.validate.result == 'failure' || needs.deploy-worker-preview.result == 'failure' || needs.deploy-preview.result == 'failure')
+    if: always() && github.event_name == 'pull_request' && (needs.validate.result == 'failure' || needs.deploy-worker-preview.result == 'failure' || needs.deploy-preview.result == 'failure')
     runs-on: ubuntu-latest
     name: Notify Failures
     steps:
