@@ -286,35 +286,33 @@ export function ParticleSwarm({
   }, [normalizedUsers.length, baseShardSize, minShardSize, maxShardSize]);
 
   /**
-   * Calculate minimum orbit radius dynamically based on particle count and shard size.
-   *
-   * Two constraints must be satisfied:
-   * 1. Globe collision: radius > globeRadius + shardSize + buffer
-   * 2. Inter-particle spacing: For Fibonacci sphere with N particles at radius R,
-   *    minimum spacing ≈ R × 1.95 / sqrt(N). For no collision:
-   *    R × 1.95 / sqrt(N) > 2 × shardSize + wobbleMargin
-   *    R > (2 × shardSize + wobbleMargin) × sqrt(N) / 1.95
-   *
-   * The wobbleMargin accounts for PERPENDICULAR_AMPLITUDE and AMBIENT_SCALE motion
-   * that can temporarily bring particles closer together.
+   * Calculate minimum orbit radius - ONLY the hard globe collision constraint.
+   * Shards must never penetrate the globe surface.
    */
   const minOrbitRadius = useMemo(() => {
+    // Hard limit: Globe collision prevention only
+    return globeRadius + shardSize + buffer;
+  }, [globeRadius, shardSize, buffer]);
+
+  /**
+   * Calculate ideal spacing radius - the radius at which full-size shards fit without overlap.
+   * This is a SOFT constraint - if breathing radius is smaller, shards will scale down.
+   *
+   * For Fibonacci sphere with N particles at radius R:
+   *   minimum spacing ≈ R × 1.95 / sqrt(N)
+   * For no collision: R > (2 × shardSize + wobbleMargin) × sqrt(N) / 1.95
+   *
+   * The wobbleMargin accounts for PERPENDICULAR_AMPLITUDE and AMBIENT_SCALE motion.
+   */
+  const idealSpacingRadius = useMemo(() => {
     const count = normalizedUsers.length || 1;
-
-    // Constraint 1: Globe collision prevention
-    const globeConstraint = globeRadius + shardSize + buffer;
-
-    // Constraint 2: Inter-particle spacing
     // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
     // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.22
     const wobbleMargin = 0.22;
     const fibonacciSpacingFactor = 1.95;
     const requiredSpacing = 2 * shardSize + wobbleMargin;
-    const spacingConstraint = (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
-
-    // Use the more restrictive constraint
-    return Math.max(globeConstraint, spacingConstraint);
-  }, [normalizedUsers.length, globeRadius, shardSize, buffer]);
+    return (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
+  }, [normalizedUsers.length, shardSize]);
 
   // Create shared geometry (single geometry for all instances)
   const geometry = useMemo(() => {
@@ -583,9 +581,17 @@ export function ParticleSwarm({
       _tempEuler.set(instanceState.rotationX, instanceState.rotationY, 0);
       _tempQuaternion.setFromEuler(_tempEuler);
 
-      // Final scale: slot scale × breath scale × base offset
+      // Calculate spacing scale factor: shrink shards when orbit radius < ideal spacing radius
+      // This prevents overlap when many users are present and orbit contracts during breathing
+      const spacingScaleFactor =
+        instanceState.currentRadius < idealSpacingRadius
+          ? Math.max(0.3, instanceState.currentRadius / idealSpacingRadius)
+          : 1.0;
+
+      // Final scale: slot scale × breath scale × spacing scale × base offset
       const breathScale = 1.0 + currentBreathPhase * 0.05;
-      const finalScale = slotScale * instanceState.baseScaleOffset * breathScale;
+      const finalScale =
+        slotScale * instanceState.baseScaleOffset * breathScale * spacingScaleFactor;
       _tempScale.setScalar(finalScale);
 
       // Compose and set matrix
