@@ -22,6 +22,10 @@ void main() {
 
 const fragmentShader = `
 uniform float time;
+uniform float depthIntensity;      // Controls overall depth effect strength
+uniform float horizonPosition;     // Where the horizon sits (0-1, default 0.35)
+uniform float perspectiveStrength; // Strength of radial perspective lines
+uniform float groundFade;          // How much ground fades to horizon
 varying vec2 vUv;
 
 // Simplex noise functions for cloud-like patterns
@@ -59,51 +63,142 @@ float fbm(vec2 p) {
   return f / 0.75;
 }
 
+// Radial perspective grid - creates converging lines toward horizon center
+float perspectiveGrid(vec2 uv, float horizon) {
+  // Center point where lines converge (horizon center)
+  vec2 center = vec2(0.5, horizon);
+  vec2 toCenter = uv - center;
+
+  // Distance from center (for fading)
+  float dist = length(toCenter);
+
+  // Angle from center (for radial lines)
+  float angle = atan(toCenter.y, toCenter.x);
+
+  // Create radial lines (32 lines around the circle)
+  float radialLines = abs(sin(angle * 16.0));
+  radialLines = smoothstep(0.85, 1.0, radialLines); // Make lines thin
+
+  // Concentric circles (distance rings) - perspective spacing
+  // Closer rings are more spaced, distant rings compress
+  float perspectiveDist = pow(dist, 0.7); // Non-linear for perspective feel
+  float rings = abs(sin(perspectiveDist * 20.0));
+  rings = smoothstep(0.9, 1.0, rings);
+
+  // Combine - lines fade toward center (horizon) and edges
+  float grid = max(radialLines, rings * 0.5);
+  grid *= smoothstep(0.0, 0.15, dist); // Fade near center
+  grid *= smoothstep(0.8, 0.4, dist);  // Fade at edges
+
+  // Only show in lower portion (ground area)
+  grid *= smoothstep(horizon + 0.1, horizon - 0.1, uv.y);
+
+  return grid;
+}
+
+// Ground plane effect - simulates receding ground with atmospheric perspective
+float groundPlane(vec2 uv, float horizon) {
+  // Below horizon = ground
+  float groundMask = smoothstep(horizon + 0.05, horizon - 0.2, uv.y);
+
+  // Distance from viewer (bottom = close, horizon = far)
+  float depth = 1.0 - smoothstep(0.0, horizon, uv.y);
+
+  // Radial distance from center bottom (vanishing point perspective)
+  vec2 groundCenter = vec2(0.5, 0.0);
+  float radialDist = length(uv - groundCenter);
+
+  // Combine for ground intensity
+  return groundMask * depth;
+}
+
 void main() {
-  // Creamy neutral background - soft warm tones
+  // === SKY COLORS (upper portion) ===
   vec3 skyTop = vec3(0.96, 0.94, 0.91);       // #f5f0e8 Warm cream
   vec3 skyMid = vec3(0.98, 0.95, 0.90);       // #faf2e6 Soft ivory
-  vec3 horizon = vec3(0.99, 0.94, 0.88);      // #fcf0e0 Warm white
-  vec3 warmGlow = vec3(0.98, 0.92, 0.85);     // #faebb9 Subtle warm glow
+  vec3 horizonColor = vec3(1.0, 0.97, 0.93);  // Bright warm white at horizon
 
-  // Vertical position for gradient
+  // === GROUND COLORS (lower portion) ===
+  vec3 groundNear = vec3(0.92, 0.88, 0.82);   // Warmer, slightly darker near viewer
+  vec3 groundFar = vec3(0.98, 0.95, 0.91);    // Fades to sky color at horizon
+
+  // Vertical position
   float y = vUv.y;
 
-  // Smooth multi-stop gradient using smoothstep blending
-  vec3 skyColor;
-  float t1 = smoothstep(0.5, 0.9, y);   // Top transition
-  float t2 = smoothstep(0.25, 0.6, y);  // Middle transition
-  float t3 = smoothstep(0.0, 0.35, y);  // Bottom transition
+  // === HORIZON-BASED GRADIENT ===
+  // Above horizon: sky gradient
+  // Below horizon: ground gradient with atmospheric perspective
 
-  // Layer the colors smoothly
-  skyColor = mix(warmGlow, horizon, t3);
-  skyColor = mix(skyColor, skyMid, t2);
-  skyColor = mix(skyColor, skyTop, t1);
+  float horizonY = horizonPosition;
 
-  // Animated cloud-like wisps using FBM noise
+  // Sky gradient (above horizon)
+  float skyT = smoothstep(horizonY, 1.0, y);
+  vec3 skyGradient = mix(horizonColor, skyTop, skyT);
+
+  // Ground gradient (below horizon) - atmospheric perspective
+  // Near ground is warmer/darker, far ground fades to horizon color
+  float groundT = smoothstep(0.0, horizonY, y);
+  // Non-linear for perspective (ground appears to recede faster near horizon)
+  groundT = pow(groundT, 0.6 + groundFade * 0.4);
+  vec3 groundGradient = mix(groundNear, horizonColor, groundT);
+
+  // Blend sky and ground at horizon
+  float horizonBlend = smoothstep(horizonY - 0.08, horizonY + 0.08, y);
+  vec3 baseColor = mix(groundGradient, skyGradient, horizonBlend);
+
+  // === RADIAL DEPTH GRADIENT ===
+  // Center of scene (where globe is) should feel like focal point
+  // Creates subtle "depth tunnel" effect
+  vec2 center = vec2(0.5, 0.45); // Slightly above center where globe sits
+  float radialDist = length(vUv - center);
+
+  // Subtle radial darkening toward edges (depth of field feel)
+  float radialDepth = smoothstep(0.0, 0.7, radialDist);
+  baseColor = mix(baseColor, baseColor * 0.95, radialDepth * depthIntensity * 0.3);
+
+  // Subtle lightening toward center (focal point)
+  float centerGlow = 1.0 - smoothstep(0.0, 0.4, radialDist);
+  baseColor = mix(baseColor, vec3(1.0, 0.99, 0.97), centerGlow * depthIntensity * 0.15);
+
+  // === PERSPECTIVE GRID (very subtle) ===
+  if (perspectiveStrength > 0.001) {
+    float grid = perspectiveGrid(vUv, horizonY);
+    vec3 gridColor = vec3(0.85, 0.82, 0.78); // Subtle warm gray
+    baseColor = mix(baseColor, gridColor, grid * perspectiveStrength * 0.15);
+  }
+
+  // === GROUND PLANE SHADING ===
+  float ground = groundPlane(vUv, horizonY);
+  // Ground gets slightly more saturated/warm near viewer
+  vec3 groundTint = vec3(0.98, 0.94, 0.88);
+  baseColor = mix(baseColor, groundTint, ground * groundFade * 0.2);
+
+  // === ANIMATED CLOUDS ===
   vec2 cloudUv = vUv * vec2(2.0, 1.0) + vec2(time * 0.015, 0.0);
   float clouds = fbm(cloudUv * 2.5);
 
-  // Second layer of clouds moving slightly differently
   vec2 cloudUv2 = vUv * vec2(1.5, 0.8) + vec2(time * 0.01 + 50.0, time * 0.003);
   float clouds2 = fbm(cloudUv2 * 2.0);
 
-  // Combine cloud layers - fade at top and bottom
+  // Clouds fade toward ground (they're in the sky)
   float cloudMask = smoothstep(0.2, 0.55, clouds * 0.5 + clouds2 * 0.5);
-  cloudMask *= smoothstep(0.1, 0.4, y) * smoothstep(0.95, 0.6, y);
+  cloudMask *= smoothstep(horizonY - 0.1, horizonY + 0.2, y); // Fade below horizon
+  cloudMask *= smoothstep(0.95, 0.6, y); // Fade at top
 
-  // Cloud color - pure warm white
   vec3 cloudColor = vec3(1.0, 0.99, 0.97);
+  vec3 color = mix(baseColor, cloudColor, cloudMask * 0.15);
 
-  // Blend clouds very subtly into sky
-  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
+  // === ATMOSPHERIC HAZE AT HORIZON ===
+  // Subtle brightening at horizon line (atmospheric scattering)
+  float horizonHaze = exp(-pow((y - horizonY) * 8.0, 2.0));
+  color = mix(color, vec3(1.0, 0.98, 0.95), horizonHaze * depthIntensity * 0.12);
 
-  // Very subtle vignette - just darkens corners slightly
+  // === VIGNETTE (depth of field) ===
   vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
-  color *= mix(0.97, 1.0, vignette);
+  float vignette = 1.0 - dot(vignetteUv * 0.2, vignetteUv * 0.2);
+  color *= mix(0.94, 1.0, vignette);
 
-  // Paper texture noise (very subtle)
+  // === SUBTLE PAPER TEXTURE ===
   float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
   color += noise;
 
@@ -111,7 +206,43 @@ void main() {
 }
 `;
 
-export function BackgroundGradient() {
+interface BackgroundGradientProps {
+  /**
+   * Overall depth effect intensity.
+   * Higher values = more pronounced depth cues.
+   * @min 0 @max 1 @step 0.1
+   * @default 0.7
+   */
+  depthIntensity?: number;
+  /**
+   * Horizon line position (0 = bottom, 1 = top).
+   * Lower values = more ground visible, higher = more sky.
+   * @min 0.2 @max 0.6 @step 0.05
+   * @default 0.35
+   */
+  horizonPosition?: number;
+  /**
+   * Strength of subtle perspective grid lines.
+   * 0 = no grid, 1 = visible grid. Keep very low for ethereal feel.
+   * @min 0 @max 1 @step 0.1
+   * @default 0
+   */
+  perspectiveStrength?: number;
+  /**
+   * How much the ground fades toward horizon (atmospheric perspective).
+   * Higher = more dramatic depth fade.
+   * @min 0 @max 1 @step 0.1
+   * @default 0.5
+   */
+  groundFade?: number;
+}
+
+export function BackgroundGradient({
+  depthIntensity = 0.7,
+  horizonPosition = 0.35,
+  perspectiveStrength = 0,
+  groundFade = 0.5,
+}: BackgroundGradientProps = {}) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   // Create geometry with useMemo for proper disposal
@@ -121,6 +252,10 @@ export function BackgroundGradient() {
     return new ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        depthIntensity: { value: depthIntensity },
+        horizonPosition: { value: horizonPosition },
+        perspectiveStrength: { value: perspectiveStrength },
+        groundFade: { value: groundFade },
       },
       vertexShader,
       fragmentShader,
@@ -128,12 +263,17 @@ export function BackgroundGradient() {
       depthWrite: false,
       side: DoubleSide,
     });
-  }, []);
+  }, [depthIntensity, horizonPosition, perspectiveStrength, groundFade]);
 
-  // Animate time uniform
+  // Animate time uniform and update other uniforms
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+      // Update uniforms if props change
+      materialRef.current.uniforms.depthIntensity.value = depthIntensity;
+      materialRef.current.uniforms.horizonPosition.value = horizonPosition;
+      materialRef.current.uniforms.perspectiveStrength.value = perspectiveStrength;
+      materialRef.current.uniforms.groundFade.value = groundFade;
     }
   });
 

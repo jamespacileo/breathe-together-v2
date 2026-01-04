@@ -122,6 +122,36 @@ interface EnvironmentProps {
    * @default 0.02
    */
   groundGridOpacity?: number;
+
+  // === Background Depth System ===
+  /**
+   * Overall background depth effect intensity.
+   * Controls horizon visibility, radial depth, and atmospheric effects.
+   * @min 0 @max 1 @step 0.1
+   * @default 0.7
+   */
+  bgDepthIntensity?: number;
+  /**
+   * Horizon line position (0 = bottom, 1 = top).
+   * Lower = more ground visible, creates stronger depth.
+   * @min 0.2 @max 0.6 @step 0.05
+   * @default 0.35
+   */
+  bgHorizonPosition?: number;
+  /**
+   * Strength of subtle perspective grid in background.
+   * 0 = ethereal (no grid), higher = more spatial reference.
+   * @min 0 @max 0.5 @step 0.05
+   * @default 0
+   */
+  bgPerspectiveStrength?: number;
+  /**
+   * Ground atmospheric fade intensity.
+   * How much ground fades toward horizon (atmospheric perspective).
+   * @min 0 @max 1 @step 0.1
+   * @default 0.5
+   */
+  bgGroundFade?: number;
 }
 
 /**
@@ -163,6 +193,11 @@ export function Environment({
   shadowOpacity = 0.08,
   showGroundGrid = false,
   groundGridOpacity = 0.02,
+  // Background depth props
+  bgDepthIntensity = 0.7,
+  bgHorizonPosition = 0.35,
+  bgPerspectiveStrength = 0,
+  bgGroundFade = 0.5,
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
@@ -230,8 +265,13 @@ export function Environment({
   // Normal mode: full Monument Valley atmosphere
   return (
     <group>
-      {/* Animated gradient background - renders behind everything */}
-      <BackgroundGradient />
+      {/* Animated gradient background with depth cues - renders behind everything */}
+      <BackgroundGradient
+        depthIntensity={bgDepthIntensity}
+        horizonPosition={bgHorizonPosition}
+        perspectiveStrength={bgPerspectiveStrength}
+        groundFade={bgGroundFade}
+      />
 
       {/* Memoized cloud system - only initializes once, never re-renders from parent changes */}
       {/* Includes: top/middle/bottom layers, parallax depths, right-to-left looping */}
