@@ -98,7 +98,7 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Environment - clouds, lighting, fog (or grid floor in stage mode) */}
+            {/* Environment - clouds, lighting, fog, HDRI (or grid floor in stage mode) */}
             {showEnvironment && (
               <Environment
                 showClouds={devControls.showClouds}
@@ -114,6 +114,10 @@ export function BreathingLevel({
                 gridSize={devControls.gridSize}
                 gridDivisions={devControls.gridDivisions}
                 gridColor={devControls.gridColor}
+                enableHDRI={devControls.enableHDRI}
+                hdriIntensity={devControls.hdriIntensity}
+                hdriBlur={devControls.hdriBlur}
+                useHDRIBackground={devControls.useHDRIBackground}
               />
             )}
 

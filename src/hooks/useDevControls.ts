@@ -62,6 +62,12 @@ export const TUNING_DEFAULTS = {
   keyLightColor: '#ffe4c4',
   keyLightIntensity: 0.8,
 
+  // HDRI Environment (dev-only)
+  enableHDRI: true,
+  hdriIntensity: 0.3,
+  hdriBlur: 0.5,
+  useHDRIBackground: false,
+
   // Colors - Globe
   globeRingColor: '#e8c4b8',
   globeRingOpacity: 0.15,
@@ -178,6 +184,12 @@ export interface DevControlsState {
   keyLightColor: string;
   keyLightIntensity: number;
 
+  // HDRI Environment
+  enableHDRI: boolean;
+  hdriIntensity: number;
+  hdriBlur: number;
+  useHDRIBackground: boolean;
+
   // Colors - Globe
   globeRingColor: string;
   globeRingOpacity: number;
@@ -255,6 +267,10 @@ function getDefaultDevControls(): DevControlsState {
     ambientLightIntensity: TUNING_DEFAULTS.ambientLightIntensity,
     keyLightColor: TUNING_DEFAULTS.keyLightColor,
     keyLightIntensity: TUNING_DEFAULTS.keyLightIntensity,
+    enableHDRI: TUNING_DEFAULTS.enableHDRI,
+    hdriIntensity: TUNING_DEFAULTS.hdriIntensity,
+    hdriBlur: TUNING_DEFAULTS.hdriBlur,
+    useHDRIBackground: TUNING_DEFAULTS.useHDRIBackground,
     globeRingColor: TUNING_DEFAULTS.globeRingColor,
     globeRingOpacity: TUNING_DEFAULTS.globeRingOpacity,
     globeAtmosphereTint: TUNING_DEFAULTS.globeAtmosphereTint,
@@ -579,6 +595,38 @@ export function useDevControls(): DevControlsState {
               label: 'Cloud Speed',
               hint: 'Animation speed of drifting clouds. 0 = frozen, 1 = fast drift.',
             },
+            // HDRI Environment Lighting
+            HDRI: folder(
+              {
+                enableHDRI: {
+                  value: TUNING_DEFAULTS.enableHDRI,
+                  label: 'Enable HDRI',
+                  hint: 'Toggle HDRI environment lighting.\n\nUses Belfast Sunset HDRI from Poly Haven for warm, pastel reflections on PBR materials.\n\n**Performance:** Minimal impact; HDRI is only 1k resolution',
+                },
+                hdriIntensity: {
+                  value: TUNING_DEFAULTS.hdriIntensity,
+                  min: 0,
+                  max: 1,
+                  step: 0.05,
+                  label: 'HDRI Intensity',
+                  hint: 'How strongly the HDRI affects scene lighting and reflections.\n\n**Typical range:** Subtle (0.1-0.2) → Balanced (0.3) → Strong (0.5+)',
+                },
+                hdriBlur: {
+                  value: TUNING_DEFAULTS.hdriBlur,
+                  min: 0,
+                  max: 1,
+                  step: 0.1,
+                  label: 'HDRI Blur',
+                  hint: 'Blur amount for HDRI background (when used as background).\n\n0 = sharp HDRI, 1 = fully blurred.\n\n**Only applies when:** Use HDRI Background is enabled',
+                },
+                useHDRIBackground: {
+                  value: TUNING_DEFAULTS.useHDRIBackground,
+                  label: 'Use HDRI Background',
+                  hint: 'Replace gradient background with HDRI skybox.\n\n**Trade-off:** More realistic but loses custom Monument Valley gradient',
+                },
+              },
+              { collapsed: true },
+            ),
           },
           { collapsed: true },
         ),
