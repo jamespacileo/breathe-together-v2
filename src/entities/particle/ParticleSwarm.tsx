@@ -467,6 +467,12 @@ export function ParticleSwarm({
       slotManager.markReconciled(cycleIndex);
 
       const newStableCount = slotManager.stableCount;
+
+      // Signal for E2E screenshot tests - fires when shards become visible
+      if (newStableCount > 0) {
+        console.log('[SCREENSHOT_READY]', newStableCount, 'shards visible');
+      }
+
       if (newStableCount !== prevActiveCountRef.current) {
         redistributePositions(newStableCount);
         prevActiveCountRef.current = newStableCount;
