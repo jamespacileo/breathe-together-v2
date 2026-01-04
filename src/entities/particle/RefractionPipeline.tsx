@@ -165,7 +165,7 @@ void main() {
 }
 `;
 
-// Background gradient shader (same as BackgroundGradient.tsx)
+// Background gradient shader - Kurzgesagt + painted night sky aesthetic
 const bgVertexShader = `
 varying vec2 vUv;
 void main() {
@@ -175,29 +175,166 @@ void main() {
 `;
 
 const bgFragmentShader = `
+uniform float time;
 varying vec2 vUv;
-void main() {
-  // Cosmic space gradient for galaxy scene refraction
-  vec3 voidBlack = vec3(0.02, 0.02, 0.04);     // Deep void
-  vec3 deepSpace = vec3(0.05, 0.04, 0.08);     // Dark matter purple
-  vec3 nebulaHint = vec3(0.08, 0.05, 0.12);    // Subtle nebula
 
-  // Radial gradient from center - darker at edges
-  vec2 center = vUv - 0.5;
+// Hash for pseudo-random values
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+// Smooth noise
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+// FBM for soft cloud-like shapes
+float fbm(vec2 p) {
+  float f = 0.0;
+  f += 0.5000 * noise(p); p *= 2.02;
+  f += 0.2500 * noise(p); p *= 2.03;
+  f += 0.1250 * noise(p); p *= 2.01;
+  f += 0.0625 * noise(p);
+  return f / 0.9375;
+}
+
+// Star function
+float star(vec2 uv, float scale, float threshold) {
+  vec2 grid = floor(uv * scale);
+  vec2 gridUv = fract(uv * scale);
+  float h = hash(grid);
+  if (h > threshold) {
+    vec2 starPos = vec2(hash(grid + 0.1), hash(grid + 0.2));
+    float dist = length(gridUv - starPos);
+    float brightness = (h - threshold) / (1.0 - threshold);
+    // Soft glowing star with diffuse halo
+    float core = smoothstep(0.02, 0.0, dist);
+    float glow = smoothstep(0.08, 0.0, dist) * 0.5;
+    return (core + glow) * brightness;
+  }
+  return 0.0;
+}
+
+void main() {
+  vec2 uv = vUv;
+  vec2 center = uv - 0.5;
   float dist = length(center);
 
-  // Create depth with radial gradient
-  float t = smoothstep(0.0, 0.7, dist);
-  vec3 color = mix(deepSpace, voidBlack, t);
+  // === KURZGESAGT NIGHT SKY PALETTE ===
+  // Rich, saturated colors that feel painted
+  vec3 deepIndigo = vec3(0.05, 0.03, 0.12);     // Deep indigo base
+  vec3 midnightBlue = vec3(0.08, 0.06, 0.18);   // Rich midnight blue
+  vec3 cosmicPurple = vec3(0.12, 0.05, 0.20);   // Kurzgesagt purple
+  vec3 darkTeal = vec3(0.03, 0.08, 0.12);       // Dark teal accent
+  vec3 warmDust = vec3(0.15, 0.08, 0.10);       // Warm dust tone
 
-  // Subtle nebula hints in corners
-  float nebulaMask = smoothstep(0.4, 0.8, dist);
-  color = mix(color, nebulaHint, nebulaMask * 0.3);
+  // === PAINTERLY BASE GRADIENT ===
+  // Multi-stop gradient for depth
+  float radialT = smoothstep(0.0, 0.8, dist);
+  vec3 baseColor = mix(midnightBlue, deepIndigo, radialT);
 
-  // Very subtle noise for texture
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
+  // Add purple warmth toward one side (like light pollution glow)
+  float warmSide = smoothstep(0.0, 1.0, uv.x * 0.5 + uv.y * 0.5);
+  baseColor = mix(baseColor, cosmicPurple, warmSide * 0.3);
 
-  gl_FragColor = vec4(color + noise, 1.0);
+  // === SOFT NEBULA CLOUDS ===
+  // Large, soft nebula forms
+  float slowTime = time * 0.02;
+
+  // Primary nebula - large purple cloud
+  vec2 nebula1Uv = uv * 1.5 + vec2(slowTime * 0.3, slowTime * 0.1);
+  float nebula1 = fbm(nebula1Uv);
+  nebula1 = smoothstep(0.35, 0.65, nebula1);
+  vec3 nebula1Color = cosmicPurple * 1.5;
+
+  // Secondary nebula - teal accent cloud
+  vec2 nebula2Uv = uv * 2.0 + vec2(-slowTime * 0.2, slowTime * 0.15) + 50.0;
+  float nebula2 = fbm(nebula2Uv);
+  nebula2 = smoothstep(0.4, 0.7, nebula2);
+  vec3 nebula2Color = darkTeal * 2.0;
+
+  // Warm dust cloud (subtle)
+  vec2 dustUv = uv * 2.5 + vec2(slowTime * 0.1, -slowTime * 0.2) + 100.0;
+  float dust = fbm(dustUv);
+  dust = smoothstep(0.45, 0.7, dust) * 0.5;
+  vec3 dustColor = warmDust * 1.2;
+
+  // Combine nebulae with soft blending
+  vec3 nebulaColor = vec3(0.0);
+  nebulaColor += nebula1Color * nebula1 * 0.4 * (1.0 - dist * 0.5);
+  nebulaColor += nebula2Color * nebula2 * 0.3 * smoothstep(0.8, 0.3, dist);
+  nebulaColor += dustColor * dust * 0.25;
+
+  // === STAR FIELD ===
+  // Multiple layers for depth and variety
+  float stars = 0.0;
+
+  // Dense small stars (distant)
+  stars += star(uv, 200.0, 0.97) * 0.4;
+  stars += star(uv + 0.33, 150.0, 0.975) * 0.5;
+
+  // Medium stars
+  stars += star(uv + 0.66, 80.0, 0.985) * 0.7;
+
+  // Bright stars (rare)
+  stars += star(uv + 0.99, 40.0, 0.993) * 1.0;
+
+  // Very bright accent stars
+  stars += star(uv + 1.33, 20.0, 0.997) * 1.3;
+
+  // Star color - slight variation
+  vec3 starColor = vec3(0.95, 0.97, 1.0) * stars;
+
+  // Some warm stars
+  float warmStarMask = step(0.95, hash(floor(uv * 60.0)));
+  starColor = mix(starColor, vec3(1.0, 0.9, 0.7) * stars, warmStarMask);
+
+  // === MILKY WAY BAND ===
+  // Soft diagonal band of increased star density
+  float angle = 0.3;
+  vec2 rotUv = vec2(
+    uv.x * cos(angle) - uv.y * sin(angle),
+    uv.x * sin(angle) + uv.y * cos(angle)
+  );
+  float bandDist = abs(rotUv.y - 0.5);
+  float milkyWay = smoothstep(0.3, 0.0, bandDist);
+
+  // Add extra stars in milky way
+  float milkyStars = star(uv * 1.5, 300.0, 0.95) * milkyWay * 0.6;
+  starColor += vec3(0.85, 0.88, 0.95) * milkyStars;
+
+  // Soft glow in milky way
+  vec3 milkyGlow = midnightBlue * 1.5 * milkyWay * 0.15;
+
+  // === PAINTERLY TEXTURE ===
+  // Subtle grain for painted look
+  float grain = (hash(uv * 500.0 + time * 0.1) - 0.5) * 0.02;
+
+  // Soft brush-stroke texture
+  float brushNoise = fbm(uv * 8.0) * 0.03;
+
+  // === VIGNETTE ===
+  float vignette = 1.0 - smoothstep(0.3, 0.9, dist) * 0.4;
+
+  // === COMBINE ALL LAYERS ===
+  vec3 finalColor = baseColor;
+  finalColor += nebulaColor;
+  finalColor += milkyGlow;
+  finalColor += starColor;
+  finalColor += grain + brushNoise;
+  finalColor *= vignette;
+
+  // Slight color boost for Kurzgesagt vibrancy
+  finalColor = pow(finalColor, vec3(0.95));
+
+  gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
@@ -391,11 +528,14 @@ export function RefractionPipeline({
   }, []);
 
   // Create background scene with ortho camera
-  const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
+  const { bgScene, orthoCamera, bgMesh, bgMaterial } = useMemo(() => {
     const bgScene = new THREE.Scene();
     const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     const bgMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+      },
       vertexShader: bgVertexShader,
       fragmentShader: bgFragmentShader,
     });
@@ -403,7 +543,7 @@ export function RefractionPipeline({
     const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
     bgScene.add(bgMesh);
 
-    return { bgScene, orthoCamera, bgMesh };
+    return { bgScene, orthoCamera, bgMesh, bgMaterial };
   }, []);
 
   // Create DoF scene for final composite
@@ -590,9 +730,11 @@ export function RefractionPipeline({
     }
 
     // Pass 1: Render background to envFBO (CACHED for ENV_CACHE_FRAMES)
-    // Background gradient is static, so we only need to re-render it periodically
+    // Background has subtle animation, cached at intervals for performance
     const framesSinceEnvRender = frameCountRef.current - envCacheFrameRef.current;
     if (envNeedsUpdateRef.current || framesSinceEnvRender >= ENV_CACHE_FRAMES) {
+      // Update time uniform for background animation
+      bgMaterial.uniforms.time.value = frameCountRef.current * 0.016; // ~60fps timing
       gl.setRenderTarget(envFBO);
       gl.clear();
       gl.render(bgScene, orthoCamera);
