@@ -2,20 +2,20 @@
  * ConstellationGizmos - Debug visualization for constellation stars.
  *
  * Shows individual star positions, constellation wireframe lines,
- * and constellation name labels. Uses Koota for fast state updates.
+ * and constellation name labels. Styled to match ShapeGizmos patterns.
  *
  * Features:
- * - Individual star markers with name labels
- * - Constellation wireframe lines connecting stars
+ * - Small star markers with magnitude-based sizing (like CentroidMarker)
+ * - Batched constellation lines for performance (like BatchedConnectionLines)
  * - Constellation name labels at centroids
- * - Celestial sphere reference (equatorial plane, poles)
+ * - Subtle celestial reference frame
  * - Real-time position updates via useFrame
  */
 
-import { Html, Line } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { memo, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 import { calculateGMST, celestialToCartesian } from '../../lib/astronomy';
@@ -26,28 +26,24 @@ import {
   STARS,
   type Star,
 } from '../../lib/constellationData';
-import {
-  CelestialFrameData,
-  ConstellationGizmoData,
-  StarGizmoData,
-} from './constellationGizmoTraits';
+import { CelestialFrameData } from './constellationGizmoTraits';
 
 interface ConstellationGizmosProps {
   /** Celestial sphere radius @default 25 */
   radius?: number;
   /** Show individual star markers @default true */
   showStars?: boolean;
-  /** Show star name labels @default true */
+  /** Show star name labels @default false */
   showStarLabels?: boolean;
   /** Show constellation lines @default true */
   showLines?: boolean;
   /** Show constellation name labels @default true */
   showConstellationLabels?: boolean;
-  /** Show celestial reference frame @default true */
+  /** Show celestial reference frame @default false */
   showCelestialFrame?: boolean;
   /** Line color @default '#00ff88' */
   lineColor?: string;
-  /** Star marker color @default '#ffff00' */
+  /** Star marker color @default '#ff66ff' */
   starColor?: string;
 }
 
@@ -92,7 +88,8 @@ function calculateCentroid(
 }
 
 /**
- * Star marker component with optional label
+ * Small star marker - matches CentroidMarker style from ShapeGizmos
+ * Small sphere with ring indicator
  */
 const StarMarker = memo(function StarMarker({
   position,
@@ -108,36 +105,48 @@ const StarMarker = memo(function StarMarker({
   color: string;
 }) {
   const brightness = magnitudeToBrightness(magnitude);
-  const size = 0.3 + brightness * 0.4;
+  // Small sizes like CentroidMarker (0.04 to 0.12 based on brightness)
+  const size = 0.04 + brightness * 0.08;
 
   return (
     <group position={position}>
-      {/* Star marker sphere */}
+      {/* Star marker sphere - small like CentroidMarker */}
       <mesh>
         <sphereGeometry args={[size, 8, 8]} />
-        <meshBasicMaterial color={color} transparent opacity={0.8} depthWrite={false} />
+        <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />
       </mesh>
 
-      {/* Star name label */}
+      {/* Ring indicator around star */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[size * 1.5, size * 2, 16]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.4}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {/* Star name label - matching ShapeGizmos label style */}
       {showLabel && (
-        <Html
-          position={[0, size + 0.5, 0]}
-          center
-          style={{
-            color: '#ffff00',
-            fontSize: '10px',
-            fontFamily: 'monospace',
-            fontWeight: 'bold',
-            textShadow: '0 0 3px #000, 0 0 6px #000',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'none',
-            userSelect: 'none',
-          }}
-        >
-          {name}
-          <span style={{ fontSize: '8px', color: '#aaa', marginLeft: '4px' }}>
-            ({magnitude.toFixed(1)})
-          </span>
+        <Html position={[0, size * 4, 0]} center>
+          <div
+            style={{
+              background: 'rgba(0, 0, 0, 0.75)',
+              color: color,
+              padding: '2px 4px',
+              borderRadius: '3px',
+              fontSize: '9px',
+              fontFamily: 'monospace',
+              whiteSpace: 'nowrap',
+              border: `1px solid ${color}`,
+              pointerEvents: 'none',
+            }}
+          >
+            {name}
+            <span style={{ color: '#888', marginLeft: '3px' }}>({magnitude.toFixed(1)})</span>
+          </div>
         </Html>
       )}
     </group>
@@ -145,7 +154,55 @@ const StarMarker = memo(function StarMarker({
 });
 
 /**
- * Constellation label at centroid
+ * Batched constellation lines - single draw call for all lines
+ * Similar to BatchedConnectionLines from ShapeGizmos
+ */
+const BatchedConstellationLines = memo(function BatchedConstellationLines({
+  lines,
+  color,
+}: {
+  lines: Array<{ from: THREE.Vector3; to: THREE.Vector3; constellation: string }>;
+  color: string;
+}) {
+  const linesRef = useRef<THREE.LineSegments>(null);
+
+  // Create geometry with all line segments
+  const { geometry, material } = useMemo(() => {
+    const positions: number[] = [];
+
+    for (const line of lines) {
+      positions.push(line.from.x, line.from.y, line.from.z);
+      positions.push(line.to.x, line.to.y, line.to.z);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+
+    const mat = new THREE.LineBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.6,
+      linewidth: 1,
+    });
+
+    return { geometry: geo, material: mat };
+  }, [lines, color]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+    };
+  }, [geometry, material]);
+
+  if (lines.length === 0) return null;
+
+  return <lineSegments ref={linesRef} geometry={geometry} material={material} />;
+});
+
+/**
+ * Constellation label at centroid - matches ShapeGizmos label style
  */
 const ConstellationLabel = memo(function ConstellationLabel({
   position,
@@ -157,26 +214,23 @@ const ConstellationLabel = memo(function ConstellationLabel({
   latinName: string;
 }) {
   return (
-    <Html
-      position={position}
-      center
-      style={{
-        color: '#00ff88',
-        fontSize: '14px',
-        fontFamily: 'sans-serif',
-        fontWeight: 'bold',
-        textShadow: '0 0 4px #000, 0 0 8px #000',
-        whiteSpace: 'nowrap',
-        pointerEvents: 'none',
-        userSelect: 'none',
-        padding: '4px 8px',
-        background: 'rgba(0, 0, 0, 0.5)',
-        borderRadius: '4px',
-        border: '1px solid rgba(0, 255, 136, 0.5)',
-      }}
-    >
-      <div>{name}</div>
-      <div style={{ fontSize: '10px', color: '#88ffaa', fontStyle: 'italic' }}>{latinName}</div>
+    <Html position={position} center>
+      <div
+        style={{
+          background: 'rgba(0, 0, 0, 0.75)',
+          color: '#00ff88',
+          padding: '3px 6px',
+          borderRadius: '3px',
+          fontSize: '10px',
+          fontFamily: 'monospace',
+          whiteSpace: 'nowrap',
+          border: '1px solid rgba(0, 255, 136, 0.5)',
+          pointerEvents: 'none',
+        }}
+      >
+        <div style={{ fontWeight: 'bold' }}>{name}</div>
+        <div style={{ fontSize: '8px', color: '#88ffaa', fontStyle: 'italic' }}>{latinName}</div>
+      </div>
     </Html>
   );
 });
@@ -187,12 +241,12 @@ const ConstellationLabel = memo(function ConstellationLabel({
 export const ConstellationGizmos = memo(function ConstellationGizmos({
   radius = 25,
   showStars = true,
-  showStarLabels = true,
+  showStarLabels = false,
   showLines = true,
   showConstellationLabels = true,
-  showCelestialFrame = true,
+  showCelestialFrame = false,
   lineColor = '#00ff88',
-  starColor = '#ffff00',
+  starColor = '#ff66ff',
 }: ConstellationGizmosProps) {
   const world = useWorld();
   const gmstRef = useRef(calculateGMST(new Date()));
@@ -298,83 +352,84 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
 
   return (
     <group name="Constellation Gizmos">
-      {/* Celestial reference frame */}
+      {/* Celestial reference frame - subtle */}
       {showCelestialFrame && (
         <>
-          {/* Celestial sphere wireframe */}
+          {/* Celestial sphere wireframe - very subtle */}
           <mesh>
-            <sphereGeometry args={[radius, 32, 32]} />
+            <sphereGeometry args={[radius, 24, 24]} />
             <meshBasicMaterial
               color="#00ff88"
               wireframe
               transparent
-              opacity={0.15}
+              opacity={0.08}
               depthWrite={false}
             />
           </mesh>
 
-          {/* Equatorial plane */}
+          {/* Equatorial plane - subtle ring */}
           <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[radius * 0.98, radius * 1.02, 64]} />
+            <ringGeometry args={[radius * 0.99, radius * 1.01, 64]} />
             <meshBasicMaterial
-              color="#ffff00"
+              color="#ffaa00"
               transparent
-              opacity={0.4}
+              opacity={0.25}
               side={THREE.DoubleSide}
               depthWrite={false}
             />
           </mesh>
 
-          {/* Celestial axes */}
-          <axesHelper args={[radius * 1.3]} />
-
-          {/* North celestial pole */}
+          {/* North celestial pole - small marker */}
           <group position={[0, radius, 0]}>
             <mesh>
-              <sphereGeometry args={[1, 16, 16]} />
-              <meshBasicMaterial color="#00ffff" depthWrite={false} />
+              <sphereGeometry args={[0.3, 8, 8]} />
+              <meshBasicMaterial color="#00ffff" transparent opacity={0.8} depthWrite={false} />
             </mesh>
-            <Html
-              position={[0, 2, 0]}
-              center
-              style={{
-                color: '#00ffff',
-                fontSize: '12px',
-                fontFamily: 'monospace',
-                fontWeight: 'bold',
-                textShadow: '0 0 3px #000',
-                pointerEvents: 'none',
-              }}
-            >
-              NCP
+            <Html position={[0, 0.6, 0]} center>
+              <div
+                style={{
+                  background: 'rgba(0, 0, 0, 0.75)',
+                  color: '#00ffff',
+                  padding: '2px 4px',
+                  borderRadius: '2px',
+                  fontSize: '9px',
+                  fontFamily: 'monospace',
+                  fontWeight: 'bold',
+                  pointerEvents: 'none',
+                }}
+              >
+                NCP
+              </div>
             </Html>
           </group>
 
-          {/* South celestial pole */}
+          {/* South celestial pole - small marker */}
           <group position={[0, -radius, 0]}>
             <mesh>
-              <sphereGeometry args={[1, 16, 16]} />
-              <meshBasicMaterial color="#ff00ff" depthWrite={false} />
+              <sphereGeometry args={[0.3, 8, 8]} />
+              <meshBasicMaterial color="#ff00ff" transparent opacity={0.8} depthWrite={false} />
             </mesh>
-            <Html
-              position={[0, -2, 0]}
-              center
-              style={{
-                color: '#ff00ff',
-                fontSize: '12px',
-                fontFamily: 'monospace',
-                fontWeight: 'bold',
-                textShadow: '0 0 3px #000',
-                pointerEvents: 'none',
-              }}
-            >
-              SCP
+            <Html position={[0, -0.6, 0]} center>
+              <div
+                style={{
+                  background: 'rgba(0, 0, 0, 0.75)',
+                  color: '#ff00ff',
+                  padding: '2px 4px',
+                  borderRadius: '2px',
+                  fontSize: '9px',
+                  fontFamily: 'monospace',
+                  fontWeight: 'bold',
+                  pointerEvents: 'none',
+                }}
+              >
+                SCP
+              </div>
             </Html>
           </group>
         </>
       )}
 
-      {/* Star markers */}
+      {/* Star markers - small like CentroidMarker */}
       {showStars &&
         renderedStars.map((star) => (
           <StarMarker
@@ -387,21 +442,8 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
           />
         ))}
 
-      {/* Constellation wireframe lines */}
-      {showLines &&
-        renderedLines.map((line, idx) => (
-          <Line
-            key={`line-${line.constellation}-${idx}`}
-            points={[line.from, line.to]}
-            color={lineColor}
-            lineWidth={2}
-            transparent
-            opacity={0.6}
-            dashed
-            dashSize={1}
-            gapSize={0.5}
-          />
-        ))}
+      {/* Batched constellation lines - single draw call */}
+      {showLines && <BatchedConstellationLines lines={renderedLines} color={lineColor} />}
 
       {/* Constellation name labels */}
       {showConstellationLabels &&
