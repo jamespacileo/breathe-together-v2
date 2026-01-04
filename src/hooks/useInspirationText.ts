@@ -29,8 +29,7 @@ export function useInspirationText(sessionId?: string): UseInspirationTextState 
     nextRotationTime: Date.now(),
   });
 
-  // biome-ignore lint/suspicious/noExplicitAny: React timeout IDs are untyped in browser environment
-  const cacheTimeoutRef = useRef<any>(null);
+  const cacheTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -50,12 +49,12 @@ export function useInspirationText(sessionId?: string): UseInspirationTextState 
               error: null,
               nextRotationTime: messageCache.data.nextRotationTime,
             });
-          }
 
-          // Schedule next fetch when cache expires
-          const delay = messageCache.expiresAt - now;
-          if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
-          cacheTimeoutRef.current = setTimeout(fetchMessage, delay + 100);
+            // Schedule next fetch when cache expires - only if still mounted
+            const delay = messageCache.expiresAt - now;
+            if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
+            cacheTimeoutRef.current = setTimeout(fetchMessage, delay + 100);
+          }
           return;
         }
 
@@ -72,7 +71,24 @@ export function useInspirationText(sessionId?: string): UseInspirationTextState 
           throw new Error(`Failed to fetch inspiration: ${response.statusText}`);
         }
 
-        const data = (await response.json()) as InspirationResponse;
+        // Parse JSON with validation - response.json() can throw on malformed responses
+        let data: InspirationResponse;
+        try {
+          const rawData = await response.json();
+          // Basic validation to ensure required fields exist
+          if (
+            !rawData ||
+            typeof rawData.message !== 'object' ||
+            typeof rawData.cacheMaxAge !== 'number'
+          ) {
+            throw new Error('Invalid response format');
+          }
+          data = rawData as InspirationResponse;
+        } catch (parseError) {
+          throw new Error(
+            `Failed to parse inspiration response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`,
+          );
+        }
 
         if (isMounted) {
           setState({
@@ -101,11 +117,11 @@ export function useInspirationText(sessionId?: string): UseInspirationTextState 
             isLoading: false,
             error: errorMessage,
           }));
-        }
 
-        // Retry on error with exponential backoff
-        if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
-        cacheTimeoutRef.current = setTimeout(fetchMessage, 5000);
+          // Retry on error with exponential backoff - only if still mounted
+          if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
+          cacheTimeoutRef.current = setTimeout(fetchMessage, 5000);
+        }
       }
     }
 

@@ -53,23 +53,37 @@ function generateSessionId(): string {
 
 function getSessionId(): string {
   if (typeof window === 'undefined') return generateSessionId();
-  let sessionId = localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_ID);
-  if (!sessionId) {
-    sessionId = generateSessionId();
-    localStorage.setItem(CONFIG.STORAGE_KEYS.SESSION_ID, sessionId);
+  try {
+    let sessionId = localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_ID);
+    if (!sessionId) {
+      sessionId = generateSessionId();
+      localStorage.setItem(CONFIG.STORAGE_KEYS.SESSION_ID, sessionId);
+    }
+    return sessionId;
+  } catch {
+    // localStorage unavailable (incognito mode, sandboxed iframe, etc.)
+    return generateSessionId();
   }
-  return sessionId;
 }
 
 function getStoredMood(): MoodId {
   if (typeof window === 'undefined') return 'presence';
-  const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
-  return validateMood(stored);
+  try {
+    const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
+    return validateMood(stored);
+  } catch {
+    // localStorage unavailable
+    return 'presence';
+  }
 }
 
 function storeMood(mood: MoodId): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(CONFIG.STORAGE_KEYS.MOOD, mood);
+    try {
+      localStorage.setItem(CONFIG.STORAGE_KEYS.MOOD, mood);
+    } catch {
+      // localStorage unavailable - silently ignore
+    }
   }
 }
 
@@ -160,8 +174,9 @@ export function usePresence(): UsePresenceResult {
       };
 
       wsRef.current = ws;
-    } catch {
+    } catch (err) {
       // WebSocket failed, will fall back to polling in init()
+      console.warn('[usePresence] WebSocket connection failed:', err);
     }
   }, [handlePresenceUpdate]);
 
@@ -189,7 +204,8 @@ export function usePresence(): UsePresenceResult {
       setPresence(data);
       setIsConnected(true);
       if (connectionType === 'mock') setConnectionType('polling');
-    } catch {
+    } catch (err) {
+      console.warn('[usePresence] Failed to fetch presence, falling back to mock:', err);
       fallbackToMock();
     }
   }, [connectionType, fallbackToMock]);
@@ -264,8 +280,9 @@ export function usePresence(): UsePresenceResult {
       try {
         const data = await presenceApi.getConfig();
         configRef.current = data;
-      } catch {
-        // Use default config on error
+      } catch (err) {
+        // Use default config on error - log for debugging
+        console.warn('[usePresence] Failed to fetch config, using defaults:', err);
       }
 
       if (!mounted) return;

@@ -53,9 +53,15 @@ export function breathSystem(world: World, delta: number) {
 
   let elapsed: number;
 
-  const phaseOverride = breathEntity.get(debugPhaseOverride);
-  const timeControl = breathEntity.get(debugTimeControl);
-  const phaseJump = breathEntity.get(debugPhaseJump);
+  // Safely get optional debug traits - these may not exist on the entity
+  // when debug mode is disabled or during Triplex hot-reload transitions
+  const phaseOverride = breathEntity.has(debugPhaseOverride)
+    ? breathEntity.get(debugPhaseOverride)
+    : null;
+  const timeControl = breathEntity.has(debugTimeControl)
+    ? breathEntity.get(debugTimeControl)
+    : null;
+  const phaseJump = breathEntity.has(debugPhaseJump) ? breathEntity.get(debugPhaseJump) : null;
 
   // Handle manual phase override (highest priority)
   if (phaseOverride?.enabled) {

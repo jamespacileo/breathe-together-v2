@@ -3,6 +3,7 @@ import { useGesture } from '@use-gesture/react';
 import { easing } from 'maath';
 import * as React from 'react';
 import { type Group, MathUtils } from 'three';
+import { usePropRef } from '../hooks/usePropRef';
 
 /**
  * iOS-style momentum scrolling defaults
@@ -131,6 +132,9 @@ export function MomentumControls({
   // Group ref for direct manipulation
   const ref = React.useRef<Group>(null);
 
+  // Store enabled prop in ref to avoid stale closure in useFrame
+  const enabledRef = usePropRef(enabled);
+
   // Sync damping when prop changes (for Leva real-time updates)
   React.useEffect(() => {
     animation.current.damping = damping;
@@ -146,9 +150,9 @@ export function MomentumControls({
     };
   }, [cursor, enabled, domElement]);
 
-  // Smooth animation loop
+  // Smooth animation loop - uses enabledRef to avoid stale closure
   useFrame((_state, delta) => {
-    if (!ref.current || !enabled) return;
+    if (!ref.current || !enabledRef.current) return;
 
     // Smoothly interpolate rotation toward target
     easing.dampE(ref.current.rotation, animation.current.target, animation.current.damping, delta);

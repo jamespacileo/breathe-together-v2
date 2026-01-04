@@ -18,6 +18,7 @@ import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
+import { usePropRef } from '../../hooks/usePropRef';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -270,6 +271,9 @@ export function ParticleSwarm({
   // Track previous active count for position redistribution
   const prevActiveCountRef = useRef(0);
 
+  // Store props in refs to avoid stale closures in useFrame
+  const baseRadiusRef = usePropRef(baseRadius);
+
   // Normalize users input
   const normalizedUsers = useMemo(() => normalizeUsers(users), [users]);
 
@@ -313,6 +317,9 @@ export function ParticleSwarm({
     const requiredSpacing = 2 * shardSize + wobbleMargin;
     return (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
   }, [normalizedUsers.length, shardSize]);
+
+  // Store minOrbitRadius in ref to avoid stale closure in useFrame
+  const minOrbitRadiusRef = usePropRef(minOrbitRadius);
 
   // Create shared geometry (single geometry for all instances)
   const geometry = useMemo(() => {
@@ -445,13 +452,14 @@ export function ParticleSwarm({
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
 
-    // Get breathing state from ECS
-    let targetRadius = baseRadius;
+    // Get breathing state from ECS - use refs to avoid stale closures
+    const currentBaseRadius = baseRadiusRef.current ?? baseRadius;
+    let targetRadius = currentBaseRadius;
     let currentBreathPhase = 0;
     let currentPhaseType = 0;
     const breathEntity = world.queryFirst(orbitRadius, breathPhase, phaseType);
     if (breathEntity) {
-      targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
+      targetRadius = breathEntity.get(orbitRadius)?.value ?? currentBaseRadius;
       currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
       currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
     }
@@ -537,10 +545,12 @@ export function ParticleSwarm({
         instanceState.direction.normalize();
       }
 
-      // Physics calculations
-      const phaseOffsetAmount = instanceState.phaseOffset * (baseRadius - minOrbitRadius);
+      // Physics calculations - use refs to avoid stale closures
+      const currentMinOrbitRadius = minOrbitRadiusRef.current ?? minOrbitRadius;
+      const phaseOffsetAmount =
+        instanceState.phaseOffset * (currentBaseRadius - currentMinOrbitRadius);
       const targetWithOffset = targetRadius + phaseOffsetAmount;
-      const clampedTarget = Math.max(targetWithOffset, minOrbitRadius);
+      const clampedTarget = Math.max(targetWithOffset, currentMinOrbitRadius);
 
       const lerpFactor = 1 - Math.exp(-BREATH_LERP_SPEED * clampedDelta);
       instanceState.currentRadius += (clampedTarget - instanceState.currentRadius) * lerpFactor;

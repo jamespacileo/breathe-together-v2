@@ -25,12 +25,15 @@ import { VISUALS } from '../constants';
 import { breathPhase, orbitRadius } from '../entities/breath/traits';
 import { COUNTRY_CENTROIDS, latLngToPosition } from '../lib/countryCentroids';
 import { findKNearestNeighbors } from '../shared/gizmoTraits';
-
-// Pre-allocated objects for matrix decomposition
-const _tempMatrix = new THREE.Matrix4();
-const _tempPosition = new THREE.Vector3();
-const _tempQuaternion = new THREE.Quaternion();
-const _tempScale = new THREE.Vector3();
+import {
+  ringOrientation as _ringOrientation,
+  tempRotationMatrix as _rotationMatrix,
+  tempMatrix as _tempMatrix,
+  tempPosition as _tempPosition,
+  tempPosition2 as _tempPosition2,
+  tempQuaternion as _tempQuaternion,
+  tempScale as _tempScale,
+} from '../shared/tempObjects';
 
 interface ShapeGizmosProps {
   showGlobeCentroid?: boolean;
@@ -461,11 +464,9 @@ function InstancedWireframes({ shards, shardSize }: { shards: ShardData[]; shard
 
     for (let i = 0; i < shards.length; i++) {
       const shard = shards[i];
-      _tempMatrix.compose(
-        new THREE.Vector3(...shard.position),
-        shard.quaternion,
-        new THREE.Vector3(shard.scale, shard.scale, shard.scale),
-      );
+      _tempPosition.set(shard.position[0], shard.position[1], shard.position[2]);
+      _tempScale.setScalar(shard.scale);
+      _tempMatrix.compose(_tempPosition, shard.quaternion, _tempScale);
       mesh.setMatrixAt(i, _tempMatrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -588,7 +589,6 @@ function ShardGizmos({
   showCentroids: boolean;
   showWireframes: boolean;
   showConnections: boolean;
-  showLabels: boolean;
   shardSize: number;
 }) {
   if (shards.length === 0) return null;
@@ -630,15 +630,14 @@ function InstancedCountrySpheres({
     if (!meshRef.current || countries.length === 0) return;
     const mesh = meshRef.current;
 
-    // Create rotation matrix for globe rotation
-    const rotationMatrix = new THREE.Matrix4().makeRotationY(globeRotationY);
-    const tempPosition = new THREE.Vector3();
+    // Use pre-allocated rotation matrix
+    _rotationMatrix.makeRotationY(globeRotationY);
 
     for (let i = 0; i < countries.length; i++) {
       const country = countries[i];
-      tempPosition.set(country.position[0], country.position[1], country.position[2]);
-      tempPosition.applyMatrix4(rotationMatrix);
-      _tempMatrix.makeTranslation(tempPosition.x, tempPosition.y, tempPosition.z);
+      _tempPosition2.set(country.position[0], country.position[1], country.position[2]);
+      _tempPosition2.applyMatrix4(_rotationMatrix);
+      _tempMatrix.makeTranslation(_tempPosition2.x, _tempPosition2.y, _tempPosition2.z);
       mesh.setMatrixAt(i, _tempMatrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -692,16 +691,14 @@ function InstancedCountryRings({
     if (!meshRef.current || countries.length === 0) return;
     const mesh = meshRef.current;
 
-    // Create rotation matrix for globe rotation
-    const globeRotation = new THREE.Matrix4().makeRotationY(globeRotationY);
-    const ringRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
-    const tempPosition = new THREE.Vector3();
+    // Use pre-allocated rotation matrix and orientation quaternion
+    _rotationMatrix.makeRotationY(globeRotationY);
 
     for (let i = 0; i < countries.length; i++) {
       const country = countries[i];
-      tempPosition.set(country.position[0], country.position[1], country.position[2]);
-      tempPosition.applyMatrix4(globeRotation);
-      _tempMatrix.compose(tempPosition, ringRotation, _tempScale.setScalar(1));
+      _tempPosition2.set(country.position[0], country.position[1], country.position[2]);
+      _tempPosition2.applyMatrix4(_rotationMatrix);
+      _tempMatrix.compose(_tempPosition2, _ringOrientation, _tempScale.setScalar(1));
       mesh.setMatrixAt(i, _tempMatrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -810,6 +807,23 @@ export function ShapeGizmos({
 
   const showShardGizmos = showShardCentroids || showShardWireframes || showShardConnections;
 
+  // Find InstancedMesh once on mount (not every frame)
+  useEffect(() => {
+    if (!showShardGizmos) return;
+    const findMesh = () => {
+      scene.traverse((obj) => {
+        if (obj.name === 'Particle Swarm' && obj instanceof THREE.InstancedMesh) {
+          instancedMeshRef.current = obj;
+        }
+      });
+    };
+    // Try immediately
+    findMesh();
+    // Also try after a short delay in case mesh isn't ready
+    const timer = setTimeout(findMesh, 100);
+    return () => clearTimeout(timer);
+  }, [scene, showShardGizmos]);
+
   // Read data from scene and Koota ECS
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Scene data synchronization requires matrix decomposition and multiple queries
   useFrame(() => {
@@ -851,16 +865,8 @@ export function ShapeGizmos({
       }
 
       // Read shard data DIRECTLY from InstancedMesh (not ECS)
+      // Mesh is found in useEffect, not here
       if (showShardGizmos) {
-        // Find the InstancedMesh if not cached
-        if (!instancedMeshRef.current) {
-          scene.traverse((obj) => {
-            if (obj.name === 'Particle Swarm' && obj instanceof THREE.InstancedMesh) {
-              instancedMeshRef.current = obj;
-            }
-          });
-        }
-
         const mesh = instancedMeshRef.current;
         if (mesh) {
           const count = Math.min(mesh.count, maxShardGizmos);
@@ -1011,7 +1017,6 @@ export function ShapeGizmos({
           showCentroids={showShardCentroids}
           showWireframes={showShardWireframes}
           showConnections={showShardConnections}
-          showLabels={showLabels}
           shardSize={shardSize}
         />
       )}

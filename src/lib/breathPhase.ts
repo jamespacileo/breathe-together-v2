@@ -1,22 +1,28 @@
 import { BREATH_PHASES } from '../constants';
 
 /**
+ * Valid breathing phase indices
+ * 0: Inhale, 1: Hold-in, 2: Exhale, 3: Hold-out
+ */
+export type PhaseIndex = 0 | 1 | 2 | 3;
+
+/**
  * Breathing phase durations in seconds
  * Order: Inhale, Hold-in, Exhale, Hold-out
  */
-const PHASE_DURATIONS = [
+const PHASE_DURATIONS: readonly [number, number, number, number] = [
   BREATH_PHASES.INHALE,
   BREATH_PHASES.HOLD_IN,
   BREATH_PHASES.EXHALE,
   BREATH_PHASES.HOLD_OUT,
-];
+] as const;
 
 /**
  * Information about the current breathing phase
  */
 export interface PhaseInfo {
   /** Index of current phase (0: inhale, 1: hold-in, 2: exhale, 3: hold-out) */
-  phaseIndex: number;
+  phaseIndex: PhaseIndex;
   /** Progress through current phase (0-1) */
   phaseProgress: number;
   /** Accumulated time at start of current phase (seconds) */
@@ -43,19 +49,23 @@ export interface PhaseInfo {
  */
 export function calculatePhaseInfo(cycleTime: number): PhaseInfo {
   let accumulatedTime = 0;
-  let phaseIndex = 0;
+  let phaseIndex: PhaseIndex = 0;
 
-  // Find which phase we're in
+  // Find which phase we're in (guaranteed to be 0-3)
   for (let i = 0; i < PHASE_DURATIONS.length; i++) {
-    const duration = PHASE_DURATIONS[i] ?? 0;
+    const duration = PHASE_DURATIONS[i];
     if (cycleTime < accumulatedTime + duration) {
-      phaseIndex = i;
+      phaseIndex = i as PhaseIndex;
       break;
     }
     accumulatedTime += duration;
+    // Update phaseIndex as we progress through phases
+    if (i < PHASE_DURATIONS.length - 1) {
+      phaseIndex = (i + 1) as PhaseIndex;
+    }
   }
 
-  const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
+  const phaseDuration = PHASE_DURATIONS[phaseIndex];
   const phaseTime = cycleTime - accumulatedTime;
   const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
 

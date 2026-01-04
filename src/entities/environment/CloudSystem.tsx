@@ -368,13 +368,14 @@ const AnimatedCloud = memo(function AnimatedCloud({
   const orbitAngleRef = useRef(0);
 
   // Animate position each frame (local-space, works with parent rotation)
-  useFrame((state) => {
+  // Uses actual delta for frame-rate independence
+  useFrame((state, delta) => {
     if (!cloudRef.current) return;
 
     const time = state.clock.elapsedTime + timeOffset.current;
 
-    // Slow orbital drift around the Y axis
-    orbitAngleRef.current += config.orbitSpeed * baseSpeed * 0.016;
+    // Slow orbital drift around the Y axis - uses delta for frame-rate independence
+    orbitAngleRef.current += config.orbitSpeed * baseSpeed * delta;
 
     // Apply orbit to direction
     _tempDirection.copy(initialDirection);
