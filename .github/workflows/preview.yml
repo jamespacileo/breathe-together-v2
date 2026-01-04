@@ -337,18 +337,22 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_REGION: auto
           R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           # Upload screenshots to R2 with retry logic
+          # Store by commit hash to preserve history
+          SHORT_SHA="${COMMIT_SHA:0:7}"
           MAX_RETRIES=3
           RETRY_DELAY=5
 
           for attempt in $(seq 1 $MAX_RETRIES); do
             echo "Upload attempt $attempt of $MAX_RETRIES..."
-            if aws s3 sync ./screenshots "s3://breathe-together-screenshots/pr-${{ env.PR_NUMBER }}" \
+            # Upload to commit-specific folder for history preservation
+            if aws s3 sync ./screenshots "s3://breathe-together-screenshots/pr-${{ env.PR_NUMBER }}/${SHORT_SHA}" \
               --endpoint-url "$R2_ENDPOINT" \
               --content-type "image/png" \
               --exclude "*" --include "*.png"; then
-              echo "Upload successful!"
+              echo "Upload successful to pr-${{ env.PR_NUMBER }}/${SHORT_SHA}/"
               exit 0
             fi
 
@@ -375,6 +379,7 @@ jobs:
         env:
           HAS_SCREENSHOTS: ${{ steps.capture.outputs.has_screenshots }}
           R2_PUBLIC_URL: ${{ secrets.R2_SCREENSHOTS_URL }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           script: |
             const fs = require('fs');
@@ -382,9 +387,21 @@ jobs:
             const previewUrl = process.env.PREVIEW_URL;
             const hasScreenshots = process.env.HAS_SCREENSHOTS === 'true';
             const r2BaseUrl = process.env.R2_PUBLIC_URL;
+            const commitSha = process.env.COMMIT_SHA;
+            const shortSha = commitSha.substring(0, 7);
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
             const artifactUrl = `${repoUrl}/actions/runs/${context.runId}`;
-            const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+            const commitUrl = `${repoUrl}/commit/${commitSha}`;
+
+            // Human-readable timestamp (e.g., "Jan 4, 2026 at 6:15 PM UTC")
+            const now = new Date();
+            const humanTimestamp = now.toLocaleDateString('en-US', {
+              month: 'short', day: 'numeric', year: 'numeric',
+              timeZone: 'UTC'
+            }) + ' at ' + now.toLocaleTimeString('en-US', {
+              hour: 'numeric', minute: '2-digit', hour12: true,
+              timeZone: 'UTC'
+            }) + ' UTC';
 
             let screenshotFiles = [];
             try {
@@ -398,13 +415,55 @@ jobs:
               ? `Captured ${screenshotFiles.length} screenshots`
               : 'Screenshot capture failed';
 
-            // Find existing comment
+            // Find existing comment and extract history
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
             });
             const botComment = comments.find(c => c.body.includes('<!-- preview-screenshots-comment -->'));
+
+            // Extract previous history from existing comment
+            let previousHistory = [];
+            if (botComment) {
+              // Parse existing history entries from <!-- history-entry --> markers
+              const historyMatch = botComment.body.match(/<!-- screenshot-history -->([\s\S]*?)<!-- \/screenshot-history -->/);
+              if (historyMatch) {
+                const entryRegex = /<!-- history-entry -->([\s\S]*?)<!-- \/history-entry -->/g;
+                let match;
+                while ((match = entryRegex.exec(historyMatch[1])) !== null) {
+                  previousHistory.push(match[1].trim());
+                }
+              }
+
+              // Extract current screenshots as a new history entry (if they exist in comment)
+              const currentMatch = botComment.body.match(/<!-- current-screenshots -->([\s\S]*?)<!-- \/current-screenshots -->/);
+              if (currentMatch) {
+                // Extract timestamp from the current section
+                const timestampMatch = botComment.body.match(/<sub>📅 ([^<]+)<\/sub>/);
+                const prevTimestamp = timestampMatch ? timestampMatch[1] : 'Previous';
+
+                // Extract commit SHA from the current section
+                const commitMatch = botComment.body.match(/\| \[`([a-f0-9]{7})`\]/);
+                const prevCommit = commitMatch ? commitMatch[1] : '';
+
+                // Extract the R2 folder path from existing images
+                const imgUrlMatch = currentMatch[1].match(/src="([^"]+\/pr-\d+\/[a-f0-9]{7})\/desktop\.png/);
+
+                if (imgUrlMatch && prevCommit) {
+                  const prevR2Folder = imgUrlMatch[1];
+                  // Create minimized history entry with smaller thumbnails pointing to commit-specific folder
+                  const historyEntry = `**${prevTimestamp}** [\`${prevCommit}\`](${repoUrl}/commit/${prevCommit})
+| Desktop | Tablet | Mobile |
+|:---:|:---:|:---:|
+| <img src="${prevR2Folder}/desktop.png" width="120"/> | <img src="${prevR2Folder}/tablet.png" width="80"/> | <img src="${prevR2Folder}/mobile.png" width="50"/> |`;
+                  previousHistory.unshift(historyEntry);
+                }
+              }
+            }
+
+            // Keep only last 5 history entries to prevent comment bloat
+            previousHistory = previousHistory.slice(0, 5);
 
             const bodyParts = [
               '<!-- preview-screenshots-comment -->',
@@ -415,25 +474,52 @@ jobs:
             ];
 
             if (hasScreenshots && r2BaseUrl) {
-              const r2Folder = `${r2BaseUrl}/pr-${prNumber}`;
+              // Screenshots are stored by commit hash for history preservation
+              const r2Folder = `${r2BaseUrl}/pr-${prNumber}/${shortSha}`;
 
-              // Simple row of viewport screenshots
-              bodyParts.push('| Desktop | Tablet | Mobile |', '|:---:|:---:|:---:|');
+              bodyParts.push('<!-- current-screenshots -->');
+              bodyParts.push(`| Desktop | Tablet | Mobile | Commit |`);
+              bodyParts.push('|:---:|:---:|:---:|:---:|');
 
               const row = [];
               for (const [name, width] of [['desktop', 280], ['tablet', 180], ['mobile', 100]]) {
                 const filename = `${name}.png`;
                 if (screenshotFiles.includes(filename)) {
-                  const url = `${r2Folder}/${filename}`;
-                  row.push(`<a href="${url}"><img src="${url}" width="${width}"/></a>`);
+                  // Add cache-busting query param to force refresh
+                  const url = `${r2Folder}/${filename}?t=${Date.now()}`;
+                  row.push(`<a href="${r2Folder}/${filename}"><img src="${url}" width="${width}"/></a>`);
                 } else {
                   row.push('-');
                 }
               }
-              bodyParts.push(`| ${row.join(' | ')} |`, '');
+              row.push(`[\`${shortSha}\`](${commitUrl})`);
+              bodyParts.push(`| ${row.join(' | ')} |`);
+              bodyParts.push('<!-- /current-screenshots -->');
+              bodyParts.push('');
             }
 
-            bodyParts.push('---', `<sub>Last updated: ${timestamp}</sub>`);
+            bodyParts.push(`<sub>📅 ${humanTimestamp}</sub>`);
+            bodyParts.push('');
+
+            // Add history section if there are previous entries
+            if (previousHistory.length > 0) {
+              bodyParts.push('<details>');
+              bodyParts.push(`<summary>📜 Previous Screenshots (${previousHistory.length})</summary>`);
+              bodyParts.push('');
+              bodyParts.push('<!-- screenshot-history -->');
+              for (const entry of previousHistory) {
+                bodyParts.push('<!-- history-entry -->');
+                bodyParts.push(entry);
+                bodyParts.push('<!-- /history-entry -->');
+                bodyParts.push('');
+              }
+              bodyParts.push('<!-- /screenshot-history -->');
+              bodyParts.push('</details>');
+              bodyParts.push('');
+            }
+
+            bodyParts.push('---');
+            bodyParts.push('<sub>Screenshots auto-update on each push. Click images to view full size.</sub>');
 
             const body = bodyParts.join('\n');
             if (botComment) {
