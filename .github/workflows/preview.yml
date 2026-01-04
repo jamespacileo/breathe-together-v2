@@ -287,6 +287,8 @@ jobs:
       PREVIEW_URL: https://breathe-together-v2-pr-${{ github.event.pull_request.number }}.palladio-registry.workers.dev
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -458,9 +460,9 @@ jobs:
                   const prevR2Folder = imgUrlMatch[1];
                   // Create minimized history entry with smaller thumbnails pointing to commit-specific folder
                   const historyEntry = `**${prevTimestamp}** [\`${prevCommit}\`](${repoUrl}/commit/${prevCommit})
-| Desktop | Tablet | Mobile |
-|:---:|:---:|:---:|
-| <img src="${prevR2Folder}/desktop.png" width="120"/> | <img src="${prevR2Folder}/tablet.png" width="80"/> | <img src="${prevR2Folder}/mobile.png" width="50"/> |`;
+                  | Desktop | Tablet | Mobile |
+                  |:---:|:---:|:---:|
+                  | <img src="${prevR2Folder}/desktop.png" width="120"/> | <img src="${prevR2Folder}/tablet.png" width="80"/> | <img src="${prevR2Folder}/mobile.png" width="50"/> |`;
                   previousHistory.unshift(historyEntry);
                 }
               }
@@ -605,8 +607,8 @@ jobs:
 
   # Notify on failures (validation or deployment)
   notify-failure:
-    needs: [validate, deploy-worker-preview, deploy-preview]
-    if: always() && github.event_name == 'pull_request' && (needs.validate.result == 'failure' || needs.deploy-worker-preview.result == 'failure' || needs.deploy-preview.result == 'failure')
+    needs: [validate, deploy-worker-preview, deploy-preview, screenshots]
+    if: always() && github.event_name == 'pull_request' && (needs.validate.result == 'failure' || needs.deploy-worker-preview.result == 'failure' || needs.deploy-preview.result == 'failure' || needs.screenshots.result == 'failure')
     runs-on: ubuntu-latest
     name: Notify Failures
     steps:
@@ -615,6 +617,7 @@ jobs:
         env:
           VALIDATION_FAILED: ${{ needs.validate.result == 'failure' }}
           DEPLOYMENT_FAILED: ${{ needs.deploy-preview.result == 'failure' }}
+          SCREENSHOTS_FAILED: ${{ needs.screenshots.result == 'failure' }}
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
@@ -625,7 +628,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "❌ ${{ needs.validate.result == 'failure' && needs.deploy-preview.result == 'failure' && 'Validation & Deployment Failed' || needs.validate.result == 'failure' && 'Code Validation Failed' || 'Preview Deployment Failed' }}",
+                    "text": "❌ ${{ needs.validate.result == 'failure' && 'Code Validation Failed' || needs.deploy-preview.result == 'failure' && 'Preview Deployment Failed' || needs.screenshots.result == 'failure' && 'Screenshot Capture Failed' || 'Preview Workflow Failed' }}",
                     "emoji": true
                   }
                 },
@@ -665,6 +668,15 @@ jobs:
                     {
                       "type": "mrkdwn",
                       "text": "*Deployment:*\n${{ needs.deploy-preview.result == 'success' && '✅ Deployed' || needs.deploy-preview.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Screenshots:*\n${{ needs.screenshots.result == 'success' && '✅ Captured' || needs.screenshots.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }}"
                     }
                   ]
                 },
