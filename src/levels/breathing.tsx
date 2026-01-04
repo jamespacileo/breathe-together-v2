@@ -12,7 +12,7 @@ import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { GlobeRibbonText } from '../entities/earthGlobe/GlobeRibbonText';
-import { Environment } from '../entities/environment';
+import { GalaxyEnvironment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -94,17 +94,15 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Environment - clouds, lighting, fog */}
+            {/* Galaxy Environment - space scene with constellations and sun */}
             {showEnvironment && (
-              <Environment
-                showClouds={devControls.showClouds}
-                showStars={devControls.showStars}
-                cloudOpacity={devControls.cloudOpacity}
-                cloudSpeed={devControls.cloudSpeed}
-                ambientLightColor={devControls.ambientLightColor}
-                ambientLightIntensity={devControls.ambientLightIntensity}
-                keyLightColor={devControls.keyLightColor}
-                keyLightIntensity={devControls.keyLightIntensity}
+              <GalaxyEnvironment
+                showConstellations={devControls.showStars}
+                showSun={true}
+                nebulaIntensity={1.0}
+                backgroundStarDensity={1.0}
+                constellationLineOpacity={0.35}
+                ambientIntensity={devControls.ambientLightIntensity}
               />
             )}
 

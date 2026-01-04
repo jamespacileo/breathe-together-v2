@@ -7,6 +7,12 @@ import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
 import { SubtleLightRays } from './SubtleLightRays';
 
+// Re-export galaxy components
+export { ConstellationSystem } from './ConstellationSystem';
+export { GalaxyBackground } from './GalaxyBackground';
+export { GalaxyEnvironment } from './GalaxyEnvironment';
+export { Sun } from './Sun';
+
 interface EnvironmentProps {
   enabled?: boolean;
   /** Show volumetric clouds @default true */
