@@ -81,8 +81,8 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates gem-like frosted crystal look
-// Improved Dec 2024: Bright luminous gem pastels with faceted shading (Monument Valley style)
+// Refraction fragment shader - holographic cosmic energy shards
+// Inspired by Three.js Journey hologram shader and Cosmic XR
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
@@ -101,57 +101,67 @@ void main() {
   vec2 uv = gl_FragCoord.xy / resolution;
   vec3 backfaceNormal = texture2D(backfaceMap, uv).rgb;
 
-  // Blend front and backface normals for thickness/depth
+  // Blend front and backface normals for depth
   vec3 normal = normalize(worldNormal * (1.0 - backfaceIntensity) - backfaceNormal * backfaceIntensity);
   vec3 refracted = refract(eyeVector, normal, 1.0 / ior);
 
-  // Refraction for gem-like depth
-  vec2 refractUv = uv + refracted.xy * 0.04;
+  // Subtle refraction for ethereal depth
+  vec2 refractUv = uv + refracted.xy * 0.02; // Reduced refraction for ghostly feel
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === BRIGHT LUMINOUS GEM COLOR ===
-  // Cool cosmic white for space theme
-  vec3 cosmicWhite = vec3(0.95, 0.97, 1.0); // Cool blue-white like starlight
-  // 85% color intensity - vibrant nebula colors
-  vec3 gemColor = mix(cosmicWhite, vColor, 0.85);
-  // Brightness boost for luminous feel
-  gemColor *= 1.15;
+  // === HOLOGRAPHIC COLOR BASE ===
+  // Cosmic energy colors - more saturated and luminous
+  vec3 energyColor = vColor * 1.5; // Boost color intensity
 
-  // === FACETED SHADING (gem look) ===
+  // === STRONG FRESNEL GLOW (holographic edge) ===
+  float fresnelPower = 3.0; // Higher power for sharper edge glow
+  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), fresnelPower);
+
+  // Holographic rim - bright and ethereal
+  vec3 rimColor = energyColor * 2.0; // Use particle color for rim glow
+
+  // === INNER TRANSPARENCY (ghostly core) ===
+  // Center is more transparent, edges are opaque and glowing
+  float centerTransparency = 1.0 - fresnel; // Inverted fresnel for hollow effect
+  vec3 coreColor = energyColor * 0.3; // Dim translucent core
+
+  // === BACKGROUND BLEND (cosmic see-through) ===
+  vec3 backgroundTint = tex.rgb * energyColor * 0.4;
+
+  // === HOLOGRAPHIC SCANLINES (optional energy flow) ===
+  // Animated horizontal stripes for sci-fi hologram effect
+  float stripePos = gl_FragCoord.y * 0.02; // Scale for stripe density
+  float stripe = sin(stripePos * 3.14159) * 0.5 + 0.5;
+  stripe = smoothstep(0.3, 0.7, stripe); // Sharpen stripes
+
+  // === DIFFUSE SHADING (subtle form definition) ===
   float diffuse = max(dot(normal, keyLightDir), 0.0);
-  // Wrap lighting - higher base for brighter shadows
-  float wrapped = diffuse * 0.5 + 0.5;
-  // Shading range: lit faces very bright, shadow faces still bright (0.65 - 1.0)
-  float shading = wrapped * 0.35 + 0.65;
+  float shading = diffuse * 0.3 + 0.7; // Gentle shading, stay bright
 
-  // === GEM BODY WITH INNER GLOW ===
-  vec3 shadedGem = gemColor * shading;
+  // === COMPOSE HOLOGRAPHIC LOOK ===
+  // Mix core transparency with edge glow
+  vec3 hologramBody = mix(backgroundTint, coreColor, centerTransparency * 0.6);
+  hologramBody *= shading; // Apply subtle shading
 
-  // Inner luminosity - gems glow from within (stronger)
-  float innerGlow = (1.0 - diffuse) * 0.2;
-  shadedGem += gemColor * innerGlow;
+  // Add stripe pattern for energy flow (subtle)
+  hologramBody += energyColor * stripe * 0.1;
 
-  // Tinted refraction for depth
-  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), gemColor, 0.35);
+  // Add powerful fresnel rim glow
+  vec3 finalColor = hologramBody + rimColor * fresnel * 0.8;
 
-  // Mix: gem body (65%) with refraction (35%) for crystalline depth
-  vec3 bodyColor = mix(tintedRefraction, shadedGem, 0.65);
-
-  // === FRESNEL RIM (crystalline edge glow) ===
-  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
-  vec3 rimColor = vec3(0.96, 0.98, 1.0); // Cool cosmic rim like ice crystals
-  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.3);
-
-  // === SPECULAR HIGHLIGHT (gem sparkle) ===
+  // === SPECULAR HIGHLIGHT (energy sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
-  colorWithRim += vec3(0.96, 0.98, 1.0) * spec * 0.3; // Cool sparkle
+  float spec = pow(max(dot(normal, halfVec), 0.0), 64.0); // Sharper highlight
+  finalColor += energyColor * spec * 0.5;
 
-  // === TOP AMBIENT (from sun) ===
-  float topLight = max(normal.y, 0.0) * 0.12;
-  colorWithRim += vec3(0.97, 0.98, 1.0) * topLight; // Cool starlight from above
+  // === TOP AMBIENT (cosmic starlight) ===
+  float topLight = max(normal.y, 0.0) * 0.15;
+  finalColor += energyColor * topLight * 0.3;
 
-  gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
+  // Prevent over-bright values
+  finalColor = min(finalColor, vec3(2.0)); // Allow glow but prevent clipping
+
+  gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
@@ -167,9 +177,9 @@ void main() {
 const bgFragmentShader = `
 varying vec2 vUv;
 void main() {
-  // Deep space gradient for cosmic theme
-  vec3 deepSpace = vec3(0.04, 0.04, 0.08);    // Top - deep space blue
-  vec3 cosmicPurple = vec3(0.06, 0.04, 0.10); // Bottom - cosmic purple
+  // Vibrant cosmic gradient - matches GalaxyBackground for consistency
+  vec3 deepSpace = vec3(0.05, 0.08, 0.18);      // Rich deep blue
+  vec3 cosmicPurple = vec3(0.12, 0.08, 0.22);   // Vibrant purple
 
   // Simple vertical gradient (bottom to top)
   float t = vUv.y;
@@ -179,12 +189,12 @@ void main() {
   vec2 center = vUv - 0.5;
   float dist = length(center);
   float vignette = smoothstep(0.8, 0.2, dist);
-  vec3 edgeTint = vec3(0.02, 0.02, 0.05); // Darker shadow at edges
+  vec3 edgeTint = vec3(0.04, 0.06, 0.15); // Darker cosmic edges
   color = mix(edgeTint, color, vignette * 0.85 + 0.15);
 
-  // Very subtle center brightening (starlight glow)
-  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.04;
-  color += vec3(0.08, 0.10, 0.15) * centerGlow; // Cool blue glow
+  // Center glow for depth
+  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.08;
+  color += vec3(0.12, 0.15, 0.25) * centerGlow; // Brighter cosmic glow
 
   // Minimal cosmic noise
   float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.02;

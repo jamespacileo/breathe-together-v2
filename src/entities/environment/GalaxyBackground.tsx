@@ -62,55 +62,62 @@ float fbm(vec2 p) {
 }
 
 void main() {
-  // Deep space gradient colors
-  vec3 deepSpace = vec3(0.02, 0.02, 0.05);      // Almost black
-  vec3 cosmicBlue = vec3(0.05, 0.08, 0.15);     // Deep blue
-  vec3 nebulaPurple = vec3(0.08, 0.05, 0.12);   // Deep purple
-  vec3 stardustBlue = vec3(0.1, 0.12, 0.2);     // Lighter blue
+  // Vibrant cosmic gradient - inspired by Cosmic XR meditation app
+  // Much brighter for visibility and meditative atmosphere
+  vec3 deepSpace = vec3(0.05, 0.08, 0.18);      // Rich deep blue
+  vec3 cosmicTeal = vec3(0.08, 0.15, 0.25);     // Cosmic teal
+  vec3 nebulaPurple = vec3(0.12, 0.08, 0.22);   // Vibrant purple
+  vec3 horizonGlow = vec3(0.15, 0.18, 0.3);     // Brighter horizon
 
   // Vertical gradient for cosmic depth
   float y = vUv.y;
 
-  // Multi-stop gradient
+  // Multi-stop gradient with smoother transitions
   vec3 skyColor;
-  float t1 = smoothstep(0.6, 1.0, y);   // Top transition
-  float t2 = smoothstep(0.3, 0.7, y);   // Middle transition
-  float t3 = smoothstep(0.0, 0.4, y);   // Bottom transition
+  float t1 = smoothstep(0.5, 1.0, y);   // Top transition
+  float t2 = smoothstep(0.25, 0.75, y); // Middle transition
+  float t3 = smoothstep(0.0, 0.5, y);   // Bottom transition
 
-  // Layer the cosmic colors
+  // Layer the cosmic colors with more variation
   skyColor = mix(deepSpace, nebulaPurple, t3);
-  skyColor = mix(skyColor, cosmicBlue, t2);
-  skyColor = mix(skyColor, stardustBlue, t1);
+  skyColor = mix(skyColor, cosmicTeal, t2);
+  skyColor = mix(skyColor, horizonGlow, t1);
 
-  // Animated nebula clouds using FBM
-  vec2 nebulaUv = vUv * vec2(3.0, 2.0) + vec2(time * 0.008, time * 0.005);
-  float nebula = fbm(nebulaUv * 1.5);
+  // Animated nebula clouds using FBM - more visible
+  vec2 nebulaUv = vUv * vec2(2.5, 2.0) + vec2(time * 0.01, time * 0.006);
+  float nebula = fbm(nebulaUv * 1.2);
 
   // Second nebula layer with different movement
-  vec2 nebulaUv2 = vUv * vec2(2.5, 1.8) + vec2(time * 0.006 + 100.0, -time * 0.004);
-  float nebula2 = fbm(nebulaUv2 * 1.8);
+  vec2 nebulaUv2 = vUv * vec2(2.0, 1.5) + vec2(time * 0.008 + 100.0, -time * 0.005);
+  float nebula2 = fbm(nebulaUv2 * 1.5);
 
-  // Combine nebula layers
-  float nebulaMask = (nebula * 0.5 + nebula2 * 0.5);
-  nebulaMask = smoothstep(0.0, 0.6, nebulaMask);
+  // Combine nebula layers with higher visibility
+  float nebulaMask = (nebula * 0.6 + nebula2 * 0.4);
+  nebulaMask = smoothstep(0.0, 0.8, nebulaMask);
 
-  // Nebula colors - purple and blue wisps
-  vec3 nebulaColor1 = vec3(0.15, 0.08, 0.2);   // Purple
-  vec3 nebulaColor2 = vec3(0.08, 0.12, 0.25);  // Blue
+  // Vibrant nebula colors - cosmic nebula palette inspired
+  vec3 nebulaColor1 = vec3(0.35, 0.15, 0.45);   // Bright purple (connection)
+  vec3 nebulaColor2 = vec3(0.12, 0.3, 0.4);     // Bright teal (presence)
+  vec3 nebulaColor3 = vec3(0.25, 0.25, 0.5);    // Stellar blue (release)
 
-  // Mix nebula colors based on position
+  // Mix nebula colors based on position and noise
   vec3 nebulaColor = mix(nebulaColor1, nebulaColor2, vUv.x);
+  nebulaColor = mix(nebulaColor, nebulaColor3, nebula * 0.3);
 
-  // Blend nebula into background
-  vec3 color = mix(skyColor, nebulaColor, nebulaMask * 0.3);
+  // Blend nebula into background with higher intensity
+  vec3 color = mix(skyColor, nebulaColor, nebulaMask * 0.5);
 
-  // Subtle radial gradient for depth (darker at edges)
+  // Subtle radial glow for depth (brighter center)
   vec2 center = vUv - 0.5;
-  float radial = 1.0 - length(center) * 0.4;
-  color *= mix(0.8, 1.0, radial);
+  float radial = 1.0 - length(center) * 0.3;
+  color *= mix(0.9, 1.15, radial); // Brighter center glow
+
+  // Add subtle shimmer for cosmic feel
+  float shimmer = sin(time * 0.5 + vUv.x * 10.0) * 0.02;
+  color += shimmer;
 
   // Very subtle noise for texture
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.01;
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
   color += noise;
 
   gl_FragColor = vec4(color, 1.0);

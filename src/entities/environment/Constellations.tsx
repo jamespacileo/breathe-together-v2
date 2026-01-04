@@ -88,13 +88,14 @@ export function Constellations({
   }, [backgroundStarCount]);
 
   // Create geometries and materials
-  const starGeometry = useMemo(() => new SphereGeometry(0.08, 8, 8), []);
+  // Increased star size for better visibility against bright background
+  const starGeometry = useMemo(() => new SphereGeometry(0.15, 8, 8), []);
 
   const constellationMaterial = useMemo(() => {
     return new MeshStandardMaterial({
       color: new Color('#ffffff'),
-      emissive: new Color('#ffffdd'),
-      emissiveIntensity: brightness * 1.5,
+      emissive: new Color('#ffffee'), // Warmer white for more glow
+      emissiveIntensity: brightness * 3.5, // Increased from 1.5 for visibility
       toneMapped: false,
       metalness: 0,
       roughness: 1,
@@ -105,7 +106,7 @@ export function Constellations({
     return new MeshStandardMaterial({
       color: new Color('#ffffff'),
       emissive: new Color('#ffffff'),
-      emissiveIntensity: brightness * 0.3,
+      emissiveIntensity: brightness * 1.0, // Increased from 0.3 for visibility
       toneMapped: false,
       metalness: 0,
       roughness: 1,
@@ -114,8 +115,8 @@ export function Constellations({
 
   const lineMaterial = useMemo(() => {
     return new LineBasicMaterial({
-      color: new Color('#88aaff'),
-      opacity: lineOpacity,
+      color: new Color('#aaccff'), // Brighter blue for constellation lines
+      opacity: lineOpacity * 1.5, // Increased opacity for visibility
       transparent: true,
       toneMapped: false,
     });

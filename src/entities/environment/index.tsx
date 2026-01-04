@@ -68,27 +68,27 @@ export function Environment({
   return (
     <group>
       {/* Subtle floating dust for atmospheric depth (inside DoF for realism) */}
-      {!isMobile && <AmbientDust count={60} opacity={0.08} size={0.01} enabled={true} />}
+      {!isMobile && <AmbientDust count={60} opacity={0.12} size={0.012} enabled={true} />}
 
-      {/* Ambient light - soft cosmic fill */}
-      <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />
+      {/* Ambient light - brighter cosmic fill for visibility */}
+      <ambientLight intensity={ambientLightIntensity * 1.5} color={ambientLightColor} />
 
-      {/* Key light - from sun direction (warm) */}
+      {/* Key light - from sun direction (warm cosmic glow) */}
       <directionalLight
         position={[80, 20, -60]}
-        intensity={keyLightIntensity}
+        intensity={keyLightIntensity * 1.3}
         color={keyLightColor}
         castShadow={false}
       />
 
-      {/* Fill light - opposite side (cool blue cosmic light) */}
-      <directionalLight position={[-60, 15, 40]} intensity={0.2} color="#cce6ff" />
+      {/* Fill light - opposite side (cool cosmic teal) */}
+      <directionalLight position={[-60, 15, 40]} intensity={0.35} color="#99ddff" />
 
-      {/* Rim light - subtle backlight from below for depth */}
-      <directionalLight position={[0, -30, 0]} intensity={0.15} color="#e6d9ff" />
+      {/* Rim light - nebula purple backlight from below */}
+      <directionalLight position={[0, -30, 0]} intensity={0.25} color="#cc99ff" />
 
-      {/* Hemisphere light for cosmic sky/space color blending */}
-      <hemisphereLight args={['#1a1a2e', '#0a0a14', 0.2]} />
+      {/* Hemisphere light for cosmic atmosphere - brighter for visibility */}
+      <hemisphereLight args={['#2a3a5e', '#151525', 0.4]} />
     </group>
   );
 }
