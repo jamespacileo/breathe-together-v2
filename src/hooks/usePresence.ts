@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { generateMockPresence } from '../lib/mockPresence';
+import { type CurrentUserOptions, generateMockPresence } from '../lib/mockPresence';
 import {
   type MoodId,
   type PresenceState,
@@ -82,21 +82,31 @@ export interface UsePresenceResult {
   setMood: (mood: MoodId) => void;
   isConnected: boolean;
   connectionType: 'websocket' | 'polling' | 'mock';
+  /** Current user's session ID (stable across sessions via localStorage) */
+  sessionId: string;
 }
 
 export function usePresence(): UsePresenceResult {
+  // Initialize session ID and mood eagerly (stable across re-renders)
+  const sessionIdRef = useRef<string>(getSessionId());
+  const initialMood = getStoredMood();
+
   const [presence, setPresence] = useState<PresenceState>(() => {
-    const mockData = generateMockPresence(42);
+    // Include current user in mock data at index 0
+    const currentUser: CurrentUserOptions = {
+      sessionId: sessionIdRef.current,
+      mood: initialMood,
+    };
+    const mockData = generateMockPresence(42, currentUser);
     return {
       ...mockData,
       timestamp: Date.now(),
     };
   });
-  const [mood, setMoodState] = useState<MoodId>(getStoredMood);
+  const [mood, setMoodState] = useState<MoodId>(initialMood);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionType, setConnectionType] = useState<'websocket' | 'polling' | 'mock'>('mock');
 
-  const sessionIdRef = useRef<string>(getSessionId());
   const configRef = useRef<ServerConfig>(DEFAULT_CONFIG);
   const moodRef = useRef<MoodId>(mood); // Ref to avoid reconnect on mood change
   const wsRef = useRef<WebSocket | null>(null);
@@ -120,7 +130,12 @@ export function usePresence(): UsePresenceResult {
   const fallbackToMock = useCallback(() => {
     setIsConnected(false);
     setConnectionType('mock');
-    setPresence({ ...generateMockPresence(42), timestamp: Date.now() });
+    // Include current user in mock data at index 0
+    const currentUser: CurrentUserOptions = {
+      sessionId: sessionIdRef.current,
+      mood: moodRef.current,
+    };
+    setPresence({ ...generateMockPresence(42, currentUser), timestamp: Date.now() });
   }, []);
 
   /**
@@ -330,5 +345,6 @@ export function usePresence(): UsePresenceResult {
     setMood,
     isConnected,
     connectionType,
+    sessionId: sessionIdRef.current,
   };
 }

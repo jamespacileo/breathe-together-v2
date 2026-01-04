@@ -1,11 +1,13 @@
 import { Stars } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
+import * as THREE from 'three';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
 import { ConstellationStars } from './ConstellationStars';
+import { EditorGrid } from './EditorGrid';
 import { StylizedSun } from './StylizedSun';
 import { SubtleLightRays } from './SubtleLightRays';
 
@@ -45,6 +47,16 @@ interface EnvironmentProps {
   showSunGizmo?: boolean;
   /** Show constellation debug gizmos @default false */
   showConstellationGizmos?: boolean;
+  /** Stage mode - editor-style view with grid floor @default false */
+  stageMode?: boolean;
+  /** Show grid floor in stage mode @default true */
+  showGridFloor?: boolean;
+  /** Grid size in world units @default 20 */
+  gridSize?: number;
+  /** Number of grid divisions @default 20 */
+  gridDivisions?: number;
+  /** Grid line color @default '#666666' */
+  gridColor?: string;
 }
 
 /**
@@ -76,26 +88,76 @@ export function Environment({
   sunIntensity = 1,
   showSunGizmo = false,
   showConstellationGizmos = false,
+  stageMode = false,
+  showGridFloor = true,
+  gridSize = 20,
+  gridDivisions = 20,
+  gridColor = '#666666',
 }: EnvironmentProps = {}) {
-  const { scene } = useThree();
+  const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
 
   // Reduce star count on mobile/tablet for better performance
   const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
 
-  // Clear any scene background - let BackgroundGradient handle it
+  // Handle background based on stage mode
   useEffect(() => {
-    scene.background = null;
+    if (stageMode) {
+      // Stage mode: soft warm white - like a photography studio
+      const studioWhite = new THREE.Color('#f8f6f3');
+      scene.background = studioWhite;
+      gl.setClearColor(studioWhite, 1);
+    } else {
+      // Normal mode: let BackgroundGradient handle it
+      scene.background = null;
+    }
     // Disable fog - it washes out the gradient
     scene.fog = null;
 
     return () => {
       scene.fog = null;
+      scene.background = null;
     };
-  }, [scene]);
+  }, [scene, gl, stageMode]);
 
   if (!enabled) return null;
 
+  // Stage mode: minimal, elegant studio environment
+  // Design: "Felt but not seen" - spatial reference without distraction
+  if (stageMode) {
+    return (
+      <group>
+        {/* Studio floor - sparse grid + soft radial shadow + axis crosshair */}
+        {/* Shadow is built into the floor component - no z-fighting */}
+        {showGridFloor && (
+          <EditorGrid size={gridSize} divisions={gridDivisions} color={gridColor} showAxes={true} />
+        )}
+
+        {/* Studio lighting - soft, even, flattering */}
+        {/* Key light - warm white from upper front-right */}
+        <directionalLight
+          position={[8, 12, 8]}
+          intensity={0.85}
+          color="#fff8f0"
+          castShadow={false}
+        />
+
+        {/* Fill light - cooler tone from left */}
+        <directionalLight position={[-10, 8, 4]} intensity={0.45} color="#f0f4ff" />
+
+        {/* Rim light - subtle warmth for depth */}
+        <directionalLight position={[0, 6, -10]} intensity={0.25} color="#ffe8d6" />
+
+        {/* Ambient - soft overall fill */}
+        <ambientLight intensity={0.5} color="#fefcfa" />
+
+        {/* Hemisphere - natural sky/ground blending */}
+        <hemisphereLight args={['#faf8f5', '#e8e4e0', 0.3]} />
+      </group>
+    );
+  }
+
+  // Normal mode: full Monument Valley atmosphere
   return (
     <group>
       {/* Animated gradient background - renders behind everything */}
