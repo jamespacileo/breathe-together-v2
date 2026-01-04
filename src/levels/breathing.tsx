@@ -94,9 +94,11 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Environment - clouds, lighting, fog */}
+            {/* Environment - clouds, lighting, fog (or stage variant) */}
             {showEnvironment && (
               <Environment
+                useStageVariant={devControls.useStageVariant}
+                stageVariant={devControls.stageVariant}
                 showClouds={devControls.showClouds}
                 showStars={devControls.showStars}
                 cloudOpacity={devControls.cloudOpacity}

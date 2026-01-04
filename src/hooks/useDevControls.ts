@@ -16,6 +16,7 @@
 import { button, folder, useControls } from 'leva';
 import { useCallback, useEffect, useRef } from 'react';
 import { DEV_MODE_ENABLED } from '../config/devMode';
+import type { StageVariant } from '../entities/environment/StageVariants';
 
 /** localStorage key for saved dev presets */
 const STORAGE_KEY = 'breathe-together-dev-presets';
@@ -24,6 +25,10 @@ const STORAGE_KEY = 'breathe-together-dev-presets';
  * Tuning defaults - single source of truth for all configurable values
  */
 export const TUNING_DEFAULTS = {
+  // Stage variant (dev-only)
+  stageVariant: 'default' as StageVariant | 'default',
+  useStageVariant: false,
+
   // Particles (user-facing)
   harmony: 48,
   shardSize: 0.5,
@@ -135,6 +140,10 @@ export type PresetName = keyof typeof PRESETS;
  * Dev controls state shape
  */
 export interface DevControlsState {
+  // Stage variant
+  stageVariant: StageVariant | 'default';
+  useStageVariant: boolean;
+
   // Glass effect
   ior: number;
   glassDepth: number;
@@ -213,6 +222,8 @@ export interface DevControlsState {
 /** Get default values for all dev controls */
 function getDefaultDevControls(): DevControlsState {
   return {
+    stageVariant: TUNING_DEFAULTS.stageVariant,
+    useStageVariant: TUNING_DEFAULTS.useStageVariant,
     ior: TUNING_DEFAULTS.ior,
     glassDepth: TUNING_DEFAULTS.glassDepth,
     atmosphereParticleSize: TUNING_DEFAULTS.atmosphereParticleSize,
@@ -381,6 +392,24 @@ export function useDevControls(): DevControlsState {
     // ==========================================
     Visual: folder(
       {
+        // 2.0 Stage Variants
+        Stage: folder(
+          {
+            useStageVariant: {
+              value: TUNING_DEFAULTS.useStageVariant,
+              label: 'Enable Stage',
+              hint: 'Enable experimental stage variants. When enabled, replaces default environment with selected stage.\n\n**Options:** Portal (minimal white), Cosmos (space), Aurora (northern lights), Void (dark zen)',
+            },
+            stageVariant: {
+              value: TUNING_DEFAULTS.stageVariant,
+              options: ['default', 'portal', 'cosmos', 'aurora', 'void'],
+              label: 'Stage Variant',
+              hint: '**default:** Original Monument Valley style\n**portal:** Clean white/cream minimalist (Portal game inspired)\n**cosmos:** Deep space with stars and galaxies\n**aurora:** Northern lights with flowing colors\n**void:** Abstract dark zen space',
+            },
+          },
+          { collapsed: false },
+        ),
+
         // 2.1 Materials
         Materials: folder(
           {
