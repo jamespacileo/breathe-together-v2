@@ -116,20 +116,20 @@ export const GLOBE = {
 } as const;
 
 // ============================================================================
-// SHARD/PARTICLE COLORS - Mood-based crystal colors
+// SHARD/PARTICLE COLORS - Kurzgesagt-inspired vibrant mood colors
 // ============================================================================
 
 export const SHARDS = {
-  /** Gratitude - warm gold */
-  gratitude: '#ffbe0b',
-  /** Presence - cosmic teal */
-  presence: '#06d6a0',
-  /** Release - deep space blue */
-  release: '#118ab2',
-  /** Connection - warm rose */
-  connection: '#ef476f',
-  /** Default fallback */
-  default: '#88aacc',
+  /** Gratitude - warm amber (golden, high saturation) */
+  gratitude: '#FFAB40',
+  /** Presence - electric cyan (vibrant, visible) */
+  presence: '#4DD0E1',
+  /** Release - mint green (bright, fresh) */
+  release: '#64FFDA',
+  /** Connection - vibrant pink (passionate, distinct) */
+  connection: '#FF4081',
+  /** Default fallback - softer cyan */
+  default: '#80DEEA',
 } as const;
 
 // ============================================================================

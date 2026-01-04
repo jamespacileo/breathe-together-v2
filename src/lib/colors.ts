@@ -11,17 +11,21 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Cosmic Meditation Palette - ethereal colors for icosahedral crystal shards
- * Semi-transparent glass crystals with soft cosmic glow
+ * Kurzgesagt-Inspired Cosmic Palette - vibrant colors for crystal shards
+ *
+ * Designed for maximum visibility against dark cosmic backgrounds.
+ * Based on Kurzgesagt/In a Nutshell visual style:
+ * - High saturation (>0.5) for pop
+ * - Warm coral, electric teal, sunny gold, soft pink tones
+ * - Sufficient luminance for glass refraction effect
  *
  * Each color maps directly to one mood category (1:1 mapping)
- * Colors are desaturated and luminous for cosmic/glass aesthetic
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  gratitude: '#c4a6ff', // Soft Lavender - appreciation, ethereal warmth
-  presence: '#88c8e8', // Celestial Blue - being here, calm clarity
-  release: '#a8d4c8', // Nebula Mint - letting go, cosmic freshness
-  connection: '#e8b4c8', // Starlight Rose - love, gentle cosmic warmth
+  gratitude: '#FFAB40', // Warm Amber - appreciation, golden warmth (sat=1.0, lum=0.52)
+  presence: '#4DD0E1', // Electric Cyan - being here, vibrant clarity (sat=0.71, lum=0.52)
+  release: '#64FFDA', // Mint Green - letting go, fresh energy (sat=1.0, lum=0.79)
+  connection: '#FF4081', // Vibrant Pink - love, passionate warmth (sat=1.0, lum=0.28)
 } as const;
 
 /**

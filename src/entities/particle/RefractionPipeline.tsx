@@ -81,8 +81,8 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates crystal glass with solid edges and transparent center
-// Updated Jan 2026: Glass transparency effect - edges solid/bright, centers see-through
+// Refraction fragment shader - Kurzgesagt-inspired vibrant crystal glass
+// Updated Jan 2026: Preserves color vibrancy while adding glass transparency
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
@@ -105,57 +105,60 @@ void main() {
   vec3 normal = normalize(worldNormal * (1.0 - backfaceIntensity) - backfaceNormal * backfaceIntensity);
   vec3 refracted = refract(eyeVector, normal, 1.0 / ior);
 
-  // Strong refraction distortion for glass depth
-  vec2 refractUv = uv + refracted.xy * 0.08;
+  // Moderate refraction distortion
+  vec2 refractUv = uv + refracted.xy * 0.06;
   vec4 tex = texture2D(envMap, refractUv);
 
   // === FRESNEL - key to glass effect ===
-  // High fresnel = edge (facing away from camera)
-  // Low fresnel = center (facing camera)
-  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.0);
+  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
+
+  // === PRESERVE COLOR VIBRANCY ===
+  // Boost the input color to compensate for blending losses
+  vec3 vibrantColor = vColor * 1.3;
 
   // === CRYSTAL EDGE GLOW ===
-  // Bright white/tinted edges like light catching glass
+  // Edges catch light - mix of white and boosted color
   vec3 warmWhite = vec3(1.0, 0.98, 0.95);
-  vec3 edgeColor = mix(warmWhite, vColor * 1.2, 0.3);
+  vec3 edgeColor = mix(warmWhite, vibrantColor, 0.5);
 
-  // === TRANSPARENT CENTER ===
-  // Centers show refracted background (glass see-through effect)
-  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), vColor * 0.8, 0.4);
+  // === TRANSPARENT CENTER with color tint ===
+  // Centers show refracted background tinted with the shard color
+  vec3 tintedRefraction = tex.rgb * 0.4 + vibrantColor * 0.6;
 
   // === FACETED SHADING for dimension ===
   float diffuse = max(dot(normal, keyLightDir), 0.0);
-  float wrapped = diffuse * 0.5 + 0.5;
+  float wrapped = diffuse * 0.4 + 0.6; // Higher base = brighter overall
 
-  // === MIX: Glass transparency based on fresnel ===
-  // Edges: 90% solid edge color, 10% refraction
-  // Centers: 20% tint color, 80% refracted background (transparent look)
-  float edgeFactor = fresnel; // How much edge vs center
-  vec3 edgeMix = edgeColor * wrapped; // Lit edges
-  vec3 centerMix = tintedRefraction; // See-through center
+  // === GLASS BODY - vibrant color dominant ===
+  vec3 bodyColor = vibrantColor * wrapped;
 
-  // Blend based on fresnel: edges are solid, centers are transparent
-  vec3 glassColor = mix(centerMix, edgeMix, edgeFactor * 0.85 + 0.15);
+  // Add subtle refraction for depth
+  bodyColor = mix(bodyColor, tintedRefraction, 0.25);
 
-  // === BRIGHT SPECULAR HIGHLIGHTS (crystal sparkle) ===
+  // === FRESNEL BLEND ===
+  // Edges: bright white/tinted glow
+  // Centers: vibrant body color
+  vec3 glassColor = mix(bodyColor, edgeColor, fresnel * 0.6);
+
+  // === SPECULAR HIGHLIGHTS (crystal sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 64.0);
-  glassColor += vec3(1.0, 1.0, 1.0) * spec * 0.6;
+  float spec = pow(max(dot(normal, halfVec), 0.0), 48.0);
+  glassColor += warmWhite * spec * 0.5;
 
-  // === SECONDARY SPECULAR for extra sparkle ===
+  // === SECONDARY SPECULAR ===
   vec3 halfVec2 = normalize(vec3(-0.3, 0.8, 0.3) - eyeVector);
-  float spec2 = pow(max(dot(normal, halfVec2), 0.0), 48.0);
-  glassColor += vec3(1.0, 0.98, 0.95) * spec2 * 0.3;
+  float spec2 = pow(max(dot(normal, halfVec2), 0.0), 32.0);
+  glassColor += warmWhite * spec2 * 0.25;
 
-  // === RIM HIGHLIGHT - bright edges like light through glass ===
-  glassColor += edgeColor * fresnel * 0.4;
+  // === RIM HIGHLIGHT - bright edges ===
+  glassColor += edgeColor * fresnel * 0.35;
 
-  // === INNER GLOW - subtle color from within ===
-  float innerGlow = (1.0 - fresnel) * 0.15;
-  glassColor += vColor * innerGlow;
+  // === INNER GLOW - color from within ===
+  float innerGlow = (1.0 - fresnel) * 0.2;
+  glassColor += vibrantColor * innerGlow;
 
-  // === TOP LIGHT - soft ambient from above ===
-  float topLight = max(normal.y, 0.0) * 0.08;
+  // === TOP AMBIENT ===
+  float topLight = max(normal.y, 0.0) * 0.1;
   glassColor += warmWhite * topLight;
 
   gl_FragColor = vec4(min(glassColor, vec3(1.0)), 1.0);
