@@ -30,13 +30,30 @@ export function getCyclePosition(): number {
 }
 
 /**
- * Get milliseconds until midpoint of target phase
+ * Check if we're currently in the target phase
+ */
+export function isInPhase(phase: keyof typeof BREATH_PHASES): boolean {
+  const pos = getCyclePosition();
+  const boundaries = BREATH_PHASES[phase];
+  return pos >= boundaries.start && pos < boundaries.end;
+}
+
+/**
+ * Get milliseconds until we're safely within target phase
+ * Returns 0 if already in the phase (no waiting needed)
  */
 export function getMsUntilPhase(phase: keyof typeof BREATH_PHASES): number {
+  // If already in target phase, no waiting needed
+  if (isInPhase(phase)) return 0;
+
+  const pos = getCyclePosition();
   const boundaries = BREATH_PHASES[phase];
-  const mid = (boundaries.start + boundaries.end) / 2;
-  let wait = mid - getCyclePosition();
-  if (wait < 0.5) wait += CYCLE_DURATION; // Wait for next cycle if too close
+
+  // Wait until 0.5s into the phase (safe buffer)
+  const target = boundaries.start + 0.5;
+  let wait = target - pos;
+  if (wait < 0) wait += CYCLE_DURATION; // Wrap to next cycle
+
   return Math.ceil(wait * 1000);
 }
 

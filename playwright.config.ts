@@ -20,11 +20,11 @@ export default defineConfig({
   // Fail the build on CI if you accidentally left test.only in the source code
   forbidOnly: !!process.env.CI,
 
-  // Retry on CI only
-  retries: process.env.CI ? 2 : 0,
+  // No retries for screenshot tests - timing-sensitive
+  retries: 0,
 
-  // Limit workers on CI for stability
-  workers: process.env.CI ? 1 : undefined,
+  // Run viewports in parallel (3 workers = 3 viewports)
+  workers: 3,
 
   // Reporter
   reporter: process.env.CI ? 'github' : 'list',

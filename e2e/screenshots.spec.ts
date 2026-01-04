@@ -1,7 +1,7 @@
 import { test } from '@playwright/test';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { getCurrentPhase, getMsUntilPhase } from './utils';
+import { CYCLE_DURATION, getCurrentPhase, getMsUntilPhase, isInPhase } from './utils';
 
 // Output directory for screenshots
 const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR || './screenshots';
@@ -18,22 +18,21 @@ if (!existsSync(SCREENSHOTS_DIR)) {
 async function waitForPageReady(page: import('@playwright/test').Page, hasCanvas = true) {
   if (hasCanvas) {
     // Wait for canvas to exist
-    const canvas = await page.waitForSelector('canvas', { timeout: 30000 }).catch(() => null);
+    const canvas = await page.waitForSelector('canvas', { timeout: 15000 }).catch(() => null);
 
     if (canvas) {
-      // Give Three.js time to render
-      await page.waitForTimeout(3000);
+      // Give Three.js time to render (reduced from 3s)
+      await page.waitForTimeout(1500);
     }
   }
 
   // Wait for network to settle
   await page.waitForLoadState('networkidle').catch(() => {});
-  await page.waitForTimeout(500);
 }
 
 test.describe('Preview Screenshots', () => {
-  // Increase timeout for breathing phase synchronization
-  test.setTimeout(90_000);
+  // Max 30s per test (one breathing cycle is 19s + buffer)
+  test.setTimeout(30_000);
 
   test('capture breathing phases', async ({ page }, testInfo) => {
     const viewport = testInfo.project.name;
@@ -45,19 +44,16 @@ test.describe('Preview Screenshots', () => {
     const phases = ['inhale', 'holdIn', 'exhale'] as const;
 
     for (const phase of phases) {
+      const alreadyInPhase = isInPhase(phase);
       const ms = getMsUntilPhase(phase);
-      const currentPhase = getCurrentPhase();
 
       console.log(
-        `[${viewport}] Current: ${currentPhase}, waiting ${(ms / 1000).toFixed(1)}s for ${phase}`,
+        `[${viewport}] ${alreadyInPhase ? 'Already in' : `Waiting ${(ms / 1000).toFixed(1)}s for`} ${phase}`,
       );
 
-      if (ms > 100) {
+      if (ms > 0) {
         await page.waitForTimeout(ms);
       }
-
-      // Small buffer after reaching phase
-      await page.waitForTimeout(200);
 
       const filename = `${viewport}-${phase === 'holdIn' ? 'hold' : phase}.png`;
       const filepath = join(SCREENSHOTS_DIR, filename);
