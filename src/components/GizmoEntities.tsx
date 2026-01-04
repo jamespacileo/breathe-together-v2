@@ -206,6 +206,19 @@ function updateShardEntities(
     }
   }
 
+  // Clean up stale shard entities that are no longer visible
+  const visibleIndices = new Set(visibleShards.map((s) => s.index));
+  existingShardEntities.forEach((entity, index) => {
+    if (!visibleIndices.has(index)) {
+      try {
+        entity.destroy();
+      } catch (_e) {
+        // Entity may already be destroyed
+      }
+      existingShardEntities.delete(index);
+    }
+  });
+
   // Update swarm state
   const swarmEntities = world.query(isSwarm, swarmState);
   for (const swarm of swarmEntities) {
@@ -273,6 +286,22 @@ export function GizmoEntities({
     };
   }, [world, globeRadius]);
 
+  // Find InstancedMesh once on mount (not every frame)
+  useEffect(() => {
+    const findMesh = () => {
+      scene.traverse((obj) => {
+        if (obj.name === 'Particle Swarm' && obj instanceof THREE.InstancedMesh) {
+          instancedMeshRef.current = obj;
+        }
+      });
+    };
+    // Try immediately
+    findMesh();
+    // Also try after a short delay in case mesh isn't ready
+    const timer = setTimeout(findMesh, 100);
+    return () => clearTimeout(timer);
+  }, [scene]);
+
   // Update entities each frame
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Frame update requires syncing multiple ECS entity types with scene data
   useFrame(() => {
@@ -305,16 +334,7 @@ export function GizmoEntities({
       frameCountRef.current += 1;
       if (frameCountRef.current % UPDATE_INTERVAL !== 0) return;
 
-      // Find InstancedMesh if not cached
-      if (!instancedMeshRef.current) {
-        scene.traverse((obj) => {
-          if (obj.name === 'Particle Swarm' && obj instanceof THREE.InstancedMesh) {
-            instancedMeshRef.current = obj;
-          }
-        });
-      }
-
-      // Update shard entities
+      // Update shard entities (mesh is found in useEffect, not here)
       if (instancedMeshRef.current) {
         updateShardEntities(world, instancedMeshRef.current, maxShards, shardEntitiesRef.current);
       }

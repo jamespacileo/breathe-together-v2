@@ -303,6 +303,10 @@ export function useDevControls(): DevControlsState {
   // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional - Leva should only run in dev mode
   const setRef = useRef<((values: Partial<DevControlsState>) => void) | null>(null);
 
+  // Ref to capture current controls for button callbacks (updated after useControls returns)
+  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional - Leva should only run in dev mode
+  const controlsRef = useRef<DevControlsState | null>(null);
+
   // Leva controls - only created when dev mode is enabled
   // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional - Leva should only run in dev mode
   const [controls, set] = useControls(() => ({
@@ -313,10 +317,10 @@ export function useDevControls(): DevControlsState {
       {
         'Save Current': button(() => {
           const name = prompt('Enter preset name:');
-          if (name && setRef.current) {
+          if (name && setRef.current && controlsRef.current) {
             const presets = loadSavedPresets();
-            // Save current control values (spread controls object, excluding functions)
-            const currentValues = { ...controls } as Partial<DevControlsState>;
+            // Save current control values from ref (avoids stale closure)
+            const currentValues = { ...controlsRef.current } as Partial<DevControlsState>;
             presets[name] = currentValues;
             savePresetsToStorage(presets);
             alert(`Preset "${name}" saved!`);
@@ -862,10 +866,8 @@ export function useDevControls(): DevControlsState {
     }
   }, [set]);
 
-  // Ref to capture current controls for auto-save without dependency recreation
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
-  const controlsRef = useRef(controls);
-  controlsRef.current = controls;
+  // Keep controlsRef synced with current controls (for button callbacks and auto-save)
+  controlsRef.current = controls as DevControlsState;
 
   // Auto-save current settings as "__last__" on change
   // Uses controlsRef to avoid callback recreation on every controls change
