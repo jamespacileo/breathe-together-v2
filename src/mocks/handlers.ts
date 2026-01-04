@@ -16,8 +16,15 @@ import {
 
 // Simulated presence state
 interface MockPresenceState {
-  sessions: Map<string, { mood: MoodId; lastSeen: number }>;
+  sessions: Map<string, { mood: MoodId; lastSeen: number; country?: string }>;
   baseCount: number;
+}
+
+// Sample countries for mock data (weighted distribution)
+const MOCK_COUNTRIES = ['US', 'GB', 'DE', 'FR', 'JP', 'AU', 'CA', 'BR', 'IN', 'CN'];
+
+function getMockCountry(index: number): string {
+  return MOCK_COUNTRIES[index % MOCK_COUNTRIES.length];
 }
 
 const state: MockPresenceState = {
@@ -74,11 +81,23 @@ function calculatePresence(): PresenceState {
   };
 
   // Build users array from sessions
-  const users: { id: string; mood: MoodId }[] = [];
+  const users: { id: string; mood: MoodId; country?: string }[] = [];
+  const countryCounts: Record<string, number> = {};
+
+  let index = 0;
   state.sessions.forEach((session, id) => {
-    users.push({ id, mood: session.mood });
+    const country = session.country || getMockCountry(index);
+    users.push({ id, mood: session.mood, country });
+    countryCounts[country] = (countryCounts[country] || 0) + 1;
+    index++;
   });
   users.sort((a, b) => a.id.localeCompare(b.id));
+
+  // Add base count distribution to countryCounts
+  const basePerCountry = Math.floor(state.baseCount / MOCK_COUNTRIES.length);
+  for (const country of MOCK_COUNTRIES) {
+    countryCounts[country] = (countryCounts[country] || 0) + basePerCountry;
+  }
 
   return {
     count: estimatedCount,
@@ -89,6 +108,7 @@ function calculatePresence(): PresenceState {
       connection: moodCounts.connection + Math.round(state.baseCount * ratios.connection),
     },
     users,
+    countryCounts,
     timestamp: now,
   };
 }

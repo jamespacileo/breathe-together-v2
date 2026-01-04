@@ -1,6 +1,6 @@
 /**
  * Mock presence data generator for development
- * Simulates diverse users with different moods
+ * Simulates diverse users with different moods and countries
  */
 
 import type { MoodId } from '../constants';
@@ -8,12 +8,56 @@ import type { MoodId } from '../constants';
 export interface MockUser {
   id: string;
   mood: MoodId;
+  country?: string;
 }
 
 export interface MockPresenceData {
   count: number;
   moods: Record<MoodId, number>;
   users: MockUser[];
+  countryCounts: Record<string, number>;
+}
+
+/**
+ * Sample countries for mock users (weighted by typical global distribution)
+ */
+const MOCK_COUNTRIES = [
+  { code: 'US', weight: 20 },
+  { code: 'GB', weight: 8 },
+  { code: 'DE', weight: 6 },
+  { code: 'FR', weight: 5 },
+  { code: 'JP', weight: 8 },
+  { code: 'AU', weight: 4 },
+  { code: 'CA', weight: 4 },
+  { code: 'BR', weight: 6 },
+  { code: 'IN', weight: 10 },
+  { code: 'CN', weight: 10 },
+  { code: 'MX', weight: 4 },
+  { code: 'ES', weight: 3 },
+  { code: 'IT', weight: 3 },
+  { code: 'NL', weight: 2 },
+  { code: 'SE', weight: 2 },
+  { code: 'KR', weight: 3 },
+  { code: 'SG', weight: 2 },
+];
+
+const TOTAL_WEIGHT = MOCK_COUNTRIES.reduce((sum, c) => sum + c.weight, 0);
+
+/**
+ * Get a deterministic country for a mock user based on index
+ */
+function getMockCountry(index: number): string {
+  // Use index as seed for deterministic selection
+  const pseudoRandom = ((index * 1103515245 + 12345) >>> 16) % TOTAL_WEIGHT;
+
+  let cumulative = 0;
+  for (const country of MOCK_COUNTRIES) {
+    cumulative += country.weight;
+    if (pseudoRandom < cumulative) {
+      return country.code;
+    }
+  }
+  return MOCK_COUNTRIES[0].code;
 }
 
 /**
@@ -34,12 +78,18 @@ export function generateMockPresence(userCount: number): MockPresenceData {
     connection: Math.floor(userCount * 0.15),
   };
 
-  // Generate stable mock users with deterministic IDs
+  // Generate stable mock users with deterministic IDs and countries
   const users: MockUser[] = [];
+  const countryCounts: Record<string, number> = {};
   const moodKeys: MoodId[] = ['presence', 'gratitude', 'release', 'connection'];
+
+  let globalIndex = 0;
   for (const mood of moodKeys) {
     for (let i = 0; i < moods[mood]; i++) {
-      users.push({ id: `${mood}-${i}`, mood });
+      const country = getMockCountry(globalIndex);
+      users.push({ id: `${mood}-${i}`, mood, country });
+      countryCounts[country] = (countryCounts[country] || 0) + 1;
+      globalIndex++;
     }
   }
 
@@ -47,5 +97,6 @@ export function generateMockPresence(userCount: number): MockPresenceData {
     count: userCount,
     moods,
     users,
+    countryCounts,
   };
 }

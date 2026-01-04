@@ -230,6 +230,118 @@ describe('moodCountsToUsers conversion', () => {
   });
 });
 
+describe('Shard color initialization', () => {
+  /**
+   * Tests for verifying that shards get their correct colors on initialization.
+   *
+   * Previously, all shards started with the default "presence" color (teal/green)
+   * and only got their correct colors during the first hold phase of the breathing
+   * cycle. This caused a visible flash of green shards on load.
+   *
+   * The fix applies colors immediately after SlotManager.reconcile() in the
+   * initialization useEffect, rather than waiting for the animation loop.
+   */
+
+  let slotManager: SlotManager;
+
+  beforeEach(() => {
+    slotManager = new SlotManager();
+  });
+
+  afterEach(() => {
+    slotManager.reset();
+  });
+
+  it('should assign moods to slots immediately on reconcile (not deferred)', () => {
+    // This test verifies that moods are available immediately after reconcile()
+    // which is essential for the color initialization fix
+    const users: User[] = [
+      { id: 'user-1', mood: 'gratitude' },
+      { id: 'user-2', mood: 'release' },
+      { id: 'user-3', mood: 'connection' },
+      { id: 'user-4', mood: 'presence' },
+    ];
+
+    slotManager.reconcile(users);
+
+    // All moods should be assigned immediately (not waiting for animation)
+    const slots = slotManager.slots;
+    const activeSlots = slots.filter((s) => s.state !== 'empty');
+
+    expect(activeSlots.length).toBe(4);
+    for (const slot of activeSlots) {
+      expect(slot.mood).not.toBeNull();
+    }
+
+    // Verify each specific mood is correctly assigned
+    const moodSet = new Set(activeSlots.map((s) => s.mood));
+    expect(moodSet.has('gratitude')).toBe(true);
+    expect(moodSet.has('release')).toBe(true);
+    expect(moodSet.has('connection')).toBe(true);
+    expect(moodSet.has('presence')).toBe(true);
+  });
+
+  it('should have distinct moods for color variety (not all same default)', () => {
+    // This test documents the bug that was fixed: all shards starting with
+    // the same default color (presence/teal) instead of their actual moods
+    const users: User[] = [
+      { id: 'user-1', mood: 'gratitude' },
+      { id: 'user-2', mood: 'gratitude' },
+      { id: 'user-3', mood: 'release' },
+      { id: 'user-4', mood: 'release' },
+      { id: 'user-5', mood: 'connection' },
+      { id: 'user-6', mood: 'presence' },
+    ];
+
+    slotManager.reconcile(users);
+
+    const slots = slotManager.slots;
+    const moodsBySlot = slots.filter((s) => s.state !== 'empty').map((s) => s.mood);
+
+    // Count how many unique moods we have
+    const uniqueMoods = new Set(moodsBySlot);
+
+    // We should have 4 different moods, not just 1 default
+    expect(uniqueMoods.size).toBe(4);
+
+    // Count each mood
+    const gratitudeCount = moodsBySlot.filter((m) => m === 'gratitude').length;
+    const releaseCount = moodsBySlot.filter((m) => m === 'release').length;
+    const connectionCount = moodsBySlot.filter((m) => m === 'connection').length;
+    const presenceCount = moodsBySlot.filter((m) => m === 'presence').length;
+
+    expect(gratitudeCount).toBe(2);
+    expect(releaseCount).toBe(2);
+    expect(connectionCount).toBe(1);
+    expect(presenceCount).toBe(1);
+  });
+
+  it('should preserve moods through slot state transitions', () => {
+    // Moods must remain stable as slots transition from entering → active
+    const users: User[] = [
+      { id: 'user-1', mood: 'gratitude' },
+      { id: 'user-2', mood: 'release' },
+    ];
+
+    slotManager.reconcile(users);
+
+    // Get initial mood assignment
+    const slot1Before = slotManager.getSlotByUserId('user-1');
+    const slot2Before = slotManager.getSlotByUserId('user-2');
+    expect(slot1Before?.mood).toBe('gratitude');
+    expect(slot2Before?.mood).toBe('release');
+
+    // Simulate animation to completion (entering → active)
+    slotManager.updateAnimations(1.0);
+
+    // Moods should still be correct after state transition
+    const slot1After = slotManager.getSlotByUserId('user-1');
+    const slot2After = slotManager.getSlotByUserId('user-2');
+    expect(slot1After?.mood).toBe('gratitude');
+    expect(slot2After?.mood).toBe('release');
+  });
+});
+
 describe('Shape visibility test ideas', () => {
   /**
    * NOTE: Testing actual 3D visibility requires rendering the scene.

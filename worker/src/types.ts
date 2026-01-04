@@ -17,6 +17,8 @@ export interface User {
   id: string;
   /** User's current mood */
   mood: MoodId;
+  /** ISO 3166-1 alpha-2 country code (from Cloudflare geolocation) */
+  country?: string;
 }
 
 /**
@@ -29,6 +31,8 @@ export interface PresenceState {
   moods: Record<MoodId, number>;
   /** Individual users for slot-based rendering (synchronized positions) */
   users: User[];
+  /** Count of users per country (ISO 3166-1 alpha-2 codes) */
+  countryCounts: Record<string, number>;
   /** Server timestamp when this was computed */
   timestamp: number;
 }
