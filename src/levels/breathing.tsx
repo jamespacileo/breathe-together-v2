@@ -95,11 +95,11 @@ export function BreathingLevel({
             <GalaxyEnvironment
               showConstellations={devControls.showStars}
               showSun={true}
-              nebulaIntensity={0.4}
-              backgroundStarDensity={0.6}
-              constellationLineOpacity={0.7}
-              constellationStarSize={0.5}
-              ambientIntensity={0.25}
+              nebulaIntensity={0.8}
+              backgroundStarDensity={1.0}
+              constellationLineOpacity={0.6}
+              constellationStarSize={0.4}
+              ambientIntensity={0.2}
               sunIntensity={1.5}
               sunRadius={5}
             />

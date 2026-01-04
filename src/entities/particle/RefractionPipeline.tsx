@@ -205,7 +205,7 @@ float fbm(vec2 p) {
   return f / 0.9375;
 }
 
-// Star function
+// Star function - enhanced for better visibility against dark sky
 float star(vec2 uv, float scale, float threshold) {
   vec2 grid = floor(uv * scale);
   vec2 gridUv = fract(uv * scale);
@@ -214,10 +214,11 @@ float star(vec2 uv, float scale, float threshold) {
     vec2 starPos = vec2(hash(grid + 0.1), hash(grid + 0.2));
     float dist = length(gridUv - starPos);
     float brightness = (h - threshold) / (1.0 - threshold);
-    // Soft glowing star with diffuse halo
-    float core = smoothstep(0.02, 0.0, dist);
-    float glow = smoothstep(0.08, 0.0, dist) * 0.5;
-    return (core + glow) * brightness;
+    // Bright core with extended soft glow
+    float core = smoothstep(0.025, 0.0, dist) * 1.5;
+    float innerGlow = smoothstep(0.06, 0.0, dist) * 0.8;
+    float outerGlow = smoothstep(0.12, 0.0, dist) * 0.3;
+    return (core + innerGlow + outerGlow) * brightness;
   }
   return 0.0;
 }
@@ -245,56 +246,72 @@ void main() {
   baseColor = mix(baseColor, cosmicPurple, warmSide * 0.3);
 
   // === SOFT NEBULA CLOUDS ===
-  // Large, soft nebula forms
+  // Large, soft nebula forms - enhanced for Kurzgesagt-style visibility
   float slowTime = time * 0.02;
 
-  // Primary nebula - large purple cloud
+  // Primary nebula - large purple cloud (boosted)
   vec2 nebula1Uv = uv * 1.5 + vec2(slowTime * 0.3, slowTime * 0.1);
   float nebula1 = fbm(nebula1Uv);
-  nebula1 = smoothstep(0.35, 0.65, nebula1);
-  vec3 nebula1Color = cosmicPurple * 1.5;
+  nebula1 = smoothstep(0.3, 0.6, nebula1);  // Wider range for more visible clouds
+  vec3 nebula1Color = cosmicPurple * 2.2;   // Boosted color intensity
 
-  // Secondary nebula - teal accent cloud
+  // Secondary nebula - teal accent cloud (boosted)
   vec2 nebula2Uv = uv * 2.0 + vec2(-slowTime * 0.2, slowTime * 0.15) + 50.0;
   float nebula2 = fbm(nebula2Uv);
-  nebula2 = smoothstep(0.4, 0.7, nebula2);
-  vec3 nebula2Color = darkTeal * 2.0;
+  nebula2 = smoothstep(0.35, 0.65, nebula2);
+  vec3 nebula2Color = darkTeal * 3.0;       // Stronger teal presence
 
-  // Warm dust cloud (subtle)
+  // Warm dust cloud (more visible)
   vec2 dustUv = uv * 2.5 + vec2(slowTime * 0.1, -slowTime * 0.2) + 100.0;
   float dust = fbm(dustUv);
-  dust = smoothstep(0.45, 0.7, dust) * 0.5;
-  vec3 dustColor = warmDust * 1.2;
+  dust = smoothstep(0.4, 0.65, dust) * 0.7;  // More visible dust
+  vec3 dustColor = warmDust * 1.8;
 
-  // Combine nebulae with soft blending
+  // Third nebula - rose/pink for Kurzgesagt warmth
+  vec2 nebula3Uv = uv * 1.8 + vec2(slowTime * 0.15, -slowTime * 0.1) + 200.0;
+  float nebula3 = fbm(nebula3Uv);
+  nebula3 = smoothstep(0.4, 0.7, nebula3);
+  vec3 roseNebula = vec3(0.18, 0.06, 0.12) * 2.0;  // Space rose
+
+  // Combine nebulae with boosted blending
   vec3 nebulaColor = vec3(0.0);
-  nebulaColor += nebula1Color * nebula1 * 0.4 * (1.0 - dist * 0.5);
-  nebulaColor += nebula2Color * nebula2 * 0.3 * smoothstep(0.8, 0.3, dist);
-  nebulaColor += dustColor * dust * 0.25;
+  nebulaColor += nebula1Color * nebula1 * 0.6 * (1.0 - dist * 0.4);  // Boosted from 0.4
+  nebulaColor += nebula2Color * nebula2 * 0.5 * smoothstep(0.8, 0.2, dist);  // Boosted from 0.3
+  nebulaColor += dustColor * dust * 0.4;  // Boosted from 0.25
+  nebulaColor += roseNebula * nebula3 * 0.35 * smoothstep(0.7, 0.3, uv.x);  // New rose nebula
 
   // === STAR FIELD ===
-  // Multiple layers for depth and variety
+  // Multiple layers for depth and variety - boosted for visibility
   float stars = 0.0;
 
-  // Dense small stars (distant)
-  stars += star(uv, 200.0, 0.97) * 0.4;
-  stars += star(uv + 0.33, 150.0, 0.975) * 0.5;
+  // Dense small stars (distant) - increased density and brightness
+  stars += star(uv, 200.0, 0.96) * 0.6;
+  stars += star(uv + 0.33, 150.0, 0.965) * 0.7;
+  stars += star(uv + 0.5, 180.0, 0.97) * 0.5;
 
   // Medium stars
-  stars += star(uv + 0.66, 80.0, 0.985) * 0.7;
+  stars += star(uv + 0.66, 80.0, 0.98) * 0.9;
+  stars += star(uv + 0.75, 100.0, 0.985) * 0.8;
 
   // Bright stars (rare)
-  stars += star(uv + 0.99, 40.0, 0.993) * 1.0;
+  stars += star(uv + 0.99, 40.0, 0.99) * 1.2;
 
   // Very bright accent stars
-  stars += star(uv + 1.33, 20.0, 0.997) * 1.3;
+  stars += star(uv + 1.33, 20.0, 0.995) * 1.6;
 
-  // Star color - slight variation
+  // Boost overall star intensity
+  stars *= 1.4;
+
+  // Star color - slight variation with more pronounced warmth
   vec3 starColor = vec3(0.95, 0.97, 1.0) * stars;
 
-  // Some warm stars
-  float warmStarMask = step(0.95, hash(floor(uv * 60.0)));
-  starColor = mix(starColor, vec3(1.0, 0.9, 0.7) * stars, warmStarMask);
+  // Some warm stars (more frequent)
+  float warmStarMask = step(0.92, hash(floor(uv * 60.0)));
+  starColor = mix(starColor, vec3(1.0, 0.9, 0.75) * stars, warmStarMask);
+
+  // Some blue stars
+  float blueStarMask = step(0.96, hash(floor(uv * 80.0 + 50.0)));
+  starColor = mix(starColor, vec3(0.8, 0.9, 1.0) * stars * 1.1, blueStarMask);
 
   // === MILKY WAY BAND ===
   // Soft diagonal band of increased star density

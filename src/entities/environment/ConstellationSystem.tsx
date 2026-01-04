@@ -21,9 +21,9 @@ import { CONSTELLATIONS, TOTAL_CONSTELLATION_STARS } from './constellationData';
 interface ConstellationSystemProps {
   /** Radius of the celestial sphere @default 80 */
   radius?: number;
-  /** Base star size @default 0.25 */
+  /** Base star size @default 0.35 */
   starSize?: number;
-  /** Line opacity @default 0.35 */
+  /** Line opacity @default 0.5 */
   lineOpacity?: number;
   /** Enable twinkling animation @default true */
   twinkle?: boolean;
@@ -65,28 +65,39 @@ void main() {
 }
 `;
 
-// Fragment shader for glowing stars - boosted visibility
+// Fragment shader for glowing stars - enhanced visibility with Kurzgesagt-style glow
 const starFragmentShader = `
 varying float vBrightness;
 varying float vTwinkle;
 
 void main() {
-  // Circular point with soft glow falloff
+  // Circular point with multi-layer soft glow
   vec2 center = gl_PointCoord - 0.5;
   float dist = length(center);
 
-  // Sharp bright core with extended glow
-  float core = smoothstep(0.5, 0.05, dist);
-  float glow = smoothstep(0.5, 0.0, dist) * 0.8;
+  // Bright sharp core
+  float core = smoothstep(0.5, 0.02, dist) * 1.5;
 
-  // Boosted alpha for much better visibility
-  float alpha = (core + glow) * vBrightness * vTwinkle * 1.5;
+  // Inner glow for softness
+  float innerGlow = smoothstep(0.5, 0.1, dist) * 1.0;
 
-  // Star color - bright white core with slight warm tint
-  vec3 color = mix(vec3(1.0, 0.98, 0.95), vec3(0.95, 0.98, 1.0), vBrightness);
+  // Extended outer glow for painterly feel
+  float outerGlow = smoothstep(0.5, 0.0, dist) * 0.6;
 
-  // Boost overall brightness
-  color *= 1.2;
+  // Combine layers with boosted alpha for excellent visibility
+  float alpha = (core + innerGlow + outerGlow) * vBrightness * vTwinkle;
+
+  // Star color - warm white with subtle color variation based on brightness
+  vec3 warmWhite = vec3(1.0, 0.97, 0.92);
+  vec3 coolBlue = vec3(0.9, 0.95, 1.0);
+  vec3 color = mix(warmWhite, coolBlue, vBrightness * 0.5);
+
+  // Boost core brightness for prominent appearance
+  color *= 1.4;
+
+  // Add subtle color tint to outer glow
+  vec3 glowTint = vec3(0.85, 0.9, 1.0) * outerGlow * 0.3;
+  color += glowTint;
 
   gl_FragColor = vec4(color, min(alpha, 1.0));
 }
@@ -103,17 +114,21 @@ void main() {
 }
 `;
 
-// Line fragment shader - significantly brightened for visibility
+// Line fragment shader - soft ethereal glow for painted night sky aesthetic
 const lineFragmentShader = `
 uniform float opacity;
 varying vec3 vColor;
 
 void main() {
-  // Significantly brighten line colors for clear visibility against dark space
-  vec3 brightColor = vColor * 2.0 + vec3(0.4);
-  // Boost opacity for visibility
-  float boostedOpacity = min(opacity * 1.5, 1.0);
-  gl_FragColor = vec4(brightColor, boostedOpacity);
+  // Softer, more ethereal constellation lines
+  // Blend color with soft white for a gentle glow
+  vec3 softWhite = vec3(0.7, 0.75, 0.85);
+  vec3 lineColor = mix(softWhite, vColor * 1.3, 0.5);
+
+  // Subtle opacity for delicate appearance
+  float softOpacity = opacity * 0.7;
+
+  gl_FragColor = vec4(lineColor, softOpacity);
 }
 `;
 
@@ -135,8 +150,8 @@ function sphericalToCartesian(theta: number, phi: number, radius: number): THREE
 
 export const ConstellationSystem = memo(function ConstellationSystem({
   radius = 80,
-  starSize = 0.25,
-  lineOpacity = 0.35,
+  starSize = 0.35,
+  lineOpacity = 0.5,
   twinkle = true,
   visible = true,
 }: ConstellationSystemProps) {
