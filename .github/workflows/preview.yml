@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-# Cancel previous runs when new commits are pushed
+# Cancel previous runs when new commits are pushed to save resources
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
