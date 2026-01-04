@@ -7,19 +7,19 @@
  */
 
 import { afterAll, afterEach, beforeAll } from 'vitest';
-import { server } from './mocks/github';
+import { serviceServer } from './mocks/services';
 
 // Start MSW server before all tests
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: 'warn' });
+  serviceServer.listen({ onUnhandledRequest: 'warn' });
 });
 
 // Reset handlers after each test (allows per-test overrides)
 afterEach(() => {
-  server.resetHandlers();
+  serviceServer.resetHandlers();
 });
 
 // Clean up after all tests
 afterAll(() => {
-  server.close();
+  serviceServer.close();
 });
