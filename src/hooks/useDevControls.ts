@@ -85,6 +85,23 @@ export const TUNING_DEFAULTS = {
   showGizmoAxes: true,
   showGizmoLabels: false,
 
+  // Atmosphere Effects (dev-only)
+  showAtmosphereEffects: true,
+  showFireflies: true,
+  showCloudWisps: true,
+  showBreathRays: true,
+  showRippleWaves: true,
+  showConnectionLines: false,
+  showFloatingSymbols: true,
+  showAurora: true,
+  showMeteors: true,
+  showEnergyField: true,
+  firefliesCount: 50,
+  firefliesOpacity: 0.8,
+  auroraIntensity: 0.4,
+  energyFieldIntensity: 0.3,
+  meteorSpawnRate: 0.3,
+
   // Performance monitoring (dev-only)
   showPerfMonitor: false,
   perfPosition: 'top-left' as 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right',
@@ -190,6 +207,23 @@ export interface DevControlsState {
   showGizmoAxes: boolean;
   showGizmoLabels: boolean;
 
+  // Atmosphere Effects
+  showAtmosphereEffects: boolean;
+  showFireflies: boolean;
+  showCloudWisps: boolean;
+  showBreathRays: boolean;
+  showRippleWaves: boolean;
+  showConnectionLines: boolean;
+  showFloatingSymbols: boolean;
+  showAurora: boolean;
+  showMeteors: boolean;
+  showEnergyField: boolean;
+  firefliesCount: number;
+  firefliesOpacity: number;
+  auroraIntensity: number;
+  energyFieldIntensity: number;
+  meteorSpawnRate: number;
+
   // Performance monitoring
   showPerfMonitor: boolean;
   perfPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -250,6 +284,21 @@ function getDefaultDevControls(): DevControlsState {
     maxShardGizmos: TUNING_DEFAULTS.maxShardGizmos,
     showGizmoAxes: TUNING_DEFAULTS.showGizmoAxes,
     showGizmoLabels: TUNING_DEFAULTS.showGizmoLabels,
+    showAtmosphereEffects: TUNING_DEFAULTS.showAtmosphereEffects,
+    showFireflies: TUNING_DEFAULTS.showFireflies,
+    showCloudWisps: TUNING_DEFAULTS.showCloudWisps,
+    showBreathRays: TUNING_DEFAULTS.showBreathRays,
+    showRippleWaves: TUNING_DEFAULTS.showRippleWaves,
+    showConnectionLines: TUNING_DEFAULTS.showConnectionLines,
+    showFloatingSymbols: TUNING_DEFAULTS.showFloatingSymbols,
+    showAurora: TUNING_DEFAULTS.showAurora,
+    showMeteors: TUNING_DEFAULTS.showMeteors,
+    showEnergyField: TUNING_DEFAULTS.showEnergyField,
+    firefliesCount: TUNING_DEFAULTS.firefliesCount,
+    firefliesOpacity: TUNING_DEFAULTS.firefliesOpacity,
+    auroraIntensity: TUNING_DEFAULTS.auroraIntensity,
+    energyFieldIntensity: TUNING_DEFAULTS.energyFieldIntensity,
+    meteorSpawnRate: TUNING_DEFAULTS.meteorSpawnRate,
     showPerfMonitor: TUNING_DEFAULTS.showPerfMonitor,
     perfPosition: TUNING_DEFAULTS.perfPosition,
     perfMinimal: TUNING_DEFAULTS.perfMinimal,
@@ -558,7 +607,120 @@ export function useDevControls(): DevControlsState {
     ),
 
     // ==========================================
-    // 3. CAMERA
+    // 3. ATMOSPHERE EFFECTS
+    // ==========================================
+    'Atmosphere Effects': folder(
+      {
+        showAtmosphereEffects: {
+          value: TUNING_DEFAULTS.showAtmosphereEffects,
+          label: 'Enable All',
+          hint: 'Master toggle for all atmosphere effects.\n\n**Performance:** Disable to isolate rendering issues',
+        },
+
+        // Effect Toggles
+        Toggles: folder(
+          {
+            showFireflies: {
+              value: TUNING_DEFAULTS.showFireflies,
+              label: 'Fireflies',
+              hint: 'Glowing motes that emerge during exhale phase.\n\n**Vibe:** Visible breath in cold air',
+            },
+            showCloudWisps: {
+              value: TUNING_DEFAULTS.showCloudWisps,
+              label: 'Cloud Wisps',
+              hint: 'Delicate, wispy clouds at atmosphere boundary.\n\n**Different from main clouds:** Smaller, faster, more ethereal',
+            },
+            showBreathRays: {
+              value: TUNING_DEFAULTS.showBreathRays,
+              label: 'Breath Rays',
+              hint: 'Light rays that pulse with breathing.\n\n**Effect:** Rays intensify during inhale',
+            },
+            showRippleWaves: {
+              value: TUNING_DEFAULTS.showRippleWaves,
+              label: 'Ripple Waves',
+              hint: 'Expanding rings on phase transitions.\n\n**Triggers:** Inhale→Hold, Hold→Exhale, etc.',
+            },
+            showConnectionLines: {
+              value: TUNING_DEFAULTS.showConnectionLines,
+              label: 'Connection Lines',
+              hint: 'Faint lines connecting nearby particles.\n\n**Vibe:** Constellation / breathing together',
+            },
+            showFloatingSymbols: {
+              value: TUNING_DEFAULTS.showFloatingSymbols,
+              label: 'Floating Symbols',
+              hint: 'Orbiting meditation icons (lotus, infinity, etc.).\n\n**Fade:** With breathing cycle',
+            },
+            showAurora: {
+              value: TUNING_DEFAULTS.showAurora,
+              label: 'Aurora',
+              hint: 'Northern lights haze at poles.\n\n**Colors:** Shift with breathing (teal→green→purple)',
+            },
+            showMeteors: {
+              value: TUNING_DEFAULTS.showMeteors,
+              label: 'Meteors',
+              hint: 'Shooting star streaks across atmosphere.\n\n**Spawns:** Randomly, occasional delight',
+            },
+            showEnergyField: {
+              value: TUNING_DEFAULTS.showEnergyField,
+              label: 'Energy Field',
+              hint: 'Fresnel-based protective bubble.\n\n**Pulses:** With breathing cycle',
+            },
+          },
+          { collapsed: false },
+        ),
+
+        // Effect Parameters
+        Parameters: folder(
+          {
+            firefliesCount: {
+              value: TUNING_DEFAULTS.firefliesCount,
+              min: 10,
+              max: 200,
+              step: 10,
+              label: 'Fireflies Count',
+              hint: 'Number of firefly particles.\n\n**Performance:** Higher counts impact mobile devices',
+            },
+            firefliesOpacity: {
+              value: TUNING_DEFAULTS.firefliesOpacity,
+              min: 0.1,
+              max: 1.0,
+              step: 0.1,
+              label: 'Fireflies Opacity',
+              hint: 'Maximum firefly brightness during exhale.',
+            },
+            auroraIntensity: {
+              value: TUNING_DEFAULTS.auroraIntensity,
+              min: 0.1,
+              max: 1.0,
+              step: 0.1,
+              label: 'Aurora Intensity',
+              hint: 'Brightness of northern lights effect.',
+            },
+            energyFieldIntensity: {
+              value: TUNING_DEFAULTS.energyFieldIntensity,
+              min: 0.1,
+              max: 1.0,
+              step: 0.1,
+              label: 'Energy Field Intensity',
+              hint: 'Brightness of the protective bubble.',
+            },
+            meteorSpawnRate: {
+              value: TUNING_DEFAULTS.meteorSpawnRate,
+              min: 0.1,
+              max: 2.0,
+              step: 0.1,
+              label: 'Meteor Spawn Rate',
+              hint: 'Average meteors per second.\n\n**Low:** Rare treats, **High:** Meteor shower',
+            },
+          },
+          { collapsed: true },
+        ),
+      },
+      { collapsed: false, order: 1 },
+    ),
+
+    // ==========================================
+    // 4. CAMERA
     // ==========================================
     Camera: folder(
       {
@@ -597,11 +759,11 @@ export function useDevControls(): DevControlsState {
           { collapsed: false },
         ),
       },
-      { collapsed: true, order: 1 },
+      { collapsed: true, order: 3 },
     ),
 
     // ==========================================
-    // 4. INTERACTION
+    // 6. INTERACTION
     // ==========================================
     Interaction: folder(
       {
@@ -659,11 +821,11 @@ export function useDevControls(): DevControlsState {
           { collapsed: false },
         ),
       },
-      { collapsed: true, order: 2 },
+      { collapsed: true, order: 4 },
     ),
 
     // ==========================================
-    // 5. DEBUG (consolidates Debug + Performance Monitor)
+    // 7. DEBUG (consolidates Debug + Performance Monitor)
     // ==========================================
     Debug: folder(
       {
@@ -838,7 +1000,7 @@ export function useDevControls(): DevControlsState {
           { collapsed: true },
         ),
       },
-      { collapsed: true, order: 3 },
+      { collapsed: true, order: 5 },
     ),
   }));
 
