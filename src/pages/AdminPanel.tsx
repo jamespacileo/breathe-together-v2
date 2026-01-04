@@ -1,14 +1,18 @@
 /**
- * Admin Panel - Minimal monitoring dashboard
+ * Admin Panel - Organized monitoring dashboard with tabs
  *
- * Displays:
- * - Current users with moods and connection order
- * - Recent events (joins, leaves, mood changes)
- * - Basic statistics
+ * Tabs:
+ * - Overview: Statistics and mood distribution
+ * - Users: Current connected users
+ * - Events: Recent connection and mood events
+ * - Messages: Inspirational text management
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { InspirationAdmin } from '../components/InspirationAdmin';
 import { MOOD_COLORS } from '../styles/designTokens';
+
+type AdminTab = 'overview' | 'users' | 'events' | 'messages';
 
 // =============================================================================
 // Types
@@ -115,6 +119,7 @@ function getEventColor(type: AdminEvent['type']): string {
 // =============================================================================
 
 export function AdminPanel() {
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -145,15 +150,23 @@ export function AdminPanel() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  const tabs: { id: AdminTab; label: string; icon: string }[] = [
+    { id: 'overview', label: 'Overview', icon: '📊' },
+    { id: 'users', label: 'Users', icon: '👥' },
+    { id: 'events', label: 'Events', icon: '📝' },
+    { id: 'messages', label: 'Messages', icon: '💬' },
+  ];
+
   return (
     <div
       style={{
         minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
         background: '#1a1a1a',
         color: '#e5e5e5',
         fontFamily: "'JetBrains Mono', 'SF Mono', Monaco, monospace",
         fontSize: '13px',
-        padding: '24px',
       }}
     >
       {/* Header */}
@@ -162,9 +175,9 @@ export function AdminPanel() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '24px',
-          paddingBottom: '16px',
+          padding: '16px 24px',
           borderBottom: '1px solid #333',
+          flexShrink: 0,
         }}
       >
         <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 500 }}>Breathe Together - Admin</h1>
@@ -191,223 +204,277 @@ export function AdminPanel() {
         </div>
       </header>
 
-      {/* Stats Bar */}
-      {stats && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-            gap: '12px',
-            marginBottom: '24px',
-          }}
-        >
-          <StatCard label="Current Users" value={stats.currentUsers} />
-          <StatCard label="Total (w/ sim)" value={stats.presence.count} />
-          <StatCard label="Joins" value={stats.joinCount} color="#4ade80" />
-          <StatCard label="Leaves" value={stats.leaveCount} color="#f87171" />
-          <StatCard label="Mood Changes" value={stats.moodChangeCount} color="#fbbf24" />
-          <StatCard label="Total Events" value={stats.totalEvents} />
-        </div>
-      )}
-
-      {/* Mood Distribution */}
-      {stats && (
-        <div
-          style={{
-            marginBottom: '24px',
-            padding: '16px',
-            background: '#242424',
-            borderRadius: '8px',
-            border: '1px solid #333',
-          }}
-        >
-          <h3 style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#999' }}>
-            Mood Distribution
-          </h3>
-          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-            {Object.entries(stats.presence.moods).map(([mood, count]) => (
-              <div key={mood} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div
-                  style={{
-                    width: '10px',
-                    height: '10px',
-                    borderRadius: '50%',
-                    background: MOOD_COLORS[mood as keyof typeof MOOD_COLORS] || '#666',
-                  }}
-                />
-                <span style={{ textTransform: 'capitalize' }}>{mood}:</span>
-                <span style={{ fontWeight: 600 }}>{count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Grid */}
-      <div
+      {/* Tab Navigation */}
+      <nav
         style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '24px',
+          display: 'flex',
+          gap: '0',
+          padding: '0 24px',
+          borderBottom: '1px solid #333',
+          flexShrink: 0,
+          overflowX: 'auto',
         }}
       >
-        {/* Current Users */}
-        <div
-          style={{
-            background: '#242424',
-            borderRadius: '8px',
-            border: '1px solid #333',
-            overflow: 'hidden',
-          }}
-        >
-          <div
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
             style={{
+              flex: 'none',
               padding: '12px 16px',
-              borderBottom: '1px solid #333',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              border: 'none',
+              borderBottom: activeTab === tab.id ? '2px solid #7ec8d4' : '2px solid transparent',
+              background: 'transparent',
+              color: activeTab === tab.id ? '#7ec8d4' : '#666',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontFamily: 'inherit',
+              fontWeight: activeTab === tab.id ? 600 : 400,
+              transition: 'color 0.2s, border-color 0.2s',
+              whiteSpace: 'nowrap',
             }}
           >
-            <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 500 }}>
-              Current Users ({users.length})
-            </h2>
-          </div>
-          <div style={{ maxHeight: '400px', overflow: 'auto' }}>
-            {users.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: '#666' }}>
-                No users connected
+            {tab.icon} {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Main Content - Scrollable */}
+      <div
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          padding: '24px',
+        }}
+      >
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div>
+            {/* Stats Bar */}
+            {stats && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: '12px',
+                  marginBottom: '24px',
+                }}
+              >
+                <StatCard label="Current Users" value={stats.currentUsers} />
+                <StatCard label="Total (w/ sim)" value={stats.presence.count} />
+                <StatCard label="Joins" value={stats.joinCount} color="#4ade80" />
+                <StatCard label="Leaves" value={stats.leaveCount} color="#f87171" />
+                <StatCard label="Mood Changes" value={stats.moodChangeCount} color="#fbbf24" />
+                <StatCard label="Total Events" value={stats.totalEvents} />
               </div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#1a1a1a' }}>
-                    <th style={thStyle}>#</th>
-                    <th style={thStyle}>User ID</th>
-                    <th style={thStyle}>Mood</th>
-                    <th style={thStyle}>Duration</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user, index) => (
-                    <tr
-                      key={user.id}
-                      style={{
-                        borderBottom: '1px solid #333',
-                        background: index % 2 === 0 ? 'transparent' : '#1f1f1f',
-                      }}
-                    >
-                      <td style={tdStyle}>{user.order}</td>
-                      <td style={{ ...tdStyle, fontFamily: 'monospace' }}>
-                        {user.id.slice(0, 12)}...
-                      </td>
-                      <td style={tdStyle}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: '8px',
-                              height: '8px',
-                              borderRadius: '50%',
-                              background:
-                                MOOD_COLORS[user.mood as keyof typeof MOOD_COLORS] || '#666',
-                            }}
-                          />
-                          {user.mood}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>{formatDuration(user.durationMs)}</td>
-                    </tr>
+            )}
+
+            {/* Mood Distribution */}
+            {stats && (
+              <div
+                style={{
+                  padding: '16px',
+                  background: '#242424',
+                  borderRadius: '8px',
+                  border: '1px solid #333',
+                }}
+              >
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#999' }}>
+                  Mood Distribution
+                </h3>
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                  {Object.entries(stats.presence.moods).map(([mood, count]) => (
+                    <div key={mood} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div
+                        style={{
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          background: MOOD_COLORS[mood as keyof typeof MOOD_COLORS] || '#666',
+                        }}
+                      />
+                      <span style={{ textTransform: 'capitalize' }}>{mood}:</span>
+                      <span style={{ fontWeight: 600 }}>{count}</span>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Recent Events */}
-        <div
-          style={{
-            background: '#242424',
-            borderRadius: '8px',
-            border: '1px solid #333',
-            overflow: 'hidden',
-          }}
-        >
+        {/* Users Tab */}
+        {activeTab === 'users' && (
           <div
             style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid #333',
+              background: '#242424',
+              borderRadius: '8px',
+              border: '1px solid #333',
+              overflow: 'hidden',
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              flexDirection: 'column',
             }}
           >
-            <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 500 }}>
-              Recent Events ({events.length})
-            </h2>
-          </div>
-          <div style={{ maxHeight: '400px', overflow: 'auto' }}>
-            {events.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: '#666' }}>
-                No events yet
-              </div>
-            ) : (
-              <div style={{ padding: '8px 0' }}>
-                {events.map((event) => (
-                  <div
-                    key={event.id}
-                    style={{
-                      padding: '8px 16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      borderBottom: '1px solid #2a2a2a',
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '4px',
-                        background: getEventColor(event.type),
-                        color: '#1a1a1a',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 700,
-                        fontSize: '14px',
-                      }}
-                    >
-                      {getEventIcon(event.type)}
-                    </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ marginBottom: '2px' }}>
-                        <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>
-                          {event.type.replace('_', ' ')}
-                        </span>
-                        <span style={{ color: '#666', marginLeft: '8px' }}>
-                          {event.userId.slice(0, 12)}...
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#666' }}>
-                        {event.type === 'mood_change' ? (
-                          <>
+            <div
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #333',
+                flexShrink: 0,
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 500 }}>
+                Current Users ({users.length})
+              </h2>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              {users.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#666' }}>
+                  No users connected
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#1a1a1a', position: 'sticky', top: 0 }}>
+                      <th style={thStyle}>#</th>
+                      <th style={thStyle}>User ID</th>
+                      <th style={thStyle}>Mood</th>
+                      <th style={thStyle}>Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((user, index) => (
+                      <tr
+                        key={user.id}
+                        style={{
+                          borderBottom: '1px solid #333',
+                          background: index % 2 === 0 ? 'transparent' : '#1f1f1f',
+                        }}
+                      >
+                        <td style={tdStyle}>{user.order}</td>
+                        <td style={{ ...tdStyle, fontFamily: 'monospace' }}>
+                          {user.id.slice(0, 12)}...
+                        </td>
+                        <td style={tdStyle}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                            }}
+                          >
                             <span
                               style={{
-                                color:
-                                  MOOD_COLORS[event.previousMood as keyof typeof MOOD_COLORS] ||
-                                  '#666',
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                background:
+                                  MOOD_COLORS[user.mood as keyof typeof MOOD_COLORS] || '#666',
                               }}
-                            >
-                              {event.previousMood}
-                            </span>
-                            {' → '}
+                            />
+                            {user.mood}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>{formatDuration(user.durationMs)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Events Tab */}
+        {activeTab === 'events' && (
+          <div
+            style={{
+              background: '#242424',
+              borderRadius: '8px',
+              border: '1px solid #333',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #333',
+                flexShrink: 0,
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 500 }}>
+                Recent Events ({events.length})
+              </h2>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              {events.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#666' }}>
+                  No events yet
+                </div>
+              ) : (
+                <div style={{ padding: '8px 0' }}>
+                  {events.map((event) => (
+                    <div
+                      key={event.id}
+                      style={{
+                        padding: '8px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        borderBottom: '1px solid #2a2a2a',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '4px',
+                          background: getEventColor(event.type),
+                          color: '#1a1a1a',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '14px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {getEventIcon(event.type)}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ marginBottom: '2px' }}>
+                          <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>
+                            {event.type.replace('_', ' ')}
+                          </span>
+                          <span style={{ color: '#666', marginLeft: '8px' }}>
+                            {event.userId.slice(0, 12)}...
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#666' }}>
+                          {event.type === 'mood_change' ? (
+                            <>
+                              <span
+                                style={{
+                                  color:
+                                    MOOD_COLORS[event.previousMood as keyof typeof MOOD_COLORS] ||
+                                    '#666',
+                                }}
+                              >
+                                {event.previousMood}
+                              </span>
+                              {' → '}
+                              <span
+                                style={{
+                                  color:
+                                    MOOD_COLORS[event.mood as keyof typeof MOOD_COLORS] || '#666',
+                                }}
+                              >
+                                {event.mood}
+                              </span>
+                            </>
+                          ) : (
                             <span
                               style={{
                                 color:
@@ -416,27 +483,22 @@ export function AdminPanel() {
                             >
                               {event.mood}
                             </span>
-                          </>
-                        ) : (
-                          <span
-                            style={{
-                              color: MOOD_COLORS[event.mood as keyof typeof MOOD_COLORS] || '#666',
-                            }}
-                          >
-                            {event.mood}
-                          </span>
-                        )}
+                          )}
+                        </div>
                       </div>
+                      <span style={{ color: '#666', fontSize: '11px', flexShrink: 0 }}>
+                        {formatTime(event.timestamp)}
+                      </span>
                     </div>
-                    <span style={{ color: '#666', fontSize: '11px' }}>
-                      {formatTime(event.timestamp)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Messages Tab */}
+        {activeTab === 'messages' && <InspirationAdmin />}
       </div>
     </div>
   );

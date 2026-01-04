@@ -1,13 +1,17 @@
 import { Leva } from 'leva';
 import { Perf } from 'r3f-perf';
-import { Suspense } from 'react';
+import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { GizmoEntities } from '../components/GizmoEntities';
 import { MomentumControls } from '../components/MomentumControls';
+import { ShapeGizmos } from '../components/ShapeGizmos';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
+import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
+import { GlobeRibbonText } from '../entities/earthGlobe/GlobeRibbonText';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
@@ -42,7 +46,12 @@ export function BreathingLevel({
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users } = usePresence();
+  const { users, countryCounts } = usePresence();
+
+  // React 19: Defer non-urgent updates to reduce stutter during state changes
+  // These values control particle counts which are expensive to update
+  const deferredAtmosphereDensity = useDeferredValue(atmosphereDensity);
+  const deferredUsers = useDeferredValue(users);
 
   return (
     <ErrorBoundary>
@@ -64,58 +73,106 @@ export function BreathingLevel({
         {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
         <AudioDevControls />
 
-        {/* 4-Pass FBO Refraction Pipeline */}
-        <RefractionPipeline
-          ior={devControls.ior}
-          backfaceIntensity={devControls.glassDepth}
-          enableDepthOfField={devControls.enableDepthOfField}
-          focusDistance={devControls.focusDistance}
-          focalRange={devControls.focalRange}
-          maxBlur={devControls.maxBlur}
+        {/* MomentumControls wraps everything - iOS-style momentum scrolling for 3D rotation */}
+        <MomentumControls
+          cursor={true}
+          speed={devControls.dragSpeed}
+          damping={devControls.dragDamping}
+          momentum={devControls.dragMomentum}
+          timeConstant={devControls.dragTimeConstant}
+          velocityMultiplier={devControls.dragVelocityMultiplier}
+          minVelocityThreshold={devControls.dragMinVelocity}
+          polar={[-Math.PI * 0.3, Math.PI * 0.3]}
+          azimuth={[-Infinity, Infinity]}
         >
-          {/* Environment - clouds, lighting, fog */}
-          {showEnvironment && (
-            <Environment
-              showClouds={devControls.showClouds}
-              showStars={devControls.showStars}
-              cloudOpacity={devControls.cloudOpacity}
-              cloudSpeed={devControls.cloudSpeed}
-              ambientLightColor={devControls.ambientLightColor}
-              ambientLightIntensity={devControls.ambientLightIntensity}
-              keyLightColor={devControls.keyLightColor}
-              keyLightIntensity={devControls.keyLightIntensity}
-            />
-          )}
-
-          {/* MomentumControls - iOS-style momentum scrolling for 3D rotation */}
-          <MomentumControls
-            cursor={true}
-            speed={devControls.dragSpeed}
-            damping={devControls.dragDamping}
-            momentum={devControls.dragMomentum}
-            timeConstant={devControls.dragTimeConstant}
-            velocityMultiplier={devControls.dragVelocityMultiplier}
-            minVelocityThreshold={devControls.dragMinVelocity}
-            polar={[-Math.PI * 0.3, Math.PI * 0.3]}
-            azimuth={[-Infinity, Infinity]}
+          {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
+          <RefractionPipeline
+            ior={devControls.ior}
+            backfaceIntensity={devControls.glassDepth}
+            enableDepthOfField={devControls.enableDepthOfField}
+            focusDistance={devControls.focusDistance}
+            focalRange={devControls.focalRange}
+            maxBlur={devControls.maxBlur}
           >
+            {/* Environment - clouds, lighting, fog */}
+            {showEnvironment && (
+              <Environment
+                showClouds={devControls.showClouds}
+                showStars={devControls.showStars}
+                cloudOpacity={devControls.cloudOpacity}
+                cloudSpeed={devControls.cloudSpeed}
+                ambientLightColor={devControls.ambientLightColor}
+                ambientLightIntensity={devControls.ambientLightIntensity}
+                keyLightColor={devControls.keyLightColor}
+                keyLightIntensity={devControls.keyLightIntensity}
+              />
+            )}
+
             {showGlobe && <EarthGlobe />}
 
+            {/* Globe Ribbon Text - curved text wrapping around globe */}
+            {showGlobe && <GlobeRibbonText />}
+
             {showParticles && (
-              <ParticleSwarm users={users} baseRadius={orbitRadius} maxShardSize={shardSize} />
+              <ParticleSwarm
+                users={deferredUsers}
+                baseRadius={orbitRadius}
+                maxShardSize={shardSize}
+              />
             )}
 
             {showParticles && (
               <AtmosphericParticles
-                count={Math.round(atmosphereDensity)}
+                count={Math.round(deferredAtmosphereDensity)}
                 size={devControls.atmosphereParticleSize}
                 baseOpacity={devControls.atmosphereBaseOpacity}
                 breathingOpacity={devControls.atmosphereBreathingOpacity}
                 color={devControls.atmosphereColor}
               />
             )}
-          </MomentumControls>
-        </RefractionPipeline>
+
+            {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
+            {/* Now inside RefractionPipeline: occluded by globe/shards, has DoF effect */}
+            {showGlobe && Object.keys(countryCounts).length > 0 && (
+              <GeoMarkers countryCounts={countryCounts} showNames={false} />
+            )}
+          </RefractionPipeline>
+
+          {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
+          {DEV_MODE_ENABLED && (
+            <GizmoEntities
+              enabled={
+                devControls.showGlobeCentroid ||
+                devControls.showGlobeBounds ||
+                devControls.showCountryCentroids ||
+                devControls.showSwarmCentroid ||
+                devControls.showSwarmBounds ||
+                devControls.showShardCentroids ||
+                devControls.showShardWireframes ||
+                devControls.showShardConnections
+              }
+              maxShards={devControls.maxShardGizmos}
+            />
+          )}
+
+          {/* Shape Gizmos - debug visualization for centroids and bounds */}
+          {/* Rendered outside RefractionPipeline to avoid distortion effects */}
+          {DEV_MODE_ENABLED && (
+            <ShapeGizmos
+              showGlobeCentroid={devControls.showGlobeCentroid}
+              showGlobeBounds={devControls.showGlobeBounds}
+              showCountryCentroids={devControls.showCountryCentroids}
+              showSwarmCentroid={devControls.showSwarmCentroid}
+              showSwarmBounds={devControls.showSwarmBounds}
+              showShardCentroids={devControls.showShardCentroids}
+              showShardWireframes={devControls.showShardWireframes}
+              showShardConnections={devControls.showShardConnections}
+              maxShardGizmos={devControls.maxShardGizmos}
+              showAxes={devControls.showGizmoAxes}
+              showLabels={devControls.showGizmoLabels}
+            />
+          )}
+        </MomentumControls>
       </Suspense>
     </ErrorBoundary>
   );

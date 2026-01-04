@@ -2,15 +2,22 @@
  * RefractionPipeline - 4-pass FBO rendering for frosted glass refraction + depth of field
  *
  * Implements the Monument Valley reference rendering pipeline:
- * Pass 1: Render background gradient → envFBO texture
- * Pass 2: Render scene with backface material → backfaceFBO texture
+ * Pass 1: Render background gradient → envFBO texture (cached when static)
+ * Pass 2: Render scene with backface material → backfaceFBO texture (half resolution)
  * Pass 3: Render scene with refraction material → compositeFBO (with depth)
  * Pass 4: Apply depth of field blur → screen
+ *
+ * Performance optimizations (Jan 2025):
+ * - THREE.Layers for selective rendering (RENDER_LAYERS.PARTICLES for refraction)
+ * - Half-resolution backface pass (50% width/height, bilinear filtering)
+ * - Environment FBO caching (re-renders only every ENV_CACHE_FRAMES frames)
+ * - On-demand rendering support via invalidate()
  */
 
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { RENDER_LAYERS } from '../../constants';
 
 // Backface vertex shader - renders normals from back faces
 // Supports both regular meshes and InstancedMesh via THREE.js instancing defines
@@ -265,6 +272,20 @@ void main() {
 }
 `;
 
+/**
+ * Environment FBO cache interval (frames)
+ * Background gradient is static, so we can cache it for multiple frames.
+ * Set to 10 = re-render background every 10 frames (6 times/sec if running at 60fps)
+ */
+const ENV_CACHE_FRAMES = 10;
+
+/**
+ * Backface resolution scale (0.5 = half resolution)
+ * Backface normals don't need full resolution - bilinear filtering smooths the result.
+ * At 0.5 scale, this saves 75% GPU fill rate (0.5² = 0.25 pixels filled).
+ */
+const BACKFACE_RESOLUTION_SCALE = 0.5;
+
 interface RefractionPipelineProps {
   /** Index of refraction @default 1.3 */
   ior?: number;
@@ -312,10 +333,25 @@ export function RefractionPipeline({
   const { gl, size, camera, scene } = useThree();
   const perspCamera = camera as THREE.PerspectiveCamera;
 
+  // Calculate half-resolution dimensions for backface pass
+  const backfaceWidth = Math.floor(size.width * BACKFACE_RESOLUTION_SCALE);
+  const backfaceHeight = Math.floor(size.height * BACKFACE_RESOLUTION_SCALE);
+
   // Create render targets
   const { envFBO, backfaceFBO, compositeFBO } = useMemo(() => {
-    const envFBO = new THREE.WebGLRenderTarget(size.width, size.height);
-    const backfaceFBO = new THREE.WebGLRenderTarget(size.width, size.height);
+    // Environment FBO - full resolution, cached for ENV_CACHE_FRAMES
+    const envFBO = new THREE.WebGLRenderTarget(size.width, size.height, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    });
+
+    // Backface FBO - half resolution with bilinear filtering for smooth normals
+    // At 0.5 scale: saves 75% fill rate (0.5² = 0.25 pixels) with minimal quality loss
+    const backfaceFBO = new THREE.WebGLRenderTarget(backfaceWidth, backfaceHeight, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    });
+
     // Composite FBO with depth texture for DoF
     const depthTexture = new THREE.DepthTexture(size.width, size.height);
     depthTexture.format = THREE.DepthFormat;
@@ -325,7 +361,14 @@ export function RefractionPipeline({
       depthBuffer: true,
     });
     return { envFBO, backfaceFBO, compositeFBO };
-  }, [size.width, size.height]);
+  }, [size.width, size.height, backfaceWidth, backfaceHeight]);
+
+  // Create a camera for layer-based selective rendering
+  // Clone the main camera and modify its layers for each pass
+  const layerCamera = useMemo(() => {
+    const cam = new THREE.PerspectiveCamera();
+    return cam;
+  }, []);
 
   // Create background scene with ortho camera
   const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
@@ -418,11 +461,24 @@ export function RefractionPipeline({
   // Update resolution on resize
   useEffect(() => {
     envFBO.setSize(size.width, size.height);
-    backfaceFBO.setSize(size.width, size.height);
+    // Backface uses half resolution
+    backfaceFBO.setSize(backfaceWidth, backfaceHeight);
     compositeFBO.setSize(size.width, size.height);
     refractionMaterial.uniforms.resolution.value.set(size.width, size.height);
     dofMaterial.uniforms.resolution.value.set(size.width, size.height);
-  }, [size.width, size.height, envFBO, backfaceFBO, compositeFBO, refractionMaterial, dofMaterial]);
+    // Force env FBO re-render on resize
+    envNeedsUpdateRef.current = true;
+  }, [
+    size.width,
+    size.height,
+    backfaceWidth,
+    backfaceHeight,
+    envFBO,
+    backfaceFBO,
+    compositeFBO,
+    refractionMaterial,
+    dofMaterial,
+  ]);
 
   // Store original materials for mesh swapping
   const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
@@ -430,9 +486,13 @@ export function RefractionPipeline({
   // Cache refraction meshes (refreshed when count changes or meshes become stale)
   const refractionMeshesRef = useRef<THREE.Mesh[]>([]);
 
-  // Frame counter for throttled mesh detection (check every 30 frames instead of every frame)
+  // Frame counter for throttled operations
   const frameCountRef = useRef(0);
   const MESH_CHECK_INTERVAL = 30;
+
+  // Environment FBO cache - track when we last rendered it
+  const envCacheFrameRef = useRef(0);
+  const envNeedsUpdateRef = useRef(true); // Force initial render
 
   // Cleanup
   useEffect(() => {
@@ -461,18 +521,24 @@ export function RefractionPipeline({
     dofMesh,
   ]);
 
-  // 4-pass rendering loop
+  // 4-pass rendering loop with performance optimizations:
+  // - Layer-based mesh detection (RENDER_LAYERS.PARTICLES)
+  // - Environment FBO caching (re-render every ENV_CACHE_FRAMES)
+  // - Half-resolution backface pass
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Multi-pass refraction pipeline requires mesh detection, material swapping, 4 FBO passes, and DoF toggle - splitting would reduce readability of the sequential rendering logic
   useFrame(() => {
     frameCountRef.current++;
 
+    // Sync layer camera with main camera each frame
+    layerCamera.copy(perspCamera);
+
     // Throttled mesh detection: only check every N frames to reduce scene traversal overhead
-    // This reduces O(n) traversal from 60fps to ~2fps while still detecting dynamic additions
+    // Uses RENDER_LAYERS.PARTICLES instead of userData.useRefraction
     if (frameCountRef.current % MESH_CHECK_INTERVAL === 0) {
       // Quick stale check first (O(cached) instead of O(scene))
       let needsRefresh = false;
       for (const mesh of refractionMeshesRef.current) {
-        if (!mesh.parent || !mesh.userData.useRefraction) {
+        if (!mesh.parent || !mesh.layers.isEnabled(RENDER_LAYERS.PARTICLES)) {
           needsRefresh = true;
           break;
         }
@@ -482,7 +548,8 @@ export function RefractionPipeline({
       if (needsRefresh || refractionMeshesRef.current.length === 0) {
         const newMeshes: THREE.Mesh[] = [];
         scene.traverse((obj) => {
-          if (obj instanceof THREE.Mesh && obj.userData.useRefraction) {
+          // Check if mesh is on PARTICLES layer (layer 2)
+          if (obj instanceof THREE.Mesh && obj.layers.isEnabled(RENDER_LAYERS.PARTICLES)) {
             newMeshes.push(obj);
           }
         });
@@ -502,61 +569,76 @@ export function RefractionPipeline({
       meshDataRef.current.set(mesh, mesh.material);
     }
 
-    // Pass 1: Render background to envFBO
-    gl.setRenderTarget(envFBO);
-    gl.clear();
-    gl.render(bgScene, orthoCamera);
+    // Pass 1: Render background to envFBO (CACHED for ENV_CACHE_FRAMES)
+    // Background gradient is static, so we only need to re-render it periodically
+    const framesSinceEnvRender = frameCountRef.current - envCacheFrameRef.current;
+    if (envNeedsUpdateRef.current || framesSinceEnvRender >= ENV_CACHE_FRAMES) {
+      gl.setRenderTarget(envFBO);
+      gl.clear();
+      gl.render(bgScene, orthoCamera);
+      envCacheFrameRef.current = frameCountRef.current;
+      envNeedsUpdateRef.current = false;
+    }
 
-    // Pass 2: Swap to backface material, render to backfaceFBO
+    // Pass 2: Swap to backface material, render to half-res backfaceFBO
+    // Only render PARTICLES layer meshes
     for (const mesh of meshes) {
       mesh.material = backfaceMaterial;
     }
+    layerCamera.layers.set(RENDER_LAYERS.PARTICLES);
     gl.setRenderTarget(backfaceFBO);
     gl.clear();
-    gl.render(scene, camera);
-
-    // Pass 3: Render composite to compositeFBO (with depth for DoF)
-    // First render background
-    gl.setRenderTarget(compositeFBO);
-    gl.clear();
-    gl.render(bgScene, orthoCamera);
+    gl.render(scene, layerCamera);
 
     // Update refraction material uniforms with FBO textures
     refractionMaterial.uniforms.envMap.value = envFBO.texture;
     refractionMaterial.uniforms.backfaceMap.value = backfaceFBO.texture;
 
-    // Swap to refraction material and render scene
+    // Swap to refraction material
     for (const mesh of meshes) {
       mesh.material = refractionMaterial;
     }
-    gl.clearDepth();
-    gl.render(scene, camera);
 
-    // Restore original materials (for next frame's scene graph consistency)
-    for (const mesh of meshes) {
-      const original = meshDataRef.current.get(mesh);
-      if (original) {
-        mesh.material = original;
-      }
-    }
-
-    // Pass 4: Apply depth of field and render to screen
-    gl.setRenderTarget(null);
-    gl.clear();
+    // Reset camera layers to render all for composite pass
+    layerCamera.layers.enableAll();
 
     if (enableDepthOfField) {
-      // Update DoF material with composite textures
+      // Pass 3: Render composite to compositeFBO (with depth for DoF)
+      gl.setRenderTarget(compositeFBO);
+      gl.clear();
+      gl.render(bgScene, orthoCamera);
+      gl.clearDepth();
+      gl.render(scene, camera);
+
+      // Restore original materials
+      for (const mesh of meshes) {
+        const original = meshDataRef.current.get(mesh);
+        if (original) {
+          mesh.material = original;
+        }
+      }
+
+      // Pass 4: Apply depth of field and render to screen
+      gl.setRenderTarget(null);
+      gl.clear();
       dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
       dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
       gl.render(dofScene, orthoCamera);
     } else {
-      // Skip DoF, render composite directly
-      // Create a simple passthrough if needed, or just render the composite
-      dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
-      dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
-      dofMaterial.uniforms.maxBlur.value = 0; // Disable blur
-      gl.render(dofScene, orthoCamera);
-      dofMaterial.uniforms.maxBlur.value = maxBlur; // Restore
+      // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
+      gl.setRenderTarget(null);
+      gl.clear();
+      gl.render(bgScene, orthoCamera);
+      gl.clearDepth();
+      gl.render(scene, camera);
+
+      // Restore original materials
+      for (const mesh of meshes) {
+        const original = meshDataRef.current.get(mesh);
+        if (original) {
+          mesh.material = original;
+        }
+      }
     }
   }, 1); // Priority 1 to run before default render
 

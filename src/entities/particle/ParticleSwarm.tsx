@@ -17,7 +17,7 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { BREATH_TOTAL_CYCLE, type MoodId } from '../../constants';
+import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -273,19 +273,9 @@ export function ParticleSwarm({
   // Normalize users input
   const normalizedUsers = useMemo(() => normalizeUsers(users), [users]);
 
-  // Debug: Log when users prop changes
-  useEffect(() => {
-    console.log('[ParticleSwarm] users prop changed:', {
-      rawUsersLength: Array.isArray(users) ? users.length : 'not array',
-      normalizedLength: normalizedUsers.length,
-      sampleUser: normalizedUsers[0],
-    });
-  }, [users, normalizedUsers]);
-
   // Update pending users when props change
   useEffect(() => {
     pendingUsersRef.current = normalizedUsers;
-    console.log('[ParticleSwarm] pendingUsersRef updated:', normalizedUsers.length);
   }, [normalizedUsers]);
 
   // Calculate shard size based on current user count
@@ -296,35 +286,33 @@ export function ParticleSwarm({
   }, [normalizedUsers.length, baseShardSize, minShardSize, maxShardSize]);
 
   /**
-   * Calculate minimum orbit radius dynamically based on particle count and shard size.
-   *
-   * Two constraints must be satisfied:
-   * 1. Globe collision: radius > globeRadius + shardSize + buffer
-   * 2. Inter-particle spacing: For Fibonacci sphere with N particles at radius R,
-   *    minimum spacing ≈ R × 1.95 / sqrt(N). For no collision:
-   *    R × 1.95 / sqrt(N) > 2 × shardSize + wobbleMargin
-   *    R > (2 × shardSize + wobbleMargin) × sqrt(N) / 1.95
-   *
-   * The wobbleMargin accounts for PERPENDICULAR_AMPLITUDE and AMBIENT_SCALE motion
-   * that can temporarily bring particles closer together.
+   * Calculate minimum orbit radius - ONLY the hard globe collision constraint.
+   * Shards must never penetrate the globe surface.
    */
   const minOrbitRadius = useMemo(() => {
+    // Hard limit: Globe collision prevention only
+    return globeRadius + shardSize + buffer;
+  }, [globeRadius, shardSize, buffer]);
+
+  /**
+   * Calculate ideal spacing radius - the radius at which full-size shards fit without overlap.
+   * This is a SOFT constraint - if breathing radius is smaller, shards will scale down.
+   *
+   * For Fibonacci sphere with N particles at radius R:
+   *   minimum spacing ≈ R × 1.95 / sqrt(N)
+   * For no collision: R > (2 × shardSize + wobbleMargin) × sqrt(N) / 1.95
+   *
+   * The wobbleMargin accounts for PERPENDICULAR_AMPLITUDE and AMBIENT_SCALE motion.
+   */
+  const idealSpacingRadius = useMemo(() => {
     const count = normalizedUsers.length || 1;
-
-    // Constraint 1: Globe collision prevention
-    const globeConstraint = globeRadius + shardSize + buffer;
-
-    // Constraint 2: Inter-particle spacing
     // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
     // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.22
     const wobbleMargin = 0.22;
     const fibonacciSpacingFactor = 1.95;
     const requiredSpacing = 2 * shardSize + wobbleMargin;
-    const spacingConstraint = (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
-
-    // Use the more restrictive constraint
-    return Math.max(globeConstraint, spacingConstraint);
-  }, [normalizedUsers.length, globeRadius, shardSize, buffer]);
+    return (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
+  }, [normalizedUsers.length, shardSize]);
 
   // Create shared geometry (single geometry for all instances)
   const geometry = useMemo(() => {
@@ -405,24 +393,10 @@ export function ParticleSwarm({
     const usersForInit =
       pendingUsersRef.current.length > 0 ? pendingUsersRef.current : normalizedUsers;
 
-    console.log('[ParticleSwarm] Init effect running:', {
-      pendingUsersLength: pendingUsersRef.current.length,
-      normalizedUsersLength: normalizedUsers.length,
-      usersForInitLength: usersForInit.length,
-      meshExists: !!mesh,
-      slotManagerExists: !!slotManager,
-    });
-
     if (slotManager) {
       slotManager.reconcile(usersForInit);
       const stableCount = slotManager.stableCount;
       prevActiveCountRef.current = stableCount;
-
-      console.log('[ParticleSwarm] After reconcile:', {
-        stableCount,
-        slotsLength: slotManager.slots.length,
-        firstSlot: slotManager.slots[0],
-      });
 
       if (stableCount > 0) {
         redistributePositions(stableCount);
@@ -430,6 +404,24 @@ export function ParticleSwarm({
         for (const state of instanceStatesRef.current) {
           state.direction.copy(state.targetDirection);
         }
+      }
+
+      // Apply correct colors from slot moods immediately (not waiting for hold phase)
+      // This fixes the "all shards start green" issue where DEFAULT_COLOR was shown
+      // until the first hold phase triggered color reconciliation
+      const slots = slotManager.slots;
+      const states = instanceStatesRef.current;
+      for (let i = 0; i < slots.length && i < states.length; i++) {
+        const slot = slots[i];
+        const instanceState = states[i];
+        if (slot.mood) {
+          const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
+          mesh.setColorAt(i, color);
+          instanceState.currentMood = slot.mood;
+        }
+      }
+      if (mesh.instanceColor) {
+        mesh.instanceColor.needsUpdate = true;
       }
     }
   }, [performanceCap, baseRadius, redistributePositions, geometry, material]);
@@ -442,9 +434,6 @@ export function ParticleSwarm({
     };
   }, [geometry, material]);
 
-  // Debug frame counter for throttled logging
-  const frameCountRef = useRef(0);
-
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation requires multiple force calculations and slot lifecycle management
   useFrame((state, delta) => {
@@ -455,36 +444,6 @@ export function ParticleSwarm({
 
     const clampedDelta = Math.min(delta, 0.1);
     const time = state.clock.elapsedTime;
-
-    // Throttled debug log (every 120 frames ~2 seconds at 60fps)
-    frameCountRef.current++;
-    if (frameCountRef.current % 120 === 1) {
-      const nonEmptySlots = slotManager.slots.filter((s) => s.state !== 'empty');
-      // Find first slot with scale > 0
-      const firstVisibleSlot = slotManager.slots.find((s) => s.scale > 0.01);
-      const firstVisibleIndex = firstVisibleSlot ? slotManager.slots.indexOf(firstVisibleSlot) : -1;
-      // Get corresponding instance state
-      const firstVisibleState = firstVisibleIndex >= 0 ? states[firstVisibleIndex] : null;
-
-      console.log('[ParticleSwarm] Frame update:', {
-        frame: frameCountRef.current,
-        stableCount: slotManager.stableCount,
-        nonEmptySlots: nonEmptySlots.length,
-        pendingUsers: pendingUsersRef.current.length,
-        meshCount: mesh.count,
-        slotsArrayLength: slotManager.slots.length,
-        firstVisibleIndex,
-        firstVisibleSlot: firstVisibleSlot
-          ? { state: firstVisibleSlot.state, scale: firstVisibleSlot.scale }
-          : null,
-        firstVisibleState: firstVisibleState
-          ? {
-              direction: firstVisibleState.direction.toArray(),
-              currentRadius: firstVisibleState.currentRadius,
-            }
-          : null,
-      });
-    }
 
     // Get breathing state from ECS
     let targetRadius = baseRadius;
@@ -622,9 +581,17 @@ export function ParticleSwarm({
       _tempEuler.set(instanceState.rotationX, instanceState.rotationY, 0);
       _tempQuaternion.setFromEuler(_tempEuler);
 
-      // Final scale: slot scale × breath scale × base offset
+      // Calculate spacing scale factor: shrink shards when orbit radius < ideal spacing radius
+      // This prevents overlap when many users are present and orbit contracts during breathing
+      const spacingScaleFactor =
+        instanceState.currentRadius < idealSpacingRadius
+          ? Math.max(0.3, instanceState.currentRadius / idealSpacingRadius)
+          : 1.0;
+
+      // Final scale: slot scale × breath scale × spacing scale × base offset
       const breathScale = 1.0 + currentBreathPhase * 0.05;
-      const finalScale = slotScale * instanceState.baseScaleOffset * breathScale;
+      const finalScale =
+        slotScale * instanceState.baseScaleOffset * breathScale * spacingScaleFactor;
       _tempScale.setScalar(finalScale);
 
       // Compose and set matrix
@@ -637,13 +604,21 @@ export function ParticleSwarm({
     mesh.instanceMatrix.needsUpdate = true;
   });
 
+  // Set the PARTICLES layer on the instanced mesh for RefractionPipeline detection
+  useEffect(() => {
+    const mesh = instancedMeshRef.current;
+    if (mesh) {
+      // Enable PARTICLES layer (layer 2) for refraction pipeline
+      mesh.layers.enable(RENDER_LAYERS.PARTICLES);
+    }
+  }, []);
+
   return (
     <instancedMesh
       ref={instancedMeshRef}
       args={[geometry, material, performanceCap]}
       frustumCulled={false}
       name="Particle Swarm"
-      userData={{ useRefraction: true }}
     />
   );
 }

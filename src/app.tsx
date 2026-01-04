@@ -82,9 +82,12 @@ export function App() {
       {/* Shared event source - both Canvas and HTML UI are children */}
       <div ref={containerRef} className="relative w-full h-full">
         {/* 3D Canvas - receives events via eventSource, has pointer-events: none */}
+        {/* frameloop="demand" enables on-demand rendering for battery savings */}
+        {/* Scene invalidates via invalidate() in KootaSystems useFrame to ensure updates render */}
         <Canvas
           eventSource={containerRef}
           eventPrefix="client"
+          frameloop="demand"
           shadows={false}
           camera={{ position: [0, 0, 10], fov: 45 }}
           gl={glConfig}

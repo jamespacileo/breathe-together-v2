@@ -101,3 +101,27 @@ export const HOLD_OSCILLATION = {
   /** Oscillation frequency - cycles per hold phase */
   FREQUENCY: 1.0,
 } as const;
+
+/**
+ * THREE.js Render Layers for Selective Rendering
+ *
+ * Used by RefractionPipeline to render specific object groups per pass:
+ * - ENVIRONMENT (0): Default layer for all scene objects
+ * - GLOBE (1): Central EarthGlobe (reserved for future selective rendering)
+ * - PARTICLES (2): ParticleSwarm shards - used for backface pass layer filtering
+ * - EFFECTS (3): AtmosphericParticles, sparkles (reserved for future use)
+ *
+ * Note: Background gradient is cached separately via envFBO caching, not layer-based.
+ *
+ * @see https://threejs.org/docs/#api/en/core/Layers
+ */
+export const RENDER_LAYERS = {
+  /** Default layer - all standard scene objects */
+  ENVIRONMENT: 0,
+  /** Central globe (reserved for future selective rendering) */
+  GLOBE: 1,
+  /** Particle shards - enables layer-based filtering in backface pass */
+  PARTICLES: 2,
+  /** Atmospheric effects (reserved for future use) */
+  EFFECTS: 3,
+} as const;

@@ -15,6 +15,54 @@
 import { SIMULATION_CONFIG } from './config';
 import type { MoodId, User } from './types';
 
+/**
+ * Sample countries for simulated users (for testing geo markers)
+ * Weighted by population centers to simulate realistic distribution
+ */
+const SIMULATED_COUNTRIES = [
+  { code: 'US', weight: 20 },
+  { code: 'GB', weight: 8 },
+  { code: 'DE', weight: 6 },
+  { code: 'FR', weight: 5 },
+  { code: 'JP', weight: 8 },
+  { code: 'AU', weight: 4 },
+  { code: 'CA', weight: 4 },
+  { code: 'BR', weight: 6 },
+  { code: 'IN', weight: 10 },
+  { code: 'CN', weight: 10 },
+  { code: 'MX', weight: 4 },
+  { code: 'ES', weight: 3 },
+  { code: 'IT', weight: 3 },
+  { code: 'NL', weight: 2 },
+  { code: 'SE', weight: 2 },
+  { code: 'KR', weight: 3 },
+  { code: 'SG', weight: 2 },
+];
+
+// Pre-compute cumulative weights for weighted random selection
+const COUNTRY_CUMULATIVE_WEIGHTS: number[] = [];
+let cumulativeWeight = 0;
+for (const country of SIMULATED_COUNTRIES) {
+  cumulativeWeight += country.weight;
+  COUNTRY_CUMULATIVE_WEIGHTS.push(cumulativeWeight);
+}
+const TOTAL_COUNTRY_WEIGHT = cumulativeWeight;
+
+/**
+ * Get a deterministic country for a simulated user based on their index
+ */
+function getSimulatedCountry(index: number): string {
+  // Use index as seed for deterministic "random" selection
+  const pseudoRandom = ((index * 1103515245 + 12345) >>> 16) % TOTAL_COUNTRY_WEIGHT;
+
+  for (let i = 0; i < COUNTRY_CUMULATIVE_WEIGHTS.length; i++) {
+    if (pseudoRandom < COUNTRY_CUMULATIVE_WEIGHTS[i]) {
+      return SIMULATED_COUNTRIES[i].code;
+    }
+  }
+  return SIMULATED_COUNTRIES[0].code;
+}
+
 /** Internal state for dynamic user simulation */
 interface SimulationState {
   /** Current count offset from base (for fluctuation) */
@@ -118,12 +166,15 @@ export function generateSimulatedUsers(count: number): User[] {
   // ID format: "sim-{mood}-{index}" for predictable ordering
   const moods: MoodId[] = ['presence', 'gratitude', 'release', 'connection'];
 
+  let globalIndex = 0;
   for (const mood of moods) {
     for (let i = 0; i < moodCounts[mood]; i++) {
       users.push({
         id: `sim-${mood}-${i.toString().padStart(4, '0')}`,
         mood,
+        country: getSimulatedCountry(globalIndex),
       });
+      globalIndex++;
     }
   }
 
@@ -200,4 +251,26 @@ export function mergeWithSimulatedMoods(realMoods: Record<MoodId, number>): Reco
     release: realMoods.release + simMoods.release,
     connection: realMoods.connection + simMoods.connection,
   };
+}
+
+/**
+ * Get simulated country counts for the current user count
+ */
+export function getSimulatedCountryCounts(): Record<string, number> {
+  const count = getSimulatedUserCount();
+
+  if (!SIMULATION_CONFIG.enabled || count <= 0) {
+    return {};
+  }
+
+  const users = generateSimulatedUsers(count);
+  const countryCounts: Record<string, number> = {};
+
+  for (const user of users) {
+    if (user.country) {
+      countryCounts[user.country] = (countryCounts[user.country] || 0) + 1;
+    }
+  }
+
+  return countryCounts;
 }
