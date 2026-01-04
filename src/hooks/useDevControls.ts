@@ -85,6 +85,10 @@ export const TUNING_DEFAULTS = {
   showGizmoAxes: true,
   showGizmoLabels: false,
 
+  // User tracking (dev-only)
+  highlightCurrentUser: false,
+  highlightStyle: 'wireframe' as 'wireframe' | 'glow' | 'scale',
+
   // Performance monitoring (dev-only)
   showPerfMonitor: false,
   perfPosition: 'top-left' as 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right',
@@ -190,6 +194,10 @@ export interface DevControlsState {
   showGizmoAxes: boolean;
   showGizmoLabels: boolean;
 
+  // User tracking
+  highlightCurrentUser: boolean;
+  highlightStyle: 'wireframe' | 'glow' | 'scale';
+
   // Performance monitoring
   showPerfMonitor: boolean;
   perfPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -250,6 +258,8 @@ function getDefaultDevControls(): DevControlsState {
     maxShardGizmos: TUNING_DEFAULTS.maxShardGizmos,
     showGizmoAxes: TUNING_DEFAULTS.showGizmoAxes,
     showGizmoLabels: TUNING_DEFAULTS.showGizmoLabels,
+    highlightCurrentUser: TUNING_DEFAULTS.highlightCurrentUser,
+    highlightStyle: TUNING_DEFAULTS.highlightStyle,
     showPerfMonitor: TUNING_DEFAULTS.showPerfMonitor,
     perfPosition: TUNING_DEFAULTS.perfPosition,
     perfMinimal: TUNING_DEFAULTS.perfMinimal,
@@ -777,6 +787,24 @@ export function useDevControls(): DevControlsState {
               value: TUNING_DEFAULTS.showGizmoLabels,
               label: 'Show Labels',
               hint: 'Display coordinate and radius labels on gizmos.\n\n**Use case:** Precise debugging of positions and bounds',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // 5.4 User Tracking
+        'User Tracking': folder(
+          {
+            highlightCurrentUser: {
+              value: TUNING_DEFAULTS.highlightCurrentUser,
+              label: 'Highlight My Shard',
+              hint: "Show a visual indicator on the current user's particle shard.\n\n**Use case:** Verify your shard position is correctly tracked in the Fibonacci distribution",
+            },
+            highlightStyle: {
+              value: TUNING_DEFAULTS.highlightStyle,
+              options: ['wireframe', 'glow', 'scale'],
+              label: 'Highlight Style',
+              hint: '**wireframe** = white outline around shard\n**glow** = pulsing opacity effect\n**scale** = shard 20% larger',
             },
           },
           { collapsed: true },

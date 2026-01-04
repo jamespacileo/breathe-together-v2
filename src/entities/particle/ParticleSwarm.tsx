@@ -81,6 +81,11 @@ export interface ParticleSwarmProps {
    * The number of shards dynamically matches the number of users.
    */
   users?: User[] | Partial<Record<MoodId, number>>;
+  /**
+   * Current user's session ID for tracking their shard.
+   * When provided, enables the user's shard to be visually highlighted.
+   */
+  currentUserId?: string;
   /** Base radius for orbit @default 4.5 */
   baseRadius?: number;
   /**
@@ -109,6 +114,20 @@ export interface ParticleSwarmProps {
    * @default 1000
    */
   performanceCap?: number;
+  /**
+   * Show highlight on current user's shard (wireframe or glow effect).
+   * Requires currentUserId to be set.
+   * @default false
+   */
+  highlightCurrentUser?: boolean;
+  /**
+   * Style of highlight for current user's shard.
+   * - 'wireframe': Adds a wireframe outline around the shard
+   * - 'glow': Adds a subtle glow/pulse effect
+   * - 'scale': Makes the user's shard slightly larger
+   * @default 'wireframe'
+   */
+  highlightStyle?: 'wireframe' | 'glow' | 'scale';
 }
 
 /**
@@ -243,6 +262,7 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
 
 export function ParticleSwarm({
   users,
+  currentUserId,
   baseRadius = 4.5,
   baseShardSize = 4.0,
   globeRadius = 1.5,
@@ -250,10 +270,16 @@ export function ParticleSwarm({
   maxShardSize = 0.6,
   minShardSize = 0.15,
   performanceCap = 1000,
+  highlightCurrentUser = false,
+  highlightStyle = 'wireframe',
 }: ParticleSwarmProps) {
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
+  const wireframeRef = useRef<THREE.LineSegments>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
+
+  // Track current user's slot index (-1 if not found)
+  const currentUserSlotIndexRef = useRef<number>(-1);
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -321,6 +347,22 @@ export function ParticleSwarm({
 
   // Create shared material with instancing support
   const material = useMemo(() => createFrostedGlassMaterial(true), []);
+
+  // Create wireframe geometry and material for user highlight
+  const wireframeGeometry = useMemo(() => {
+    // Slightly larger than shard for visible outline
+    const geo = new THREE.IcosahedronGeometry(shardSize * 1.15, 0);
+    return new THREE.EdgesGeometry(geo);
+  }, [shardSize]);
+
+  const wireframeMaterial = useMemo(() => {
+    return new THREE.LineBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.8,
+      linewidth: 2,
+    });
+  }, []);
 
   /**
    * Redistribute Fibonacci positions for stable slots (entering + active)
@@ -406,6 +448,12 @@ export function ParticleSwarm({
         }
       }
 
+      // Track current user's slot index on initial render
+      if (currentUserId) {
+        const userSlot = slotManager.getSlotByUserId(currentUserId);
+        currentUserSlotIndexRef.current = userSlot ? userSlot.index : -1;
+      }
+
       // Apply correct colors from slot moods immediately (not waiting for hold phase)
       // This fixes the "all shards start green" issue where DEFAULT_COLOR was shown
       // until the first hold phase triggered color reconciliation
@@ -424,15 +472,17 @@ export function ParticleSwarm({
         mesh.instanceColor.needsUpdate = true;
       }
     }
-  }, [performanceCap, baseRadius, redistributePositions, geometry, material]);
+  }, [performanceCap, baseRadius, redistributePositions, geometry, material, currentUserId]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       geometry.dispose();
       material.dispose();
+      wireframeGeometry.dispose();
+      wireframeMaterial.dispose();
     };
-  }, [geometry, material]);
+  }, [geometry, material, wireframeGeometry, wireframeMaterial]);
 
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation requires multiple force calculations and slot lifecycle management
@@ -470,6 +520,12 @@ export function ParticleSwarm({
       if (newStableCount !== prevActiveCountRef.current) {
         redistributePositions(newStableCount);
         prevActiveCountRef.current = newStableCount;
+      }
+
+      // Track current user's slot index
+      if (currentUserId) {
+        const userSlot = slotManager.getSlotByUserId(currentUserId);
+        currentUserSlotIndexRef.current = userSlot ? userSlot.index : -1;
       }
 
       // Update instance colors based on slot moods
@@ -602,6 +658,40 @@ export function ParticleSwarm({
     // Update instance count for rendering optimization
     mesh.count = Math.max(1, visibleCount);
     mesh.instanceMatrix.needsUpdate = true;
+
+    // Update wireframe highlight position for current user
+    const wireframe = wireframeRef.current;
+    const userSlotIndex = currentUserSlotIndexRef.current;
+    if (wireframe && highlightCurrentUser && userSlotIndex >= 0 && userSlotIndex < states.length) {
+      const slot = userSlotIndex < slots.length ? slots[userSlotIndex] : null;
+      const slotScale = slot && slot.state !== 'empty' ? slot.scale : 0;
+
+      if (slotScale > 0.001) {
+        // Get the current user's shard matrix and apply to wireframe
+        mesh.getMatrixAt(userSlotIndex, _tempMatrix);
+        _tempMatrix.decompose(_tempPosition, _tempQuaternion, _tempScale);
+
+        // Apply highlight style modifications
+        if (highlightStyle === 'scale') {
+          _tempScale.multiplyScalar(1.2);
+        }
+
+        wireframe.position.copy(_tempPosition);
+        wireframe.quaternion.copy(_tempQuaternion);
+        wireframe.scale.copy(_tempScale);
+        wireframe.visible = true;
+
+        // Add subtle pulse effect for glow style
+        if (highlightStyle === 'glow') {
+          const pulse = 0.8 + Math.sin(time * 3) * 0.2;
+          wireframeMaterial.opacity = pulse;
+        }
+      } else {
+        wireframe.visible = false;
+      }
+    } else if (wireframe) {
+      wireframe.visible = false;
+    }
   });
 
   // Set the PARTICLES layer on the instanced mesh for RefractionPipeline detection
@@ -614,12 +704,24 @@ export function ParticleSwarm({
   }, []);
 
   return (
-    <instancedMesh
-      ref={instancedMeshRef}
-      args={[geometry, material, performanceCap]}
-      frustumCulled={false}
-      name="Particle Swarm"
-    />
+    <>
+      <instancedMesh
+        ref={instancedMeshRef}
+        args={[geometry, material, performanceCap]}
+        frustumCulled={false}
+        name="Particle Swarm"
+      />
+      {/* Wireframe highlight for current user's shard */}
+      {highlightCurrentUser && (
+        <lineSegments
+          ref={wireframeRef}
+          geometry={wireframeGeometry}
+          material={wireframeMaterial}
+          visible={false}
+          name="User Shard Highlight"
+        />
+      )}
+    </>
   );
 }
 
