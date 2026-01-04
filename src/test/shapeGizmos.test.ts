@@ -335,8 +335,9 @@ describe('ShapeGizmos', () => {
       expect(ORBIT_MIN).toBeGreaterThan(GLOBE_RADIUS);
       expect(ORBIT_MAX).toBeGreaterThan(ORBIT_MIN);
 
-      // Verify actual values
-      expect(ORBIT_MIN).toBe(2.5);
+      // Verify actual values (updated for centralized config: 0.5 × globe radius from surface)
+      // ORBIT_MIN = globeRadius × (1 + 0.5) = 1.5 × 1.5 = 2.25
+      expect(ORBIT_MIN).toBe(2.25);
       expect(ORBIT_MAX).toBe(6);
     });
 
@@ -474,22 +475,24 @@ describe('Shard orbit radius tracking', () => {
     expect(minOrbitRadius).toBeLessThan(minOrbit);
 
     // Full breathing range should be available
+    // Updated: 6.0 - 2.25 = 3.75 (centralized config with 0.5 × globe radius from surface)
     const breathingRange = maxOrbit - minOrbit;
-    expect(breathingRange).toBe(3.5); // 6 - 2.5 = 3.5
+    expect(breathingRange).toBe(3.75);
   });
 
   it('documents breathing cycle orbit values', () => {
     // 4-7-8 breathing: 4s inhale, 7s hold, 8s exhale
     // Orbit radius varies with breath phase
-    const minOrbit = VISUALS.PARTICLE_ORBIT_MIN; // 2.5 (exhaled)
+    // Updated for centralized config: ORBIT_MIN = 2.25 (0.5 × globe radius from surface)
+    const minOrbit = VISUALS.PARTICLE_ORBIT_MIN; // 2.25 (exhaled)
     const maxOrbit = VISUALS.PARTICLE_ORBIT_MAX; // 6.0 (inhaled)
 
     // At phase 0 (exhaled): orbit = minOrbit
     // At phase 1 (inhaled): orbit = maxOrbit
     const orbitAtPhase = (phase: number) => minOrbit + phase * (maxOrbit - minOrbit);
 
-    expect(orbitAtPhase(0)).toBe(2.5);
-    expect(orbitAtPhase(0.5)).toBe(4.25);
+    expect(orbitAtPhase(0)).toBe(2.25);
+    expect(orbitAtPhase(0.5)).toBe(4.125);
     expect(orbitAtPhase(1)).toBe(6);
   });
 });

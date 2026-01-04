@@ -3,6 +3,8 @@
  * Single source of truth for mood and avatar IDs
  */
 
+import { DERIVED_CONSTANTS, KEPLERIAN_CONFIG } from './config/particlePhysics';
+
 /**
  * Mood IDs - simplified 4-category system with positive framing
  *
@@ -66,20 +68,19 @@ export const BREATH_TOTAL_CYCLE =
 /**
  * Visual Constants - Breathing animation parameters
  *
- * IMPORTANT: PARTICLE_ORBIT_MIN must be >= minOrbitRadius in ParticleSwarm
- * (globeRadius + shardSize + buffer ≈ 1.5 + 0.6 + 0.3 = 2.4)
- * Otherwise, particles hit the clamp early and animation appears to stop.
+ * Values are derived from centralized particle physics config.
+ * See src/config/particlePhysics.ts for the source of truth.
  *
- * The full orbit range is used by the sin easing curve - if min is too low,
- * particles will reach their physical limit before the easing completes,
- * causing the animation to appear shorter than the phase duration.
+ * Orbit distances are calculated relative to globe radius:
+ * - MIN = globeRadius × (1 + inhaleRatio) = 1.5 × 1.5 = 2.25
+ * - MAX = globeRadius × (1 + exhaleRatio) = 1.5 × 4.0 = 6.0
  */
 export const VISUALS = {
   /** Min orbit radius (inhale - particles closest to globe)
-   * Must be >= globeRadius + maxShardSize + buffer to avoid early clamp */
-  PARTICLE_ORBIT_MIN: 2.5,
+   * = globe radius + 0.5 × globe radius (half globe radius from surface) */
+  PARTICLE_ORBIT_MIN: DERIVED_CONSTANTS.PARTICLE_ORBIT_MIN,
   /** Max orbit radius (exhale - particles farthest from globe) */
-  PARTICLE_ORBIT_MAX: 6.0,
+  PARTICLE_ORBIT_MAX: DERIVED_CONSTANTS.PARTICLE_ORBIT_MAX,
 } as const;
 
 /**
@@ -100,6 +101,23 @@ export const HOLD_OSCILLATION = {
   DAMPING: 0.6,
   /** Oscillation frequency - cycles per hold phase */
   FREQUENCY: 1.0,
+} as const;
+
+/**
+ * Keplerian Physics Constants
+ *
+ * Re-exported from centralized config for backwards compatibility.
+ * See src/config/particlePhysics.ts for the source of truth.
+ *
+ * Implements simplified Kepler's Laws for natural particle motion:
+ * Orbital velocity v = √(GM/r) - velocity inversely proportional to √radius
+ */
+export const KEPLERIAN_PHYSICS = {
+  BASE_GM: KEPLERIAN_CONFIG.BASE_GM,
+  REFERENCE_RADIUS: KEPLERIAN_CONFIG.REFERENCE_RADIUS,
+  BREATH_MASS_MODULATION: KEPLERIAN_CONFIG.BREATH_MASS_MODULATION,
+  MIN_VELOCITY_FACTOR: KEPLERIAN_CONFIG.MIN_VELOCITY_FACTOR,
+  MAX_VELOCITY_FACTOR: KEPLERIAN_CONFIG.MAX_VELOCITY_FACTOR,
 } as const;
 
 /**

@@ -9,6 +9,20 @@
  * - Diff-based reconciliation for minimal disruption
  * - Updates only during hold phase, once per breathing cycle
  *
+ * Keplerian Physics (January 2026):
+ * Implements simplified Kepler's Laws for natural, ethereal shard motion:
+ * - Orbital velocity v = √(GM/r) - closer to globe = faster orbit
+ * - "Apparent mass" modulates with breath phase for dynamic pull effect
+ * - During inhale: particles contract AND accelerate (tightening)
+ * - During exhale: particles expand AND decelerate (releasing)
+ * This creates organic variations preventing the "robotic" feel of constant-speed loops.
+ *
+ * Breath-Synchronized Shard Scaling:
+ * Shards dynamically resize based on breath phase for more dramatic composition:
+ * - Exhale (far from globe): shards expand to 125% - dramatic, expansive feel
+ * - Inhale (close to globe): shards contract to 85% - intimate, concentrated feel
+ * Shards orbit just 0.3 units from globe surface at closest approach.
+ *
  * Performance: Uses InstancedMesh for single draw call (1 draw call for all particles)
  * Previously used separate Mesh objects (300 draw calls for 300 particles)
  */
@@ -17,7 +31,15 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
+import {
+  AMBIENT_MOTION_CONFIG,
+  ANIMATION_CONFIG,
+  BREATH_SCALE_CONFIG,
+  GLOBE_CONFIG,
+  KEPLERIAN_CONFIG,
+  SHARD_SIZE_CONFIG,
+} from '../../config/particlePhysics';
+import { BREATH_TOTAL_CYCLE, KEPLERIAN_PHYSICS, type MoodId, RENDER_LAYERS } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -89,18 +111,18 @@ export interface ParticleSwarmProps {
    * @default 4.0
    */
   baseShardSize?: number;
-  /** Globe radius for minimum distance calculation @default 1.5 */
+  /** Globe radius for minimum distance calculation @default GLOBE_CONFIG.RADIUS (1.5) */
   globeRadius?: number;
-  /** Buffer distance between shard surface and globe surface @default 0.3 */
+  /** Buffer distance between shard surface and globe surface @default SHARD_SIZE_CONFIG.BUFFER */
   buffer?: number;
   /**
    * Maximum shard size cap (prevents oversized shards at low counts).
-   * @default 0.6
+   * @default SHARD_SIZE_CONFIG.MAX_SIZE
    */
   maxShardSize?: number;
   /**
    * Minimum shard size (prevents tiny shards at high counts).
-   * @default 0.15
+   * @default SHARD_SIZE_CONFIG.MIN_SIZE
    */
   minShardSize?: number;
   /**
@@ -146,39 +168,82 @@ interface InstanceState {
 }
 
 /**
- * Lerp speed for breathing animation
- * Controls how quickly particles follow the ECS target radius.
+ * Animation constants from centralized config
  */
-const BREATH_LERP_SPEED = 6.0;
+const BREATH_LERP_SPEED = ANIMATION_CONFIG.BREATH_LERP_SPEED;
+const POSITION_LERP_SPEED = ANIMATION_CONFIG.POSITION_LERP_SPEED;
 
 /**
- * Lerp speed for position redistribution
- * How quickly shards move to new Fibonacci positions when count changes.
+ * Ambient floating motion constants from centralized config
  */
-const POSITION_LERP_SPEED = 3.0;
+const AMBIENT_SCALE = AMBIENT_MOTION_CONFIG.SCALE;
+const AMBIENT_Y_SCALE = AMBIENT_MOTION_CONFIG.Y_SCALE;
 
 /**
- * Ambient floating motion constants
+ * Orbital drift constants from centralized Keplerian config
  */
-const AMBIENT_SCALE = 0.08;
-const AMBIENT_Y_SCALE = 0.04;
+const ORBIT_BASE_SPEED = KEPLERIAN_CONFIG.BASE_ORBIT_SPEED;
+const ORBIT_SPEED_VARIATION = KEPLERIAN_CONFIG.ORBIT_SPEED_VARIATION;
 
 /**
- * Orbital drift constants
+ * Calculate Keplerian orbital velocity based on current radius and breath phase.
+ *
+ * Implements simplified Kepler's Laws: v = √(GM/r)
+ * - Closer to globe (smaller r) = faster orbital velocity
+ * - Further from globe (larger r) = slower orbital velocity
+ *
+ * The "apparent mass" (GM) modulates with breath phase:
+ * - During inhale (breathPhase approaching 1): mass increases, stronger pull
+ * - During exhale (breathPhase approaching 0): mass decreases, weaker pull
+ *
+ * @param currentRadius - Current orbital radius of the particle
+ * @param breathPhaseValue - Current breath phase (0-1, 0=exhaled, 1=inhaled)
+ * @param baseSpeed - Base orbital speed for this particle (includes variation)
+ * @returns Keplerian-adjusted orbital speed (radians/second)
  */
-const ORBIT_BASE_SPEED = 0.015;
-const ORBIT_SPEED_VARIATION = 0.01;
+function calculateKeplerianSpeed(
+  currentRadius: number,
+  breathPhaseValue: number,
+  baseSpeed: number,
+): number {
+  const {
+    BASE_GM,
+    REFERENCE_RADIUS,
+    BREATH_MASS_MODULATION,
+    MIN_VELOCITY_FACTOR,
+    MAX_VELOCITY_FACTOR,
+  } = KEPLERIAN_PHYSICS;
+
+  // Modulate apparent mass with breath phase
+  // During inhale (high breathPhase): mass increases → stronger gravitational pull
+  // During exhale (low breathPhase): mass decreases → weaker pull
+  const massModulation = 1 + BREATH_MASS_MODULATION * (breathPhaseValue * 2 - 1);
+  const effectiveGM = BASE_GM * massModulation;
+
+  // Keplerian velocity: v = √(GM/r)
+  // Normalized so that at REFERENCE_RADIUS, velocity = baseSpeed
+  const keplerianFactor = Math.sqrt(effectiveGM / currentRadius);
+  const referenceFactor = Math.sqrt(BASE_GM / REFERENCE_RADIUS);
+
+  // Velocity ratio relative to reference
+  const velocityRatio = keplerianFactor / referenceFactor;
+
+  // Clamp to prevent extreme velocities
+  const clampedRatio = Math.max(MIN_VELOCITY_FACTOR, Math.min(MAX_VELOCITY_FACTOR, velocityRatio));
+
+  return baseSpeed * clampedRatio;
+}
 
 /**
- * Perpendicular wobble constants
+ * Perpendicular wobble constants from centralized config
  */
-const PERPENDICULAR_AMPLITUDE = 0.03;
-const PERPENDICULAR_FREQUENCY = 0.35;
+const PERPENDICULAR_AMPLITUDE = AMBIENT_MOTION_CONFIG.WOBBLE_AMPLITUDE;
+const PERPENDICULAR_FREQUENCY = AMBIENT_MOTION_CONFIG.WOBBLE_FREQUENCY;
 
 /**
- * Phase stagger for wave effect (4% of breath cycle)
+ * Phase stagger for wave effect from centralized config
  */
-const MAX_PHASE_OFFSET = 0.04;
+const MAX_PHASE_OFFSET = AMBIENT_MOTION_CONFIG.MAX_PHASE_OFFSET;
 
 /**
  * Reusable objects for animation loop (pre-allocated to avoid GC pressure)
@@ -244,11 +309,11 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
 export function ParticleSwarm({
   users,
   baseRadius = 4.5,
-  baseShardSize = 4.0,
-  globeRadius = 1.5,
-  buffer = 0.3,
-  maxShardSize = 0.6,
-  minShardSize = 0.15,
+  baseShardSize = SHARD_SIZE_CONFIG.BASE_SIZE,
+  globeRadius = GLOBE_CONFIG.RADIUS,
+  buffer = SHARD_SIZE_CONFIG.BUFFER,
+  maxShardSize = SHARD_SIZE_CONFIG.MAX_SIZE,
+  minShardSize = SHARD_SIZE_CONFIG.MIN_SIZE,
   performanceCap = 1000,
 }: ParticleSwarmProps) {
   const world = useWorld();
@@ -307,8 +372,8 @@ export function ParticleSwarm({
   const idealSpacingRadius = useMemo(() => {
     const count = normalizedUsers.length || 1;
     // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
-    // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.22
-    const wobbleMargin = 0.22;
+    // Wobble margin from centralized config
+    const wobbleMargin = AMBIENT_MOTION_CONFIG.WOBBLE_MARGIN;
     const fibonacciSpacingFactor = 1.95;
     const requiredSpacing = 2 * shardSize + wobbleMargin;
     return (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
@@ -545,7 +610,15 @@ export function ParticleSwarm({
       const lerpFactor = 1 - Math.exp(-BREATH_LERP_SPEED * clampedDelta);
       instanceState.currentRadius += (clampedTarget - instanceState.currentRadius) * lerpFactor;
 
-      instanceState.orbitAngle += instanceState.orbitSpeed * clampedDelta;
+      // Calculate Keplerian orbital velocity based on current radius and breath phase
+      // Particles speed up when closer to the globe, slow down when further away
+      const keplerianSpeed = calculateKeplerianSpeed(
+        instanceState.currentRadius,
+        currentBreathPhase,
+        instanceState.orbitSpeed,
+      );
+      instanceState.orbitAngle += keplerianSpeed * clampedDelta;
+
       _tempOrbitedDir
         .copy(instanceState.direction)
         .applyAxisAngle(_yAxis, instanceState.orbitAngle);
@@ -589,7 +662,8 @@ export function ParticleSwarm({
           : 1.0;
 
       // Final scale: slot scale × breath scale × spacing scale × base offset
-      const breathScale = 1.0 + currentBreathPhase * 0.05;
+      // Uses centralized config for breath-synchronized scaling
+      const breathScale = BREATH_SCALE_CONFIG.getBreathScale(currentBreathPhase);
       const finalScale =
         slotScale * instanceState.baseScaleOffset * breathScale * spacingScaleFactor;
       _tempScale.setScalar(finalScale);

@@ -16,6 +16,14 @@
 import { button, folder, useControls } from 'leva';
 import { useCallback, useEffect, useRef } from 'react';
 import { DEV_MODE_ENABLED } from '../config/devMode';
+import {
+  AMBIENT_MOTION_CONFIG,
+  BREATH_SCALE_CONFIG,
+  GLOBE_CONFIG,
+  KEPLERIAN_CONFIG,
+  PARTICLE_ORBIT_CONFIG,
+  SHARD_SIZE_CONFIG,
+} from '../config/particlePhysics';
 
 /** localStorage key for saved dev presets */
 const STORAGE_KEY = 'breathe-together-dev-presets';
@@ -103,6 +111,37 @@ export const TUNING_DEFAULTS = {
   dragTimeConstant: 0.325,
   dragVelocityMultiplier: 0.15,
   dragMinVelocity: 50,
+
+  // Particle Physics - Keplerian orbit configuration
+  // Distances are ratios of globe radius
+  inhaleSurfaceDistanceRatio: PARTICLE_ORBIT_CONFIG.INHALE_SURFACE_DISTANCE_RATIO,
+  exhaleSurfaceDistanceRatio: PARTICLE_ORBIT_CONFIG.EXHALE_SURFACE_DISTANCE_RATIO,
+  globeRadius: GLOBE_CONFIG.RADIUS,
+
+  // Shard sizing
+  baseShardSize: SHARD_SIZE_CONFIG.BASE_SIZE,
+  maxShardSize: SHARD_SIZE_CONFIG.MAX_SIZE,
+  minShardSize: SHARD_SIZE_CONFIG.MIN_SIZE,
+  shardBuffer: SHARD_SIZE_CONFIG.BUFFER,
+
+  // Breath-synchronized scaling
+  exhaleScale: BREATH_SCALE_CONFIG.EXHALE_SCALE,
+  inhaleScale: BREATH_SCALE_CONFIG.INHALE_SCALE,
+
+  // Keplerian physics
+  keplerBaseGM: KEPLERIAN_CONFIG.BASE_GM,
+  keplerReferenceRadius: KEPLERIAN_CONFIG.REFERENCE_RADIUS,
+  keplerBreathMassModulation: KEPLERIAN_CONFIG.BREATH_MASS_MODULATION,
+  keplerMinVelocityFactor: KEPLERIAN_CONFIG.MIN_VELOCITY_FACTOR,
+  keplerMaxVelocityFactor: KEPLERIAN_CONFIG.MAX_VELOCITY_FACTOR,
+  keplerBaseOrbitSpeed: KEPLERIAN_CONFIG.BASE_ORBIT_SPEED,
+  keplerOrbitSpeedVariation: KEPLERIAN_CONFIG.ORBIT_SPEED_VARIATION,
+
+  // Ambient motion
+  ambientScale: AMBIENT_MOTION_CONFIG.SCALE,
+  ambientYScale: AMBIENT_MOTION_CONFIG.Y_SCALE,
+  wobbleAmplitude: AMBIENT_MOTION_CONFIG.WOBBLE_AMPLITUDE,
+  wobbleFrequency: AMBIENT_MOTION_CONFIG.WOBBLE_FREQUENCY,
 } as const;
 
 /**
@@ -208,6 +247,36 @@ export interface DevControlsState {
   dragTimeConstant: number;
   dragVelocityMultiplier: number;
   dragMinVelocity: number;
+
+  // Particle Physics - Orbit configuration
+  inhaleSurfaceDistanceRatio: number;
+  exhaleSurfaceDistanceRatio: number;
+  globeRadius: number;
+
+  // Shard sizing
+  baseShardSize: number;
+  maxShardSize: number;
+  minShardSize: number;
+  shardBuffer: number;
+
+  // Breath-synchronized scaling
+  exhaleScale: number;
+  inhaleScale: number;
+
+  // Keplerian physics
+  keplerBaseGM: number;
+  keplerReferenceRadius: number;
+  keplerBreathMassModulation: number;
+  keplerMinVelocityFactor: number;
+  keplerMaxVelocityFactor: number;
+  keplerBaseOrbitSpeed: number;
+  keplerOrbitSpeedVariation: number;
+
+  // Ambient motion
+  ambientScale: number;
+  ambientYScale: number;
+  wobbleAmplitude: number;
+  wobbleFrequency: number;
 }
 
 /** Get default values for all dev controls */
@@ -265,6 +334,28 @@ function getDefaultDevControls(): DevControlsState {
     dragTimeConstant: TUNING_DEFAULTS.dragTimeConstant,
     dragVelocityMultiplier: TUNING_DEFAULTS.dragVelocityMultiplier,
     dragMinVelocity: TUNING_DEFAULTS.dragMinVelocity,
+
+    // Particle Physics
+    inhaleSurfaceDistanceRatio: TUNING_DEFAULTS.inhaleSurfaceDistanceRatio,
+    exhaleSurfaceDistanceRatio: TUNING_DEFAULTS.exhaleSurfaceDistanceRatio,
+    globeRadius: TUNING_DEFAULTS.globeRadius,
+    baseShardSize: TUNING_DEFAULTS.baseShardSize,
+    maxShardSize: TUNING_DEFAULTS.maxShardSize,
+    minShardSize: TUNING_DEFAULTS.minShardSize,
+    shardBuffer: TUNING_DEFAULTS.shardBuffer,
+    exhaleScale: TUNING_DEFAULTS.exhaleScale,
+    inhaleScale: TUNING_DEFAULTS.inhaleScale,
+    keplerBaseGM: TUNING_DEFAULTS.keplerBaseGM,
+    keplerReferenceRadius: TUNING_DEFAULTS.keplerReferenceRadius,
+    keplerBreathMassModulation: TUNING_DEFAULTS.keplerBreathMassModulation,
+    keplerMinVelocityFactor: TUNING_DEFAULTS.keplerMinVelocityFactor,
+    keplerMaxVelocityFactor: TUNING_DEFAULTS.keplerMaxVelocityFactor,
+    keplerBaseOrbitSpeed: TUNING_DEFAULTS.keplerBaseOrbitSpeed,
+    keplerOrbitSpeedVariation: TUNING_DEFAULTS.keplerOrbitSpeedVariation,
+    ambientScale: TUNING_DEFAULTS.ambientScale,
+    ambientYScale: TUNING_DEFAULTS.ambientYScale,
+    wobbleAmplitude: TUNING_DEFAULTS.wobbleAmplitude,
+    wobbleFrequency: TUNING_DEFAULTS.wobbleFrequency,
   };
 }
 
@@ -839,6 +930,209 @@ export function useDevControls(): DevControlsState {
         ),
       },
       { collapsed: true, order: 3 },
+    ),
+
+    // ==========================================
+    // 6. PARTICLE PHYSICS (Keplerian orbit tuning)
+    // ==========================================
+    'Particle Physics': folder(
+      {
+        // 6.1 Orbit Distance
+        'Orbit Distance': folder(
+          {
+            inhaleSurfaceDistanceRatio: {
+              value: TUNING_DEFAULTS.inhaleSurfaceDistanceRatio,
+              min: 0.1,
+              max: 2.0,
+              step: 0.1,
+              label: 'Inhale Distance',
+              hint: 'Distance from globe surface on inhale, as ratio of globe radius.\n\n**0.5** = half globe radius from surface (current)\n**1.0** = one globe radius from surface\n\n**Interacts with:** Globe radius, shard sizing',
+            },
+            exhaleSurfaceDistanceRatio: {
+              value: TUNING_DEFAULTS.exhaleSurfaceDistanceRatio,
+              min: 1.0,
+              max: 6.0,
+              step: 0.5,
+              label: 'Exhale Distance',
+              hint: 'Distance from globe surface on exhale, as ratio of globe radius.\n\n**3.0** = three globe radii from surface (current)\n**Higher** = more dramatic breathing range',
+            },
+            globeRadius: {
+              value: TUNING_DEFAULTS.globeRadius,
+              min: 0.5,
+              max: 3.0,
+              step: 0.1,
+              label: 'Globe Radius',
+              hint: 'Radius of the central globe where Earth texture is rendered.\n\n**Current:** 1.5 units\n**Note:** All distances are calculated relative to this',
+            },
+          },
+          { collapsed: false },
+        ),
+
+        // 6.2 Shard Sizing
+        'Shard Sizing': folder(
+          {
+            baseShardSize: {
+              value: TUNING_DEFAULTS.baseShardSize,
+              min: 1.0,
+              max: 8.0,
+              step: 0.5,
+              label: 'Base Size',
+              hint: 'Base shard size used in calculation: size = baseSize / sqrt(count)\n\n**Higher** = larger shards at same particle count',
+            },
+            maxShardSize: {
+              value: TUNING_DEFAULTS.maxShardSize,
+              min: 0.05,
+              max: 0.5,
+              step: 0.01,
+              label: 'Max Size',
+              hint: 'Maximum shard size cap. Prevents oversized shards at low particle counts.\n\n**Current:** 0.12',
+            },
+            minShardSize: {
+              value: TUNING_DEFAULTS.minShardSize,
+              min: 0.01,
+              max: 0.1,
+              step: 0.01,
+              label: 'Min Size',
+              hint: 'Minimum shard size. Prevents tiny shards at high particle counts.\n\n**Current:** 0.05',
+            },
+            shardBuffer: {
+              value: TUNING_DEFAULTS.shardBuffer,
+              min: 0.0,
+              max: 0.2,
+              step: 0.01,
+              label: 'Buffer',
+              hint: 'Buffer distance between shard surface and globe surface for collision prevention.\n\n**Current:** 0.03',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // 6.3 Breath-Synchronized Scaling
+        'Breath Scaling': folder(
+          {
+            exhaleScale: {
+              value: TUNING_DEFAULTS.exhaleScale,
+              min: 0.5,
+              max: 2.0,
+              step: 0.1,
+              label: 'Exhale Scale',
+              hint: 'Scale multiplier when exhaled (particles far from globe).\n\n**Current:** 1.4 (40% larger)\n**Higher** = more dramatic size change',
+            },
+            inhaleScale: {
+              value: TUNING_DEFAULTS.inhaleScale,
+              min: 0.2,
+              max: 1.0,
+              step: 0.1,
+              label: 'Inhale Scale',
+              hint: 'Scale multiplier when inhaled (particles close to globe).\n\n**Current:** 0.6 (40% smaller)\n**Lower** = shards shrink more on approach',
+            },
+          },
+          { collapsed: true },
+        ),
+
+        // 6.4 Keplerian Physics
+        'Keplerian Physics': folder(
+          {
+            keplerBaseGM: {
+              value: TUNING_DEFAULTS.keplerBaseGM,
+              min: 0.1,
+              max: 3.0,
+              step: 0.1,
+              label: 'Base GM',
+              hint: 'Gravitational parameter (GM combined). Controls base orbital velocity.\n\n**v = √(GM/r)** - velocity inversely proportional to √radius\n**Higher** = faster orbits overall',
+            },
+            keplerReferenceRadius: {
+              value: TUNING_DEFAULTS.keplerReferenceRadius,
+              min: 2.0,
+              max: 8.0,
+              step: 0.5,
+              label: 'Reference Radius',
+              hint: 'Reference radius for velocity normalization.\n\n**At this radius:** velocity ratio = 1.0',
+            },
+            keplerBreathMassModulation: {
+              value: TUNING_DEFAULTS.keplerBreathMassModulation,
+              min: 0.0,
+              max: 1.0,
+              step: 0.1,
+              label: 'Breath Mass Mod',
+              hint: 'How much breath phase affects apparent mass (0-1).\n\n**Higher** = stronger gravitational pull during inhale\n**0** = no breath modulation',
+            },
+            keplerMinVelocityFactor: {
+              value: TUNING_DEFAULTS.keplerMinVelocityFactor,
+              min: 0.1,
+              max: 0.8,
+              step: 0.1,
+              label: 'Min Velocity',
+              hint: 'Minimum velocity multiplier. Prevents stalling at large radii.\n\n**Current:** 0.3',
+            },
+            keplerMaxVelocityFactor: {
+              value: TUNING_DEFAULTS.keplerMaxVelocityFactor,
+              min: 1.0,
+              max: 8.0,
+              step: 0.5,
+              label: 'Max Velocity',
+              hint: 'Maximum velocity multiplier. Prevents excessive speed at small radii.\n\n**Current:** 4.0',
+            },
+            keplerBaseOrbitSpeed: {
+              value: TUNING_DEFAULTS.keplerBaseOrbitSpeed,
+              min: 0.01,
+              max: 0.2,
+              step: 0.01,
+              label: 'Base Orbit Speed',
+              hint: 'Base orbital drift speed (rad/s).\n\n**Current:** 0.04 rad/s',
+            },
+            keplerOrbitSpeedVariation: {
+              value: TUNING_DEFAULTS.keplerOrbitSpeedVariation,
+              min: 0.0,
+              max: 0.1,
+              step: 0.005,
+              label: 'Speed Variation',
+              hint: 'Per-shard speed variation (±). Creates visual variety.\n\n**Current:** ±0.02 rad/s',
+            },
+          },
+          { collapsed: false },
+        ),
+
+        // 6.5 Ambient Motion
+        'Ambient Motion': folder(
+          {
+            ambientScale: {
+              value: TUNING_DEFAULTS.ambientScale,
+              min: 0.0,
+              max: 0.2,
+              step: 0.01,
+              label: 'Horizontal Float',
+              hint: 'Horizontal floating amplitude for organic motion.\n\n**Current:** 0.04',
+            },
+            ambientYScale: {
+              value: TUNING_DEFAULTS.ambientYScale,
+              min: 0.0,
+              max: 0.1,
+              step: 0.01,
+              label: 'Vertical Float',
+              hint: 'Vertical floating amplitude (typically half of horizontal).\n\n**Current:** 0.02',
+            },
+            wobbleAmplitude: {
+              value: TUNING_DEFAULTS.wobbleAmplitude,
+              min: 0.0,
+              max: 0.1,
+              step: 0.005,
+              label: 'Wobble Amplitude',
+              hint: 'Perpendicular wobble amplitude for shimmer effect.\n\n**Current:** 0.015',
+            },
+            wobbleFrequency: {
+              value: TUNING_DEFAULTS.wobbleFrequency,
+              min: 0.1,
+              max: 1.0,
+              step: 0.05,
+              label: 'Wobble Frequency',
+              hint: 'Wobble frequency in Hz.\n\n**Current:** 0.35 Hz',
+            },
+          },
+          { collapsed: true },
+        ),
+      },
+      { collapsed: true, order: 4 },
     ),
   }));
 

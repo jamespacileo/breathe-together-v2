@@ -9,6 +9,13 @@
  */
 
 import * as THREE from 'three';
+import {
+  AMBIENT_MOTION_CONFIG,
+  calculateExpectedSurfaceDistance,
+  GLOBE_CONFIG,
+  KEPLERIAN_CONFIG,
+  SHARD_SIZE_CONFIG,
+} from '../config/particlePhysics';
 import { VISUALS } from '../constants';
 
 /**
@@ -33,19 +40,15 @@ export interface CollisionTestConfig {
 
 /**
  * Default configuration matching ParticleSwarm props
- *
- * Collision prevention uses dynamic minimum orbit radius:
- * - For Fibonacci sphere with N particles at radius R, min spacing ≈ R × 1.95 / sqrt(N)
- * - For collision-free: R > (2 × shardSize + wobbleMargin) × sqrt(N) / 1.95
- * - minOrbitRadius = max(globeConstraint, spacingConstraint)
+ * Values are sourced from centralized particle physics config.
  */
 export const DEFAULT_CONFIG: CollisionTestConfig = {
   particleCount: 42,
-  globeRadius: 1.5,
-  baseShardSize: 4.0,
-  maxShardSize: 0.6,
-  minShardSize: 0.15,
-  buffer: 0.3,
+  globeRadius: GLOBE_CONFIG.RADIUS,
+  baseShardSize: SHARD_SIZE_CONFIG.BASE_SIZE,
+  maxShardSize: SHARD_SIZE_CONFIG.MAX_SIZE,
+  minShardSize: SHARD_SIZE_CONFIG.MIN_SIZE,
+  buffer: SHARD_SIZE_CONFIG.BUFFER,
   time: 0,
 };
 
@@ -91,15 +94,15 @@ export function calculateOrbitRadius(breathPhase: number): number {
 }
 
 /**
- * Animation constants (matching ParticleSwarm)
+ * Animation constants from centralized config
  */
-const AMBIENT_SCALE = 0.08;
-const AMBIENT_Y_SCALE = 0.04;
-const PERPENDICULAR_AMPLITUDE = 0.03;
-const PERPENDICULAR_FREQUENCY = 0.35;
-const MAX_PHASE_OFFSET = 0.04;
-const ORBIT_BASE_SPEED = 0.015;
-const ORBIT_SPEED_VARIATION = 0.01;
+const AMBIENT_SCALE = AMBIENT_MOTION_CONFIG.SCALE;
+const AMBIENT_Y_SCALE = AMBIENT_MOTION_CONFIG.Y_SCALE;
+const PERPENDICULAR_AMPLITUDE = AMBIENT_MOTION_CONFIG.WOBBLE_AMPLITUDE;
+const PERPENDICULAR_FREQUENCY = AMBIENT_MOTION_CONFIG.WOBBLE_FREQUENCY;
+const MAX_PHASE_OFFSET = AMBIENT_MOTION_CONFIG.MAX_PHASE_OFFSET;
+const ORBIT_BASE_SPEED = KEPLERIAN_CONFIG.BASE_ORBIT_SPEED;
+const ORBIT_SPEED_VARIATION = KEPLERIAN_CONFIG.ORBIT_SPEED_VARIATION;
 
 /**
  * Per-particle state for deterministic position calculation
@@ -149,8 +152,8 @@ export function calculateDynamicMinOrbitRadius(config: CollisionTestConfig): num
 
   // Constraint 2: Inter-particle spacing
   // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
-  // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.22
-  const wobbleMargin = 0.22;
+  // Wobble margin from centralized config
+  const wobbleMargin = AMBIENT_MOTION_CONFIG.WOBBLE_MARGIN;
   const fibonacciSpacingFactor = 1.95;
   const requiredSpacing = 2 * shardSize + wobbleMargin;
   const spacingConstraint = (requiredSpacing * Math.sqrt(particleCount)) / fibonacciSpacingFactor;
@@ -391,31 +394,35 @@ export function runComprehensiveCollisionTest(
   // Test at multiple breath phases (0 to 1, inclusive)
   const phases = Array.from({ length: phaseCount + 1 }, (_, i) => i / phaseCount);
 
-  let worstParticle: CollisionResult | null = null;
-  let worstParticlePhase = 0;
-  let worstGlobe: GlobeCollisionResult | null = null;
-  let worstGlobePhase = 0;
+  // Initialize with first phase results
+  const firstPhase = phases[0];
+  let worstParticle = checkParticleCollisions(firstPhase, fullConfig);
+  let worstParticlePhase = firstPhase;
+  let worstGlobe = checkGlobeCollisions(firstPhase, fullConfig);
+  let worstGlobePhase = firstPhase;
 
-  for (const phase of phases) {
+  // Iterate over remaining phases
+  for (let i = 1; i < phases.length; i++) {
+    const phase = phases[i];
     const particleResult = checkParticleCollisions(phase, fullConfig);
     const globeResult = checkGlobeCollisions(phase, fullConfig);
 
     // Track worst particle collision (smallest min distance)
-    if (!worstParticle || particleResult.minParticleDistance < worstParticle.minParticleDistance) {
+    if (particleResult.minParticleDistance < worstParticle.minParticleDistance) {
       worstParticle = particleResult;
       worstParticlePhase = phase;
     }
 
     // Track worst globe collision (smallest surface distance)
-    if (!worstGlobe || globeResult.minSurfaceDistance < worstGlobe.minSurfaceDistance) {
+    if (globeResult.minSurfaceDistance < worstGlobe.minSurfaceDistance) {
       worstGlobe = globeResult;
       worstGlobePhase = phase;
     }
   }
 
   return {
-    particle: { ...worstParticle!, worstPhase: worstParticlePhase },
-    globe: { ...worstGlobe!, worstPhase: worstGlobePhase },
+    particle: { ...worstParticle, worstPhase: worstParticlePhase },
+    globe: { ...worstGlobe, worstPhase: worstGlobePhase },
     phases,
     config: fullConfig,
   };
@@ -431,21 +438,158 @@ export function runTimeVaryingCollisionTest(
 ): { worst: CollisionResult; worstTime: number } {
   const fullConfig: CollisionTestConfig = { ...DEFAULT_CONFIG, ...config };
 
-  let worstResult: CollisionResult | null = null;
-  let worstTime = 0;
-
   // Test across one wobble period (based on PERPENDICULAR_FREQUENCY = 0.35 Hz)
   const wobblePeriod = 1 / PERPENDICULAR_FREQUENCY;
 
-  for (let i = 0; i < timePoints; i++) {
+  // Initialize with first time point
+  const firstTime = 0;
+  let worstResult = checkParticleCollisions(breathPhase, { ...fullConfig, time: firstTime });
+  let worstTime = firstTime;
+
+  // Iterate over remaining time points
+  for (let i = 1; i < timePoints; i++) {
     const time = (i / timePoints) * wobblePeriod;
     const result = checkParticleCollisions(breathPhase, { ...fullConfig, time });
 
-    if (!worstResult || result.minParticleDistance < worstResult.minParticleDistance) {
+    if (result.minParticleDistance < worstResult.minParticleDistance) {
       worstResult = result;
       worstTime = time;
     }
   }
 
-  return { worst: worstResult!, worstTime };
+  return { worst: worstResult, worstTime };
 }
+
+/**
+ * Surface distance verification result
+ */
+export interface SurfaceDistanceResult {
+  /** Average distance from particle centers to globe surface */
+  avgSurfaceDistance: number;
+  /** Expected surface distance for this breath phase */
+  expectedSurfaceDistance: number;
+  /** Ratio of actual to expected (should be close to 1.0) */
+  ratio: number;
+  /** Whether particles are within expected distance (within 20% tolerance) */
+  withinTolerance: boolean;
+  /** Globe radius used in calculation */
+  globeRadius: number;
+}
+
+/**
+ * Verify that particles are at the expected distance from globe surface.
+ * Uses the centralized config to determine expected distances.
+ *
+ * @param breathPhase 0 = exhaled (far), 1 = inhaled (close)
+ * @param config Particle configuration
+ * @param tolerance How much deviation is acceptable (default 0.2 = 20%)
+ */
+export function verifySurfaceDistance(
+  breathPhase: number,
+  config: Partial<CollisionTestConfig> = {},
+  tolerance = 0.2,
+): SurfaceDistanceResult {
+  const fullConfig: CollisionTestConfig = { ...DEFAULT_CONFIG, ...config };
+  const positions = calculateAllParticlePositions(breathPhase, fullConfig);
+  const { globeRadius } = fullConfig;
+
+  // Calculate average distance from globe center
+  const avgCenterDistance = positions.reduce((sum, p) => sum + p.length(), 0) / positions.length;
+
+  // Surface distance = center distance - globe radius
+  const avgSurfaceDistance = avgCenterDistance - globeRadius;
+
+  // Expected surface distance from centralized config
+  const expectedSurfaceDistance = calculateExpectedSurfaceDistance(breathPhase);
+
+  const ratio = avgSurfaceDistance / expectedSurfaceDistance;
+  const withinTolerance = Math.abs(ratio - 1.0) <= tolerance;
+
+  return {
+    avgSurfaceDistance,
+    expectedSurfaceDistance,
+    ratio,
+    withinTolerance,
+    globeRadius,
+  };
+}
+
+/**
+ * Keplerian velocity calculation result
+ */
+export interface KeplerianVelocityResult {
+  /** Final velocity after applying Keplerian physics */
+  velocity: number;
+  /** Raw Keplerian factor before clamping */
+  keplerianFactor: number;
+  /** Velocity ratio relative to reference radius */
+  velocityRatio: number;
+  /** Whether velocity was clamped to min/max bounds */
+  wasClamped: boolean;
+  /** Effective gravitational mass (affected by breath phase) */
+  effectiveGM: number;
+}
+
+/**
+ * Calculate Keplerian orbital velocity for a given radius and breath phase.
+ *
+ * Implements simplified Kepler's Law: v = √(GM/r)
+ * - Closer to globe (smaller r) → faster velocity
+ * - Farther from globe (larger r) → slower velocity
+ *
+ * Additionally modulates "apparent mass" with breath phase:
+ * - During inhale (breathPhase=1): mass increases → stronger gravitational pull → faster
+ * - During exhale (breathPhase=0): mass decreases → weaker pull → slower
+ *
+ * @param currentRadius Distance from globe center
+ * @param breathPhaseValue 0 = exhaled, 1 = inhaled
+ * @param baseSpeed Base orbital speed before Keplerian adjustment
+ * @returns Detailed velocity calculation result
+ */
+export function calculateKeplerianVelocity(
+  currentRadius: number,
+  breathPhaseValue: number,
+  baseSpeed: number,
+): KeplerianVelocityResult {
+  const {
+    BASE_GM,
+    REFERENCE_RADIUS,
+    BREATH_MASS_MODULATION,
+    MIN_VELOCITY_FACTOR,
+    MAX_VELOCITY_FACTOR,
+  } = KEPLERIAN_CONFIG;
+
+  // Modulate apparent mass with breath phase
+  // During inhale (high breathPhase): mass increases → stronger gravitational pull
+  // During exhale (low breathPhase): mass decreases → weaker pull
+  const massModulation = 1 + BREATH_MASS_MODULATION * (breathPhaseValue * 2 - 1);
+  const effectiveGM = BASE_GM * massModulation;
+
+  // Keplerian velocity: v = √(GM/r)
+  // Normalized so that at REFERENCE_RADIUS, velocity = baseSpeed
+  const keplerianFactor = Math.sqrt(effectiveGM / currentRadius);
+  const referenceFactor = Math.sqrt(BASE_GM / REFERENCE_RADIUS);
+
+  // Velocity ratio relative to reference
+  const velocityRatio = keplerianFactor / referenceFactor;
+
+  // Clamp to prevent extreme velocities
+  const clampedRatio = Math.max(MIN_VELOCITY_FACTOR, Math.min(MAX_VELOCITY_FACTOR, velocityRatio));
+  const wasClamped = clampedRatio !== velocityRatio;
+
+  return {
+    velocity: baseSpeed * clampedRatio,
+    keplerianFactor,
+    velocityRatio,
+    wasClamped,
+    effectiveGM,
+  };
+}
+
+// Re-export for tests
+export {
+  calculateExpectedSurfaceDistance,
+  GLOBE_CONFIG,
+  KEPLERIAN_CONFIG,
+  PARTICLE_ORBIT_CONFIG,
+} from '../config/particlePhysics';
