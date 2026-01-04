@@ -1,13 +1,14 @@
 /**
- * RibbonSystem v2 - Message Pool Architecture
+ * RibbonSystem v3 - Horizontal Ribbons with Multi-Radius Depth
  *
- * Renders complete messages (both lines together) distributed around the globe.
+ * Renders single-line messages on horizontal bands parallel to the equator.
+ * Multiple radius layers create 3D depth (inner/outer shells).
  *
  * KEY FEATURES:
- * - Message instances: Each shows a complete two-line message
- * - Zone-based layout: Vertical bands prevent overlap
- * - Random angular distribution: Organic, natural placement
- * - Multi-source support: Inspiration, welcome (multi-language), decorative
+ * - Horizontal ribbons (no tilt) for clean visuals
+ * - Single-line messages with elegant separator
+ * - Multi-radius layers for parallax depth
+ * - UTC timeline event support
  * - Breath-synchronized opacity
  */
 
@@ -20,6 +21,7 @@ import { FrontSide, type Group } from 'three';
 import { useInspirationRibbon } from '../../hooks/useInspirationRibbon';
 import {
   DEFAULT_CONFIG,
+  formatMessage,
   generateDotPattern,
   type Message,
   type ResolvedInstance,
@@ -41,15 +43,15 @@ const CurvedText = Text as React.FC<CurvedTextProps>;
 interface RibbonSystemProps {
   /** Configuration override */
   config?: RibbonSystemConfig;
-  /** Show inspiration message zones */
+  /** Show inspiration zones */
   showInspiration?: boolean;
-  /** Show multi-language welcome zones */
+  /** Show welcome zones */
   showWelcome?: boolean;
-  /** Show decorative accents */
+  /** Show decorative zones */
   showDecorative?: boolean;
-  /** Force re-resolution of random values */
+  /** Force re-resolution */
   resolutionKey?: number;
-  /** Custom messages for 'custom' source zones */
+  /** Custom messages */
   customMessages?: Message[];
 }
 
@@ -58,18 +60,18 @@ interface RibbonSystemProps {
 // =============================================================================
 
 /**
- * Single curved text element
+ * Single curved text ribbon - horizontal band around the globe
  */
-function CurvedTextLine({
+function RibbonText({
   text,
   radius,
   color,
   fontSize,
   opacity,
   glyphDetail,
-  rotationY,
   letterSpacing,
   fontWeight,
+  rotationY = 0,
 }: {
   text: string;
   radius: number;
@@ -77,9 +79,9 @@ function CurvedTextLine({
   fontSize: number;
   opacity: number;
   glyphDetail: number;
-  rotationY: number;
   letterSpacing: number;
   fontWeight: number;
+  rotationY?: number;
 }) {
   return (
     <group rotation={[0, rotationY, 0]}>
@@ -103,59 +105,38 @@ function CurvedTextLine({
 }
 
 /**
- * Complete message instance - renders both lines together
+ * Message instance - single message at specific height/radius with 360° coverage
  */
-function MessageInstance({
-  line1,
-  line2,
+function MessageRibbon({
+  text,
   instance,
   opacity,
 }: {
-  line1: string;
-  line2: string;
+  text: string;
   instance: ResolvedInstance;
   opacity: number;
 }) {
-  const { zone, style, color, fontSize, tilt, height, radius, angularPosition } = instance;
-  const lineSpacing = zone.lineSpacing;
+  const { style, color, fontSize, height, radius, angularPosition } = instance;
   const finalOpacity = opacity * style.opacity.base;
 
-  // Two segments for 360° coverage
-  const segmentOffsets = [0, Math.PI];
+  // Two segments for 360° coverage (front and back)
+  const segments = [0, Math.PI];
 
   return (
-    <group position={[0, height, 0]} rotation={[tilt, angularPosition, 0]}>
-      {segmentOffsets.map((segmentOffset) => (
-        <group key={`seg-${segmentOffset}`} rotation={[0, segmentOffset, 0]}>
-          {/* Line 1 (top) */}
-          <group position={[0, lineSpacing / 2, 0]}>
-            <CurvedTextLine
-              text={line1}
-              radius={radius}
-              color={color}
-              fontSize={fontSize}
-              opacity={finalOpacity}
-              glyphDetail={style.glyphDetail}
-              rotationY={0}
-              letterSpacing={style.letterSpacing}
-              fontWeight={style.fontWeight}
-            />
-          </group>
-          {/* Line 2 (bottom) */}
-          <group position={[0, -lineSpacing / 2, 0]}>
-            <CurvedTextLine
-              text={line2}
-              radius={radius}
-              color={color}
-              fontSize={fontSize * 0.85} // Slightly smaller for hierarchy
-              opacity={finalOpacity * 0.9}
-              glyphDetail={style.glyphDetail}
-              rotationY={0}
-              letterSpacing={style.letterSpacing}
-              fontWeight={style.fontWeight}
-            />
-          </group>
-        </group>
+    <group position={[0, height, 0]} rotation={[0, angularPosition, 0]}>
+      {segments.map((segmentRotation) => (
+        <RibbonText
+          key={segmentRotation}
+          text={text}
+          radius={radius}
+          color={color}
+          fontSize={fontSize}
+          opacity={finalOpacity}
+          glyphDetail={style.glyphDetail}
+          letterSpacing={style.letterSpacing}
+          fontWeight={style.fontWeight}
+          rotationY={segmentRotation}
+        />
       ))}
     </group>
   );
@@ -173,21 +154,19 @@ export function RibbonSystem({
   resolutionKey = 0,
   customMessages = [],
 }: RibbonSystemProps) {
-  // Refs for animation
   const groupRef = useRef<Group>(null);
   const scrollRefs = useRef<Map<string, Group>>(new Map());
 
-  // Resolve instances from config
-  const resolvedInstances = useMemo(() => {
-    // Use resolutionKey to force re-resolution
+  // Resolve instances
+  const instances = useMemo(() => {
     void resolutionKey;
     return resolveAllInstances(config);
   }, [config, resolutionKey]);
 
-  // Filter instances by visibility
+  // Filter by visibility
   const visibleInstances = useMemo(() => {
-    return resolvedInstances.filter((instance) => {
-      switch (instance.zone.source) {
+    return instances.filter((inst) => {
+      switch (inst.zone.source) {
         case 'inspiration':
           return showInspiration;
         case 'welcome':
@@ -200,9 +179,9 @@ export function RibbonSystem({
           return true;
       }
     });
-  }, [resolvedInstances, showInspiration, showWelcome, showDecorative, customMessages.length]);
+  }, [instances, showInspiration, showWelcome, showDecorative, customMessages.length]);
 
-  // Get inspiration text with breath sync
+  // Get inspiration with breath sync
   const inspiration = useInspirationRibbon({
     enabled: showInspiration,
     format: 'symbols',
@@ -210,100 +189,91 @@ export function RibbonSystem({
     minOpacity: 0.35,
   });
 
-  // Generate decorative pattern
-  const decorativeText = useMemo(() => generateDotPattern(45), []);
+  // Decorative pattern
+  const decorativeText = useMemo(() => generateDotPattern(50), []);
 
-  // Get message for an instance based on its source
-  const getMessageForInstance = (instance: ResolvedInstance): Message => {
-    switch (instance.zone.source) {
-      case 'inspiration':
-        return {
+  // Get formatted text for instance
+  const getTextForInstance = (inst: ResolvedInstance): string => {
+    const separator = config.messageSeparator;
+
+    switch (inst.zone.source) {
+      case 'inspiration': {
+        const msg: Message = {
           line1: inspiration.topText || 'Breathe',
           line2: inspiration.bottomText || 'Together',
         };
+        return formatMessage(msg, separator);
+      }
       case 'welcome': {
-        // Cycle through welcome messages based on instance index
-        const welcomeIndex = instance.instanceIndex % WELCOME_MESSAGES.length;
-        return WELCOME_MESSAGES[welcomeIndex];
+        const idx = inst.instanceIndex % WELCOME_MESSAGES.length;
+        return formatMessage(WELCOME_MESSAGES[idx], separator);
       }
       case 'decorative':
-        return {
-          line1: decorativeText,
-          line2: '',
-        };
+        return decorativeText;
       case 'custom': {
-        const customIndex = instance.instanceIndex % customMessages.length;
-        return customMessages[customIndex] || { line1: '', line2: '' };
+        if (customMessages.length === 0) return '';
+        const idx = inst.instanceIndex % customMessages.length;
+        return formatMessage(customMessages[idx], separator);
       }
       default:
-        return { line1: '', line2: '' };
+        return '';
     }
   };
 
-  // Animation loop
+  // Animation
   useFrame(() => {
     if (!groupRef.current) return;
 
-    // Sync with globe rotation
+    // Globe sync
     groupRef.current.rotation.y -= config.globeSyncSpeed;
 
-    // Per-zone scroll animation
-    for (const instance of visibleInstances) {
-      const scrollGroup = scrollRefs.current.get(instance.zone.id);
+    // Per-zone scroll
+    for (const inst of visibleInstances) {
+      const scrollGroup = scrollRefs.current.get(inst.zone.id);
       if (scrollGroup) {
         const speed =
-          config.baseScrollSpeed * instance.scrollSpeedMultiplier * instance.zone.scrollDirection;
+          config.baseScrollSpeed * inst.scrollSpeedMultiplier * inst.zone.scrollDirection;
         scrollGroup.rotation.y += speed;
       }
     }
   });
 
-  // Group instances by zone for scroll animation
-  const instancesByZone = useMemo(() => {
+  // Group by zone
+  const byZone = useMemo(() => {
     const map = new Map<string, ResolvedInstance[]>();
-    for (const instance of visibleInstances) {
-      const existing = map.get(instance.zone.id) || [];
-      existing.push(instance);
-      map.set(instance.zone.id, existing);
+    for (const inst of visibleInstances) {
+      const arr = map.get(inst.zone.id) || [];
+      arr.push(inst);
+      map.set(inst.zone.id, arr);
     }
     return map;
   }, [visibleInstances]);
 
-  // Create ref setter for zones
   const getScrollRef = (zoneId: string) => (el: Group | null) => {
-    if (el) {
-      scrollRefs.current.set(zoneId, el);
-    } else {
-      scrollRefs.current.delete(zoneId);
-    }
+    if (el) scrollRefs.current.set(zoneId, el);
+    else scrollRefs.current.delete(zoneId);
   };
 
   return (
     <group ref={groupRef} name="RibbonSystem">
-      {Array.from(instancesByZone.entries()).map(([zoneId, instances]) => {
-        const firstInstance = instances[0];
-        if (!firstInstance) return null;
+      {Array.from(byZone.entries()).map(([zoneId, zoneInstances]) => (
+        <group key={zoneId} ref={getScrollRef(zoneId)} name={`Zone-${zoneId}`}>
+          {zoneInstances.map((inst) => {
+            const text = getTextForInstance(inst);
+            const isDecorative = inst.zone.source === 'decorative';
+            const opacity = isDecorative ? inspiration.opacity * 0.4 : inspiration.opacity;
 
-        return (
-          <group key={zoneId} ref={getScrollRef(zoneId)} name={`Zone-${zoneId}`}>
-            {instances.map((instance) => {
-              const message = getMessageForInstance(instance);
-              const isDecorative = instance.zone.source === 'decorative';
-              const opacity = isDecorative ? inspiration.opacity * 0.5 : inspiration.opacity;
-
-              return (
-                <MessageInstance
-                  key={`${zoneId}-${instance.instanceIndex}`}
-                  line1={message.line1}
-                  line2={message.line2}
-                  instance={instance}
-                  opacity={opacity}
-                />
-              );
-            })}
-          </group>
-        );
-      })}
+            return (
+              <MessageRibbon
+                key={`${zoneId}-${inst.instanceIndex}`}
+                text={text}
+                instance={inst}
+                opacity={opacity}
+              />
+            );
+          })}
+        </group>
+      ))}
     </group>
   );
 }

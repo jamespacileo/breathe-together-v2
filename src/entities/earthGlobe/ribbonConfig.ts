@@ -1,16 +1,16 @@
 /**
- * Ribbon System Configuration v2 - Message Pool Architecture
- *
- * Data-driven configuration for the globe ribbon text system.
+ * Ribbon System Configuration v3 - Timeline Event Architecture
  *
  * ARCHITECTURE:
- * - Zones: Vertical bands where messages can appear (guarantees no overlap)
- * - Pools: Message sources (inspiration, welcome, decorative)
- * - Instances: Individual placements of complete messages within zones
+ * - Ribbons: Horizontal bands parallel to equator at various heights and radii
+ * - Layers: Multiple radii create 3D depth (inner/outer shells)
+ * - Timeline: UTC-based event system for programmatic ribbon changes
  *
- * KEY CONCEPT: A "message instance" is a complete message (both lines together)
- * placed at a random angular position within its zone. Multiple instances of
- * the same or different messages can coexist.
+ * KEY CONCEPTS:
+ * - Single-line messages (line1 · line2) for cleaner readability
+ * - Height range constrained to avoid pole distortion
+ * - Radius layers create parallax/depth effect
+ * - Events can enable/disable zones at specific UTC times
  */
 
 // =============================================================================
@@ -23,111 +23,98 @@ export interface Range {
   max: number;
 }
 
-/** A complete message with two lines */
+/** A complete message (rendered as single line with separator) */
 export interface Message {
   line1: string;
-  line2: string;
-  /** Optional language code for multi-language support */
+  line2?: string;
   language?: string;
 }
 
 /** Message source type */
-export type MessageSource =
-  | 'inspiration' // Current inspirational message from hook
-  | 'welcome' // Multi-language welcome messages
-  | 'decorative' // Decorative patterns
-  | 'custom'; // Custom messages passed via props
+export type MessageSource = 'inspiration' | 'welcome' | 'decorative' | 'custom';
 
-/** A zone defines a vertical band where message instances can appear */
-export interface MessageZone {
-  /** Unique identifier */
+/**
+ * Ribbon zone - horizontal band at specific height and radius
+ * All ribbons are parallel to equator (no tilt) for clean visuals
+ */
+export interface RibbonZone {
   id: string;
-  /** Vertical height range (0 = equator, -1/+1 = poles) */
-  heightRange: Range;
-  /** Number of message instances in this zone */
+  /** Height on globe (-0.7 to 0.7 safe range, avoids pole distortion) */
+  height: number;
+  /** Height variance for organic feel */
+  heightVariance: Range;
+  /** Radius layer (0 = globe surface, positive = outer shells) */
+  radiusOffset: number;
+  /** Number of message instances around the band */
   instanceCount: number;
-  /** Message source for this zone */
+  /** Message source */
   source: MessageSource;
-  /** Visual style key */
+  /** Visual style */
   styleKey: 'primary' | 'secondary' | 'accent';
-  /** Scroll direction: 1 = with globe, -1 = against */
+  /** Scroll direction: 1 = east, -1 = west */
   scrollDirection: 1 | -1;
-  /** Base tilt angle in radians */
-  baseTilt: number;
-  /** Tilt variance range */
-  tiltVariance: Range;
-  /** Whether this zone is enabled */
+  /** Whether enabled */
   enabled: boolean;
-  /** Render priority (higher = on top) */
+  /** Render priority */
   zIndex: number;
-  /** Vertical spacing between line1 and line2 */
-  lineSpacing: number;
 }
 
-/** Visual style with randomization ranges */
+/** Visual style */
 export interface RibbonStyle {
-  /** Color palette (random selection per instance) */
   colors: string[];
-  /** Font size range */
   fontSize: Range;
-  /** Opacity settings */
-  opacity: {
-    base: number;
-    breathMin: number;
-  };
-  /** Scroll speed multiplier range */
+  opacity: { base: number; breathMin: number };
   scrollSpeed: Range;
-  /** Letter spacing */
   letterSpacing: number;
-  /** Font weight */
   fontWeight: number;
-  /** Glyph detail for curved text */
   glyphDetail: number;
 }
 
-/** Complete ribbon system configuration */
+/** Timeline event - triggers at specific UTC time */
+export interface TimelineEvent {
+  /** Event ID */
+  id: string;
+  /** UTC timestamp (ms) when event activates (-1 = immediate) */
+  startTime: number;
+  /** UTC timestamp (ms) when event deactivates (-1 = never) */
+  endTime: number;
+  /** Zone overrides to apply */
+  zoneOverrides: Partial<Record<string, Partial<RibbonZone>>>;
+  /** Zones to enable */
+  enableZones?: string[];
+  /** Zones to disable */
+  disableZones?: string[];
+}
+
+/** Complete configuration */
 export interface RibbonSystemConfig {
-  /** Globe radius */
   globeRadius: number;
-  /** Offset from globe surface */
   surfaceOffset: number;
-  /** Base scroll speed */
   baseScrollSpeed: number;
-  /** Globe rotation sync speed */
   globeSyncSpeed: number;
-  /** Zone definitions */
-  zones: MessageZone[];
-  /** Style definitions */
+  /** Message separator for single-line display */
+  messageSeparator: string;
+  zones: RibbonZone[];
   styles: {
     primary: RibbonStyle;
     secondary: RibbonStyle;
     accent: RibbonStyle;
   };
-  /** Random seed (null = truly random) */
+  /** Timeline events (optional) */
+  timeline?: TimelineEvent[];
   seed: number | null;
 }
 
 /** Resolved instance ready for rendering */
 export interface ResolvedInstance {
-  /** Zone this instance belongs to */
-  zone: MessageZone;
-  /** Instance index within zone */
+  zone: RibbonZone;
   instanceIndex: number;
-  /** Angular position around globe (0-2π) */
   angularPosition: number;
-  /** Height within zone */
   height: number;
-  /** Final tilt (baseTilt + random variance) */
-  tilt: number;
-  /** Resolved color from palette */
-  color: string;
-  /** Resolved font size */
-  fontSize: number;
-  /** Scroll speed multiplier */
-  scrollSpeedMultiplier: number;
-  /** Computed radius from globe center */
   radius: number;
-  /** Style reference */
+  color: string;
+  fontSize: number;
+  scrollSpeedMultiplier: number;
   style: RibbonStyle;
 }
 
@@ -135,17 +122,10 @@ export interface ResolvedInstance {
 // Color Palettes
 // =============================================================================
 
-/** Teal/cyan palette - calming, oceanic */
 export const PALETTE_TEAL = ['#7ec8c8', '#5eb3b2', '#4aa3a3', '#6bc4c4', '#8dd3d3'];
-
-/** Warm gold palette - comforting, sunrise */
 export const PALETTE_GOLD = ['#d4a574', '#c9956a', '#deb887', '#e6c9a0', '#bf8a5e'];
-
-/** Neutral white palette - subtle, ethereal */
 export const PALETTE_WHITE = ['#ffffff', '#f8f8f8', '#f0f0f0', '#fafafa'];
-
-/** Mixed harmony palette */
-export const PALETTE_HARMONY = [...PALETTE_TEAL.slice(0, 3), ...PALETTE_GOLD.slice(0, 2)];
+export const PALETTE_SOFT = ['#e8e4e0', '#d4d0cc', '#c8c4c0', '#dcd8d4'];
 
 // =============================================================================
 // Welcome Messages (Multi-Language)
@@ -158,8 +138,8 @@ export const WELCOME_MESSAGES: Message[] = [
   { line1: 'Benvenuto', line2: 'Respiriamo insieme', language: 'it' },
   { line1: 'Bienvenido', line2: 'Respiremos juntos', language: 'es' },
   { line1: 'Bem-vindo', line2: 'Respirar juntos', language: 'pt' },
-  { line1: 'ようこそ', line2: '一緒に呼吸しよう', language: 'ja' },
-  { line1: '환영합니다', line2: '함께 호흡해요', language: 'ko' },
+  { line1: 'ようこそ', line2: '一緒に呼吸', language: 'ja' },
+  { line1: '환영합니다', line2: '함께 호흡', language: 'ko' },
   { line1: '欢迎', line2: '一起呼吸', language: 'zh' },
   { line1: 'Добро пожаловать', line2: 'Дышим вместе', language: 'ru' },
   { line1: 'مرحبا', line2: 'نتنفس معا', language: 'ar' },
@@ -172,97 +152,95 @@ export const WELCOME_MESSAGES: Message[] = [
 
 export const DEFAULT_CONFIG: RibbonSystemConfig = {
   globeRadius: 1.5,
-  surfaceOffset: 0.12,
-  baseScrollSpeed: 0.0012,
+  surfaceOffset: 0.08,
+  baseScrollSpeed: 0.001,
   globeSyncSpeed: 0.0008,
+  messageSeparator: '  ·  ',
   seed: null,
 
   zones: [
-    // Primary zone: Inspiration messages (duplicated for visibility)
+    // === INSPIRATION LAYER (Primary - on surface) ===
     {
-      id: 'inspiration-upper',
-      heightRange: { min: 0.25, max: 0.45 },
+      id: 'inspiration-main',
+      height: 0.35,
+      heightVariance: { min: -0.05, max: 0.05 },
+      radiusOffset: 0,
       instanceCount: 3,
       source: 'inspiration',
       styleKey: 'primary',
       scrollDirection: -1,
-      baseTilt: -0.15,
-      tiltVariance: { min: -0.08, max: 0.08 },
       enabled: true,
       zIndex: 10,
-      lineSpacing: 0.18,
     },
-    // Mirror zone: Same inspiration (bottom of globe)
     {
       id: 'inspiration-lower',
-      heightRange: { min: -0.45, max: -0.25 },
+      height: -0.35,
+      heightVariance: { min: -0.05, max: 0.05 },
+      radiusOffset: 0,
       instanceCount: 3,
       source: 'inspiration',
       styleKey: 'secondary',
       scrollDirection: 1,
-      baseTilt: 0.15,
-      tiltVariance: { min: -0.08, max: 0.08 },
       enabled: true,
       zIndex: 10,
-      lineSpacing: 0.18,
     },
-    // Equator zone: Multi-language welcome (optional)
+
+    // === WELCOME LAYER (Outer shell - creates depth) ===
     {
-      id: 'welcome-equator',
-      heightRange: { min: -0.12, max: 0.12 },
-      instanceCount: 4,
+      id: 'welcome-outer',
+      height: 0,
+      heightVariance: { min: -0.08, max: 0.08 },
+      radiusOffset: 0.25, // Outer shell!
+      instanceCount: 6,
       source: 'welcome',
-      styleKey: 'primary',
-      scrollDirection: -1,
-      baseTilt: 0.05,
-      tiltVariance: { min: -0.03, max: 0.03 },
-      enabled: false, // Disabled by default, enable for intro
-      zIndex: 8,
-      lineSpacing: 0.15,
+      styleKey: 'accent',
+      scrollDirection: 1,
+      enabled: false, // Enable for intro sequence
+      zIndex: 5,
     },
-    // Decorative accent (center)
+
+    // === AMBIENT LAYER (Inner whisper - subtle depth) ===
     {
-      id: 'decorative-center',
-      heightRange: { min: -0.05, max: 0.05 },
-      instanceCount: 1,
+      id: 'ambient-inner',
+      height: 0.55,
+      heightVariance: { min: -0.03, max: 0.03 },
+      radiusOffset: -0.05, // Slightly inside
+      instanceCount: 2,
       source: 'decorative',
       styleKey: 'accent',
       scrollDirection: -1,
-      baseTilt: 0.08,
-      tiltVariance: { min: -0.02, max: 0.02 },
       enabled: true,
-      zIndex: 5,
-      lineSpacing: 0.1,
+      zIndex: 3,
     },
   ],
 
   styles: {
     primary: {
       colors: PALETTE_TEAL,
-      fontSize: { min: 0.088, max: 0.102 },
-      opacity: { base: 0.88, breathMin: 0.35 },
-      scrollSpeed: { min: 1.0, max: 1.4 },
-      letterSpacing: 0.08,
-      fontWeight: 600,
-      glyphDetail: 5,
+      fontSize: { min: 0.075, max: 0.088 },
+      opacity: { base: 0.85, breathMin: 0.35 },
+      scrollSpeed: { min: 0.8, max: 1.2 },
+      letterSpacing: 0.06,
+      fontWeight: 500,
+      glyphDetail: 4,
     },
     secondary: {
       colors: PALETTE_GOLD,
-      fontSize: { min: 0.085, max: 0.098 },
-      opacity: { base: 0.82, breathMin: 0.3 },
-      scrollSpeed: { min: 0.7, max: 1.1 },
-      letterSpacing: 0.08,
-      fontWeight: 600,
-      glyphDetail: 5,
+      fontSize: { min: 0.072, max: 0.085 },
+      opacity: { base: 0.75, breathMin: 0.3 },
+      scrollSpeed: { min: 0.6, max: 1.0 },
+      letterSpacing: 0.06,
+      fontWeight: 500,
+      glyphDetail: 4,
     },
     accent: {
-      colors: PALETTE_WHITE,
-      fontSize: { min: 0.035, max: 0.045 },
-      opacity: { base: 0.18, breathMin: 0.08 },
-      scrollSpeed: { min: 0.4, max: 0.7 },
-      letterSpacing: 0.15,
+      colors: PALETTE_SOFT,
+      fontSize: { min: 0.055, max: 0.068 },
+      opacity: { base: 0.45, breathMin: 0.15 },
+      scrollSpeed: { min: 0.3, max: 0.6 },
+      letterSpacing: 0.08,
       fontWeight: 400,
-      glyphDetail: 2,
+      glyphDetail: 3,
     },
   },
 };
@@ -271,7 +249,7 @@ export const DEFAULT_CONFIG: RibbonSystemConfig = {
 // Utility Functions
 // =============================================================================
 
-/** Seeded random number generator (Mulberry32) */
+/** Seeded random (Mulberry32) */
 export function createSeededRandom(initialSeed: number): () => number {
   let seed = initialSeed;
   return () => {
@@ -283,136 +261,207 @@ export function createSeededRandom(initialSeed: number): () => number {
   };
 }
 
-/** Get random value within range */
 export function randomInRange(range: Range, random: () => number = Math.random): number {
   return range.min + random() * (range.max - range.min);
 }
 
-/** Pick random item from array */
 export function randomPick<T>(array: T[], random: () => number = Math.random): T {
   return array[Math.floor(random() * array.length)];
 }
 
-/** Distribute N items evenly around a circle with random jitter */
-export function distributeAngular(
-  count: number,
-  jitterRange: number = 0.3,
-  random: () => number = Math.random,
-): number[] {
-  const baseStep = (Math.PI * 2) / count;
+/** Distribute N items evenly with jitter */
+export function distributeAngular(count: number, jitter = 0.3, random = Math.random): number[] {
+  const step = (Math.PI * 2) / count;
   return Array.from({ length: count }, (_, i) => {
-    const base = i * baseStep;
-    const jitter = (random() - 0.5) * baseStep * jitterRange;
-    return (base + jitter + Math.PI * 2) % (Math.PI * 2);
+    const base = i * step;
+    const offset = (random() - 0.5) * step * jitter;
+    return (base + offset + Math.PI * 2) % (Math.PI * 2);
   });
 }
 
-/** Get style by key */
-export function getStyleByKey(
-  key: 'primary' | 'secondary' | 'accent',
+/** Format message as single line */
+export function formatMessage(msg: Message, separator: string): string {
+  if (!msg.line2) return msg.line1;
+  return `${msg.line1}${separator}${msg.line2}`;
+}
+
+/** Apply timeline events to config based on current UTC time */
+export function applyTimelineEvents(
   config: RibbonSystemConfig,
-): RibbonStyle {
-  return config.styles[key];
+  utcNow: number = Date.now(),
+): RibbonSystemConfig {
+  if (!config.timeline?.length) return config;
+
+  let zones = [...config.zones];
+
+  for (const event of config.timeline) {
+    const isActive =
+      (event.startTime === -1 || utcNow >= event.startTime) &&
+      (event.endTime === -1 || utcNow < event.endTime);
+
+    if (!isActive) continue;
+
+    // Apply enable/disable
+    if (event.enableZones) {
+      const enableList = event.enableZones;
+      zones = zones.map((z) => (enableList.includes(z.id) ? { ...z, enabled: true } : z));
+    }
+    if (event.disableZones) {
+      const disableList = event.disableZones;
+      zones = zones.map((z) => (disableList.includes(z.id) ? { ...z, enabled: false } : z));
+    }
+
+    // Apply overrides
+    for (const [zoneId, overrides] of Object.entries(event.zoneOverrides)) {
+      zones = zones.map((z) => (z.id === zoneId ? { ...z, ...overrides } : z));
+    }
+  }
+
+  return { ...config, zones };
 }
 
 /** Resolve all instances for a zone */
 export function resolveZoneInstances(
-  zone: MessageZone,
+  zone: RibbonZone,
   config: RibbonSystemConfig,
   random: () => number = Math.random,
 ): ResolvedInstance[] {
-  const style = getStyleByKey(zone.styleKey, config);
+  const style = config.styles[zone.styleKey];
   const angles = distributeAngular(zone.instanceCount, 0.4, random);
 
   return angles.map((angularPosition, instanceIndex) => ({
     zone,
     instanceIndex,
     angularPosition,
-    height: randomInRange(zone.heightRange, random),
-    tilt: zone.baseTilt + randomInRange(zone.tiltVariance, random),
+    height: zone.height + randomInRange(zone.heightVariance, random),
+    radius: config.globeRadius + config.surfaceOffset + zone.radiusOffset,
     color: randomPick(style.colors, random),
     fontSize: randomInRange(style.fontSize, random),
     scrollSpeedMultiplier: randomInRange(style.scrollSpeed, random),
-    radius: config.globeRadius + config.surfaceOffset,
     style,
   }));
 }
 
-/** Resolve all enabled zones and their instances */
-export function resolveAllInstances(
-  config: RibbonSystemConfig = DEFAULT_CONFIG,
-): ResolvedInstance[] {
+/** Resolve all enabled zones */
+export function resolveAllInstances(config: RibbonSystemConfig): ResolvedInstance[] {
   const random = config.seed !== null ? createSeededRandom(config.seed) : Math.random;
+  const activeConfig = applyTimelineEvents(config);
 
-  return config.zones
-    .filter((zone) => zone.enabled)
+  return activeConfig.zones
+    .filter((z) => z.enabled)
     .sort((a, b) => a.zIndex - b.zIndex)
-    .flatMap((zone) => resolveZoneInstances(zone, config, random));
+    .flatMap((zone) => resolveZoneInstances(zone, activeConfig, random));
 }
 
 // =============================================================================
 // Decorative Patterns
 // =============================================================================
 
-/** Generate decorative dot pattern */
-export function generateDotPattern(length: number = 40): string {
+export function generateDotPattern(length = 40): string {
   return Array(length).fill('·').join(' ');
 }
 
-/** Generate decorative star pattern */
-export function generateStarPattern(length: number = 20): string {
-  return Array(length).fill('✦').join('   ');
+export function generateWavePattern(length = 25): string {
+  return Array(length).fill('~').join(' ');
 }
 
 // =============================================================================
 // Preset Configurations
 // =============================================================================
 
-/** Minimal: Just inspiration zones */
+/** Minimal - just inspiration */
 export const MINIMAL_CONFIG: RibbonSystemConfig = {
   ...DEFAULT_CONFIG,
-  zones: DEFAULT_CONFIG.zones.map((zone) => ({
-    ...zone,
-    enabled: zone.source === 'inspiration',
+  zones: DEFAULT_CONFIG.zones.map((z) => ({
+    ...z,
+    enabled: z.source === 'inspiration',
   })),
 };
 
-/** Welcome mode: Show multi-language welcome + decorative */
+/** Welcome intro - multi-language welcome in outer shell */
 export const WELCOME_CONFIG: RibbonSystemConfig = {
   ...DEFAULT_CONFIG,
-  zones: DEFAULT_CONFIG.zones.map((zone) => ({
-    ...zone,
-    enabled: zone.source === 'welcome' || zone.source === 'decorative',
-    instanceCount: zone.source === 'welcome' ? 6 : zone.instanceCount,
+  zones: DEFAULT_CONFIG.zones.map((z) => ({
+    ...z,
+    enabled: z.source === 'welcome' || z.source === 'decorative',
   })),
 };
 
-/** Rich: All zones enabled with more instances */
-export const RICH_CONFIG: RibbonSystemConfig = {
+/** Layered - all zones for full 3D depth effect */
+export const LAYERED_CONFIG: RibbonSystemConfig = {
   ...DEFAULT_CONFIG,
-  zones: DEFAULT_CONFIG.zones.map((zone) => ({
-    ...zone,
-    enabled: true,
-    instanceCount: zone.source === 'inspiration' ? 4 : zone.instanceCount,
-  })),
+  zones: DEFAULT_CONFIG.zones.map((z) => ({ ...z, enabled: true })),
 };
 
 // =============================================================================
-// Legacy Compatibility (deprecated, use new types)
+// Timeline Event Helpers
 // =============================================================================
 
-/** @deprecated Use MessageZone instead */
-export type RibbonLayer = MessageZone;
-
-/** @deprecated Use ResolvedInstance instead */
-export interface ResolvedRibbon extends ResolvedInstance {
-  layer: MessageZone;
+/**
+ * Create a timeline event
+ * @param id Event identifier
+ * @param start Start time (Date, timestamp, or -1 for immediate)
+ * @param end End time (Date, timestamp, or -1 for never)
+ * @param changes Zone changes to apply
+ */
+export function createEvent(
+  id: string,
+  start: Date | number,
+  end: Date | number,
+  changes: {
+    enable?: string[];
+    disable?: string[];
+    overrides?: Partial<Record<string, Partial<RibbonZone>>>;
+  },
+): TimelineEvent {
+  return {
+    id,
+    startTime: start instanceof Date ? start.getTime() : start,
+    endTime: end instanceof Date ? end.getTime() : end,
+    enableZones: changes.enable,
+    disableZones: changes.disable,
+    zoneOverrides: changes.overrides || {},
+  };
 }
 
-/** @deprecated Use resolveAllInstances instead */
-export function resolveAllRibbons(config: RibbonSystemConfig = DEFAULT_CONFIG): ResolvedRibbon[] {
-  return resolveAllInstances(config).map((instance) => ({
-    ...instance,
-    layer: instance.zone,
-  }));
+/**
+ * Create intro sequence: Welcome for N seconds, then fade to inspiration
+ */
+export function createIntroTimeline(welcomeDurationMs = 8000): TimelineEvent[] {
+  const now = Date.now();
+  return [
+    createEvent('intro-welcome', -1, now + welcomeDurationMs, {
+      enable: ['welcome-outer'],
+      disable: ['inspiration-main', 'inspiration-lower'],
+    }),
+    createEvent('main-experience', now + welcomeDurationMs, -1, {
+      enable: ['inspiration-main', 'inspiration-lower'],
+      disable: ['welcome-outer'],
+    }),
+  ];
+}
+
+/**
+ * Create breathing cycle event (activates at specific phase)
+ * @param phase 0=inhale, 1=hold, 2=exhale, 3=rest
+ */
+export function createBreathPhaseEvent(
+  id: string,
+  phase: 0 | 1 | 2 | 3,
+  changes: Parameters<typeof createEvent>[3],
+): TimelineEvent {
+  // Phase durations: inhale=4s, hold=7s, exhale=8s, rest=0s (total=19s)
+  const CYCLE_MS = 19000;
+  const phaseStarts = [0, 4000, 11000, 19000];
+
+  const now = Date.now();
+  const cyclePosition = now % CYCLE_MS;
+  const phaseStart = phaseStarts[phase];
+  const phaseEnd = phaseStarts[phase + 1] || CYCLE_MS;
+
+  // Calculate next occurrence of this phase
+  let nextStart = now - cyclePosition + phaseStart;
+  if (nextStart < now) nextStart += CYCLE_MS;
+
+  return createEvent(id, nextStart, nextStart + (phaseEnd - phaseStart), changes);
 }
