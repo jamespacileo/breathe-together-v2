@@ -51,7 +51,7 @@ export function BreathingLevel({
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users, countryCounts } = usePresence();
+  const { users, countryCounts, sessionId } = usePresence();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -157,8 +157,11 @@ export function BreathingLevel({
             {showParticles && (
               <ParticleSwarm
                 users={deferredUsers}
+                currentUserId={sessionId}
                 baseRadius={orbitRadius}
                 maxShardSize={shardSize}
+                highlightCurrentUser={devControls.highlightCurrentUser}
+                highlightStyle={devControls.highlightStyle}
               />
             )}
 
