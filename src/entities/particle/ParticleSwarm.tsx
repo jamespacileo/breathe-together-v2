@@ -13,9 +13,10 @@
  * Previously used separate Mesh objects (300 draw calls for 300 particles)
  */
 
+import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
@@ -276,10 +277,14 @@ export function ParticleSwarm({
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
   const wireframeRef = useRef<THREE.LineSegments>(null);
+  const glowMeshRef = useRef<THREE.Mesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
 
   // Track current user's slot index (-1 if not found)
   const currentUserSlotIndexRef = useRef<number>(-1);
+
+  // Track user shard position for the label (updated in useFrame)
+  const [userLabelPosition, setUserLabelPosition] = useState<[number, number, number] | null>(null);
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -361,6 +366,21 @@ export function ParticleSwarm({
       transparent: true,
       opacity: 0.8,
       linewidth: 2,
+    });
+  }, []);
+
+  // Create glow geometry and material for user highlight (glow style)
+  const glowGeometry = useMemo(() => {
+    // Larger sphere for glow effect
+    return new THREE.SphereGeometry(shardSize * 2.0, 16, 16);
+  }, [shardSize]);
+
+  const glowMaterial = useMemo(() => {
+    return new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.BackSide, // Render inside-out for halo effect
     });
   }, []);
 
@@ -481,8 +501,10 @@ export function ParticleSwarm({
       material.dispose();
       wireframeGeometry.dispose();
       wireframeMaterial.dispose();
+      glowGeometry.dispose();
+      glowMaterial.dispose();
     };
-  }, [geometry, material, wireframeGeometry, wireframeMaterial]);
+  }, [geometry, material, wireframeGeometry, wireframeMaterial, glowGeometry, glowMaterial]);
 
   // Animation loop
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation requires multiple force calculations and slot lifecycle management
@@ -659,38 +681,74 @@ export function ParticleSwarm({
     mesh.count = Math.max(1, visibleCount);
     mesh.instanceMatrix.needsUpdate = true;
 
-    // Update wireframe highlight position for current user
+    // Update highlight position for current user
     const wireframe = wireframeRef.current;
+    const glowMesh = glowMeshRef.current;
     const userSlotIndex = currentUserSlotIndexRef.current;
-    if (wireframe && highlightCurrentUser && userSlotIndex >= 0 && userSlotIndex < states.length) {
+
+    if (highlightCurrentUser && userSlotIndex >= 0 && userSlotIndex < states.length) {
       const slot = userSlotIndex < slots.length ? slots[userSlotIndex] : null;
       const slotScale = slot && slot.state !== 'empty' ? slot.scale : 0;
 
       if (slotScale > 0.001) {
-        // Get the current user's shard matrix and apply to wireframe
+        // Get the current user's shard matrix
         mesh.getMatrixAt(userSlotIndex, _tempMatrix);
         _tempMatrix.decompose(_tempPosition, _tempQuaternion, _tempScale);
 
-        // Apply highlight style modifications
-        if (highlightStyle === 'scale') {
-          _tempScale.multiplyScalar(1.2);
-        }
+        // Update label position (above the shard)
+        const labelOffset = shardSize * 3;
+        setUserLabelPosition([_tempPosition.x, _tempPosition.y + labelOffset, _tempPosition.z]);
 
-        wireframe.position.copy(_tempPosition);
-        wireframe.quaternion.copy(_tempQuaternion);
-        wireframe.scale.copy(_tempScale);
-        wireframe.visible = true;
-
-        // Add subtle pulse effect for glow style
-        if (highlightStyle === 'glow') {
-          const pulse = 0.8 + Math.sin(time * 3) * 0.2;
-          wireframeMaterial.opacity = pulse;
+        // Style-specific rendering
+        if (highlightStyle === 'wireframe') {
+          // Wireframe outline
+          if (wireframe) {
+            wireframe.position.copy(_tempPosition);
+            wireframe.quaternion.copy(_tempQuaternion);
+            wireframe.scale.copy(_tempScale);
+            wireframe.visible = true;
+            wireframeMaterial.opacity = 0.8;
+          }
+          if (glowMesh) glowMesh.visible = false;
+        } else if (highlightStyle === 'glow') {
+          // Pulsing glow sphere
+          if (glowMesh) {
+            const pulse = 0.3 + Math.sin(time * 3) * 0.15;
+            glowMaterial.opacity = pulse;
+            glowMesh.position.copy(_tempPosition);
+            glowMesh.scale.setScalar(1.0 + Math.sin(time * 2) * 0.1);
+            glowMesh.visible = true;
+          }
+          // Also show wireframe but dimmer
+          if (wireframe) {
+            wireframe.position.copy(_tempPosition);
+            wireframe.quaternion.copy(_tempQuaternion);
+            wireframe.scale.copy(_tempScale);
+            wireframe.visible = true;
+            wireframeMaterial.opacity = 0.4;
+          }
+        } else if (highlightStyle === 'scale') {
+          // Scale up with wireframe
+          if (wireframe) {
+            wireframe.position.copy(_tempPosition);
+            wireframe.quaternion.copy(_tempQuaternion);
+            wireframe.scale.copy(_tempScale).multiplyScalar(1.3);
+            wireframe.visible = true;
+            wireframeMaterial.opacity = 0.8;
+          }
+          if (glowMesh) glowMesh.visible = false;
         }
       } else {
-        wireframe.visible = false;
+        // Shard not visible
+        if (wireframe) wireframe.visible = false;
+        if (glowMesh) glowMesh.visible = false;
+        setUserLabelPosition(null);
       }
-    } else if (wireframe) {
-      wireframe.visible = false;
+    } else {
+      // Highlight disabled or user not found
+      if (wireframe) wireframe.visible = false;
+      if (glowMesh) glowMesh.visible = false;
+      setUserLabelPosition(null);
     }
   });
 
@@ -711,15 +769,46 @@ export function ParticleSwarm({
         frustumCulled={false}
         name="Particle Swarm"
       />
-      {/* Wireframe highlight for current user's shard */}
+      {/* Highlight elements for current user's shard */}
       {highlightCurrentUser && (
-        <lineSegments
-          ref={wireframeRef}
-          geometry={wireframeGeometry}
-          material={wireframeMaterial}
-          visible={false}
-          name="User Shard Highlight"
-        />
+        <>
+          {/* Wireframe outline */}
+          <lineSegments
+            ref={wireframeRef}
+            geometry={wireframeGeometry}
+            material={wireframeMaterial}
+            visible={false}
+            name="User Shard Wireframe"
+          />
+          {/* Glow sphere (for glow style) */}
+          <mesh
+            ref={glowMeshRef}
+            geometry={glowGeometry}
+            material={glowMaterial}
+            visible={false}
+            name="User Shard Glow"
+          />
+          {/* "You" label above the shard */}
+          {userLabelPosition && (
+            <Html position={userLabelPosition} center>
+              <div
+                style={{
+                  background: 'rgba(0, 0, 0, 0.75)',
+                  color: '#ffffff',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'nowrap',
+                  border: '1px solid rgba(255, 255, 255, 0.5)',
+                  pointerEvents: 'none',
+                }}
+              >
+                You
+              </div>
+            </Html>
+          )}
+        </>
       )}
     </>
   );

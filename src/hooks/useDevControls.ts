@@ -804,7 +804,7 @@ export function useDevControls(): DevControlsState {
               value: TUNING_DEFAULTS.highlightStyle,
               options: ['wireframe', 'glow', 'scale'],
               label: 'Highlight Style',
-              hint: '**wireframe** = white outline around shard\n**glow** = pulsing opacity effect\n**scale** = shard 20% larger',
+              hint: '**wireframe** = white icosahedron outline around shard\n**glow** = pulsing white halo sphere + dim wireframe\n**scale** = 30% larger wireframe outline',
             },
           },
           { collapsed: true },
