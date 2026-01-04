@@ -67,12 +67,12 @@ export const TUNING_DEFAULTS = {
   globeRingOpacity: 0.15,
   globeAtmosphereTint: '#f8d0a8',
 
-  // Stage Mode (dev-only) - studio-style view
+  // Stage Mode (dev-only) - minimal studio view
   stageMode: false,
   showGridFloor: true,
   gridSize: 30,
-  gridDivisions: 30,
-  gridColor: '#d0d0d0',
+  gridDivisions: 6,
+  gridColor: '#e0e0e0',
 
   // Debug (dev-only)
   showOrbitBounds: false,
@@ -682,43 +682,43 @@ export function useDevControls(): DevControlsState {
     ),
 
     // ==========================================
-    // 5. STAGE MODE (studio-style view)
+    // 5. STAGE MODE (minimal studio view)
     // ==========================================
     'Stage Mode': folder(
       {
         stageMode: {
           value: TUNING_DEFAULTS.stageMode,
           label: 'Enable Stage Mode',
-          hint: 'Toggle studio-style view with clean white background, subtle grid, and soft contact shadows.\n\n**Use case:** Debug positioning and layouts in a polished, distraction-free environment',
+          hint: 'Toggle minimal studio view with warm white background, sparse grid, and soft radial shadow.\n\n**Use case:** Debug positioning in a clean, elegant environment',
         },
         showGridFloor: {
           value: TUNING_DEFAULTS.showGridFloor,
-          label: 'Show Grid Floor',
-          hint: 'Show subtle reference grid when stage mode is enabled.\n\n**Shows:** Refined grid with soft axis indicators',
+          label: 'Show Floor',
+          hint: 'Show studio floor with sparse grid, axis crosshair, and soft shadow.\n\n**Features:** Radial shadow + sparse reference lines + X/Z axes',
           render: (get) => get('Stage Mode.stageMode'),
         },
         gridSize: {
           value: TUNING_DEFAULTS.gridSize,
-          min: 10,
-          max: 100,
+          min: 15,
+          max: 60,
           step: 5,
-          label: 'Grid Size',
-          hint: 'Total size of the grid floor in world units.',
+          label: 'Floor Size',
+          hint: 'Total size of the floor in world units.',
           render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
         },
         gridDivisions: {
           value: TUNING_DEFAULTS.gridDivisions,
-          min: 10,
-          max: 60,
-          step: 5,
-          label: 'Grid Divisions',
-          hint: 'Number of subdivisions in the grid.',
+          min: 4,
+          max: 12,
+          step: 2,
+          label: 'Grid Lines',
+          hint: 'Number of reference lines (sparse). 4-6 is minimal, 8-12 for more precision.',
           render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
         },
         gridColor: {
           value: TUNING_DEFAULTS.gridColor,
           label: 'Grid Color',
-          hint: 'Color of the grid lines. Lighter colors work best with the white background.',
+          hint: 'Color of reference lines. Very light colors (#e0e0e0) blend elegantly.',
           render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
         },
       },
