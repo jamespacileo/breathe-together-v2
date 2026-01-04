@@ -332,7 +332,7 @@ jobs:
           # Upload each screenshot to R2
           for file in ./screenshots/*.png; do
             filename=$(basename "$file")
-            aws s3 cp "$file" "s3://preview-screenshots/pr-${{ env.PR_NUMBER }}/$filename" \
+            aws s3 cp "$file" "s3://breathe-together-screenshots/pr-${{ env.PR_NUMBER }}/$filename" \
               --endpoint-url "$R2_ENDPOINT" \
               --content-type "image/png"
             echo "Uploaded: $filename"
