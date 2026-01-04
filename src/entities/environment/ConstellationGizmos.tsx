@@ -113,24 +113,21 @@ const InstancedStarMarkers = memo(function InstancedStarMarkers({
 
   // Create shared geometries and materials
   const { sphereGeometry, sphereMaterial, ringGeometry, ringMaterial } = useMemo(() => {
-    // Average size for instanced rendering (individual sizes not supported without custom shader)
-    const avgSize = 0.08;
+    // Larger size for better visibility (was 0.08, now 0.25)
+    const avgSize = 0.25;
 
-    const sphereGeo = new THREE.SphereGeometry(avgSize, 8, 8);
+    const sphereGeo = new THREE.SphereGeometry(avgSize, 12, 12);
     const sphereMat = new THREE.MeshBasicMaterial({
       color,
-      transparent: true,
-      opacity: 0.9,
-      depthWrite: false,
+      // No transparency for crisp, solid markers
     });
 
-    const ringGeo = new THREE.RingGeometry(avgSize * 1.5, avgSize * 2, 16);
+    const ringGeo = new THREE.RingGeometry(avgSize * 1.8, avgSize * 2.2, 24);
     const ringMat = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.7,
       side: THREE.DoubleSide,
-      depthWrite: false,
     });
 
     return {
@@ -275,8 +272,8 @@ const BatchedConstellationLines = memo(function BatchedConstellationLines({
     const mat = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,
-      opacity: 0.6,
-      linewidth: 1,
+      opacity: 0.9,
+      linewidth: 2, // Note: linewidth >1 only works with some renderers
     });
 
     return { geometry: geo, material: mat };
