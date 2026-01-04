@@ -54,11 +54,11 @@ varying vec3 eyeVector;
 varying vec3 worldNormal;
 
 void main() {
-  // Use instanceColor if available (InstancedMesh), otherwise fallback to white
+  // Use instanceColor if available (InstancedMesh), otherwise fallback to cosmic teal
   #ifdef USE_INSTANCING_COLOR
     vColor = instanceColor;
   #else
-    vColor = vec3(0.85, 0.75, 0.65); // Warm neutral fallback
+    vColor = vec3(0.36, 0.85, 0.76); // Cosmic teal fallback (presence color)
   #endif
 
   // Apply instance transform if using InstancedMesh
@@ -81,8 +81,8 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates gem-like frosted crystal look
-// Improved Dec 2024: Bright luminous gem pastels with faceted shading (Monument Valley style)
+// Refraction fragment shader - holographic cosmic energy shards
+// Inspired by Three.js Journey hologram shader and Cosmic XR
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
@@ -101,57 +101,60 @@ void main() {
   vec2 uv = gl_FragCoord.xy / resolution;
   vec3 backfaceNormal = texture2D(backfaceMap, uv).rgb;
 
-  // Blend front and backface normals for thickness/depth
+  // Blend front and backface normals for depth
   vec3 normal = normalize(worldNormal * (1.0 - backfaceIntensity) - backfaceNormal * backfaceIntensity);
   vec3 refracted = refract(eyeVector, normal, 1.0 / ior);
 
-  // Refraction for gem-like depth
-  vec2 refractUv = uv + refracted.xy * 0.04;
+  // Subtle refraction for ethereal depth
+  vec2 refractUv = uv + refracted.xy * 0.02; // Reduced refraction for ghostly feel
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === BRIGHT LUMINOUS GEM COLOR ===
-  // Keep high saturation with brightness boost
-  vec3 warmWhite = vec3(1.0, 0.98, 0.95);
-  // 85% color intensity - vibrant
-  vec3 gemColor = mix(warmWhite, vColor, 0.85);
-  // Brightness boost for luminous feel
-  gemColor *= 1.15;
+  // === PASTEL COLOR MODE (Option 4) ===
+  // Mix with white for soft, calming meditation aesthetic
+  // IMMUNE-inspired palette is already lightened, gentle boost maintains vibrancy
+  vec3 pastelColor = mix(vColor, vec3(1.0), 0.15); // 15% white blend for softness
+  vec3 energyColor = pastelColor * 1.1; // Gentle boost (not 1.5)
 
-  // === FACETED SHADING (gem look) ===
+  // === STRONG FRESNEL GLOW (holographic edge) ===
+  float fresnelPower = 2.5; // Reduced from 3.0 for softer glow
+  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), fresnelPower);
+
+  // Holographic rim - bright ethereal glow
+  vec3 rimColor = energyColor * 1.8; // Reduced from 2.0 for softer edges
+
+  // === BRIGHTER SOLID CORE (less hollow) ===
+  // Make core more opaque and luminous for visibility
+  float centerOpacity = 1.0 - fresnel * 0.6; // Less hollow than before
+  vec3 coreColor = energyColor * 0.7; // Brighter core (was 0.3)
+
+  // === BACKGROUND BLEND (subtle cosmic see-through) ===
+  vec3 backgroundTint = tex.rgb * energyColor * 0.3;
+
+  // === DIFFUSE SHADING (subtle form definition) ===
   float diffuse = max(dot(normal, keyLightDir), 0.0);
-  // Wrap lighting - higher base for brighter shadows
-  float wrapped = diffuse * 0.5 + 0.5;
-  // Shading range: lit faces very bright, shadow faces still bright (0.65 - 1.0)
-  float shading = wrapped * 0.35 + 0.65;
+  float shading = diffuse * 0.25 + 0.75; // Very gentle shading, stay bright
 
-  // === GEM BODY WITH INNER GLOW ===
-  vec3 shadedGem = gemColor * shading;
+  // === COMPOSE PASTEL HOLOGRAPHIC LOOK ===
+  // Brighter solid core with ethereal edges
+  vec3 hologramBody = mix(backgroundTint, coreColor, centerOpacity);
+  hologramBody *= shading; // Apply subtle shading
 
-  // Inner luminosity - gems glow from within (stronger)
-  float innerGlow = (1.0 - diffuse) * 0.2;
-  shadedGem += gemColor * innerGlow;
+  // Add powerful but soft fresnel rim glow
+  vec3 finalColor = hologramBody + rimColor * fresnel * 0.7;
 
-  // Tinted refraction for depth
-  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), gemColor, 0.35);
-
-  // Mix: gem body (65%) with refraction (35%) for crystalline depth
-  vec3 bodyColor = mix(tintedRefraction, shadedGem, 0.65);
-
-  // === FRESNEL RIM (crystalline edge glow) ===
-  float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
-  vec3 rimColor = vec3(1.0, 0.99, 0.97);
-  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.3);
-
-  // === SPECULAR HIGHLIGHT (gem sparkle) ===
+  // === SPECULAR HIGHLIGHT (energy sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
-  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.3;
+  float spec = pow(max(dot(normal, halfVec), 0.0), 64.0); // Sharper highlight
+  finalColor += energyColor * spec * 0.5;
 
-  // === TOP AMBIENT ===
-  float topLight = max(normal.y, 0.0) * 0.12;
-  colorWithRim += vec3(1.0, 0.99, 0.97) * topLight;
+  // === TOP AMBIENT (cosmic starlight) ===
+  float topLight = max(normal.y, 0.0) * 0.15;
+  finalColor += energyColor * topLight * 0.3;
 
-  gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
+  // Prevent over-bright values
+  finalColor = min(finalColor, vec3(2.0)); // Allow glow but prevent clipping
+
+  gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
@@ -167,27 +170,27 @@ void main() {
 const bgFragmentShader = `
 varying vec2 vUv;
 void main() {
-  // Soft pastel gradient matching Monument Valley aesthetic
-  vec3 warmCream = vec3(0.98, 0.96, 0.92);    // Top - warm cream
-  vec3 softBlush = vec3(0.96, 0.91, 0.87);    // Bottom - soft blush/peach
+  // Vibrant cosmic gradient - matches GalaxyBackground for consistency
+  vec3 deepSpace = vec3(0.05, 0.08, 0.18);      // Rich deep blue
+  vec3 cosmicPurple = vec3(0.12, 0.08, 0.22);   // Vibrant purple
 
   // Simple vertical gradient (bottom to top)
   float t = vUv.y;
-  vec3 color = mix(softBlush, warmCream, t);
+  vec3 color = mix(cosmicPurple, deepSpace, t);
 
-  // Soft radial vignette (subtle warm edges)
+  // Soft radial vignette (subtle darker edges)
   vec2 center = vUv - 0.5;
   float dist = length(center);
   float vignette = smoothstep(0.8, 0.2, dist);
-  vec3 edgeTint = vec3(0.92, 0.86, 0.82); // Warm shadow at edges
+  vec3 edgeTint = vec3(0.04, 0.06, 0.15); // Darker cosmic edges
   color = mix(edgeTint, color, vignette * 0.85 + 0.15);
 
-  // Very subtle center brightening
-  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.03;
-  color += vec3(1.0, 0.99, 0.97) * centerGlow;
+  // Center glow for depth
+  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.08;
+  color += vec3(0.12, 0.15, 0.25) * centerGlow; // Brighter cosmic glow
 
-  // Minimal paper texture noise
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
+  // Minimal cosmic noise
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.02;
 
   gl_FragColor = vec4(color + noise, 1.0);
 }
@@ -599,16 +602,19 @@ export function RefractionPipeline({
       mesh.material = refractionMaterial;
     }
 
-    // Reset camera layers to render all for composite pass
+    // Reset camera layers to render all EXCEPT overlay for composite pass
+    // OVERLAY layer (stars) will be rendered separately after DoF for sharpness
     layerCamera.layers.enableAll();
+    layerCamera.layers.disable(RENDER_LAYERS.OVERLAY);
 
     if (enableDepthOfField) {
       // Pass 3: Render composite to compositeFBO (with depth for DoF)
+      // This excludes OVERLAY layer to prevent stars from being blurred
       gl.setRenderTarget(compositeFBO);
       gl.clear();
       gl.render(bgScene, orthoCamera);
       gl.clearDepth();
-      gl.render(scene, camera);
+      gl.render(scene, layerCamera);
 
       // Restore original materials
       for (const mesh of meshes) {
@@ -624,13 +630,20 @@ export function RefractionPipeline({
       dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
       dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
       gl.render(dofScene, orthoCamera);
+
+      // Pass 5: Render OVERLAY layer (stars, constellations, sun) sharp on top
+      // Clear depth but keep color buffer to render over DoF scene
+      gl.clearDepth();
+      layerCamera.layers.set(RENDER_LAYERS.OVERLAY);
+      gl.render(scene, layerCamera);
     } else {
       // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
+      // Render all layers EXCEPT overlay first (excluding stars)
       gl.setRenderTarget(null);
       gl.clear();
       gl.render(bgScene, orthoCamera);
       gl.clearDepth();
-      gl.render(scene, camera);
+      gl.render(scene, layerCamera);
 
       // Restore original materials
       for (const mesh of meshes) {
@@ -639,6 +652,11 @@ export function RefractionPipeline({
           mesh.material = original;
         }
       }
+
+      // Render OVERLAY layer (stars, constellations, sun) sharp on top even without DoF
+      gl.clearDepth();
+      layerCamera.layers.set(RENDER_LAYERS.OVERLAY);
+      gl.render(scene, layerCamera);
     }
   }, 1); // Priority 1 to run before default render
 

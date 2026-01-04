@@ -12,7 +12,7 @@ import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
-import { Environment } from '../entities/environment';
+import { Environment, EnvironmentOverlay } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -98,13 +98,9 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Environment - clouds, lighting, fog */}
+            {/* Environment - galaxy background, dust, cosmic lighting (inside DoF) */}
             {showEnvironment && (
               <Environment
-                showClouds={devControls.showClouds}
-                showStars={devControls.showStars}
-                cloudOpacity={devControls.cloudOpacity}
-                cloudSpeed={devControls.cloudSpeed}
                 ambientLightColor={devControls.ambientLightColor}
                 ambientLightIntensity={devControls.ambientLightIntensity}
                 keyLightColor={devControls.keyLightColor}
@@ -143,6 +139,18 @@ export function BreathingLevel({
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
           </RefractionPipeline>
+
+          {/* EnvironmentOverlay - stars/sun rendered OUTSIDE DoF for sharp focus */}
+          {showEnvironment && (
+            <EnvironmentOverlay
+              showConstellations={devControls.showConstellations}
+              showSun={devControls.showSun}
+              backgroundStarCount={devControls.backgroundStarCount}
+              constellationLineOpacity={devControls.constellationLineOpacity}
+              starBrightness={devControls.starBrightness}
+              sunGlowIntensity={devControls.sunGlowIntensity}
+            />
+          )}
 
           {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
           {DEV_MODE_ENABLED && (

@@ -110,6 +110,7 @@ export const HOLD_OSCILLATION = {
  * - GLOBE (1): Central EarthGlobe (reserved for future selective rendering)
  * - PARTICLES (2): ParticleSwarm shards - used for backface pass layer filtering
  * - EFFECTS (3): AtmosphericParticles, sparkles (reserved for future use)
+ * - OVERLAY (4): Stars, constellations, sun - rendered AFTER DoF for sharp focus
  *
  * Note: Background gradient is cached separately via envFBO caching, not layer-based.
  *
@@ -124,4 +125,6 @@ export const RENDER_LAYERS = {
   PARTICLES: 2,
   /** Atmospheric effects (reserved for future use) */
   EFFECTS: 3,
+  /** Sharp overlays (stars, constellations, sun) - rendered after DoF to maintain sharpness */
+  OVERLAY: 4,
 } as const;

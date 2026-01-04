@@ -1,63 +1,61 @@
-import { Stars } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
-import { BackgroundGradient } from './BackgroundGradient';
-import { CloudSystem } from './CloudSystem';
-import { SubtleLightRays } from './SubtleLightRays';
+import { Constellations } from './Constellations';
+import { GalaxyBackground } from './GalaxyBackground';
+import { Sun } from './Sun';
 
 interface EnvironmentProps {
   enabled?: boolean;
-  /** Show volumetric clouds @default true */
-  showClouds?: boolean;
-  /** Show distant stars @default true */
-  showStars?: boolean;
-  /** Cloud opacity @default 0.4 */
-  cloudOpacity?: number;
-  /** Cloud speed multiplier @default 0.3 */
-  cloudSpeed?: number;
-  /** Ambient light color @default '#fff5eb' */
+  /** Show constellations with connecting lines @default true */
+  showConstellations?: boolean;
+  /** Show sun @default true */
+  showSun?: boolean;
+  /** Background star count @default 2000 */
+  backgroundStarCount?: number;
+  /** Constellation line opacity @default 0.4 */
+  constellationLineOpacity?: number;
+  /** Star brightness @default 1.0 */
+  starBrightness?: number;
+  /** Sun glow intensity @default 1.5 */
+  sunGlowIntensity?: number;
+  /** Ambient light color @default '#e6f0ff' */
   ambientLightColor?: string;
-  /** Ambient light intensity @default 0.5 */
+  /** Ambient light intensity @default 0.3 */
   ambientLightIntensity?: number;
-  /** Key light color @default '#ffe4c4' */
+  /** Key light color @default '#fff5e6' */
   keyLightColor?: string;
-  /** Key light intensity @default 0.8 */
+  /** Key light intensity @default 0.5 */
   keyLightIntensity?: number;
 }
 
 /**
- * Environment - Monument Valley inspired atmosphere
+ * Environment - Stylized galaxy/universe scene lighting
  *
  * Features:
- * - Gradient background via RefractionPipeline (shader-based clouds)
- * - Volumetric 3D clouds using drei Cloud component
- * - Warm three-point lighting for soft shadows
- * - Subtle fog for depth
- * - Optional distant stars
+ * - Ambient cosmic lighting
+ * - Atmospheric dust particles (inside DoF for depth)
+ *
+ * NOTE: Galaxy background, constellations, and sun are rendered in EnvironmentOverlay
+ * outside the DoF pipeline to maintain sharp focus.
  */
 export function Environment({
   enabled = true,
-  showClouds = true,
-  showStars = true,
-  cloudOpacity = 0.4,
-  cloudSpeed = 0.8,
-  ambientLightColor = '#fff5eb',
-  ambientLightIntensity = 0.5,
-  keyLightColor = '#ffe4c4',
-  keyLightIntensity = 0.8,
-}: EnvironmentProps = {}) {
+  ambientLightColor = '#e6f0ff',
+  ambientLightIntensity = 0.3,
+  keyLightColor = '#fff5e6',
+  keyLightIntensity = 0.5,
+}: Pick<
+  EnvironmentProps,
+  'enabled' | 'ambientLightColor' | 'ambientLightIntensity' | 'keyLightColor' | 'keyLightIntensity'
+> = {}) {
   const { scene } = useThree();
-  const { isMobile, isTablet } = useViewport();
+  const { isMobile } = useViewport();
 
-  // Reduce star count on mobile/tablet for better performance
-  const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
-
-  // Clear any scene background - let BackgroundGradient handle it
+  // Clear any scene background - let GalaxyBackground handle it
   useEffect(() => {
     scene.background = null;
-    // Disable fog - it washes out the gradient
     scene.fog = null;
 
     return () => {
@@ -69,53 +67,91 @@ export function Environment({
 
   return (
     <group>
-      {/* Animated gradient background - renders behind everything */}
-      <BackgroundGradient />
+      {/* Subtle floating dust for atmospheric depth (inside DoF for realism) */}
+      {!isMobile && <AmbientDust count={60} opacity={0.12} size={0.012} enabled={true} />}
 
-      {/* Memoized cloud system - only initializes once, never re-renders from parent changes */}
-      {/* Includes: top/middle/bottom layers, parallax depths, right-to-left looping */}
-      {showClouds && <CloudSystem opacity={cloudOpacity} speed={cloudSpeed} enabled={true} />}
+      {/* Ambient light - brighter cosmic fill for visibility */}
+      <ambientLight intensity={ambientLightIntensity * 1.5} color={ambientLightColor} />
 
-      {/* Subtle atmospheric details - users feel these more than see them */}
-      {/* Floating dust motes with gentle sparkle */}
-      <AmbientDust count={isMobile ? 40 : 80} opacity={0.12} size={0.012} enabled={true} />
-
-      {/* Subtle diagonal light rays from upper right */}
-      <SubtleLightRays opacity={0.03} enabled={!isMobile} />
-
-      {/* Subtle distant stars - very faint for dreamy atmosphere */}
-      {/* Count is responsive: 150 (mobile) / 300 (tablet) / 500 (desktop) */}
-      {showStars && (
-        <Stars
-          radius={100}
-          depth={50}
-          count={starsCount}
-          factor={2}
-          saturation={0}
-          fade
-          speed={0.5}
-        />
-      )}
-
-      {/* Warm ambient light - fills shadows softly */}
-      <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />
-
-      {/* Key light - warm golden from upper right (sunrise/sunset feel) */}
+      {/* Key light - from sun direction (warm cosmic glow) */}
       <directionalLight
-        position={[10, 15, 5]}
-        intensity={keyLightIntensity}
+        position={[80, 20, -60]}
+        intensity={keyLightIntensity * 1.3}
         color={keyLightColor}
         castShadow={false}
       />
 
-      {/* Fill light - cooler tone from left (sky bounce) */}
-      <directionalLight position={[-8, 10, 3]} intensity={0.3} color="#e8f0ff" />
+      {/* Fill light - opposite side (cool cosmic teal) */}
+      <directionalLight position={[-60, 15, 40]} intensity={0.35} color="#99ddff" />
 
-      {/* Rim light - subtle backlight for depth */}
-      <directionalLight position={[0, 5, -10]} intensity={0.2} color="#ffd9c4" />
+      {/* Rim light - nebula purple backlight from below */}
+      <directionalLight position={[0, -30, 0]} intensity={0.25} color="#cc99ff" />
 
-      {/* Subtle hemisphere light for natural sky/ground color blending */}
-      <hemisphereLight args={['#ffe8d6', '#f5e6d3', 0.4]} />
+      {/* Hemisphere light for cosmic atmosphere - brighter for visibility */}
+      <hemisphereLight args={['#2a3a5e', '#151525', 0.4]} />
+    </group>
+  );
+}
+
+/**
+ * EnvironmentOverlay - Sharp overlay elements (background, stars, sun)
+ *
+ * Rendered OUTSIDE the DoF pipeline to maintain sharp focus.
+ * These elements should always be crisp like the UI overlays.
+ *
+ * NOTE: This group should be placed INSIDE MomentumControls so sun rotates with scene.
+ */
+export function EnvironmentOverlay({
+  enabled = true,
+  showConstellations = true,
+  showSun = true,
+  backgroundStarCount = 2000,
+  constellationLineOpacity = 0.4,
+  starBrightness = 1.0,
+  sunGlowIntensity = 1.5,
+}: Pick<
+  EnvironmentProps,
+  | 'enabled'
+  | 'showConstellations'
+  | 'showSun'
+  | 'backgroundStarCount'
+  | 'constellationLineOpacity'
+  | 'starBrightness'
+  | 'sunGlowIntensity'
+> = {}) {
+  const { isMobile, isTablet } = useViewport();
+
+  // Reduce star count on mobile/tablet for better performance
+  const adjustedStarCount = isMobile ? 800 : isTablet ? 1500 : backgroundStarCount;
+
+  if (!enabled) return null;
+
+  return (
+    <group>
+      {/* Galaxy background - always sharp, no DoF */}
+      <GalaxyBackground />
+
+      {/* Constellations with connecting lines - always sharp, no DoF */}
+      {showConstellations && (
+        <Constellations
+          showLines={true}
+          backgroundStarCount={adjustedStarCount}
+          brightness={starBrightness}
+          lineOpacity={constellationLineOpacity}
+          enableTwinkle={true}
+        />
+      )}
+
+      {/* Sun with volumetric glow - always sharp, no DoF, rotates with scene */}
+      {showSun && (
+        <Sun
+          position={[80, 20, -60]}
+          radius={4}
+          color="#fff5e6"
+          glowIntensity={sunGlowIntensity}
+          enablePulse={true}
+        />
+      )}
     </group>
   );
 }
