@@ -31,23 +31,23 @@ interface ConstellationStarsProps {
   enabled?: boolean;
   /** Show constellation connecting lines @default true */
   showLines?: boolean;
-  /** Distance from center (celestial sphere radius) @default 80 */
+  /** Distance from center (celestial sphere radius) @default 25 */
   radius?: number;
-  /** Star base size multiplier @default 0.4 */
+  /** Star base size multiplier @default 2.0 */
   starSize?: number;
-  /** Star color - warm golden to match theme @default '#fff5eb' */
+  /** Star color - warm off-white for contrast @default '#fffaf0' */
   starColor?: string;
-  /** Constellation line color @default '#d4a574' */
+  /** Constellation line color - warm cream @default '#e8d4b8' */
   lineColor?: string;
-  /** Line opacity @default 0.25 */
+  /** Line opacity @default 0.5 */
   lineOpacity?: number;
-  /** Line width @default 1 */
+  /** Line width @default 1.5 */
   lineWidth?: number;
   /** Enable star twinkling @default true */
   twinkle?: boolean;
   /** Twinkle speed multiplier @default 1 */
   twinkleSpeed?: number;
-  /** Overall opacity @default 0.8 */
+  /** Overall opacity @default 0.9 */
   opacity?: number;
 }
 
@@ -74,15 +74,15 @@ interface LineSeg {
 export const ConstellationStars = memo(function ConstellationStars({
   enabled = true,
   showLines = true,
-  radius = 80,
-  starSize = 0.4,
-  starColor = '#fff5eb',
-  lineColor = '#d4a574',
-  lineOpacity = 0.25,
-  lineWidth = 1,
+  radius = 25,
+  starSize = 2.0,
+  starColor = '#fffaf0',
+  lineColor = '#e8d4b8',
+  lineOpacity = 0.5,
+  lineWidth = 1.5,
   twinkle = true,
   twinkleSpeed = 1,
-  opacity = 0.8,
+  opacity = 0.9,
 }: ConstellationStarsProps) {
   const groupRef = useRef<THREE.Group>(null);
   const starsRef = useRef<THREE.Points>(null);
@@ -190,7 +190,9 @@ export const ConstellationStars = memo(function ConstellationStars({
           vSize = size;
 
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (300.0 / -mvPosition.z);
+          // Scale point size for closer viewing distance
+          gl_PointSize = size * (150.0 / -mvPosition.z);
+          gl_PointSize = max(gl_PointSize, 3.0); // Minimum 3px for visibility
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -263,8 +265,8 @@ export const ConstellationStars = memo(function ConstellationStars({
 
   return (
     <group ref={groupRef}>
-      {/* Star points */}
-      <points ref={starsRef} geometry={geometry} material={material} />
+      {/* Star points - frustumCulled={false} ensures visibility at all angles */}
+      <points ref={starsRef} geometry={geometry} material={material} frustumCulled={false} />
 
       {/* Constellation lines */}
       {showLines &&

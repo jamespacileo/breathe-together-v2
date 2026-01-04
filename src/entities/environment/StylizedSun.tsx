@@ -24,21 +24,21 @@ import { breathPhase } from '../breath/traits';
 interface StylizedSunProps {
   /** Enable sun rendering @default true */
   enabled?: boolean;
-  /** Distance from center @default 90 */
+  /** Distance from center @default 28 */
   radius?: number;
-  /** Sun disc size @default 8 */
+  /** Sun disc size @default 12 */
   size?: number;
-  /** Core color - warm golden @default '#fff8e7' */
+  /** Core color - warm golden @default '#fffcf0' */
   coreColor?: string;
-  /** Corona color - warm orange @default '#ffcc80' */
+  /** Corona color - warm peach @default '#ffd9a8' */
   coronaColor?: string;
-  /** Outer glow color @default '#ff9966' */
+  /** Outer glow color - soft orange @default '#ffb080' */
   glowColor?: string;
   /** Enable breathing sync @default true */
   breathSync?: boolean;
-  /** Ray count @default 12 */
+  /** Ray count @default 16 */
   rayCount?: number;
-  /** Overall intensity @default 1 */
+  /** Overall intensity @default 1.2 */
   intensity?: number;
 }
 
@@ -178,7 +178,7 @@ function SunRays({
             <meshBasicMaterial
               color={rayColor}
               transparent
-              opacity={0.15}
+              opacity={0.35}
               blending={THREE.AdditiveBlending}
               depthWrite={false}
             />
@@ -191,14 +191,14 @@ function SunRays({
 
 export const StylizedSun = memo(function StylizedSun({
   enabled = true,
-  radius = 90,
-  size = 8,
-  coreColor = '#fff8e7',
-  coronaColor = '#ffcc80',
-  glowColor = '#ff9966',
+  radius = 28,
+  size = 12,
+  coreColor = '#fffcf0',
+  coronaColor = '#ffd9a8',
+  glowColor = '#ffb080',
   breathSync = true,
-  rayCount = 12,
-  intensity = 1,
+  rayCount = 16,
+  intensity = 1.2,
 }: StylizedSunProps) {
   const groupRef = useRef<THREE.Group>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -294,7 +294,7 @@ export const StylizedSun = memo(function StylizedSun({
         <meshBasicMaterial
           color={glowColor}
           transparent
-          opacity={0.08}
+          opacity={0.18}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
@@ -306,7 +306,7 @@ export const StylizedSun = memo(function StylizedSun({
         <meshBasicMaterial
           color="#fff5eb"
           transparent
-          opacity={0.03}
+          opacity={0.08}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
