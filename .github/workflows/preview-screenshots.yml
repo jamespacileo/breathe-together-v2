@@ -21,6 +21,11 @@ on:
         required: true
         type: number
 
+# Only run one screenshot job per PR at a time
+concurrency:
+  group: screenshots-${{ github.event.workflow_run.pull_requests[0].number || github.event.inputs.pr_number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   screenshots:
     runs-on: ubuntu-latest

@@ -7,6 +7,11 @@ on:
   pull_request:
     types: [closed]
 
+# Prevent concurrent cleanup for same PR
+concurrency:
+  group: screenshots-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest

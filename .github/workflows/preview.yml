@@ -3,16 +3,25 @@ name: Preview Deployment
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'LICENSE'
+
+# Cancel in-progress runs when a new commit is pushed to the PR
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
-  # CI/CD validation checks (runs in parallel with preview)
+  # Fast validation: biome + typecheck in parallel, then build
   validate:
     runs-on: ubuntu-latest
-    name: Code Validation
+    name: Validate & Build
     steps:
       - uses: actions/checkout@v4
         with:
-          # Explicitly checkout the PR head commit (not merge commit) for consistent validation
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
@@ -24,17 +33,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Biome checks
-        run: npm run check:ci
+      # Run biome and typecheck in parallel
+      - name: Run validation checks (parallel)
+        run: |
+          npm run check:ci &
+          BIOME_PID=$!
+          npm run typecheck &
+          TYPECHECK_PID=$!
+
+          wait $BIOME_PID || exit 1
+          wait $TYPECHECK_PID || exit 1
+          echo "✅ All validation checks passed"
 
       - name: Build
         run: npm run build
 
-      - name: Type check
-        run: npm run typecheck
+      - name: Job summary
+        run: |
+          echo "## ✅ Validation Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Biome | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeCheck | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ✅ |" >> $GITHUB_STEP_SUMMARY
 
-  # Deploy worker preview first
+  # Deploy worker and frontend in parallel (both depend on validate)
   deploy-worker-preview:
+    needs: validate
     runs-on: ubuntu-latest
     name: Deploy Worker Preview
     steps:
@@ -63,21 +89,18 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
           wranglerVersion: "4.54.0"
-          # Explicit --config to avoid picking up root wrangler.json (which has assets.directory for frontend)
           command: deploy --config wrangler.toml --name breathe-together-presence-pr-${{ github.event.pull_request.number }}
 
-  # Preview deployment (depends on worker preview)
   deploy-preview:
-    needs: deploy-worker-preview
+    needs: validate
     runs-on: ubuntu-latest
-    name: Deploy Preview
+    name: Deploy Frontend Preview
     permissions:
       contents: read
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
-          # Explicitly checkout the PR head commit (not merge commit) to ensure latest code
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
@@ -99,7 +122,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Use stable wrangler version (4.55.0/4.56.0 have opennextjs-cloudflare delegation bug)
           wranglerVersion: "4.54.0"
           command: deploy --name breathe-together-v2-pr-${{ github.event.pull_request.number }}
 
@@ -177,8 +199,20 @@ jobs:
               });
             }
 
-      - name: Notify Slack - Preview Deployed
-        if: success()
+  # Single success notification (combines validation + deployment)
+  notify-success:
+    needs: [validate, deploy-worker-preview, deploy-preview]
+    if: success()
+    runs-on: ubuntu-latest
+    name: Notify Success
+    steps:
+      - name: Job summary
+        run: |
+          echo "## 🚀 Preview Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Preview URL:** https://breathe-together-v2-pr-${{ github.event.pull_request.number }}.palladio-registry.workers.dev" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -190,7 +224,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "🚀 Preview Deployed",
+                    "text": "🚀 Preview Ready",
                     "emoji": true
                   }
                 },
@@ -212,11 +246,11 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Branch:*\n`${{ github.head_ref }}`"
+                      "text": "*Checks:*\nBiome ✓ TypeCheck ✓ Build ✓"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Commit:*\n`${{ github.event.pull_request.head.sha }}`"
+                      "text": "*Branch:*\n`${{ github.head_ref }}`"
                     }
                   ]
                 },
@@ -241,15 +275,6 @@ jobs:
                         "emoji": true
                       },
                       "url": "${{ github.event.pull_request.html_url }}"
-                    },
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "⚙️ Workflow Run",
-                        "emoji": true
-                      },
-                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                     }
                   ]
                 },
@@ -265,79 +290,21 @@ jobs:
               ]
             }
 
-  # Notify when validation checks pass
-  notify-validation-success:
-    needs: validate
-    if: success()
-    runs-on: ubuntu-latest
-    name: Notify Validation Success
-    steps:
-      - name: Notify Slack - Validation Passed
-        uses: slackapi/slack-github-action@v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "✅ Code Validation Passed",
-                    "emoji": true
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*PR:*\n<${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}>"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
-                    }
-                  ]
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Branch:*\n`${{ github.head_ref }}`"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Checks:*\nBiome ✓ • TypeCheck ✓ • Build ✓"
-                    }
-                  ]
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "All validation checks passed • ${{ github.repository }}"
-                    }
-                  ]
-                }
-              ]
-            }
-
-  # Notify on failures (validation or deployment)
+  # Notify on any failure
   notify-failure:
     needs: [validate, deploy-worker-preview, deploy-preview]
-    if: always() && (needs.validate.result == 'failure' || needs.deploy-worker-preview.result == 'failure' || needs.deploy-preview.result == 'failure')
+    if: failure()
     runs-on: ubuntu-latest
-    name: Notify Failures
+    name: Notify Failure
     steps:
-      - name: Notify Slack - Failure
+      - name: Job summary
+        run: |
+          echo "## ❌ Preview Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack
         uses: slackapi/slack-github-action@v2.0.0
-        env:
-          VALIDATION_FAILED: ${{ needs.validate.result == 'failure' }}
-          DEPLOYMENT_FAILED: ${{ needs.deploy-preview.result == 'failure' }}
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
@@ -348,7 +315,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "❌ ${{ needs.validate.result == 'failure' && needs.deploy-preview.result == 'failure' && 'Validation & Deployment Failed' || needs.validate.result == 'failure' && 'Code Validation Failed' || 'Preview Deployment Failed' }}",
+                    "text": "❌ Preview Failed",
                     "emoji": true
                   }
                 },
@@ -370,24 +337,11 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Branch:*\n`${{ github.head_ref }}`"
+                      "text": "*Validation:*\n${{ needs.validate.result == 'success' && '✅' || needs.validate.result == 'failure' && '❌' || '⏭️' }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Commit:*\n`${{ github.event.pull_request.head.sha }}`"
-                    }
-                  ]
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Validation:*\n${{ needs.validate.result == 'success' && '✅ Passed' || needs.validate.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }}"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Deployment:*\n${{ needs.deploy-preview.result == 'success' && '✅ Deployed' || needs.deploy-preview.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }}"
+                      "text": "*Deployment:*\n${{ needs.deploy-preview.result == 'success' && '✅' || needs.deploy-preview.result == 'failure' && '❌' || '⏭️' }}"
                     }
                   ]
                 },
@@ -403,15 +357,6 @@ jobs:
                       },
                       "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
                       "style": "danger"
-                    },
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "📋 View PR",
-                        "emoji": true
-                      },
-                      "url": "${{ github.event.pull_request.html_url }}"
                     }
                   ]
                 },
@@ -420,7 +365,7 @@ jobs:
                   "elements": [
                     {
                       "type": "mrkdwn",
-                      "text": "⚠️ Check the workflow logs for details • ${{ github.repository }}"
+                      "text": "Check workflow logs for details • ${{ github.repository }}"
                     }
                   ]
                 }
