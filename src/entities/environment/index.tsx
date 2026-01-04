@@ -7,6 +7,7 @@ import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
 import { EditorGrid } from './EditorGrid';
+import { EtherealGround } from './EtherealGround';
 import { SubtleLightRays } from './SubtleLightRays';
 
 interface EnvironmentProps {
@@ -37,6 +38,90 @@ interface EnvironmentProps {
   gridDivisions?: number;
   /** Grid line color @default '#666666' */
   gridColor?: string;
+
+  // === Ethereal Ground System (depth perception) ===
+  /**
+   * Enable ethereal ground system for depth perception.
+   * Adds subtle ground plane, mist, and shadows without losing ethereal aesthetic.
+   * @default true
+   */
+  showEtherealGround?: boolean;
+  /**
+   * Y position of the ground plane.
+   * Lower values push ground further down for more open feel.
+   * @default -3.5
+   */
+  groundY?: number;
+  /**
+   * Ground plane radius in world units.
+   * Larger values create more expansive sense of space.
+   * @default 25
+   */
+  groundRadius?: number;
+  /**
+   * Ground plane opacity (very subtle).
+   * Keep low (0.02-0.08) for ethereal feel.
+   * @min 0 @max 0.2 @step 0.01
+   * @default 0.04
+   */
+  groundOpacity?: number;
+  /**
+   * Ground plane color - should complement background gradient.
+   * @default '#e8e4e0'
+   */
+  groundColor?: string;
+  /**
+   * Enable breath-synchronized mist rising from ground.
+   * Mist is denser on exhale, rises gently.
+   * @default true
+   */
+  showMist?: boolean;
+  /**
+   * Number of mist particles.
+   * More particles = denser atmosphere.
+   * @min 20 @max 150 @step 10
+   * @default 60
+   */
+  mistCount?: number;
+  /**
+   * Mist particle opacity.
+   * Keep subtle (0.05-0.2) to avoid overwhelming scene.
+   * @min 0 @max 0.3 @step 0.02
+   * @default 0.12
+   */
+  mistOpacity?: number;
+  /**
+   * Enable soft contact shadow beneath particle swarm.
+   * Creates spatial grounding without hard edges.
+   * @default true
+   */
+  showGroundShadow?: boolean;
+  /**
+   * Contact shadow radius.
+   * Should roughly match particle swarm spread.
+   * @min 2 @max 10 @step 0.5
+   * @default 4
+   */
+  shadowRadius?: number;
+  /**
+   * Contact shadow opacity.
+   * Keep subtle (0.05-0.15) for soft look.
+   * @min 0 @max 0.2 @step 0.01
+   * @default 0.08
+   */
+  shadowOpacity?: number;
+  /**
+   * Show subtle grid pattern on ground.
+   * Only visible at certain angles for spatial reference.
+   * @default false
+   */
+  showGroundGrid?: boolean;
+  /**
+   * Grid pattern opacity (very faint).
+   * @min 0 @max 0.1 @step 0.005
+   * @default 0.02
+   */
+  groundGridOpacity?: number;
 }
 
 /**
@@ -64,6 +149,20 @@ export function Environment({
   gridSize = 20,
   gridDivisions = 20,
   gridColor = '#666666',
+  // Ethereal ground props
+  showEtherealGround = true,
+  groundY = -3.5,
+  groundRadius = 25,
+  groundOpacity = 0.04,
+  groundColor = '#e8e4e0',
+  showMist = true,
+  mistCount = 60,
+  mistOpacity = 0.12,
+  showGroundShadow = true,
+  shadowRadius = 4,
+  shadowOpacity = 0.08,
+  showGroundGrid = false,
+  groundGridOpacity = 0.02,
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
@@ -144,6 +243,26 @@ export function Environment({
 
       {/* Subtle diagonal light rays from upper right */}
       <SubtleLightRays opacity={0.03} enabled={!isMobile} />
+
+      {/* Ethereal ground system for depth perception */}
+      {/* Combines: subtle ground plane + breath-synced mist + contact shadow */}
+      {showEtherealGround && (
+        <EtherealGround
+          enabled={true}
+          groundY={groundY}
+          groundRadius={groundRadius}
+          groundOpacity={groundOpacity}
+          groundColor={groundColor}
+          showMist={showMist}
+          mistCount={isMobile ? Math.floor(mistCount * 0.5) : mistCount}
+          mistOpacity={mistOpacity}
+          showShadow={showGroundShadow}
+          shadowRadius={shadowRadius}
+          shadowOpacity={shadowOpacity}
+          showGrid={showGroundGrid}
+          gridOpacity={groundGridOpacity}
+        />
+      )}
 
       {/* Subtle distant stars - very faint for dreamy atmosphere */}
       {/* Count is responsive: 150 (mobile) / 300 (tablet) / 500 (desktop) */}
