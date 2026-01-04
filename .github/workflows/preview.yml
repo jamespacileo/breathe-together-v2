@@ -324,8 +324,8 @@ jobs:
       - name: Upload screenshots to R2
         if: steps.capture.outputs.has_screenshots == 'true'
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCREENSHOTS_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_REGION: auto
           R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
         run: |
