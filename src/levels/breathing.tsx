@@ -12,7 +12,7 @@ import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
-import { Environment } from '../entities/environment';
+import { Environment, ParallaxBackground } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -77,6 +77,17 @@ export function BreathingLevel({
         {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
         <AudioDevControls />
 
+        {/* === DEPTH ZONE 0: Parallax background (OUTSIDE MomentumControls) === */}
+        {/* These clouds DON'T rotate with the scene, creating parallax depth */}
+        {/* When user rotates globe, these stay mostly fixed → depth perception */}
+        {showEnvironment && !devControls.stageMode && devControls.showParallaxClouds && (
+          <ParallaxBackground
+            opacity={devControls.parallaxOpacity}
+            parallaxIntensity={devControls.parallaxIntensity}
+            enabled={true}
+          />
+        )}
+
         {/* MomentumControls wraps everything - iOS-style momentum scrolling for 3D rotation */}
         <MomentumControls
           cursor={true}
@@ -114,6 +125,12 @@ export function BreathingLevel({
                 gridSize={devControls.gridSize}
                 gridDivisions={devControls.gridDivisions}
                 gridColor={devControls.gridColor}
+                // Depth enhancement props
+                showGroundGlow={devControls.showGroundGlow}
+                groundGlowOpacity={devControls.groundGlowOpacity}
+                groundGlowColor={devControls.groundGlowColor}
+                showHazeLayers={devControls.showHazeLayers}
+                hazeOpacity={devControls.hazeOpacity}
               />
             )}
 
