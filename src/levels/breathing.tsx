@@ -15,6 +15,7 @@ import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles'
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useDevControls } from '../hooks/useDevControls';
+import { useInspirationInit } from '../hooks/useInspirationInit';
 import { usePresence } from '../hooks/usePresence';
 import { useBreathingLevelStore } from '../stores/breathingLevelStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
@@ -35,6 +36,9 @@ export function BreathingLevel({
   showParticles = true,
   showEnvironment = true,
 }: Partial<BreathingLevelProps> = {}) {
+  // Initialize inspirational text system (sets up ambient pool + welcome sequence)
+  useInspirationInit();
+
   // Shared state from Zustand store
   const { orbitRadius, shardSize, atmosphereDensity } = useBreathingLevelStore();
 
@@ -109,7 +113,16 @@ export function BreathingLevel({
             {showGlobe && <EarthGlobe />}
 
             {/* Globe Ribbon Text - curved text wrapping around globe */}
-            {showGlobe && <GlobeRibbonText />}
+            {/* Inspirational mode rotates through messages synchronized with breathing */}
+            {/* Scroll animation adds continuous movement for visual interest */}
+            {showGlobe && (
+              <GlobeRibbonText
+                inspirationalMode={true}
+                scrollEnabled={true}
+                scrollSpeed={0.0005}
+                messageFormat="symbols"
+              />
+            )}
 
             {showParticles && (
               <ParticleSwarm
