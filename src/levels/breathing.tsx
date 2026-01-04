@@ -150,20 +150,21 @@ export function BreathingLevel({
             {showGlobe && Object.keys(countryCounts).length > 0 && (
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
-
-            {/* Holographic Breathing UI - 3D UI elements around the globe */}
-            {showHolographicUI && (
-              <HolographicBreathingUI
-                globeRadius={1.5}
-                presenceCount={presenceCount}
-                showProgressRing={showHoloProgressRing}
-                showPhaseLabels={showHoloPhaseLabels}
-                showTimer={showHoloTimer}
-                showPhaseMarkers={showHoloPhaseMarkers}
-                showPresence={showHoloPresence}
-              />
-            )}
           </RefractionPipeline>
+
+          {/* Holographic Breathing UI - 3D UI elements around the globe */}
+          {/* Rendered OUTSIDE RefractionPipeline for crisp text and to avoid distortion */}
+          {showHolographicUI && (
+            <HolographicBreathingUI
+              globeRadius={1.5}
+              presenceCount={presenceCount}
+              showProgressRing={showHoloProgressRing}
+              showPhaseLabels={showHoloPhaseLabels}
+              showTimer={showHoloTimer}
+              showPhaseMarkers={showHoloPhaseMarkers}
+              showPresence={showHoloPresence}
+            />
+          )}
 
           {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
           {DEV_MODE_ENABLED && (

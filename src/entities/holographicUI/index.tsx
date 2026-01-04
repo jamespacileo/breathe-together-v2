@@ -80,8 +80,17 @@ export function HolographicBreathingUI({
   testSeconds,
   useTestValues = false,
 }: HolographicBreathingUIProps) {
+  // Debug log to verify component mounting
+  console.log('[HolographicBreathingUI] Mounted with globeRadius:', globeRadius);
+
   return (
     <group name="holographic-breathing-ui">
+      {/* Debug sphere to verify rendering */}
+      <mesh position={[0, globeRadius + 1, 0]}>
+        <sphereGeometry args={[0.1, 16, 16]} />
+        <meshBasicMaterial color="red" />
+      </mesh>
+
       {/* Progress ring around equator */}
       {showProgressRing && (
         <BreathingProgressRing

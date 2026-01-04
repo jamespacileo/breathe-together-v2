@@ -236,13 +236,22 @@ export function BreathingProgressRing({
   });
 
   return (
-    <mesh
-      ref={ringRef}
-      geometry={geometry}
-      rotation={[Math.PI / 2, 0, 0]}
-      position={[0, heightOffset, 0]}
-    >
-      <primitive object={material} ref={materialRef} attach="material" />
-    </mesh>
+    <group>
+      {/* Debug: Simple visible torus */}
+      <mesh position={[0, heightOffset, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[globeRadius + thickness, tubeRadius * 3, 16, 64]} />
+        <meshBasicMaterial color="#c9a06c" transparent opacity={0.8} />
+      </mesh>
+
+      {/* Original shader-based ring (may have issues) */}
+      <mesh
+        ref={ringRef}
+        geometry={geometry}
+        rotation={[Math.PI / 2, 0, 0]}
+        position={[0, heightOffset, 0]}
+      >
+        <primitive object={material} ref={materialRef} attach="material" />
+      </mesh>
+    </group>
   );
 }
