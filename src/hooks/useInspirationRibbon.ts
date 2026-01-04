@@ -2,12 +2,13 @@
  * useInspirationRibbon - Hook for animating inspirational text on the globe ribbon
  *
  * Connects to the inspirational text store and provides:
- * - Formatted message text for ribbon display
+ * - Formatted message text for ribbon display (top and bottom lines)
  * - Breath-synchronized opacity for smooth transitions
  * - Message change detection for crossfade animations
  *
- * Message format transforms:
- * { top: "We Breathe", bottom: "Together" } → "✦ We Breathe Together ✦"
+ * Supports both combined and dual-line formats:
+ * Combined: { top: "We Breathe", bottom: "Together" } → "✦ We Breathe Together ✦"
+ * Dual: Returns { topText: "✦ We Breathe ✦", bottomText: "✦ Together ✦" }
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,7 +31,7 @@ const FORMAT_SYMBOLS: Record<RibbonMessageFormat, { separator: string; wrapper: 
 };
 
 /**
- * Format an inspirational message for ribbon display
+ * Format an inspirational message for ribbon display (combined)
  */
 export function formatMessageForRibbon(
   message: InspirationalMessage | null,
@@ -47,6 +48,28 @@ export function formatMessageForRibbon(
     return `${wrapper} ${text} ${wrapper}`;
   }
   return text;
+}
+
+/**
+ * Format message parts separately for dual-ribbon display
+ */
+export function formatMessageParts(
+  message: InspirationalMessage | null,
+  format: RibbonMessageFormat = 'symbols',
+): { topText: string; bottomText: string } {
+  const { wrapper } = FORMAT_SYMBOLS[format];
+
+  if (!message) {
+    return {
+      topText: wrapper ? `${wrapper} BREATHE ${wrapper}` : 'BREATHE',
+      bottomText: wrapper ? `${wrapper} TOGETHER ${wrapper}` : 'TOGETHER',
+    };
+  }
+
+  return {
+    topText: wrapper ? `${wrapper} ${message.top} ${wrapper}` : message.top,
+    bottomText: wrapper ? `${wrapper} ${message.bottom} ${wrapper}` : message.bottom,
+  };
 }
 
 /**
@@ -85,8 +108,12 @@ export interface UseInspirationRibbonOptions {
 }
 
 export interface UseInspirationRibbonResult {
-  /** Current formatted text for ribbon display */
+  /** Current formatted text for ribbon display (combined top + bottom) */
   text: string;
+  /** Top line text for dual-ribbon display */
+  topText: string;
+  /** Bottom line text for dual-ribbon display */
+  bottomText: string;
   /** Current opacity (0-1) based on breathing phase */
   opacity: number;
   /** Whether a message transition is in progress */
@@ -140,8 +167,11 @@ export function useInspirationRibbon(
   const prevPhaseRef = useRef(-1);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Format current text
+  // Format current text (combined and separate parts)
   const text = enabled ? formatMessageForRibbon(currentMessage, format) : fallbackText;
+  const { topText, bottomText } = enabled
+    ? formatMessageParts(currentMessage, format)
+    : { topText: '✦ BREATHE ✦', bottomText: '✦ TOGETHER ✦' };
 
   // Animation loop
   const updateAnimation = useCallback(() => {
@@ -210,6 +240,8 @@ export function useInspirationRibbon(
 
   return {
     text,
+    topText,
+    bottomText,
     opacity,
     isTransitioning,
     phaseIndex: phaseInfo.phaseIndex,

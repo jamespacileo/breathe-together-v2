@@ -9,7 +9,7 @@ import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
-import { GlobeRibbonText } from '../entities/earthGlobe/GlobeRibbonText';
+import { InspirationalGlobeRibbon } from '../entities/earthGlobe/GlobeRibbonText';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
@@ -112,17 +112,10 @@ export function BreathingLevel({
 
             {showGlobe && <EarthGlobe />}
 
-            {/* Globe Ribbon Text - curved text wrapping around globe */}
-            {/* Inspirational mode rotates through messages synchronized with breathing */}
-            {/* Scroll animation adds continuous movement for visual interest */}
-            {showGlobe && (
-              <GlobeRibbonText
-                inspirationalMode={true}
-                scrollEnabled={true}
-                scrollSpeed={0.0005}
-                messageFormat="symbols"
-              />
-            )}
+            {/* Inspirational Globe Ribbon - dual-ribbon design with elegant animations */}
+            {/* Upper ribbon: message top line, Lower ribbon: message bottom line */}
+            {/* Counter-rotating ribbons with parallax scroll for visual depth */}
+            {showGlobe && <InspirationalGlobeRibbon />}
 
             {showParticles && (
               <ParticleSwarm
