@@ -116,6 +116,8 @@ export function BreathingLevel({
                 constellationLineOpacity={devControls.constellationLineOpacity}
                 sunSize={devControls.sunSize}
                 sunIntensity={devControls.sunIntensity}
+                showSunGizmo={devControls.showSunGizmo}
+                showConstellationGizmos={devControls.showConstellationGizmos}
               />
             )}
 

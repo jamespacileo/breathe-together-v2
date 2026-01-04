@@ -40,6 +40,8 @@ interface StylizedSunProps {
   rayCount?: number;
   /** Overall intensity @default 1.2 */
   intensity?: number;
+  /** Show debug gizmo @default false */
+  showGizmo?: boolean;
 }
 
 /**
@@ -199,6 +201,7 @@ export const StylizedSun = memo(function StylizedSun({
   breathSync = true,
   rayCount = 16,
   intensity = 1.2,
+  showGizmo = false,
 }: StylizedSunProps) {
   const groupRef = useRef<THREE.Group>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -311,6 +314,26 @@ export const StylizedSun = memo(function StylizedSun({
           depthWrite={false}
         />
       </mesh>
+
+      {/* Debug gizmo - wireframe sphere and axes */}
+      {showGizmo && (
+        <>
+          {/* Wireframe sphere showing sun bounds */}
+          <mesh>
+            <sphereGeometry args={[size, 16, 16]} />
+            <meshBasicMaterial color="#ff6600" wireframe transparent opacity={0.6} />
+          </mesh>
+
+          {/* Axes helper for orientation */}
+          <axesHelper args={[size * 1.5]} />
+
+          {/* Distance indicator ring */}
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[size * 0.9, size * 1.1, 32]} />
+            <meshBasicMaterial color="#ff6600" transparent opacity={0.3} side={THREE.DoubleSide} />
+          </mesh>
+        </>
+      )}
     </group>
   );
 });

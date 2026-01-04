@@ -59,6 +59,10 @@ export const TUNING_DEFAULTS = {
   sunSize: 8,
   sunIntensity: 1,
 
+  // Celestial Gizmos (dev-only)
+  showSunGizmo: false,
+  showConstellationGizmos: false,
+
   // Colors - Background
   bgColorTop: '#f5f0e8',
   bgColorHorizon: '#fcf0e0',
@@ -171,6 +175,10 @@ export interface DevControlsState {
   sunSize: number;
   sunIntensity: number;
 
+  // Celestial Gizmos
+  showSunGizmo: boolean;
+  showConstellationGizmos: boolean;
+
   // Colors - Background
   bgColorTop: string;
   bgColorHorizon: string;
@@ -248,6 +256,8 @@ function getDefaultDevControls(): DevControlsState {
     constellationLineOpacity: TUNING_DEFAULTS.constellationLineOpacity,
     sunSize: TUNING_DEFAULTS.sunSize,
     sunIntensity: TUNING_DEFAULTS.sunIntensity,
+    showSunGizmo: TUNING_DEFAULTS.showSunGizmo,
+    showConstellationGizmos: TUNING_DEFAULTS.showConstellationGizmos,
     bgColorTop: TUNING_DEFAULTS.bgColorTop,
     bgColorHorizon: TUNING_DEFAULTS.bgColorHorizon,
     ambientLightColor: TUNING_DEFAULTS.ambientLightColor,
@@ -624,6 +634,16 @@ export function useDevControls(): DevControlsState {
               step: 0.1,
               label: 'Sun Intensity',
               hint: 'Overall brightness/opacity of the sun. Higher values create more prominent glow.',
+            },
+            showSunGizmo: {
+              value: TUNING_DEFAULTS.showSunGizmo,
+              label: '🔧 Sun Gizmo',
+              hint: 'Show debug gizmo for sun position and size. Displays wireframe sphere, axes helper, and position label.',
+            },
+            showConstellationGizmos: {
+              value: TUNING_DEFAULTS.showConstellationGizmos,
+              label: '🔧 Star Gizmos',
+              hint: 'Show debug gizmos for constellation stars. Displays celestial sphere wireframe and star position markers.',
             },
           },
           { collapsed: false },

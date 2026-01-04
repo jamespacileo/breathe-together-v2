@@ -41,6 +41,10 @@ interface EnvironmentProps {
   sunSize?: number;
   /** Sun intensity @default 1 */
   sunIntensity?: number;
+  /** Show sun debug gizmo @default false */
+  showSunGizmo?: boolean;
+  /** Show constellation debug gizmos @default false */
+  showConstellationGizmos?: boolean;
 }
 
 /**
@@ -70,6 +74,8 @@ export function Environment({
   constellationLineOpacity = 0.25,
   sunSize = 8,
   sunIntensity = 1,
+  showSunGizmo = false,
+  showConstellationGizmos = false,
 }: EnvironmentProps = {}) {
   const { scene } = useThree();
   const { isMobile, isTablet } = useViewport();
@@ -128,12 +134,13 @@ export function Environment({
           starSize={constellationStarSize}
           lineOpacity={constellationLineOpacity}
           opacity={isMobile ? 0.6 : 0.8}
+          showGizmo={showConstellationGizmos}
         />
       )}
 
       {/* Stylized sun - positioned based on real astronomical calculations */}
       {/* Warm gradient with rays, breathing-synchronized pulsing */}
-      {showSun && <StylizedSun size={sunSize} intensity={sunIntensity} />}
+      {showSun && <StylizedSun size={sunSize} intensity={sunIntensity} showGizmo={showSunGizmo} />}
 
       {/* Warm ambient light - fills shadows softly */}
       <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />

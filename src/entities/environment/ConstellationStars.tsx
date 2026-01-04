@@ -49,6 +49,8 @@ interface ConstellationStarsProps {
   twinkleSpeed?: number;
   /** Overall opacity @default 0.9 */
   opacity?: number;
+  /** Show debug gizmo @default false */
+  showGizmo?: boolean;
 }
 
 /**
@@ -83,6 +85,7 @@ export const ConstellationStars = memo(function ConstellationStars({
   twinkle = true,
   twinkleSpeed = 1,
   opacity = 0.9,
+  showGizmo = false,
 }: ConstellationStarsProps) {
   const groupRef = useRef<THREE.Group>(null);
   const starsRef = useRef<THREE.Points>(null);
@@ -284,6 +287,38 @@ export const ConstellationStars = memo(function ConstellationStars({
             gapSize={1}
           />
         ))}
+
+      {/* Debug gizmos - celestial sphere wireframe and axes */}
+      {showGizmo && (
+        <>
+          {/* Wireframe sphere showing celestial sphere bounds */}
+          <mesh>
+            <sphereGeometry args={[radius, 24, 24]} />
+            <meshBasicMaterial color="#00ff88" wireframe transparent opacity={0.3} />
+          </mesh>
+
+          {/* Equatorial plane ring */}
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[radius - 0.1, radius + 0.1, 64]} />
+            <meshBasicMaterial color="#00ff88" transparent opacity={0.5} side={THREE.DoubleSide} />
+          </mesh>
+
+          {/* Celestial poles axis (Y-axis = north celestial pole) */}
+          <axesHelper args={[radius * 1.2]} />
+
+          {/* North celestial pole marker */}
+          <mesh position={[0, radius, 0]}>
+            <sphereGeometry args={[0.5, 8, 8]} />
+            <meshBasicMaterial color="#00ffff" />
+          </mesh>
+
+          {/* South celestial pole marker */}
+          <mesh position={[0, -radius, 0]}>
+            <sphereGeometry args={[0.5, 8, 8]} />
+            <meshBasicMaterial color="#ff00ff" />
+          </mesh>
+        </>
+      )}
     </group>
   );
 });
