@@ -23,6 +23,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
+import { RENDER_LAYERS } from '../../constants';
 import {
   CONSTELLATIONS,
   generateBackgroundStars,
@@ -195,6 +196,19 @@ export function Constellations({
         baseIntensity + variation;
     }
   });
+
+  // Set layer to OVERLAY for sharp rendering after DoF
+  useEffect(() => {
+    if (constellationStarsRef.current) {
+      constellationStarsRef.current.layers.set(RENDER_LAYERS.OVERLAY);
+    }
+    if (backgroundStarsRef.current) {
+      backgroundStarsRef.current.layers.set(RENDER_LAYERS.OVERLAY);
+    }
+    if (linesRef.current) {
+      linesRef.current.layers.set(RENDER_LAYERS.OVERLAY);
+    }
+  }, []);
 
   // Cleanup
   useEffect(() => {

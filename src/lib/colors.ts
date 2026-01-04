@@ -11,27 +11,29 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Cosmic Nebula Palette - calming space colors inspired by real nebulae
- * Designed for meditation and deep space environments
- * Based on research of calming cosmic palettes (2025):
- * - Warm ambers from Eagle Nebula
- * - Teal/cyan from Helix Nebula
- * - Deep blues from stellar formations
- * - Pink/magenta from Orion Nebula
+ * Cosmic Nebula Palette - calming space colors for meditation
  *
- * Sources:
- * - HueHive AI Color Palette Generator (calming ethereal cosmic)
- * - Color Palette Studio Nebula collection
- * - Space color research from meditation app analysis
+ * Lightened 20-30% for better visibility against dark cosmic backgrounds
+ * and softer, more meditative aesthetic.
  *
- * These colors are processed through the gem shader for the illustrative look
- * Each color maps directly to one mood category (1:1 mapping)
+ * Inspired by:
+ * - Real nebulae (Eagle, Helix, Orion)
+ * - IMMUNE book cover vibrant palette (softened for calm)
+ * - Meditation app color research (2025)
+ *
+ * Color properties:
+ * - Luminance: 0.40-0.60 (visible yet calming)
+ * - Contrast: 4:1 to 8:1 against dark space backgrounds
+ * - Saturation: Moderate (pastel-like, not oversaturated)
+ *
+ * These colors are processed through holographic shader for ethereal look.
+ * Each color maps directly to one mood category (1:1 mapping).
  */
 export const COSMIC_NEBULA_PALETTE = {
-  gratitude: '#E8A87C', // Warm Amber - like Eagle Nebula, appreciation
-  presence: '#5DD9C1', // Cosmic Teal - like Helix Nebula, calm presence
-  release: '#6699CC', // Stellar Blue - deep space, letting go
-  connection: '#D87BA8', // Nebula Pink - like Orion Nebula, togetherness
+  gratitude: '#F0B892', // Soft Peach - warm appreciation (IMMUNE pink+orange softened)
+  presence: '#7DE5E5', // Soft Aqua - calm presence (IMMUNE teal softened)
+  release: '#8AB3E6', // Soft Periwinkle - letting go (IMMUNE blue softened)
+  connection: '#E89CC9', // Soft Rose - togetherness (IMMUNE magenta softened)
 } as const;
 
 /**

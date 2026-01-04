@@ -12,6 +12,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { AdditiveBlending, BackSide, Color, SphereGeometry, Vector3 } from 'three';
+import { RENDER_LAYERS } from '../../constants';
 
 interface SunProps {
   /** Sun position in 3D space @default [80, 20, -60] */
@@ -61,6 +62,19 @@ export function Sun({
       atmosphereRef.current.scale.setScalar(pulse * 0.95);
     }
   });
+
+  // Set layer to OVERLAY for sharp rendering after DoF
+  useEffect(() => {
+    if (coreRef.current) {
+      coreRef.current.layers.set(RENDER_LAYERS.OVERLAY);
+    }
+    if (coronaRef.current) {
+      coronaRef.current.layers.set(RENDER_LAYERS.OVERLAY);
+    }
+    if (atmosphereRef.current) {
+      atmosphereRef.current.layers.set(RENDER_LAYERS.OVERLAY);
+    }
+  }, []);
 
   // Cleanup
   useEffect(() => {

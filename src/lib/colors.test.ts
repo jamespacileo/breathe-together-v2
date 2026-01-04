@@ -129,9 +129,9 @@ describe('Cosmic Nebula Palette Validation', () => {
       expect(hsl.s).toBeGreaterThanOrEqual(40);
       expect(hsl.s).toBeLessThanOrEqual(80);
 
-      // Medium-light (50-75%) for calming yet visible
+      // Medium-light to light (50-80%) for visibility against dark background
       expect(hsl.l).toBeGreaterThanOrEqual(50);
-      expect(hsl.l).toBeLessThanOrEqual(75);
+      expect(hsl.l).toBeLessThanOrEqual(80);
     });
 
     it('presence (cosmic teal) should have appropriate hue, saturation, and lightness', () => {
@@ -146,9 +146,9 @@ describe('Cosmic Nebula Palette Validation', () => {
       expect(hsl.s).toBeGreaterThanOrEqual(50);
       expect(hsl.s).toBeLessThanOrEqual(90);
 
-      // Medium-light (55-75%) for calming
+      // Medium-light to light (55-80%) for visibility against dark background
       expect(hsl.l).toBeGreaterThanOrEqual(55);
-      expect(hsl.l).toBeLessThanOrEqual(75);
+      expect(hsl.l).toBeLessThanOrEqual(80);
     });
 
     it('release (stellar blue) should have appropriate hue, saturation, and lightness', () => {
@@ -163,9 +163,9 @@ describe('Cosmic Nebula Palette Validation', () => {
       expect(hsl.s).toBeGreaterThanOrEqual(40);
       expect(hsl.s).toBeLessThanOrEqual(70);
 
-      // Medium lightness (50-70%)
+      // Medium to medium-light (50-75%) for soft appearance
       expect(hsl.l).toBeGreaterThanOrEqual(50);
-      expect(hsl.l).toBeLessThanOrEqual(70);
+      expect(hsl.l).toBeLessThanOrEqual(75);
     });
 
     it('connection (nebula pink) should have appropriate hue, saturation, and lightness', () => {
@@ -180,9 +180,9 @@ describe('Cosmic Nebula Palette Validation', () => {
       expect(hsl.s).toBeGreaterThanOrEqual(40);
       expect(hsl.s).toBeLessThanOrEqual(70);
 
-      // Medium-light (55-75%)
+      // Medium-light to light (55-80%) for visibility
       expect(hsl.l).toBeGreaterThanOrEqual(55);
-      expect(hsl.l).toBeLessThanOrEqual(75);
+      expect(hsl.l).toBeLessThanOrEqual(80);
     });
   });
 
@@ -203,16 +203,16 @@ describe('Cosmic Nebula Palette Validation', () => {
       }
     });
 
-    it('mood colors should not be too bright (contrast < 12:1) for calming effect', () => {
+    it('mood colors should not be too bright (contrast < 15:1) for calming effect', () => {
       // Too high contrast can be jarring for meditation
-      // Keep it under 12:1 for a calmer aesthetic
+      // IMMUNE-inspired palette is brighter for visibility but still under 15:1 for calm aesthetic
       const moods = Object.entries(COSMIC_NEBULA_PALETTE);
 
       for (const [mood, hex] of moods) {
         const rgb = hexToRgb(hex);
         const contrast = getContrastRatio(rgb, DARK_SPACE_BG);
 
-        expect(contrast, `${mood} should have <12:1 contrast to avoid harshness`).toBeLessThan(12);
+        expect(contrast, `${mood} should have <15:1 contrast to avoid harshness`).toBeLessThan(15);
       }
     });
   });
@@ -242,11 +242,11 @@ describe('Cosmic Nebula Palette Validation', () => {
   });
 
   describe('Luminance Values', () => {
-    it('all mood colors should have moderate luminance (0.15-0.60) for visibility and calmness', () => {
+    it('all mood colors should have moderate luminance (0.15-0.70) for visibility and calmness', () => {
       // Luminance range:
       // 0.0-0.10: Too dark, poor visibility against dark background
-      // 0.10-0.60: Good range for calming yet visible colors
-      // 0.60-1.0: Too bright, can be jarring for meditation
+      // 0.15-0.70: Good range for calming yet visible colors (IMMUNE-inspired brighter palette)
+      // 0.70-1.0: Too bright, can be jarring for meditation
       const moods = Object.entries(COSMIC_NEBULA_PALETTE);
 
       for (const [mood, hex] of moods) {
@@ -255,12 +255,12 @@ describe('Cosmic Nebula Palette Validation', () => {
 
         expect(
           luminance,
-          `${mood} should have luminance between 0.15 and 0.60`,
+          `${mood} should have luminance between 0.15 and 0.70`,
         ).toBeGreaterThanOrEqual(0.15);
         expect(
           luminance,
-          `${mood} should have luminance between 0.15 and 0.60`,
-        ).toBeLessThanOrEqual(0.6);
+          `${mood} should have luminance between 0.15 and 0.70`,
+        ).toBeLessThanOrEqual(0.7);
       }
     });
   });

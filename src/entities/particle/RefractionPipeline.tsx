@@ -109,45 +109,38 @@ void main() {
   vec2 refractUv = uv + refracted.xy * 0.02; // Reduced refraction for ghostly feel
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === HOLOGRAPHIC COLOR BASE ===
-  // Cosmic energy colors - more saturated and luminous
-  vec3 energyColor = vColor * 1.5; // Boost color intensity
+  // === PASTEL COLOR MODE (Option 4) ===
+  // Mix with white for soft, calming meditation aesthetic
+  // IMMUNE-inspired palette is already lightened, gentle boost maintains vibrancy
+  vec3 pastelColor = mix(vColor, vec3(1.0), 0.15); // 15% white blend for softness
+  vec3 energyColor = pastelColor * 1.1; // Gentle boost (not 1.5)
 
   // === STRONG FRESNEL GLOW (holographic edge) ===
-  float fresnelPower = 3.0; // Higher power for sharper edge glow
+  float fresnelPower = 2.5; // Reduced from 3.0 for softer glow
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), fresnelPower);
 
-  // Holographic rim - bright and ethereal
-  vec3 rimColor = energyColor * 2.0; // Use particle color for rim glow
+  // Holographic rim - bright ethereal glow
+  vec3 rimColor = energyColor * 1.8; // Reduced from 2.0 for softer edges
 
-  // === INNER TRANSPARENCY (ghostly core) ===
-  // Center is more transparent, edges are opaque and glowing
-  float centerTransparency = 1.0 - fresnel; // Inverted fresnel for hollow effect
-  vec3 coreColor = energyColor * 0.3; // Dim translucent core
+  // === BRIGHTER SOLID CORE (less hollow) ===
+  // Make core more opaque and luminous for visibility
+  float centerOpacity = 1.0 - fresnel * 0.6; // Less hollow than before
+  vec3 coreColor = energyColor * 0.7; // Brighter core (was 0.3)
 
-  // === BACKGROUND BLEND (cosmic see-through) ===
-  vec3 backgroundTint = tex.rgb * energyColor * 0.4;
-
-  // === HOLOGRAPHIC SCANLINES (optional energy flow) ===
-  // Animated horizontal stripes for sci-fi hologram effect
-  float stripePos = gl_FragCoord.y * 0.02; // Scale for stripe density
-  float stripe = sin(stripePos * 3.14159) * 0.5 + 0.5;
-  stripe = smoothstep(0.3, 0.7, stripe); // Sharpen stripes
+  // === BACKGROUND BLEND (subtle cosmic see-through) ===
+  vec3 backgroundTint = tex.rgb * energyColor * 0.3;
 
   // === DIFFUSE SHADING (subtle form definition) ===
   float diffuse = max(dot(normal, keyLightDir), 0.0);
-  float shading = diffuse * 0.3 + 0.7; // Gentle shading, stay bright
+  float shading = diffuse * 0.25 + 0.75; // Very gentle shading, stay bright
 
-  // === COMPOSE HOLOGRAPHIC LOOK ===
-  // Mix core transparency with edge glow
-  vec3 hologramBody = mix(backgroundTint, coreColor, centerTransparency * 0.6);
+  // === COMPOSE PASTEL HOLOGRAPHIC LOOK ===
+  // Brighter solid core with ethereal edges
+  vec3 hologramBody = mix(backgroundTint, coreColor, centerOpacity);
   hologramBody *= shading; // Apply subtle shading
 
-  // Add stripe pattern for energy flow (subtle)
-  hologramBody += energyColor * stripe * 0.1;
-
-  // Add powerful fresnel rim glow
-  vec3 finalColor = hologramBody + rimColor * fresnel * 0.8;
+  // Add powerful but soft fresnel rim glow
+  vec3 finalColor = hologramBody + rimColor * fresnel * 0.7;
 
   // === SPECULAR HIGHLIGHT (energy sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
@@ -609,16 +602,19 @@ export function RefractionPipeline({
       mesh.material = refractionMaterial;
     }
 
-    // Reset camera layers to render all for composite pass
+    // Reset camera layers to render all EXCEPT overlay for composite pass
+    // OVERLAY layer (stars) will be rendered separately after DoF for sharpness
     layerCamera.layers.enableAll();
+    layerCamera.layers.disable(RENDER_LAYERS.OVERLAY);
 
     if (enableDepthOfField) {
       // Pass 3: Render composite to compositeFBO (with depth for DoF)
+      // This excludes OVERLAY layer to prevent stars from being blurred
       gl.setRenderTarget(compositeFBO);
       gl.clear();
       gl.render(bgScene, orthoCamera);
       gl.clearDepth();
-      gl.render(scene, camera);
+      gl.render(scene, layerCamera);
 
       // Restore original materials
       for (const mesh of meshes) {
@@ -634,13 +630,20 @@ export function RefractionPipeline({
       dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
       dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
       gl.render(dofScene, orthoCamera);
+
+      // Pass 5: Render OVERLAY layer (stars, constellations, sun) sharp on top
+      // Clear depth but keep color buffer to render over DoF scene
+      gl.clearDepth();
+      layerCamera.layers.set(RENDER_LAYERS.OVERLAY);
+      gl.render(scene, layerCamera);
     } else {
       // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
+      // Render all layers EXCEPT overlay first (excluding stars)
       gl.setRenderTarget(null);
       gl.clear();
       gl.render(bgScene, orthoCamera);
       gl.clearDepth();
-      gl.render(scene, camera);
+      gl.render(scene, layerCamera);
 
       // Restore original materials
       for (const mesh of meshes) {
@@ -649,6 +652,11 @@ export function RefractionPipeline({
           mesh.material = original;
         }
       }
+
+      // Render OVERLAY layer (stars, constellations, sun) sharp on top even without DoF
+      gl.clearDepth();
+      layerCamera.layers.set(RENDER_LAYERS.OVERLAY);
+      gl.render(scene, layerCamera);
     }
   }, 1); // Priority 1 to run before default render
 
