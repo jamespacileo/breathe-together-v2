@@ -48,9 +48,16 @@ export const TUNING_DEFAULTS = {
 
   // Environment (dev-only)
   showClouds: true,
-  showStars: true,
+  showStars: false,
+  showConstellations: true,
+  showConstellationLines: true,
+  showSun: true,
   cloudOpacity: 0.4,
   cloudSpeed: 0.3,
+  constellationStarSize: 0.4,
+  constellationLineOpacity: 0.25,
+  sunSize: 8,
+  sunIntensity: 1,
 
   // Colors - Background
   bgColorTop: '#f5f0e8',
@@ -154,8 +161,15 @@ export interface DevControlsState {
   // Environment
   showClouds: boolean;
   showStars: boolean;
+  showConstellations: boolean;
+  showConstellationLines: boolean;
+  showSun: boolean;
   cloudOpacity: number;
   cloudSpeed: number;
+  constellationStarSize: number;
+  constellationLineOpacity: number;
+  sunSize: number;
+  sunIntensity: number;
 
   // Colors - Background
   bgColorTop: string;
@@ -225,8 +239,15 @@ function getDefaultDevControls(): DevControlsState {
     maxBlur: TUNING_DEFAULTS.maxBlur,
     showClouds: TUNING_DEFAULTS.showClouds,
     showStars: TUNING_DEFAULTS.showStars,
+    showConstellations: TUNING_DEFAULTS.showConstellations,
+    showConstellationLines: TUNING_DEFAULTS.showConstellationLines,
+    showSun: TUNING_DEFAULTS.showSun,
     cloudOpacity: TUNING_DEFAULTS.cloudOpacity,
     cloudSpeed: TUNING_DEFAULTS.cloudSpeed,
+    constellationStarSize: TUNING_DEFAULTS.constellationStarSize,
+    constellationLineOpacity: TUNING_DEFAULTS.constellationLineOpacity,
+    sunSize: TUNING_DEFAULTS.sunSize,
+    sunIntensity: TUNING_DEFAULTS.sunIntensity,
     bgColorTop: TUNING_DEFAULTS.bgColorTop,
     bgColorHorizon: TUNING_DEFAULTS.bgColorHorizon,
     ambientLightColor: TUNING_DEFAULTS.ambientLightColor,
@@ -531,8 +552,8 @@ export function useDevControls(): DevControlsState {
             },
             showStars: {
               value: TUNING_DEFAULTS.showStars,
-              label: 'Show Stars',
-              hint: 'Toggle background star field.\n\n**Visibility:** Most noticeable with darker backgrounds (bgColorTop < #e0e0e0)',
+              label: 'Random Stars',
+              hint: 'Toggle random decorative star field (drei Stars). Disabled by default when constellations are enabled.',
             },
             cloudOpacity: {
               value: TUNING_DEFAULTS.cloudOpacity,
@@ -552,6 +573,60 @@ export function useDevControls(): DevControlsState {
             },
           },
           { collapsed: true },
+        ),
+
+        // 2.5 Celestial - Constellations and Sun
+        Celestial: folder(
+          {
+            showConstellations: {
+              value: TUNING_DEFAULTS.showConstellations,
+              label: 'Constellations',
+              hint: 'Toggle real constellation stars with connecting lines. Positions based on actual astronomical data synchronized to UTC time.',
+            },
+            showConstellationLines: {
+              value: TUNING_DEFAULTS.showConstellationLines,
+              label: 'Show Lines',
+              hint: 'Toggle constellation connecting lines between stars.\n\n**Style:** Soft dashed lines in warm gold color.',
+            },
+            constellationStarSize: {
+              value: TUNING_DEFAULTS.constellationStarSize,
+              min: 0.1,
+              max: 1.5,
+              step: 0.05,
+              label: 'Star Size',
+              hint: 'Size multiplier for constellation stars. Brighter stars (lower magnitude) are automatically larger.',
+            },
+            constellationLineOpacity: {
+              value: TUNING_DEFAULTS.constellationLineOpacity,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Line Opacity',
+              hint: 'Opacity of constellation connecting lines.\n\n**Recommendation:** 0.15-0.3 for subtle ethereal look.',
+            },
+            showSun: {
+              value: TUNING_DEFAULTS.showSun,
+              label: 'Stylized Sun',
+              hint: 'Toggle stylized sun positioned based on real astronomical calculations. Features breathing-synchronized pulsing.',
+            },
+            sunSize: {
+              value: TUNING_DEFAULTS.sunSize,
+              min: 2,
+              max: 20,
+              step: 0.5,
+              label: 'Sun Size',
+              hint: 'Size of the sun disc and corona.\n\n**Typical range:** Small (4) → Medium (8) → Large (15)',
+            },
+            sunIntensity: {
+              value: TUNING_DEFAULTS.sunIntensity,
+              min: 0.2,
+              max: 2,
+              step: 0.1,
+              label: 'Sun Intensity',
+              hint: 'Overall brightness/opacity of the sun. Higher values create more prominent glow.',
+            },
+          },
+          { collapsed: false },
         ),
       },
       { collapsed: true, order: 0 },
