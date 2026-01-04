@@ -61,19 +61,19 @@ export function Environment({
   // Reduce star count on mobile/tablet for better performance
   const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
 
-  // Clear any scene background - let BackgroundGradient or StageVariants handle it
+  // Clear scene.background - BackgroundGradient (default) or BackdropSphere (variants) handle backgrounds
   useEffect(() => {
-    // Only clear background if not using stage variant (stage variants set their own)
-    if (!useStageVariant || stageVariant === 'default') {
-      scene.background = null;
-    }
+    // Always clear scene.background - we use mesh-based backgrounds instead
+    // This prevents conflicts with RefractionPipeline's multi-pass rendering
+    scene.background = null;
     // Disable fog - it washes out the gradient
     scene.fog = null;
 
     return () => {
+      scene.background = null;
       scene.fog = null;
     };
-  }, [scene, useStageVariant, stageVariant]);
+  }, [scene]);
 
   if (!enabled) return null;
 
@@ -82,12 +82,6 @@ export function Environment({
     return (
       <StageVariants
         variant={stageVariant}
-        showAmbientLight={true}
-        ambientIntensity={ambientLightIntensity}
-        ambientColor={ambientLightColor}
-        showKeyLight={true}
-        keyIntensity={keyLightIntensity}
-        keyColor={keyLightColor}
         showClouds={showClouds}
         cloudOpacity={cloudOpacity}
         cloudSpeed={cloudSpeed}
