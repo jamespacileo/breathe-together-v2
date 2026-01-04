@@ -81,9 +81,13 @@ void main() {
 }
 `;
 
-// Refraction fragment shader - creates ethereal glass crystal look
-// Updated Jan 2026: Translucent ethereal crystals for galaxy/space theme
+// Refraction fragment shader - creates vibrant Kurzgesagt-style glass crystals
+// Updated Jan 2026: Vibrant colors with proper sRGB output
+// CRITICAL: Uses colorspace_fragment for proper linear→sRGB conversion
 const refractionFragmentShader = `
+#include <common>
+#include <color_pars_fragment>
+
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
 uniform vec2 resolution;
@@ -107,15 +111,13 @@ void main() {
   vec3 normal = normalize(worldNormal * (1.0 - backfaceIntensity) - backfaceNormal * backfaceIntensity);
   vec3 refracted = refract(eyeVector, normal, 1.0 / ior);
 
-  // Stronger refraction for ethereal glass feel
-  vec2 refractUv = uv + refracted.xy * 0.06;
+  // Subtle refraction for glass depth
+  vec2 refractUv = uv + refracted.xy * 0.04;
   vec4 tex = texture2D(envMap, refractUv);
 
-  // === ETHEREAL GLASS COLOR ===
-  // More translucent - let background show through
-  vec3 coolWhite = vec3(0.95, 0.97, 1.0); // Slight blue tint
-  // 70% color intensity for more transparency
-  vec3 glassColor = mix(coolWhite, vColor, 0.70);
+  // === KURZGESAGT VIBRANT GLASS COLOR ===
+  // Keep colors vibrant - 95% color, only 5% white tint for slight glow
+  vec3 glassColor = vColor * 0.95 + vec3(0.05);
 
   // === SOFT DIFFUSE SHADING ===
   float keyDiffuse = max(dot(normal, keyLightDir), 0.0);
@@ -124,36 +126,42 @@ void main() {
 
   // Softer wrap lighting for ethereal feel
   float wrapped = totalDiffuse * 0.4 + 0.6;
-  float shading = wrapped * 0.4 + 0.6;
+  float shading = wrapped * 0.3 + 0.7; // Lighter shading to preserve saturation
 
   // === GLASS BODY WITH SUBSURFACE GLOW ===
   vec3 shadedGlass = glassColor * shading;
 
-  // Subsurface scattering simulation - color bleeds through
-  float subsurface = (1.0 - keyDiffuse) * 0.15;
+  // Strong subsurface scattering - color bleeds through
+  float subsurface = (1.0 - keyDiffuse) * 0.25;
   shadedGlass += vColor * subsurface;
 
-  // Tinted refraction - more background shows through (50%)
-  vec3 tintedRefraction = tex.rgb * mix(vec3(1.0), glassColor, 0.25);
+  // Light refraction tint - mostly glass color with subtle environment
+  vec3 tintedRefraction = tex.rgb * 0.3 + shadedGlass * 0.7;
 
-  // Mix: more refraction (55%) for glassy transparency
-  vec3 bodyColor = mix(tintedRefraction, shadedGlass, 0.45);
+  // Mix: 75% glass color, 25% refraction (vibrant over glassy)
+  vec3 bodyColor = mix(tintedRefraction, shadedGlass, 0.75);
 
-  // === FRESNEL RIM (ethereal edge glow) ===
+  // === FRESNEL RIM (Kurzgesagt signature edge glow) ===
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 3.0);
-  vec3 rimColor = mix(vec3(0.9, 0.95, 1.0), vColor, 0.3); // Color-tinted rim
-  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.4);
+  // Bright color-tinted rim for that cell membrane look
+  vec3 rimColor = vColor * 1.3 + vec3(0.15); // Brighter, saturated rim
+  rimColor = clamp(rimColor, 0.0, 1.5); // Allow slight HDR
+  vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.45);
 
   // === SPECULAR HIGHLIGHT (glass sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 48.0); // Sharper highlight
-  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.4;
+  float spec = pow(max(dot(normal, halfVec), 0.0), 48.0);
+  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.35;
 
   // === SUBTLE TOP AMBIENT ===
-  float topLight = max(normal.y, 0.0) * 0.08;
-  colorWithRim += vec3(0.95, 0.97, 1.0) * topLight;
+  float topLight = max(normal.y, 0.0) * 0.06;
+  colorWithRim += vColor * topLight * 0.5; // Tinted ambient
 
   gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
+
+  // CRITICAL: Convert from linear working space to sRGB output space
+  // Without this, colors appear washed out and desaturated!
+  #include <colorspace_fragment>
 }
 `;
 
