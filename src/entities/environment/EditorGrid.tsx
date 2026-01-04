@@ -1,24 +1,24 @@
 /**
- * EditorGrid - Wireframe grid floor for stage/editor mode
+ * StudioGrid - Refined grid floor for stage/studio mode
  *
- * Renders a 3D editor-style grid floor at y=0, similar to Blender or Unity.
- * Only visible when stage mode is enabled.
+ * A minimal, polished grid floor inspired by high-end 3D visualization
+ * tools and product photography studios.
  *
  * Features:
- * - Configurable grid size and subdivisions
- * - Customizable grid color
- * - Helper axes (X=red, Z=blue) for orientation
- * - Transparent background integration
+ * - Subtle, elegant grid lines that don't compete with content
+ * - Soft fade to background for infinite floor illusion
+ * - Optional muted axis indicators
+ * - Light theme optimized (works on white/cream backgrounds)
  */
 
 import { Grid, Line } from '@react-three/drei';
 
-interface EditorGridProps {
-  /** Total size of the grid in world units @default 20 */
+interface StudioGridProps {
+  /** Total size of the grid in world units @default 30 */
   size?: number;
-  /** Number of grid subdivisions @default 20 */
+  /** Number of grid subdivisions @default 30 */
   divisions?: number;
-  /** Color of grid lines @default '#666666' */
+  /** Color of grid lines @default '#d0d0d0' */
   color?: string;
   /** Show axis helper lines @default true */
   showAxes?: boolean;
@@ -27,61 +27,64 @@ interface EditorGridProps {
 }
 
 /**
- * EditorGrid component - renders a 3D editor-style floor grid
+ * StudioGrid component - renders a refined studio-style floor grid
  *
- * Uses drei's Grid helper for efficient rendering with:
- * - Configurable size and cell divisions
- * - Fade distance for infinite grid feel
- * - Optional axis indicators
+ * Design philosophy: The grid should provide spatial reference without
+ * drawing attention away from the main content. Subtle, elegant, invisible
+ * until you need it.
  */
 export function EditorGrid({
-  size = 20,
-  divisions = 20,
-  color = '#666666',
+  size = 30,
+  divisions = 30,
+  color = '#d0d0d0',
   showAxes = true,
   position = -3,
-}: EditorGridProps) {
+}: StudioGridProps) {
   const halfSize = size / 2;
+
+  // Muted axis colors - visible but not distracting
+  const xAxisColor = '#e88888'; // Soft coral red
+  const zAxisColor = '#8888e8'; // Soft periwinkle blue
 
   return (
     <group>
-      {/* Main grid floor */}
+      {/* Main grid floor - subtle and refined */}
       <Grid
         position={[0, position, 0]}
         args={[size, size]}
         cellSize={size / divisions}
-        cellThickness={0.5}
+        cellThickness={0.6}
         cellColor={color}
-        sectionSize={size / 4}
-        sectionThickness={1}
+        sectionSize={size / 6}
+        sectionThickness={1.2}
         sectionColor={color}
-        fadeDistance={50}
-        fadeStrength={1}
+        fadeDistance={40}
+        fadeStrength={1.5}
         followCamera={false}
         infiniteGrid={true}
       />
 
-      {/* Axis indicators using drei Line component */}
+      {/* Axis indicators - muted tones */}
       {showAxes && (
         <group position={[0, position + 0.01, 0]}>
-          {/* X axis - red */}
+          {/* X axis - soft red */}
           <Line
             points={[
               [-halfSize, 0, 0],
               [halfSize, 0, 0],
             ]}
-            color="#ff4444"
-            lineWidth={2}
+            color={xAxisColor}
+            lineWidth={1.5}
           />
 
-          {/* Z axis - blue */}
+          {/* Z axis - soft blue */}
           <Line
             points={[
               [0, 0, -halfSize],
               [0, 0, halfSize],
             ]}
-            color="#4444ff"
-            lineWidth={2}
+            color={zAxisColor}
+            lineWidth={1.5}
           />
         </group>
       )}

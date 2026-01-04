@@ -1,4 +1,4 @@
-import { Stars } from '@react-three/drei';
+import { ContactShadows, Stars } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import * as THREE from 'three';
@@ -74,10 +74,10 @@ export function Environment({
   // Handle background based on stage mode
   useEffect(() => {
     if (stageMode) {
-      // Stage mode: dark gray background like 3D editors
-      scene.background = new THREE.Color('#1a1a1a');
-      // Also set clear color for consistency
-      gl.setClearColor('#1a1a1a', 1);
+      // Stage mode: soft warm white - like a photography studio
+      const studioWhite = new THREE.Color('#f8f6f3');
+      scene.background = studioWhite;
+      gl.setClearColor(studioWhite, 1);
     } else {
       // Normal mode: let BackgroundGradient handle it
       scene.background = null;
@@ -93,28 +93,46 @@ export function Environment({
 
   if (!enabled) return null;
 
-  // Stage mode: minimal environment with grid floor
+  // Stage mode: refined studio environment
+  // Inspired by high-end product visualization and photography studios
   if (stageMode) {
     return (
       <group>
-        {/* Wireframe grid floor */}
+        {/* Subtle grid floor - provides spatial reference without distraction */}
         {showGridFloor && (
           <EditorGrid size={gridSize} divisions={gridDivisions} color={gridColor} showAxes={true} />
         )}
 
-        {/* Neutral white ambient light for even illumination */}
-        <ambientLight intensity={0.6} color="#ffffff" />
+        {/* Soft contact shadows - grounds objects elegantly */}
+        <ContactShadows
+          position={[0, -3, 0]}
+          opacity={0.35}
+          scale={20}
+          blur={2.5}
+          far={10}
+          color="#94867a"
+        />
 
-        {/* Key light - white directional from upper right */}
+        {/* Studio lighting setup - soft, even, flattering */}
+        {/* Key light - soft warm white from upper front-right */}
         <directionalLight
-          position={[10, 15, 5]}
-          intensity={0.8}
-          color="#ffffff"
+          position={[8, 12, 8]}
+          intensity={0.9}
+          color="#fff8f0"
           castShadow={false}
         />
 
-        {/* Fill light - from left for balanced shadows */}
-        <directionalLight position={[-8, 10, 3]} intensity={0.4} color="#ffffff" />
+        {/* Fill light - cooler tone from left to balance shadows */}
+        <directionalLight position={[-10, 8, 4]} intensity={0.5} color="#f0f4ff" />
+
+        {/* Rim/back light - subtle warmth for depth separation */}
+        <directionalLight position={[0, 6, -10]} intensity={0.3} color="#ffe8d6" />
+
+        {/* Ambient - soft overall illumination */}
+        <ambientLight intensity={0.55} color="#fefcfa" />
+
+        {/* Hemisphere light - natural sky/ground color blending */}
+        <hemisphereLight args={['#faf8f5', '#e8e4e0', 0.35]} />
       </group>
     );
   }

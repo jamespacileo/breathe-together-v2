@@ -67,12 +67,12 @@ export const TUNING_DEFAULTS = {
   globeRingOpacity: 0.15,
   globeAtmosphereTint: '#f8d0a8',
 
-  // Stage Mode (dev-only) - editor-style view
+  // Stage Mode (dev-only) - studio-style view
   stageMode: false,
   showGridFloor: true,
-  gridSize: 20,
-  gridDivisions: 20,
-  gridColor: '#666666',
+  gridSize: 30,
+  gridDivisions: 30,
+  gridColor: '#d0d0d0',
 
   // Debug (dev-only)
   showOrbitBounds: false,
@@ -682,24 +682,24 @@ export function useDevControls(): DevControlsState {
     ),
 
     // ==========================================
-    // 5. STAGE MODE (editor-style view)
+    // 5. STAGE MODE (studio-style view)
     // ==========================================
     'Stage Mode': folder(
       {
         stageMode: {
           value: TUNING_DEFAULTS.stageMode,
           label: 'Enable Stage Mode',
-          hint: 'Toggle editor-style view. Disables background, clouds, stars, and shows wireframe grid.\n\n**Use case:** Debug positioning and entity layouts like in a 3D editor',
+          hint: 'Toggle studio-style view with clean white background, subtle grid, and soft contact shadows.\n\n**Use case:** Debug positioning and layouts in a polished, distraction-free environment',
         },
         showGridFloor: {
           value: TUNING_DEFAULTS.showGridFloor,
           label: 'Show Grid Floor',
-          hint: 'Show wireframe grid floor when stage mode is enabled.\n\n**Shows:** Horizontal grid plane at y=0',
+          hint: 'Show subtle reference grid when stage mode is enabled.\n\n**Shows:** Refined grid with soft axis indicators',
           render: (get) => get('Stage Mode.stageMode'),
         },
         gridSize: {
           value: TUNING_DEFAULTS.gridSize,
-          min: 5,
+          min: 10,
           max: 100,
           step: 5,
           label: 'Grid Size',
@@ -708,8 +708,8 @@ export function useDevControls(): DevControlsState {
         },
         gridDivisions: {
           value: TUNING_DEFAULTS.gridDivisions,
-          min: 5,
-          max: 50,
+          min: 10,
+          max: 60,
           step: 5,
           label: 'Grid Divisions',
           hint: 'Number of subdivisions in the grid.',
@@ -718,7 +718,7 @@ export function useDevControls(): DevControlsState {
         gridColor: {
           value: TUNING_DEFAULTS.gridColor,
           label: 'Grid Color',
-          hint: 'Color of the wireframe grid lines.',
+          hint: 'Color of the grid lines. Lighter colors work best with the white background.',
           render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
         },
       },
