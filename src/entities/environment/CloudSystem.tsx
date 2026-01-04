@@ -71,6 +71,9 @@ function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
 }
 
 // Cloud configurations - spherically distributed around the globe
+// HARMONIZED WARM NEUTRAL PALETTE
+// All clouds use cream/ivory/warm white tones for atmospheric cohesion
+// Lets the particle colors be the visual focus
 // LAYERS:
 // - Inner layer (radius 7-8): 6 clouds, closest to shards
 // - Middle layer (radius 9-10): 5 clouds
@@ -78,12 +81,12 @@ function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
 const CLOUD_CONFIGS: CloudConfig[] = [
   // === INNER LAYER (radius 7-8) - 6 clouds, subtle and close ===
   {
-    id: 'inner-pink-1',
+    id: 'inner-cream-1',
     sphereIndex: 0,
     layerTotal: 6,
     radius: 7,
-    color: '#f8b4c4', // Soft pink
-    opacity: 0.35,
+    color: '#f5efe8', // Warm cream
+    opacity: 0.32,
     orbitSpeed: 0.012,
     segments: 22,
     bounds: [4, 1.5, 3],
@@ -95,12 +98,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.3,
   },
   {
-    id: 'inner-lavender-2',
+    id: 'inner-ivory-2',
     sphereIndex: 1,
     layerTotal: 6,
     radius: 7.5,
-    color: '#d4c4e8', // Soft lavender
-    opacity: 0.32,
+    color: '#f8f4f0', // Soft ivory
+    opacity: 0.3,
     orbitSpeed: 0.01,
     segments: 20,
     bounds: [3.5, 1.2, 2.5],
@@ -112,12 +115,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.25,
   },
   {
-    id: 'inner-blue-3',
+    id: 'inner-mist-3',
     sphereIndex: 2,
     layerTotal: 6,
     radius: 8,
-    color: '#a8d4e8', // Sky blue
-    opacity: 0.3,
+    color: '#f0ebe5', // Warm mist
+    opacity: 0.28,
     orbitSpeed: 0.014,
     segments: 18,
     bounds: [4, 1.3, 3],
@@ -129,12 +132,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.2,
   },
   {
-    id: 'inner-coral-4',
+    id: 'inner-linen-4',
     sphereIndex: 3,
     layerTotal: 6,
     radius: 7.2,
-    color: '#f8c8b8', // Soft coral
-    opacity: 0.28,
+    color: '#f6f0e8', // Soft linen
+    opacity: 0.26,
     orbitSpeed: 0.011,
     segments: 16,
     bounds: [3, 1, 2],
@@ -146,12 +149,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.22,
   },
   {
-    id: 'inner-cream-5',
+    id: 'inner-pearl-5',
     sphereIndex: 4,
     layerTotal: 6,
     radius: 7.8,
-    color: '#f8f0e8', // Warm cream
-    opacity: 0.25,
+    color: '#f8f2ec', // Pearl white
+    opacity: 0.24,
     orbitSpeed: 0.009,
     segments: 15,
     bounds: [3.5, 1.1, 2.5],
@@ -163,12 +166,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.18,
   },
   {
-    id: 'inner-mint-6',
+    id: 'inner-bone-6',
     sphereIndex: 5,
     layerTotal: 6,
     radius: 7.3,
-    color: '#c8e8dc', // Soft mint
-    opacity: 0.3,
+    color: '#f2ebe2', // Bone white
+    opacity: 0.28,
     orbitSpeed: 0.013,
     segments: 17,
     bounds: [3.5, 1.2, 2.5],
@@ -182,12 +185,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
 
   // === MIDDLE LAYER (radius 9-10) - 5 clouds ===
   {
-    id: 'mid-peach-1',
+    id: 'mid-cream-1',
     sphereIndex: 0,
     layerTotal: 5,
     radius: 9,
-    color: '#f8d4b8', // Warm peach
-    opacity: 0.38,
+    color: '#f4ede4', // Warm cream
+    opacity: 0.35,
     orbitSpeed: 0.008,
     segments: 24,
     bounds: [6, 2, 4],
@@ -199,12 +202,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.35,
   },
   {
-    id: 'mid-mint-2',
+    id: 'mid-ivory-2',
     sphereIndex: 1,
     layerTotal: 5,
     radius: 9.5,
-    color: '#b8e8d4', // Soft mint
-    opacity: 0.35,
+    color: '#f6f2ed', // Soft ivory
+    opacity: 0.32,
     orbitSpeed: 0.007,
     segments: 22,
     bounds: [5.5, 1.8, 3.5],
@@ -216,12 +219,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.3,
   },
   {
-    id: 'mid-rose-3',
+    id: 'mid-mist-3',
     sphereIndex: 2,
     layerTotal: 5,
     radius: 10,
-    color: '#e8c4d4', // Dusty rose
-    opacity: 0.32,
+    color: '#f0e9e0', // Warm mist
+    opacity: 0.3,
     orbitSpeed: 0.009,
     segments: 20,
     bounds: [5, 1.5, 3],
@@ -233,12 +236,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.28,
   },
   {
-    id: 'mid-sage-4',
+    id: 'mid-linen-4',
     sphereIndex: 3,
     layerTotal: 5,
     radius: 9.2,
-    color: '#c8dcc8', // Soft sage
-    opacity: 0.3,
+    color: '#f5efe6', // Soft linen
+    opacity: 0.28,
     orbitSpeed: 0.006,
     segments: 18,
     bounds: [5, 1.5, 3],
@@ -250,12 +253,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.32,
   },
   {
-    id: 'mid-blush-5',
+    id: 'mid-pearl-5',
     sphereIndex: 4,
     layerTotal: 5,
     radius: 9.8,
-    color: '#f0d4d4', // Blush pink
-    opacity: 0.28,
+    color: '#f8f3ee', // Pearl white
+    opacity: 0.26,
     orbitSpeed: 0.0075,
     segments: 19,
     bounds: [5.5, 1.6, 3.5],
@@ -269,12 +272,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
 
   // === OUTER LAYER (radius 11-13) - 4 clouds, largest and most ethereal ===
   {
-    id: 'outer-mist-1',
+    id: 'outer-cream-1',
     sphereIndex: 0,
     layerTotal: 4,
     radius: 11,
-    color: '#e8e4e0', // Warm mist
-    opacity: 0.4,
+    color: '#f2ebe2', // Warm cream
+    opacity: 0.38,
     orbitSpeed: 0.005,
     segments: 28,
     bounds: [8, 2.5, 5],
@@ -286,12 +289,12 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.4,
   },
   {
-    id: 'outer-pink-2',
+    id: 'outer-ivory-2',
     sphereIndex: 1,
     layerTotal: 4,
     radius: 12,
-    color: '#f8b4c4', // Soft pink
-    opacity: 0.35,
+    color: '#f6f0e8', // Soft ivory
+    opacity: 0.34,
     orbitSpeed: 0.004,
     segments: 26,
     bounds: [7, 2, 4.5],
@@ -303,11 +306,11 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.35,
   },
   {
-    id: 'outer-lavender-3',
+    id: 'outer-mist-3',
     sphereIndex: 2,
     layerTotal: 4,
     radius: 13,
-    color: '#d4c4e8', // Soft lavender
+    color: '#f0e8e0', // Warm mist
     opacity: 0.3,
     orbitSpeed: 0.0045,
     segments: 25,
@@ -320,11 +323,11 @@ const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.38,
   },
   {
-    id: 'outer-peach-4',
+    id: 'outer-linen-4',
     sphereIndex: 3,
     layerTotal: 4,
     radius: 11.5,
-    color: '#f8d4b8', // Warm peach
+    color: '#f4ede5', // Soft linen
     opacity: 0.32,
     orbitSpeed: 0.0055,
     segments: 24,

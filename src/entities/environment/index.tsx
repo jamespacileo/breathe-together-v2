@@ -3,8 +3,16 @@ import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
+import { AuroraEffect } from './AuroraEffect';
 import { BackgroundGradient } from './BackgroundGradient';
 import { CloudSystem } from './CloudSystem';
+import { DistantMotes } from './DistantMotes';
+import { DistantNebula } from './DistantNebula';
+import { EtherealWisps } from './EtherealWisps';
+import { FloatingPetals } from './FloatingPetals';
+import { GlowingOrbs } from './GlowingOrbs';
+import { HorizonGlow } from './HorizonGlow';
+import { ParallaxCloudLayers } from './ParallaxCloudLayers';
 import { SubtleLightRays } from './SubtleLightRays';
 
 interface EnvironmentProps {
@@ -13,10 +21,30 @@ interface EnvironmentProps {
   showClouds?: boolean;
   /** Show distant stars @default true */
   showStars?: boolean;
+  /** Show ethereal wisps @default true */
+  showWisps?: boolean;
+  /** Show glowing orbs @default true */
+  showOrbs?: boolean;
+  /** Show aurora effect @default true */
+  showAurora?: boolean;
+  /** Show floating petals @default true */
+  showPetals?: boolean;
+  /** Show depth effects (nebula, parallax clouds, distant motes, horizon) @default true */
+  showDepthEffects?: boolean;
   /** Cloud opacity @default 0.4 */
   cloudOpacity?: number;
   /** Cloud speed multiplier @default 0.3 */
   cloudSpeed?: number;
+  /** Wisps opacity @default 0.12 */
+  wispsOpacity?: number;
+  /** Orbs opacity @default 0.3 */
+  orbsOpacity?: number;
+  /** Aurora opacity @default 0.06 */
+  auroraOpacity?: number;
+  /** Petals opacity @default 0.2 */
+  petalsOpacity?: number;
+  /** Depth effects opacity @default 0.15 */
+  depthOpacity?: number;
   /** Ambient light color @default '#fff5eb' */
   ambientLightColor?: string;
   /** Ambient light intensity @default 0.5 */
@@ -41,8 +69,18 @@ export function Environment({
   enabled = true,
   showClouds = true,
   showStars = true,
+  showWisps = true,
+  showOrbs = true,
+  showAurora = true,
+  showPetals = true,
+  showDepthEffects = true,
   cloudOpacity = 0.4,
   cloudSpeed = 0.8,
+  wispsOpacity = 0.12,
+  orbsOpacity = 0.3,
+  auroraOpacity = 0.06,
+  petalsOpacity = 0.2,
+  depthOpacity = 0.15,
   ambientLightColor = '#fff5eb',
   ambientLightIntensity = 0.5,
   keyLightColor = '#ffe4c4',
@@ -72,6 +110,24 @@ export function Environment({
       {/* Animated gradient background - renders behind everything */}
       <BackgroundGradient />
 
+      {/* === DEPTH EFFECTS - Create sense of vast space === */}
+      {/* These render far behind everything else */}
+      {showDepthEffects && !isMobile && (
+        <>
+          {/* Horizon glow - 360° luminous glow at distant horizon */}
+          <HorizonGlow opacity={depthOpacity * 1.3} enabled={true} />
+
+          {/* Distant nebula - layered cosmic clouds with parallax */}
+          <DistantNebula opacity={depthOpacity} enabled={true} />
+
+          {/* Parallax cloud layers - multiple depths for perspective */}
+          <ParallaxCloudLayers opacity={depthOpacity * 0.8} enabled={true} />
+
+          {/* Distant motes - tiny particles at extreme range for scale */}
+          <DistantMotes count={isTablet ? 80 : 150} opacity={depthOpacity * 1.5} enabled={true} />
+        </>
+      )}
+
       {/* Memoized cloud system - only initializes once, never re-renders from parent changes */}
       {/* Includes: top/middle/bottom layers, parallax depths, right-to-left looping */}
       {showClouds && <CloudSystem opacity={cloudOpacity} speed={cloudSpeed} enabled={true} />}
@@ -82,6 +138,22 @@ export function Environment({
 
       {/* Subtle diagonal light rays from upper right */}
       <SubtleLightRays opacity={0.03} enabled={!isMobile} />
+
+      {/* Ethereal wisps - flowing ribbon-like energy trails */}
+      {showWisps && !isMobile && <EtherealWisps count={5} opacity={wispsOpacity} enabled={true} />}
+
+      {/* Glowing orbs - floating firefly-like particles */}
+      {showOrbs && <GlowingOrbs count={isMobile ? 12 : 25} opacity={orbsOpacity} enabled={true} />}
+
+      {/* Aurora effect - subtle northern lights in the background */}
+      {showAurora && !isMobile && (
+        <AuroraEffect opacity={auroraOpacity} speed={0.3} enabled={true} />
+      )}
+
+      {/* Floating petals - gentle drifting petal shapes */}
+      {showPetals && !isMobile && (
+        <FloatingPetals count={isTablet ? 8 : 15} opacity={petalsOpacity} enabled={true} />
+      )}
 
       {/* Subtle distant stars - very faint for dreamy atmosphere */}
       {/* Count is responsive: 150 (mobile) / 300 (tablet) / 500 (desktop) */}

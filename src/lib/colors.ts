@@ -3,24 +3,30 @@ import type { MoodId } from '../constants';
 /**
  * Color palettes and mood configurations
  *
- * Simplified 4-category mood system with positive framing:
- * - gratitude (gold) - Appreciating this moment
- * - presence (teal) - Simply being here (covers calm, curiosity, rest)
- * - release (blue) - Letting go
- * - connection (rose) - Here with others
+ * Refined warm palette with cohesive harmony:
+ * - gratitude (champagne gold) - Appreciating this moment
+ * - presence (sage) - Simply being here (covers calm, curiosity, rest)
+ * - release (dusty blue) - Letting go
+ * - connection (soft coral) - Here with others
+ *
+ * All colors share warm undertones for visual cohesion while
+ * maintaining distinct mood identities.
  */
 
 /**
- * Monument Valley Palette - vibrant gem colors for icosahedral shards
- * These colors are processed through the gem shader for the illustrative look
+ * Ethereal Warm Palette - harmonious gem colors for icosahedral shards
  *
- * Each color maps directly to one mood category (1:1 mapping)
+ * Design principles:
+ * - All colors share warm undertones (shifted toward gold/peach)
+ * - Reduced saturation for ethereal, meditative quality
+ * - Still distinct enough to convey mood meaning
+ * - Works beautifully together in any combination
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  gratitude: '#ffbe0b', // Warm Gold - appreciation, thankfulness
-  presence: '#06d6a0', // Teal/Mint - being here, calm, curiosity, rest
-  release: '#118ab2', // Deep Blue - letting go, processing
-  connection: '#ef476f', // Warm Rose - love, community, togetherness
+  gratitude: '#e8c170', // Soft champagne gold - warm, appreciative
+  presence: '#9ec4a8', // Muted sage green - calm, grounded
+  release: '#a8b8c8', // Dusty blue-gray - soft, releasing
+  connection: '#e8a890', // Soft coral peach - warm, connected
 } as const;
 
 /**
