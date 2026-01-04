@@ -12,7 +12,7 @@ import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { GlobeRibbonText } from '../entities/earthGlobe/GlobeRibbonText';
-import { Environment } from '../entities/environment';
+import { GalaxyEnvironment } from '../entities/galaxy';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -94,17 +94,27 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Environment - clouds, lighting, fog */}
+            {/* Galaxy Environment - stylized universe with constellations, sun, cosmic dust */}
             {showEnvironment && (
-              <Environment
-                showClouds={devControls.showClouds}
-                showStars={devControls.showStars}
-                cloudOpacity={devControls.cloudOpacity}
-                cloudSpeed={devControls.cloudSpeed}
-                ambientLightColor={devControls.ambientLightColor}
-                ambientLightIntensity={devControls.ambientLightIntensity}
-                keyLightColor={devControls.keyLightColor}
-                keyLightIntensity={devControls.keyLightIntensity}
+              <GalaxyEnvironment
+                showSun={true}
+                sunPosition={[60, 40, -80]}
+                sunRadius={8}
+                sunIntensity={1.0}
+                showConstellations={true}
+                constellationRadius={80}
+                starSize={1.0}
+                lineOpacity={0.3}
+                lineColor="#4488aa"
+                enableTwinkle={true}
+                showCosmicDust={true}
+                dustCount={200}
+                dustRadius={60}
+                dustSize={0.8}
+                nebulaIntensity={0.8}
+                milkyWayIntensity={0.6}
+                ambientIntensity={0.15}
+                ambientColor="#334466"
               />
             )}
 
