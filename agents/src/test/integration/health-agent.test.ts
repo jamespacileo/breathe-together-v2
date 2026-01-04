@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type Unstable_DevWorker, unstable_dev } from 'wrangler';
 
 // Resolve paths relative to the agents directory
-const agentsDir = path.resolve(__dirname, '../..');
+const agentsDir = path.resolve(__dirname, '../../..');
 const srcPath = path.join(agentsDir, 'src/index.ts');
 const configPath = path.join(agentsDir, 'wrangler.toml');
 
@@ -23,7 +23,7 @@ const hasProxy = Boolean(process.env.HTTP_PROXY || process.env.HTTPS_PROXY);
 // Skip all integration tests if proxy is detected
 const describeIntegration = hasProxy ? describe.skip : describe;
 
-describeIntegration('HealthAgent Integration Tests', () => {
+describeIntegration('Health Agent Integration', () => {
   let worker: Unstable_DevWorker;
 
   beforeAll(async () => {
@@ -40,7 +40,7 @@ describeIntegration('HealthAgent Integration Tests', () => {
     await worker?.stop();
   });
 
-  describe('GET /health', () => {
+  describe('Service Health Endpoint', () => {
     it('returns service health status', async () => {
       const response = await worker.fetch('/health');
       expect(response.status).toBe(200);
@@ -52,7 +52,7 @@ describeIntegration('HealthAgent Integration Tests', () => {
     });
   });
 
-  describe('GET /agents', () => {
+  describe('Agent List Endpoint', () => {
     it('lists all registered agents', async () => {
       const response = await worker.fetch('/agents');
       expect(response.status).toBe(200);

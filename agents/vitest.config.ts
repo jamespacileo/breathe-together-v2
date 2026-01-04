@@ -5,7 +5,8 @@ export default defineConfig({
   test: {
     root: path.resolve(__dirname),
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/test/**/*.test.ts'],
+    setupFiles: ['src/test/setup.ts'],
     globals: true,
     testTimeout: 30000, // Longer timeout for Durable Object tests
     hookTimeout: 30000,
