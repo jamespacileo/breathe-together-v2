@@ -11,11 +11,33 @@
  * - Catch light occasionally for subtle sparkle
  *
  * Performance: Uses Points geometry with single draw call
+ *
+ * MIGRATED TO TSL (Three.js Shading Language) - January 2026
  */
 
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import { AdditiveBlending, BufferAttribute, BufferGeometry, type Points } from 'three';
+import {
+  add,
+  attribute,
+  div,
+  Fn,
+  float,
+  length,
+  mix,
+  mul,
+  pointUV,
+  positionView,
+  pow,
+  sin,
+  smoothstep,
+  sub,
+  uniform,
+  vec3,
+  vec4,
+} from 'three/tsl';
+import { PointsNodeMaterial } from 'three/webgpu';
 
 interface AmbientDustProps {
   /** Number of dust particles @default 80 */
@@ -28,72 +50,21 @@ interface AmbientDustProps {
   enabled?: boolean;
 }
 
-// Custom shader for dust with varying opacity and subtle sparkle
-const dustVertexShader = `
-  attribute float aOpacity;
-  attribute float aSparklePhase;
-  varying float vOpacity;
-  varying float vSparkle;
-  uniform float uTime;
-  uniform float uSize;
-
-  void main() {
-    vOpacity = aOpacity;
-
-    // Subtle sparkle effect - some particles catch light
-    float sparkle = sin(uTime * 2.0 + aSparklePhase * 6.28) * 0.5 + 0.5;
-    sparkle = pow(sparkle, 8.0); // Make sparkle rare and brief
-    vSparkle = sparkle * 0.3; // Max 30% extra brightness
-
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = uSize * (300.0 / -mvPosition.z);
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-const dustFragmentShader = `
-  varying float vOpacity;
-  varying float vSparkle;
-  uniform float uBaseOpacity;
-
-  void main() {
-    // Soft circular particle
-    vec2 center = gl_PointCoord - 0.5;
-    float dist = length(center);
-    if (dist > 0.5) discard;
-
-    // Soft falloff
-    float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-    alpha *= vOpacity * uBaseOpacity;
-
-    // Add sparkle
-    alpha += vSparkle * 0.5;
-
-    // Warm dust color (slightly golden)
-    vec3 color = vec3(1.0, 0.98, 0.94);
-
-    // Sparkle makes it whiter
-    color = mix(color, vec3(1.0), vSparkle);
-
-    gl_FragColor = vec4(color, alpha);
-  }
-`;
-
 export const AmbientDust = memo(function AmbientDust({
   count = 80,
   opacity = 0.15,
   size = 0.015,
   enabled = true,
 }: AmbientDustProps) {
-  const pointsRef = useRef<THREE.Points>(null);
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const pointsRef = useRef<Points>(null);
+  const materialRef = useRef<PointsNodeMaterial>(null);
 
   // Store initial positions for drift calculation
   const initialPositions = useRef<Float32Array | null>(null);
 
   // Create geometry and attributes
   const { geometry, positions, velocities } = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
+    const geo = new BufferGeometry();
     const pos = new Float32Array(count * 3);
     const op = new Float32Array(count);
     const sp = new Float32Array(count);
@@ -122,9 +93,9 @@ export const AmbientDust = memo(function AmbientDust({
       vel[i * 3 + 2] = (Math.random() - 0.5) * 0.005; // Z drift
     }
 
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('aOpacity', new THREE.BufferAttribute(op, 1));
-    geo.setAttribute('aSparklePhase', new THREE.BufferAttribute(sp, 1));
+    geo.setAttribute('position', new BufferAttribute(pos, 3));
+    geo.setAttribute('aOpacity', new BufferAttribute(op, 1));
+    geo.setAttribute('aSparklePhase', new BufferAttribute(sp, 1));
 
     return {
       geometry: geo,
@@ -138,33 +109,81 @@ export const AmbientDust = memo(function AmbientDust({
     initialPositions.current = new Float32Array(positions);
   }, [positions]);
 
-  // Create material
+  // Create TSL material
   const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uSize: { value: size * 100 },
-        uBaseOpacity: { value: opacity },
-      },
-      vertexShader: dustVertexShader,
-      fragmentShader: dustFragmentShader,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
+    const mat = new PointsNodeMaterial();
+    mat.transparent = true;
+    mat.depthWrite = false;
+    mat.blending = AdditiveBlending;
+
+    // Uniforms
+    const timeUniform = uniform(0);
+    const sizeUniform = uniform(size * 100);
+    const baseOpacityUniform = uniform(opacity);
+
+    // Store for external access
+    mat.userData.time = timeUniform;
+    mat.userData.size = sizeUniform;
+    mat.userData.baseOpacity = baseOpacityUniform;
+
+    // Custom attributes
+    const aOpacity = attribute('aOpacity');
+    const aSparklePhase = attribute('aSparklePhase');
+
+    // Point size calculation (varies with distance)
+    // gl_PointSize = uSize * (300.0 / -mvPosition.z)
+    const pointSizeNode = Fn(() => {
+      const mvZ = positionView.z;
+      return mul(sizeUniform, div(300.0, float(mvZ).negate()));
+    })();
+
+    mat.sizeNode = pointSizeNode;
+
+    // Color and alpha calculation
+    const colorNode = Fn(() => {
+      // Calculate sparkle in fragment for variation
+      const sparkleRaw = add(
+        mul(sin(add(mul(timeUniform, 2.0), mul(aSparklePhase, 6.28))), 0.5),
+        0.5,
+      );
+      const sparkle = mul(pow(sparkleRaw, 8.0), 0.3); // Rare brief sparkle, max 30%
+
+      // Soft circular particle using pointUV (gl_PointCoord equivalent)
+      const center = sub(pointUV, 0.5);
+      const dist = length(center);
+
+      // Soft falloff
+      const alphaFalloff = sub(1.0, smoothstep(0.0, 0.5, dist));
+      const alphaBase = mul(mul(alphaFalloff, aOpacity), baseOpacityUniform);
+
+      // Add sparkle to alpha
+      const alpha = add(alphaBase, mul(sparkle, 0.5));
+
+      // Warm dust color (slightly golden)
+      const baseColor = vec3(1.0, 0.98, 0.94);
+
+      // Sparkle makes it whiter
+      const finalColor = mix(baseColor, vec3(1.0, 1.0, 1.0), sparkle);
+
+      return vec4(finalColor, alpha);
+    })();
+
+    mat.colorNode = colorNode;
+
+    return mat;
   }, [size, opacity]);
 
   // Animate dust particles
   useFrame((state) => {
-    if (!pointsRef.current || !materialRef.current || !initialPositions.current) return;
+    if (!pointsRef.current || !material.userData.time || !initialPositions.current) return;
 
     const time = state.clock.elapsedTime;
 
     // Update time uniform for sparkle
-    materialRef.current.uniforms.uTime.value = time;
+    material.userData.time.value = time;
 
     // Update positions with gentle drift
-    const positionAttr = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const positionAttr = geometry.getAttribute('position') as BufferAttribute;
 
     for (let i = 0; i < count; i++) {
       const baseX = initialPositions.current[i * 3];

@@ -1,7 +1,6 @@
 import { Stats } from '@react-three/drei';
-import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
-import { lazy, Suspense, useMemo, useRef } from 'react';
-import type * as THREE from 'three';
+import { Canvas } from '@react-three/fiber';
+import { lazy, Suspense, useCallback, useRef } from 'react';
 import { AudioProvider } from './audio';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BreathEntity } from './entities/breath';
@@ -9,14 +8,11 @@ import { CameraRig } from './entities/camera/CameraRig';
 import { useViewport } from './hooks/useViewport';
 import { BreathingLevel, BreathingLevelUI } from './levels/breathing';
 import { KootaSystems } from './providers';
+// Import WebGPU setup - this extends R3F with node materials and provides the renderer
+import { createWebGPURenderer } from './webgpu-setup';
 
 // Lazy load admin panel (only loads when needed)
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
-
-// Extend R3F with Three.js types
-declare module '@react-three/fiber' {
-  interface ThreeElements extends ThreeToJSXElements<typeof THREE> {}
-}
 
 // Simple URL-based routing
 function useCurrentPath(): string {
@@ -32,7 +28,11 @@ function useCurrentPath(): string {
  * - HTML UI renders as siblings, naturally receiving events
  * - No need for exclusion zones or complex cursor management
  *
+ * Now uses WebGPU renderer with TSL (Three.js Shading Language) support.
+ * Falls back to WebGL if WebGPU is not available.
+ *
  * @see https://r3f.docs.pmnd.rs/api/canvas#extracting-events
+ * @see https://r3f.docs.pmnd.rs/tutorials/v9-migration-guide
  */
 export function App() {
   // biome-ignore lint/style/noNonNullAssertion: R3F eventSource requires non-null ref; ref is always assigned before Canvas renders
@@ -40,15 +40,15 @@ export function App() {
   const path = useCurrentPath();
   const { isMobile, isTablet } = useViewport();
 
+  // Create WebGPU renderer factory - returns async function for Canvas gl prop
   // Disable antialias on mobile/tablet for 5-10% performance improvement
-  const glConfig = useMemo(
-    () => ({
-      antialias: !isMobile && !isTablet,
-      alpha: true,
-      localClippingEnabled: true,
-      // Reduce pixel ratio on mobile for better performance
-      pixelRatio: isMobile ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio,
-    }),
+  const glFactory = useCallback(
+    () =>
+      createWebGPURenderer({
+        antialias: !isMobile && !isTablet,
+        alpha: true,
+        powerPreference: isMobile ? 'low-power' : 'high-performance',
+      }),
     [isMobile, isTablet],
   );
 
@@ -84,13 +84,14 @@ export function App() {
         {/* 3D Canvas - receives events via eventSource, has pointer-events: none */}
         {/* frameloop="demand" enables on-demand rendering for battery savings */}
         {/* Scene invalidates via invalidate() in KootaSystems useFrame to ensure updates render */}
+        {/* Uses WebGPU renderer with WebGL fallback for TSL shader support */}
         <Canvas
           eventSource={containerRef}
           eventPrefix="client"
           frameloop="demand"
           shadows={false}
           camera={{ position: [0, 0, 10], fov: 45 }}
-          gl={glConfig}
+          gl={glFactory()}
           dpr={isMobile ? [1, 2] : [1, 2]}
           className="!absolute inset-0"
         >

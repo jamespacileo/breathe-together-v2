@@ -12,11 +12,34 @@
  * - Half-resolution backface pass (50% width/height, bilinear filtering)
  * - Environment FBO caching (re-renders only every ENV_CACHE_FRAMES frames)
  * - On-demand rendering support via invalidate()
+ *
+ * NOTE: This file uses GLSL ShaderMaterial for multi-pass post-processing.
+ * WebGPU renderer transpiles GLSL automatically. Full TSL conversion would require
+ * restructuring to use Three.js PostProcessing nodes, which is a larger refactor.
+ * The current approach is WebGPU-compatible via GLSL transpilation.
+ *
+ * WEBGPU COMPATIBLE - January 2026
  */
 
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import type { Material } from 'three';
+import {
+  BackSide,
+  DepthFormat,
+  DepthTexture,
+  DoubleSide,
+  LinearFilter,
+  Mesh,
+  OrthographicCamera,
+  PerspectiveCamera,
+  PlaneGeometry,
+  Scene,
+  ShaderMaterial,
+  UnsignedIntType,
+  Vector2,
+  WebGLRenderTarget,
+} from 'three';
 import { RENDER_LAYERS } from '../../constants';
 
 // Backface vertex shader - renders normals from back faces
@@ -331,7 +354,7 @@ export function RefractionPipeline({
   children,
 }: RefractionPipelineProps) {
   const { gl, size, camera, scene } = useThree();
-  const perspCamera = camera as THREE.PerspectiveCamera;
+  const perspCamera = camera as PerspectiveCamera;
 
   // Calculate half-resolution dimensions for backface pass
   const backfaceWidth = Math.floor(size.width * BACKFACE_RESOLUTION_SCALE);
@@ -340,24 +363,24 @@ export function RefractionPipeline({
   // Create render targets
   const { envFBO, backfaceFBO, compositeFBO } = useMemo(() => {
     // Environment FBO - full resolution, cached for ENV_CACHE_FRAMES
-    const envFBO = new THREE.WebGLRenderTarget(size.width, size.height, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
+    const envFBO = new WebGLRenderTarget(size.width, size.height, {
+      minFilter: LinearFilter,
+      magFilter: LinearFilter,
     });
 
     // Backface FBO - half resolution with bilinear filtering for smooth normals
     // At 0.5 scale: saves 75% fill rate (0.5² = 0.25 pixels) with minimal quality loss
-    const backfaceFBO = new THREE.WebGLRenderTarget(backfaceWidth, backfaceHeight, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
+    const backfaceFBO = new WebGLRenderTarget(backfaceWidth, backfaceHeight, {
+      minFilter: LinearFilter,
+      magFilter: LinearFilter,
     });
 
     // Composite FBO with depth texture for DoF
-    const depthTexture = new THREE.DepthTexture(size.width, size.height);
-    depthTexture.format = THREE.DepthFormat;
-    depthTexture.type = THREE.UnsignedIntType;
-    const compositeFBO = new THREE.WebGLRenderTarget(size.width, size.height, {
-      depthTexture: depthTexture,
+    const depthTex = new DepthTexture(size.width, size.height);
+    depthTex.format = DepthFormat;
+    depthTex.type = UnsignedIntType;
+    const compositeFBO = new WebGLRenderTarget(size.width, size.height, {
+      depthTexture: depthTex,
       depthBuffer: true,
     });
     return { envFBO, backfaceFBO, compositeFBO };
@@ -366,21 +389,21 @@ export function RefractionPipeline({
   // Create a camera for layer-based selective rendering
   // Clone the main camera and modify its layers for each pass
   const layerCamera = useMemo(() => {
-    const cam = new THREE.PerspectiveCamera();
+    const cam = new PerspectiveCamera();
     return cam;
   }, []);
 
   // Create background scene with ortho camera
   const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
-    const bgScene = new THREE.Scene();
-    const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const bgScene = new Scene();
+    const orthoCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-    const bgMaterial = new THREE.ShaderMaterial({
+    const bgMaterial = new ShaderMaterial({
       vertexShader: bgVertexShader,
       fragmentShader: bgFragmentShader,
     });
-    const bgGeometry = new THREE.PlaneGeometry(2, 2);
-    const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
+    const bgGeometry = new PlaneGeometry(2, 2);
+    const bgMesh = new Mesh(bgGeometry, bgMaterial);
     bgScene.add(bgMesh);
 
     return { bgScene, orthoCamera, bgMesh };
@@ -388,9 +411,9 @@ export function RefractionPipeline({
 
   // Create DoF scene for final composite
   const { dofScene, dofMesh, dofMaterial } = useMemo(() => {
-    const dofScene = new THREE.Scene();
+    const dofScene = new Scene();
 
-    const dofMaterial = new THREE.ShaderMaterial({
+    const dofMaterial = new ShaderMaterial({
       uniforms: {
         colorTexture: { value: null },
         depthTexture: { value: null },
@@ -399,13 +422,13 @@ export function RefractionPipeline({
         maxBlur: { value: maxBlur },
         cameraNear: { value: perspCamera.near },
         cameraFar: { value: perspCamera.far },
-        resolution: { value: new THREE.Vector2(size.width, size.height) },
+        resolution: { value: new Vector2(size.width, size.height) },
       },
       vertexShader: dofVertexShader,
       fragmentShader: dofFragmentShader,
     });
-    const dofGeometry = new THREE.PlaneGeometry(2, 2);
-    const dofMesh = new THREE.Mesh(dofGeometry, dofMaterial);
+    const dofGeometry = new PlaneGeometry(2, 2);
+    const dofMesh = new Mesh(dofGeometry, dofMaterial);
     dofScene.add(dofMesh);
 
     return { dofScene, dofMesh, dofMaterial };
@@ -421,23 +444,23 @@ export function RefractionPipeline({
 
   // Create materials
   const { backfaceMaterial, refractionMaterial } = useMemo(() => {
-    const backfaceMaterial = new THREE.ShaderMaterial({
+    const backfaceMaterial = new ShaderMaterial({
       vertexShader: backfaceVertexShader,
       fragmentShader: backfaceFragmentShader,
-      side: THREE.BackSide,
+      side: BackSide,
     });
 
-    const refractionMaterial = new THREE.ShaderMaterial({
+    const refractionMaterial = new ShaderMaterial({
       uniforms: {
         envMap: { value: null },
         backfaceMap: { value: null },
-        resolution: { value: new THREE.Vector2(size.width, size.height) },
+        resolution: { value: new Vector2(size.width, size.height) },
         ior: { value: ior },
         backfaceIntensity: { value: backfaceIntensity },
       },
       vertexShader: refractionVertexShader,
       fragmentShader: refractionFragmentShader,
-      side: THREE.DoubleSide, // Render both faces so shapes don't appear flat from certain angles
+      side: DoubleSide, // Render both faces so shapes don't appear flat from certain angles
     });
 
     return { backfaceMaterial, refractionMaterial };
@@ -481,10 +504,10 @@ export function RefractionPipeline({
   ]);
 
   // Store original materials for mesh swapping
-  const meshDataRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
+  const meshDataRef = useRef<Map<Mesh, Material | Material[]>>(new Map());
 
   // Cache refraction meshes (refreshed when count changes or meshes become stale)
-  const refractionMeshesRef = useRef<THREE.Mesh[]>([]);
+  const refractionMeshesRef = useRef<Mesh[]>([]);
 
   // Frame counter for throttled operations
   const frameCountRef = useRef(0);
@@ -506,9 +529,9 @@ export function RefractionPipeline({
       refractionMaterial.dispose();
       dofMaterial.dispose();
       bgMesh.geometry.dispose();
-      (bgMesh.material as THREE.Material).dispose();
+      (bgMesh.material as Material).dispose();
       dofMesh.geometry.dispose();
-      (dofMesh.material as THREE.Material).dispose();
+      (dofMesh.material as Material).dispose();
     };
   }, [
     envFBO,
@@ -546,10 +569,10 @@ export function RefractionPipeline({
 
       // Full scene traversal only when needed or periodically
       if (needsRefresh || refractionMeshesRef.current.length === 0) {
-        const newMeshes: THREE.Mesh[] = [];
+        const newMeshes: Mesh[] = [];
         scene.traverse((obj) => {
           // Check if mesh is on PARTICLES layer (layer 2)
-          if (obj instanceof THREE.Mesh && obj.layers.isEnabled(RENDER_LAYERS.PARTICLES)) {
+          if (obj instanceof Mesh && obj.layers.isEnabled(RENDER_LAYERS.PARTICLES)) {
             newMeshes.push(obj);
           }
         });
