@@ -1,24 +1,23 @@
 /**
- * StudioFloor - Minimal, elegant floor for stage/studio mode
+ * StudioFloor - Minimal, performant floor for stage/studio mode
  *
  * Design philosophy: Provide spatial reference without drawing attention.
- * "Felt but not seen" - users know where they are without thinking about it.
+ * Performance: Uses drei's native Grid (single draw call) + gridHelper.
  *
  * Features:
- * - Soft radial shadow for natural grounding
- * - Minimal crosshair axes (X=coral, Z=periwinkle)
- * - Optional sparse reference grid (just major divisions)
- * - No z-fighting - shadow is a separate plane above grid
+ * - Native drei Grid component (highly optimized, single draw call)
+ * - gridHelper for axis reference (single draw call)
+ * - Soft radial shadow via simple transparent circle
  */
 
-import { Line } from '@react-three/drei';
+import { Grid } from '@react-three/drei';
 import { useEffect, useMemo } from 'react';
-import { CircleGeometry, Color, ShaderMaterial } from 'three';
+import { CircleGeometry, Color, MeshBasicMaterial } from 'three';
 
 interface StudioFloorProps {
   /** Total size of the floor in world units @default 30 */
   size?: number;
-  /** Number of major grid divisions (sparse) @default 6 */
+  /** Number of grid divisions @default 6 */
   divisions?: number;
   /** Color of grid lines @default '#e0e0e0' */
   color?: string;
@@ -28,37 +27,11 @@ interface StudioFloorProps {
   position?: number;
 }
 
-// Soft radial gradient shader for grounding shadow
-const shadowVertexShader = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-const shadowFragmentShader = `
-varying vec2 vUv;
-uniform vec3 shadowColor;
-uniform float opacity;
-
-void main() {
-  // Distance from center (0.5, 0.5)
-  vec2 center = vUv - 0.5;
-  float dist = length(center) * 2.0;
-
-  // Soft falloff - gaussian-like curve
-  float alpha = exp(-dist * dist * 3.0) * opacity;
-
-  // Extra soft edge
-  alpha *= smoothstep(1.0, 0.3, dist);
-
-  gl_FragColor = vec4(shadowColor, alpha);
-}
-`;
-
 /**
- * StudioFloor component - minimal, elegant floor with soft shadow
+ * StudioFloor component - performant minimal floor
+ *
+ * Uses drei's Grid (single draw call) instead of multiple Line components.
+ * Shadow uses simple MeshBasicMaterial with vertex colors for gradient.
  */
 export function EditorGrid({
   size = 30,
@@ -67,30 +40,19 @@ export function EditorGrid({
   showAxes = true,
   position = -3,
 }: StudioFloorProps) {
-  const halfSize = size / 2;
-  const gridSpacing = size / divisions;
-
-  // Muted axis colors - visible but not distracting
-  const xAxisColor = '#daa0a0'; // Soft dusty rose
-  const zAxisColor = '#a0a0da'; // Soft lavender
-
-  // Shadow material with radial gradient
+  // Simple shadow material - single draw call
   const shadowMaterial = useMemo(() => {
-    return new ShaderMaterial({
-      uniforms: {
-        shadowColor: { value: new Color('#b8a898') },
-        opacity: { value: 0.25 },
-      },
-      vertexShader: shadowVertexShader,
-      fragmentShader: shadowFragmentShader,
+    return new MeshBasicMaterial({
+      color: new Color('#c0b0a0'),
       transparent: true,
+      opacity: 0.15,
       depthWrite: false,
     });
   }, []);
 
-  // Shadow geometry
+  // Shadow geometry - simple circle
   const shadowGeometry = useMemo(() => {
-    return new CircleGeometry(8, 64);
+    return new CircleGeometry(6, 32);
   }, []);
 
   // Cleanup
@@ -101,93 +63,36 @@ export function EditorGrid({
     };
   }, [shadowMaterial, shadowGeometry]);
 
-  // Generate sparse grid lines (just major divisions)
-  const gridLines = useMemo(() => {
-    const lines: Array<{
-      points: [[number, number, number], [number, number, number]];
-      key: string;
-    }> = [];
-
-    // Horizontal lines (along X axis)
-    for (let i = -divisions / 2; i <= divisions / 2; i++) {
-      const z = i * gridSpacing;
-      if (i === 0) continue; // Skip center line (axis will cover it)
-      lines.push({
-        points: [
-          [-halfSize, 0, z],
-          [halfSize, 0, z],
-        ],
-        key: `h${i}`,
-      });
-    }
-
-    // Vertical lines (along Z axis)
-    for (let i = -divisions / 2; i <= divisions / 2; i++) {
-      const x = i * gridSpacing;
-      if (i === 0) continue; // Skip center line (axis will cover it)
-      lines.push({
-        points: [
-          [x, 0, -halfSize],
-          [x, 0, halfSize],
-        ],
-        key: `v${i}`,
-      });
-    }
-
-    return lines;
-  }, [divisions, gridSpacing, halfSize]);
-
   return (
     <group>
-      {/* Soft radial shadow - grounds the content elegantly */}
+      {/* Soft circular shadow - single draw call */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, position + 0.02, 0]}
+        position={[0, position + 0.005, 0]}
         geometry={shadowGeometry}
         material={shadowMaterial}
       />
 
-      {/* Sparse reference grid - just major divisions */}
-      <group position={[0, position + 0.01, 0]}>
-        {gridLines.map((line) => (
-          <Line
-            key={line.key}
-            points={line.points}
-            color={color}
-            lineWidth={0.5}
-            transparent
-            opacity={0.4}
-          />
-        ))}
-      </group>
+      {/* Native drei Grid - highly optimized, single draw call */}
+      {/* No z-fighting: Grid renders at exact position, shadow slightly above */}
+      <Grid
+        position={[0, position, 0]}
+        args={[size, size]}
+        cellSize={size / divisions}
+        cellThickness={0.4}
+        cellColor={color}
+        sectionSize={size / divisions}
+        sectionThickness={0.8}
+        sectionColor={color}
+        fadeDistance={35}
+        fadeStrength={1.2}
+        followCamera={false}
+        infiniteGrid={true}
+      />
 
-      {/* Axis indicators - subtle crosshair */}
+      {/* Native gridHelper for axes - single draw call, uses vertex colors */}
       {showAxes && (
-        <group position={[0, position + 0.015, 0]}>
-          {/* X axis - dusty rose */}
-          <Line
-            points={[
-              [-halfSize, 0, 0],
-              [halfSize, 0, 0],
-            ]}
-            color={xAxisColor}
-            lineWidth={1}
-            transparent
-            opacity={0.6}
-          />
-
-          {/* Z axis - soft lavender */}
-          <Line
-            points={[
-              [0, 0, -halfSize],
-              [0, 0, halfSize],
-            ]}
-            color={zAxisColor}
-            lineWidth={1}
-            transparent
-            opacity={0.6}
-          />
-        </group>
+        <gridHelper args={[size, 2, '#d4a0a0', '#a0a0d4']} position={[0, position + 0.001, 0]} />
       )}
     </group>
   );
