@@ -1197,30 +1197,413 @@ flowchart TB
 
 ---
 
-### 7.6 Comparison Matrix
+### 7.6 Proposal E: Research Agent with Gemini Grounding
 
-| Feature | PR Preview QA | Code Review | Release Orchestration | Issue Triage |
-|---------|---------------|-------------|----------------------|--------------|
-| **Cloudflare Services** |
-| Browser Rendering | ✅ Primary | ❌ | ✅ Verification | ❌ |
-| Sandbox SDK | ❌ | ✅ Primary | ✅ Build/Version | ✅ Code Search |
-| Durable Objects | ✅ Session | ✅ State | ✅ State Machine | ✅ Cache |
-| R2 | ✅ Screenshots | ❌ | ❌ | ❌ |
-| Vectorize | ❌ | ❌ | ❌ | ✅ Embeddings |
-| **Complexity** |
-| Setup Effort | Medium | High | High | Medium |
-| Maintenance | Low | Medium | Medium | Low |
-| **Value** |
-| Bug Prevention | High | High | Medium | Low |
-| Developer Experience | High | High | Medium | High |
-| Automation Level | Full | Full | Full | Partial |
-| **Cost Estimate** |
-| Monthly (small project) | $5-15 | $10-30 | $5-10 | $5-15 |
-| Monthly (large project) | $30-100 | $50-200 | $20-50 | $20-50 |
+**Purpose:** Perform autonomous research tasks using Gemini 2.0 Flash with Google Search grounding, maintaining a persistent research todo list with findings, sources, and actionable summaries.
+
+**Why Gemini for Research:**
+- **Native Google Search grounding** - Real-time web search integrated at the model level
+- **Automatic citation generation** - `groundingMetadata` includes search queries, web results, and citations
+- **Cost-effective** - Flash models are ~10x cheaper than frontier models for high-volume research
+- **Multi-query synthesis** - Model automatically generates and executes multiple search queries
+
+**Architecture:**
+
+```mermaid
+flowchart TB
+    subgraph "Triggers"
+        CHAT[Chat Command<br/>/research topic]
+        SCHEDULED[Scheduled<br/>DO Alarm]
+        WEBHOOK[GitHub Issue<br/>needs-research label]
+    end
+
+    subgraph "Cloudflare Workers"
+        DO[Durable Object<br/>Research Agent]
+        SQL[(DO SQL<br/>Research Tasks)]
+        KV[(KV Store<br/>Source Cache)]
+    end
+
+    subgraph "Gemini API"
+        GEMINI[Gemini 2.0 Flash]
+        GROUND[Google Search<br/>Grounding Tool]
+        CITE[Citation<br/>Extraction]
+    end
+
+    subgraph "Research Pipeline"
+        PLAN[Generate Research<br/>Questions]
+        SEARCH[Execute Grounded<br/>Searches]
+        SYNTH[Synthesize<br/>Findings]
+        VERIFY[Cross-Reference<br/>Sources]
+    end
+
+    subgraph "Outputs"
+        TODO[Research Todo<br/>with Status]
+        REPORT[Markdown Report<br/>with Citations]
+        COMMENT[GitHub Comment<br/>or Chat Response]
+    end
+
+    CHAT --> DO
+    SCHEDULED --> DO
+    WEBHOOK --> DO
+    DO --> PLAN
+    PLAN --> GEMINI
+    GEMINI --> GROUND
+    GROUND --> SEARCH
+    SEARCH --> SYNTH
+    SYNTH --> VERIFY
+    VERIFY --> CITE
+    CITE --> TODO
+    TODO --> SQL
+    SYNTH --> REPORT
+    REPORT --> COMMENT
+    DO -->|cache sources| KV
+```
+
+**Research Todo List Schema:**
+
+```typescript
+interface ResearchTask {
+  id: string;
+  topic: string;
+  status: 'pending' | 'researching' | 'synthesizing' | 'completed' | 'blocked';
+  questions: ResearchQuestion[];
+  findings: Finding[];
+  sources: Source[];
+  createdAt: number;
+  updatedAt: number;
+  requestedBy: string; // user, scheduled, github-issue
+}
+
+interface ResearchQuestion {
+  id: string;
+  question: string;
+  status: 'pending' | 'answered' | 'needs-more-info';
+  answer?: string;
+  confidence: number; // 0-1
+  sources: string[]; // source IDs
+}
+
+interface Finding {
+  id: string;
+  summary: string;
+  details: string;
+  relevance: 'high' | 'medium' | 'low';
+  verifiedBy: string[]; // multiple source IDs for cross-reference
+}
+
+interface Source {
+  id: string;
+  url: string;
+  title: string;
+  snippet: string;
+  retrievedAt: number;
+  groundingChunks: GroundingChunk[]; // from Gemini API
+}
+```
+
+**Workflow:**
+
+1. **Task Creation:**
+   - User triggers via chat (`/research <topic>`) or GitHub issue label
+   - Agent breaks topic into specific research questions
+   - Creates research todo with pending questions
+
+2. **Grounded Research:**
+   ```typescript
+   const response = await gemini.generateContent({
+     model: 'gemini-2.0-flash',
+     contents: [{ role: 'user', parts: [{ text: question }] }],
+     tools: [{ googleSearch: {} }], // Enable grounding
+   });
+
+   // Extract grounding metadata
+   const { groundingMetadata } = response.candidates[0];
+   const sources = groundingMetadata.groundingChunks.map(chunk => ({
+     url: chunk.web.uri,
+     title: chunk.web.title,
+   }));
+   ```
+
+3. **Multi-Query Synthesis:**
+   - For complex topics, generate 3-5 sub-questions
+   - Execute parallel grounded searches
+   - Cross-reference findings across sources
+   - Flag contradictions for human review
+
+4. **Progressive Updates:**
+   - Update todo status as research progresses
+   - Stream partial findings to chat/PR comment
+   - Mark questions as "needs-more-info" if confidence low
+
+5. **Report Generation:**
+   - Compile findings into structured markdown
+   - Include inline citations with source URLs
+   - Add confidence indicators per finding
+   - Generate executive summary
+
+**Implementation:**
+
+```typescript
+// agents/src/agents/research-agent.ts
+import { GoogleGenerativeAI } from '@google/genai';
+
+interface ResearchConfig {
+  maxQuestionsPerTopic: number;
+  confidenceThreshold: number;
+  maxSourcesPerQuestion: number;
+}
+
+export class ResearchAgent extends DurableObject<Env> {
+  private gemini: GoogleGenerativeAI;
+  private config: ResearchConfig = {
+    maxQuestionsPerTopic: 5,
+    confidenceThreshold: 0.7,
+    maxSourcesPerQuestion: 5,
+  };
+
+  constructor(state: DurableObjectState, env: Env) {
+    super(state, env);
+    this.gemini = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+  }
+
+  async createResearchTask(topic: string, requestedBy: string): Promise<ResearchTask> {
+    // 1. Generate research questions using Claude (better at planning)
+    const questions = await this.generateResearchQuestions(topic);
+
+    // 2. Create task in DO SQL
+    const task: ResearchTask = {
+      id: crypto.randomUUID(),
+      topic,
+      status: 'pending',
+      questions: questions.map(q => ({
+        id: crypto.randomUUID(),
+        question: q,
+        status: 'pending',
+        confidence: 0,
+        sources: [],
+      })),
+      findings: [],
+      sources: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      requestedBy,
+    };
+
+    await this.saveTask(task);
+
+    // 3. Schedule research execution
+    await this.ctx.storage.setAlarm(Date.now() + 100); // Start immediately
+
+    return task;
+  }
+
+  async alarm(): Promise<void> {
+    const pendingTasks = await this.getPendingTasks();
+
+    for (const task of pendingTasks) {
+      await this.executeResearch(task);
+    }
+  }
+
+  private async executeResearch(task: ResearchTask): Promise<void> {
+    task.status = 'researching';
+    await this.saveTask(task);
+
+    // Process each question with Gemini grounding
+    for (const question of task.questions.filter(q => q.status === 'pending')) {
+      try {
+        const result = await this.groundedSearch(question.question);
+
+        question.answer = result.answer;
+        question.confidence = result.confidence;
+        question.sources = result.sources.map(s => s.id);
+        question.status = result.confidence >= this.config.confidenceThreshold
+          ? 'answered'
+          : 'needs-more-info';
+
+        // Add sources to task
+        task.sources.push(...result.sources);
+
+        await this.saveTask(task);
+      } catch (error) {
+        console.error(`Research failed for question: ${question.question}`, error);
+        question.status = 'needs-more-info';
+      }
+    }
+
+    // Synthesize findings
+    task.status = 'synthesizing';
+    await this.saveTask(task);
+
+    task.findings = await this.synthesizeFindings(task);
+    task.status = 'completed';
+    task.updatedAt = Date.now();
+
+    await this.saveTask(task);
+
+    // Post results
+    await this.postResults(task);
+  }
+
+  private async groundedSearch(question: string): Promise<GroundedResult> {
+    const model = this.gemini.getGenerativeModel({
+      model: 'gemini-2.0-flash-exp',
+      tools: [{ googleSearch: {} }],
+    });
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: question }] }],
+    });
+
+    const response = result.response;
+    const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+
+    // Extract sources from grounding chunks
+    const sources: Source[] = (groundingMetadata?.groundingChunks || []).map(chunk => ({
+      id: crypto.randomUUID(),
+      url: chunk.web?.uri || '',
+      title: chunk.web?.title || '',
+      snippet: chunk.web?.snippet || '',
+      retrievedAt: Date.now(),
+      groundingChunks: [chunk],
+    }));
+
+    // Cache sources in KV for deduplication
+    for (const source of sources) {
+      await this.env.KV.put(`source:${source.url}`, JSON.stringify(source), {
+        expirationTtl: 86400, // 24 hours
+      });
+    }
+
+    return {
+      answer: response.text(),
+      confidence: this.calculateConfidence(groundingMetadata),
+      sources,
+    };
+  }
+
+  private calculateConfidence(metadata: GroundingMetadata | undefined): number {
+    if (!metadata) return 0.3;
+
+    const hasWebResults = (metadata.webSearchQueries?.length || 0) > 0;
+    const sourceCount = metadata.groundingChunks?.length || 0;
+    const hasSupport = metadata.groundingSupports?.length || 0;
+
+    // Weighted confidence calculation
+    let confidence = 0.5; // Base confidence for any response
+    if (hasWebResults) confidence += 0.1;
+    if (sourceCount >= 2) confidence += 0.15;
+    if (sourceCount >= 4) confidence += 0.1;
+    if (hasSupport > 0) confidence += 0.15;
+
+    return Math.min(confidence, 1.0);
+  }
+
+  private async synthesizeFindings(task: ResearchTask): Promise<Finding[]> {
+    // Use Claude for synthesis (better at reasoning)
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': this.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2048,
+        system: `Synthesize research findings into clear, actionable insights.
+                 Return JSON array of findings with: summary, details, relevance (high/medium/low).
+                 Cross-reference information across multiple sources.
+                 Flag any contradictions or areas needing clarification.`,
+        messages: [{
+          role: 'user',
+          content: JSON.stringify({
+            topic: task.topic,
+            questions: task.questions,
+            sources: task.sources,
+          }),
+        }],
+      }),
+    });
+
+    const data = await response.json();
+    return JSON.parse(data.content[0].text);
+  }
+
+  // API endpoints
+  async getTaskStatus(taskId: string): Promise<ResearchTask | null> {
+    return this.ctx.storage.get(`task:${taskId}`);
+  }
+
+  async getTodoList(): Promise<ResearchTask[]> {
+    const tasks = await this.ctx.storage.list({ prefix: 'task:' });
+    return Array.from(tasks.values()) as ResearchTask[];
+  }
+}
+```
+
+**Use Cases:**
+
+| Scenario | Trigger | Output |
+|----------|---------|--------|
+| Technology evaluation | `/research "Compare Bun vs Node.js for Workers"` | Comparison report with benchmarks, sources |
+| Dependency analysis | GitHub issue labeled `needs-research` | Comment with security advisories, alternatives |
+| Competitive analysis | Scheduled weekly | Report on competitor features, pricing changes |
+| Documentation gaps | PR comment asking "how does X work?" | Explanation with official docs, examples |
+| Bug investigation | Issue with error message | Stack Overflow solutions, GitHub issues, workarounds |
+
+**Pros:**
+| Advantage | Detail |
+|-----------|--------|
+| Real-time information | Google Search grounding gets latest data |
+| Auto-citations | Every claim linked to verifiable source |
+| Cost-effective | Flash model ~$0.075/1M input tokens |
+| Persistent state | DO SQL tracks research progress |
+| Multi-model | Gemini for search, Claude for synthesis |
+| Deduplication | KV caches sources across tasks |
+
+**Cons:**
+| Disadvantage | Mitigation |
+|--------------|------------|
+| Grounding costs | Rate limit queries, cache aggressively |
+| Quality variance | Cross-reference multiple sources |
+| API key management | Use Cloudflare secrets |
+| Search bias | Add diverse source requirements |
+
+**Recommendation:** ✅ **Recommended** - Unique capability, moderate complexity
 
 ---
 
-### 7.7 Recommended Implementation Order
+### 7.7 Comparison Matrix
+
+| Feature | PR Preview QA | Code Review | Release Orchestration | Issue Triage | Research Agent |
+|---------|---------------|-------------|----------------------|--------------|----------------|
+| **Cloudflare Services** |
+| Browser Rendering | ✅ Primary | ❌ | ✅ Verification | ❌ | ❌ |
+| Sandbox SDK | ❌ | ✅ Primary | ✅ Build/Version | ✅ Code Search | ❌ |
+| Durable Objects | ✅ Session | ✅ State | ✅ State Machine | ✅ Cache | ✅ Todo State |
+| R2 | ✅ Screenshots | ❌ | ❌ | ❌ | ❌ |
+| KV | ❌ | ❌ | ❌ | ✅ Labels | ✅ Source Cache |
+| Vectorize | ❌ | ❌ | ❌ | ✅ Embeddings | ❌ |
+| **External APIs** |
+| Claude API | ❌ | ✅ Review | ❌ | ✅ Classification | ✅ Synthesis |
+| Gemini API | ❌ | ❌ | ❌ | ❌ | ✅ Grounded Search |
+| GitHub API | ✅ Comments | ✅ Reviews | ✅ Releases | ✅ Labels | ✅ Comments |
+| **Complexity** |
+| Setup Effort | Medium | High | High | Medium | Medium |
+| Maintenance | Low | Medium | Medium | Low | Low |
+| **Value** |
+| Bug Prevention | High | High | Medium | Low | Low |
+| Developer Experience | High | High | Medium | High | High |
+| Knowledge Generation | Low | Low | Low | Medium | High |
+| Automation Level | Full | Full | Full | Partial | Partial |
+| **Cost Estimate** |
+| Monthly (small project) | $5-15 | $10-30 | $5-10 | $5-15 | $5-20 |
+| Monthly (large project) | $30-100 | $50-200 | $20-50 | $20-50 | $20-80 |
+
+---
+
+### 7.8 Recommended Implementation Order
 
 **Phase 1: PR Preview QA Agent (Week 1-2)**
 - [ ] Set up Browser Rendering binding
@@ -1236,13 +1619,20 @@ flowchart TB
 - [ ] Integrate Claude for review generation
 - [ ] Create GitHub Check Run integration
 
-**Phase 3: Issue Triage (Week 5)**
+**Phase 3: Research Agent (Week 5)**
+- [ ] Set up Gemini API with grounding
+- [ ] Implement research todo schema in DO SQL
+- [ ] Create question generation pipeline
+- [ ] Add source caching in KV
+- [ ] Build synthesis with Claude
+
+**Phase 4: Issue Triage (Week 6)**
 - [ ] Set up Vectorize binding
 - [ ] Create issue embedding pipeline
 - [ ] Implement similarity search
 - [ ] Add auto-labeling logic
 
-**Phase 4: Release Orchestration (Week 6+)**
+**Phase 5: Release Orchestration (Week 7+)**
 - [ ] Design state machine
 - [ ] Implement changelog generation
 - [ ] Add deployment verification
@@ -1250,7 +1640,7 @@ flowchart TB
 
 ---
 
-### 7.8 Quick Start: PR Preview QA Agent
+### 7.9 Quick Start: PR Preview QA Agent
 
 Minimal implementation to get started:
 
