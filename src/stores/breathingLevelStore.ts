@@ -8,6 +8,10 @@ interface BreathingLevelState {
   shardSize: number;
   atmosphereDensity: number;
 
+  // Feature flags
+  /** When true, inspirational text shows on 3D ribbon instead of HTML overlay */
+  ribbonInspirationalMode: boolean;
+
   // UI state
   showTuneControls: boolean;
   showSettings: boolean;
@@ -17,6 +21,7 @@ interface BreathingLevelState {
   setOrbitRadius: (value: number) => void;
   setShardSize: (value: number) => void;
   setAtmosphereDensity: (value: number) => void;
+  setRibbonInspirationalMode: (value: boolean) => void;
   setShowTuneControls: (value: boolean) => void;
   setShowSettings: (value: boolean) => void;
   applyPreset: (presetName: PresetName) => void;
@@ -33,6 +38,9 @@ export const useBreathingLevelStore = create<BreathingLevelState>((set, get) => 
   shardSize: TUNING_DEFAULTS.shardSize,
   atmosphereDensity: TUNING_DEFAULTS.atmosphereDensity,
 
+  // Feature flags - ribbon mode enabled by default
+  ribbonInspirationalMode: true,
+
   // UI state
   showTuneControls: false,
   showSettings: false,
@@ -42,6 +50,7 @@ export const useBreathingLevelStore = create<BreathingLevelState>((set, get) => 
   setOrbitRadius: (value) => set({ orbitRadius: value }),
   setShardSize: (value) => set({ shardSize: value }),
   setAtmosphereDensity: (value) => set({ atmosphereDensity: value }),
+  setRibbonInspirationalMode: (value) => set({ ribbonInspirationalMode: value }),
   setShowTuneControls: (value) => set({ showTuneControls: value }),
   setShowSettings: (value) => set({ showSettings: value }),
 
