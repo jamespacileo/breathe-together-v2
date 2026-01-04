@@ -124,7 +124,6 @@ export interface ResolvedInstance {
 
 export const PALETTE_TEAL = ['#7ec8c8', '#5eb3b2', '#4aa3a3', '#6bc4c4', '#8dd3d3'];
 export const PALETTE_GOLD = ['#d4a574', '#c9956a', '#deb887', '#e6c9a0', '#bf8a5e'];
-export const PALETTE_WHITE = ['#ffffff', '#f8f8f8', '#f0f0f0', '#fafafa'];
 export const PALETTE_SOFT = ['#e8e4e0', '#d4d0cc', '#c8c4c0', '#dcd8d4'];
 
 // =============================================================================
@@ -359,10 +358,6 @@ export function resolveAllInstances(config: RibbonSystemConfig): ResolvedInstanc
 
 export function generateDotPattern(length = 40): string {
   return Array(length).fill('·').join(' ');
-}
-
-export function generateWavePattern(length = 25): string {
-  return Array(length).fill('~').join(' ');
 }
 
 // =============================================================================
