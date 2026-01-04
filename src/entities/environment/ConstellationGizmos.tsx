@@ -4,9 +4,14 @@
  * Shows individual star positions, constellation wireframe lines,
  * and constellation name labels. Styled to match ShapeGizmos patterns.
  *
+ * PERFORMANCE OPTIMIZED:
+ * - Uses InstancedMesh for star markers (2 draw calls vs 170)
+ * - Batched constellation lines (1 draw call vs 70)
+ * - Total: ~7 draw calls with celestial frame enabled
+ *
  * Features:
- * - Small star markers with magnitude-based sizing (like CentroidMarker)
- * - Batched constellation lines for performance (like BatchedConnectionLines)
+ * - Instanced star markers with magnitude-based sizing
+ * - Batched constellation lines for performance
  * - Constellation name labels at centroids
  * - Subtle celestial reference frame
  * - Real-time position updates via useFrame
@@ -88,68 +93,157 @@ function calculateCentroid(
 }
 
 /**
- * Small star marker - matches CentroidMarker style from ShapeGizmos
- * Small sphere with ring indicator
+ * Instanced star markers - uses 2 draw calls for all stars (spheres + rings)
+ * Replaces individual StarMarker components for massive performance gain
  */
-const StarMarker = memo(function StarMarker({
-  position,
-  name,
-  magnitude,
-  showLabel,
+const InstancedStarMarkers = memo(function InstancedStarMarkers({
+  stars,
   color,
+  radius,
+  gmst,
 }: {
-  position: THREE.Vector3;
-  name: string;
-  magnitude: number;
-  showLabel: boolean;
+  stars: Star[];
   color: string;
+  radius: number;
+  gmst: number;
 }) {
-  const brightness = magnitudeToBrightness(magnitude);
-  // Small sizes like CentroidMarker (0.04 to 0.12 based on brightness)
-  const size = 0.04 + brightness * 0.08;
+  const sphereRef = useRef<THREE.InstancedMesh>(null);
+  const ringRef = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  // Create shared geometries and materials
+  const { sphereGeometry, sphereMaterial, ringGeometry, ringMaterial } = useMemo(() => {
+    // Average size for instanced rendering (individual sizes not supported without custom shader)
+    const avgSize = 0.08;
+
+    const sphereGeo = new THREE.SphereGeometry(avgSize, 8, 8);
+    const sphereMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+    });
+
+    const ringGeo = new THREE.RingGeometry(avgSize * 1.5, avgSize * 2, 16);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.4,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+
+    return {
+      sphereGeometry: sphereGeo,
+      sphereMaterial: sphereMat,
+      ringGeometry: ringGeo,
+      ringMaterial: ringMat,
+    };
+  }, [color]);
+
+  // Update instance matrices when positions change
+  useEffect(() => {
+    if (!sphereRef.current || !ringRef.current) return;
+
+    for (let i = 0; i < stars.length; i++) {
+      const star = stars[i];
+      const [x, y, z] = celestialToCartesian(star.ra, star.dec, radius, gmst);
+
+      // Scale based on magnitude (brighter stars = larger)
+      const brightness = magnitudeToBrightness(star.magnitude);
+      const scale = 0.5 + brightness * 1.5;
+
+      dummy.position.set(x, y, z);
+      dummy.scale.setScalar(scale);
+      dummy.updateMatrix();
+
+      sphereRef.current.setMatrixAt(i, dummy.matrix);
+
+      // Ring needs different rotation
+      dummy.rotation.set(Math.PI / 2, 0, 0);
+      dummy.updateMatrix();
+      ringRef.current.setMatrixAt(i, dummy.matrix);
+
+      // Reset rotation for next iteration
+      dummy.rotation.set(0, 0, 0);
+    }
+
+    sphereRef.current.instanceMatrix.needsUpdate = true;
+    ringRef.current.instanceMatrix.needsUpdate = true;
+  }, [stars, radius, gmst, dummy]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      sphereGeometry.dispose();
+      sphereMaterial.dispose();
+      ringGeometry.dispose();
+      ringMaterial.dispose();
+    };
+  }, [sphereGeometry, sphereMaterial, ringGeometry, ringMaterial]);
 
   return (
-    <group position={position}>
-      {/* Star marker sphere - small like CentroidMarker */}
-      <mesh>
-        <sphereGeometry args={[size, 8, 8]} />
-        <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />
-      </mesh>
+    <>
+      <instancedMesh
+        ref={sphereRef}
+        args={[sphereGeometry, sphereMaterial, stars.length]}
+        frustumCulled={false}
+      />
+      <instancedMesh
+        ref={ringRef}
+        args={[ringGeometry, ringMaterial, stars.length]}
+        frustumCulled={false}
+      />
+    </>
+  );
+});
 
-      {/* Ring indicator around star */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[size * 1.5, size * 2, 16]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={0.4}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
+/**
+ * Star labels - HTML elements (no draw calls)
+ * Separate from instanced rendering for optional label display
+ */
+const StarLabels = memo(function StarLabels({
+  stars,
+  color,
+  radius,
+  gmst,
+}: {
+  stars: Star[];
+  color: string;
+  radius: number;
+  gmst: number;
+}) {
+  return (
+    <>
+      {stars.map((star) => {
+        const [x, y, z] = celestialToCartesian(star.ra, star.dec, radius, gmst);
+        const brightness = magnitudeToBrightness(star.magnitude);
+        const size = 0.04 + brightness * 0.08;
 
-      {/* Star name label - matching ShapeGizmos label style */}
-      {showLabel && (
-        <Html position={[0, size * 4, 0]} center>
-          <div
-            style={{
-              background: 'rgba(0, 0, 0, 0.75)',
-              color: color,
-              padding: '2px 4px',
-              borderRadius: '3px',
-              fontSize: '9px',
-              fontFamily: 'monospace',
-              whiteSpace: 'nowrap',
-              border: `1px solid ${color}`,
-              pointerEvents: 'none',
-            }}
-          >
-            {name}
-            <span style={{ color: '#888', marginLeft: '3px' }}>({magnitude.toFixed(1)})</span>
-          </div>
-        </Html>
-      )}
-    </group>
+        return (
+          <Html key={star.id} position={[x, y + size * 4, z]} center>
+            <div
+              style={{
+                background: 'rgba(0, 0, 0, 0.75)',
+                color: color,
+                padding: '2px 4px',
+                borderRadius: '3px',
+                fontSize: '9px',
+                fontFamily: 'monospace',
+                whiteSpace: 'nowrap',
+                border: `1px solid ${color}`,
+                pointerEvents: 'none',
+              }}
+            >
+              {star.name}
+              <span style={{ color: '#888', marginLeft: '3px' }}>
+                ({star.magnitude.toFixed(1)})
+              </span>
+            </div>
+          </Html>
+        );
+      })}
+    </>
   );
 });
 
@@ -260,40 +354,14 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
     return map;
   }, []);
 
-  // Calculate initial star positions
-  const starPositions = useRef<Map<string, THREE.Vector3>>(new Map());
-
-  // Calculate constellation centroids
-  const constellationCentroids = useRef<
-    Map<string, { centroid: THREE.Vector3; boundingRadius: number }>
-  >(new Map());
-
-  // Update positions each frame
+  // Update GMST each frame
   useFrame(() => {
     const now = new Date();
     const newGmst = calculateGMST(now);
     gmstRef.current = newGmst;
 
-    // Update star positions
-    for (const star of STARS) {
-      const [x, y, z] = celestialToCartesian(star.ra, star.dec, radius, newGmst);
-      let pos = starPositions.current.get(star.id);
-      if (!pos) {
-        pos = new THREE.Vector3();
-        starPositions.current.set(star.id, pos);
-      }
-      pos.set(x, y, z);
-    }
-
-    // Update constellation centroids
-    for (const constellation of CONSTELLATIONS) {
-      const result = calculateCentroid(constellation.stars, starMap, radius, newGmst);
-      constellationCentroids.current.set(constellation.id, result);
-    }
-
     // Spawn/update Koota entities for fast state queries
     try {
-      // Update celestial frame entity
       const frameEntity = world.queryFirst(CelestialFrameData);
       if (frameEntity) {
         frameEntity.set(CelestialFrameData, {
@@ -307,19 +375,8 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
     }
   });
 
-  // Calculate current positions for rendering
+  // Calculate current GMST for rendering
   const currentGmst = gmstRef.current;
-
-  // Get star positions for current frame
-  const renderedStars = useMemo(() => {
-    return STARS.map((star) => {
-      const [x, y, z] = celestialToCartesian(star.ra, star.dec, radius, currentGmst);
-      return {
-        ...star,
-        position: new THREE.Vector3(x, y, z),
-      };
-    });
-  }, [radius, currentGmst]);
 
   // Get line segments for current frame
   const renderedLines = useMemo(() => {
@@ -429,18 +486,15 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
         </>
       )}
 
-      {/* Star markers - small like CentroidMarker */}
-      {showStars &&
-        renderedStars.map((star) => (
-          <StarMarker
-            key={star.id}
-            position={star.position}
-            name={star.name}
-            magnitude={star.magnitude}
-            showLabel={showStarLabels}
-            color={starColor}
-          />
-        ))}
+      {/* Instanced star markers - 2 draw calls for all stars */}
+      {showStars && (
+        <InstancedStarMarkers stars={STARS} color={starColor} radius={radius} gmst={currentGmst} />
+      )}
+
+      {/* Star labels (HTML, no draw calls) - optional */}
+      {showStars && showStarLabels && (
+        <StarLabels stars={STARS} color={starColor} radius={radius} gmst={currentGmst} />
+      )}
 
       {/* Batched constellation lines - single draw call */}
       {showLines && <BatchedConstellationLines lines={renderedLines} color={lineColor} />}

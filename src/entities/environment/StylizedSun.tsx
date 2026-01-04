@@ -131,7 +131,8 @@ const sunFragmentShader = `
 `;
 
 /**
- * Sun rays component - decorative radial lines
+ * Sun rays component - INSTANCED for performance (1 draw call vs 16)
+ * Uses InstancedMesh instead of individual meshes for each ray
  */
 function SunRays({
   count,
@@ -144,49 +145,76 @@ function SunRays({
   color: string;
   breathPhase: number;
 }) {
-  const raysRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  const instancedRef = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
 
+  // Create geometry and material once
+  const { geometry, material } = useMemo(() => {
+    // Use average dimensions for the base geometry
+    const avgLength = size * 1.5;
+    const avgWidth = 0.12;
+    const geo = new THREE.PlaneGeometry(avgLength, avgWidth);
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color),
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    return { geometry: geo, material: mat };
+  }, [size, color]);
+
+  // Pre-calculate ray data (lengths vary by index)
+  const rayData = useMemo(() => {
+    return Array.from({ length: count }, (_, i) => {
+      const angle = (i / count) * Math.PI * 2;
+      // Alternating long/short rays - use scale factor
+      const lengthScale = i % 2 === 0 ? 1.2 : 0.8;
+      const widthScale = i % 2 === 0 ? 1.25 : 0.67;
+      return { angle, lengthScale, widthScale };
+    });
+  }, [count]);
+
+  // Update rotation and instance matrices each frame
   useFrame((state) => {
-    if (raysRef.current) {
-      raysRef.current.rotation.z = state.clock.elapsedTime * 0.05;
+    if (groupRef.current) {
+      groupRef.current.rotation.z = state.clock.elapsedTime * 0.05;
     }
+
+    if (!instancedRef.current) return;
+
+    // Update instance transforms with breath pulse
+    const pulseFactor = 1 + breathPhase * 0.1;
+
+    for (let i = 0; i < count; i++) {
+      const ray = rayData[i];
+      const angle = ray.angle;
+
+      // Position at edge of sun disc
+      dummy.position.set(Math.cos(angle) * size * 0.6, Math.sin(angle) * size * 0.6, -0.1);
+      dummy.rotation.set(0, 0, angle);
+      // Scale includes length variation + breath pulse
+      dummy.scale.set(ray.lengthScale * pulseFactor, ray.widthScale, 1);
+      dummy.updateMatrix();
+
+      instancedRef.current.setMatrixAt(i, dummy.matrix);
+    }
+
+    instancedRef.current.instanceMatrix.needsUpdate = true;
   });
 
-  const rays = useMemo(() => {
-    const rayData: { id: string; angle: number; length: number; width: number }[] = [];
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      // Alternating long/short rays
-      const length = i % 2 === 0 ? size * 1.8 : size * 1.2;
-      const width = i % 2 === 0 ? 0.15 : 0.08;
-      rayData.push({ id: `ray-${i}`, angle, length, width });
-    }
-    return rayData;
-  }, [count, size]);
-
-  const rayColor = useMemo(() => new THREE.Color(color), [color]);
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+    };
+  }, [geometry, material]);
 
   return (
-    <group ref={raysRef}>
-      {rays.map((ray) => {
-        const pulseLength = ray.length * (1 + breathPhase * 0.1);
-        return (
-          <mesh
-            key={ray.id}
-            position={[Math.cos(ray.angle) * size * 0.6, Math.sin(ray.angle) * size * 0.6, -0.1]}
-            rotation={[0, 0, ray.angle]}
-          >
-            <planeGeometry args={[pulseLength, ray.width]} />
-            <meshBasicMaterial
-              color={rayColor}
-              transparent
-              opacity={0.35}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-            />
-          </mesh>
-        );
-      })}
+    <group ref={groupRef}>
+      <instancedMesh ref={instancedRef} args={[geometry, material, count]} frustumCulled={false} />
     </group>
   );
 }
