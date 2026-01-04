@@ -47,6 +47,46 @@ export const SOUNDS = {
   },
 
   // ─────────────────────────────────────────────────────
+  // AMBIENT VARIANTS (for A/B testing)
+  // Files: public/audio/ambient/_variants/
+  // ─────────────────────────────────────────────────────
+  'ambient/breath-of-quiet-fields': {
+    path: '/audio/ambient/_variants/breath-of-quiet-fields-suno.mp3',
+    category: 'ambient',
+    loop: true,
+    baseVolume: -12,
+    fadeIn: 2,
+    fadeOut: 2,
+  },
+
+  'ambient/crystal-breathing-field': {
+    path: '/audio/ambient/_variants/crystal-breathing-field-suno.mp3',
+    category: 'ambient',
+    loop: true,
+    baseVolume: -12,
+    fadeIn: 2,
+    fadeOut: 2,
+  },
+
+  'ambient/event-horizon-breathing': {
+    path: '/audio/ambient/_variants/event-horizon-breathing-suno.mp3',
+    category: 'ambient',
+    loop: true,
+    baseVolume: -12,
+    fadeIn: 2,
+    fadeOut: 2,
+  },
+
+  'ambient/cosmic': {
+    path: '/audio/ambient/_variants/cosmic-elevenlabs-01.mp3',
+    category: 'ambient',
+    loop: true,
+    baseVolume: -12,
+    fadeIn: 2,
+    fadeOut: 2,
+  },
+
+  // ─────────────────────────────────────────────────────
   // BREATH TONES
   // Triggered per phase, volume follows progress
   // Files: public/audio/breath/
@@ -183,6 +223,80 @@ export const SOUNDS = {
   },
 
   // ─────────────────────────────────────────────────────
+  // NATURE VARIANTS (for A/B testing)
+  // Files: public/audio/nature/_variants/
+  // ─────────────────────────────────────────────────────
+  'nature/fireplace': {
+    path: '/audio/nature/_variants/fireplace-elevenlabs-01.mp3',
+    category: 'nature',
+    loop: true,
+    baseVolume: -15,
+    fadeIn: 3,
+    fadeOut: 3,
+    breathSync: {
+      volumeMin: 0.7,
+      volumeMax: 1.0,
+      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
+    },
+  },
+
+  'nature/forest-birds': {
+    path: '/audio/nature/_variants/forest-birds-freesound-462137.wav',
+    category: 'nature',
+    loop: true,
+    baseVolume: -15,
+    fadeIn: 3,
+    fadeOut: 3,
+    breathSync: {
+      volumeMin: 0.7,
+      volumeMax: 1.0,
+      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
+    },
+  },
+
+  'nature/rain-soft': {
+    path: '/audio/nature/_variants/rain-elevenlabs-01.mp3',
+    category: 'nature',
+    loop: true,
+    baseVolume: -15,
+    fadeIn: 3,
+    fadeOut: 3,
+    breathSync: {
+      volumeMin: 0.7,
+      volumeMax: 1.0,
+      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
+    },
+  },
+
+  'nature/stream': {
+    path: '/audio/nature/_variants/stream-elevenlabs-01.mp3',
+    category: 'nature',
+    loop: true,
+    baseVolume: -15,
+    fadeIn: 3,
+    fadeOut: 3,
+    breathSync: {
+      volumeMin: 0.7,
+      volumeMax: 1.0,
+      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
+    },
+  },
+
+  'nature/stream-water': {
+    path: '/audio/nature/_variants/stream-water-freesound-469009.wav',
+    category: 'nature',
+    loop: true,
+    baseVolume: -15,
+    fadeIn: 3,
+    fadeOut: 3,
+    breathSync: {
+      volumeMin: 0.7,
+      volumeMax: 1.0,
+      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
+    },
+  },
+
+  // ─────────────────────────────────────────────────────
   // TRANSITION CHIMES (optional)
   // One-shot at phase boundaries
   // Files: public/audio/chimes/
@@ -201,6 +315,64 @@ export const SOUNDS = {
     category: 'chimes',
     triggerPhase: 2,
     baseVolume: -9,
+    fadeIn: 0,
+    fadeOut: 0,
+  },
+
+  // ─────────────────────────────────────────────────────
+  // CHIMES VARIANTS (for A/B testing)
+  // Files: public/audio/chimes/_variants/
+  // ─────────────────────────────────────────────────────
+  'chimes/singing-bowl': {
+    path: '/audio/chimes/_variants/singing-bowl-freesound-573804.wav',
+    category: 'chimes',
+    triggerPhase: 0,
+    baseVolume: -12,
+    fadeIn: 0,
+    fadeOut: 0,
+  },
+
+  'chimes/tibetan-bowl-417hz': {
+    path: '/audio/chimes/_variants/tibetan-bowl-freesound-239912.mp3',
+    category: 'chimes',
+    triggerPhase: 0,
+    baseVolume: -9,
+    fadeIn: 0,
+    fadeOut: 0,
+  },
+
+  'chimes/tibetan-bowl-neptun': {
+    path: '/audio/chimes/_variants/tibetan-bowl-freesound-240934.wav',
+    category: 'chimes',
+    triggerPhase: 0,
+    baseVolume: -9,
+    fadeIn: 0,
+    fadeOut: 0,
+  },
+
+  'chimes/meditation-bell-short': {
+    path: '/audio/chimes/_variants/meditation-bell-freesound-42095.mp3',
+    category: 'chimes',
+    triggerPhase: 0,
+    baseVolume: -9,
+    fadeIn: 0,
+    fadeOut: 0,
+  },
+
+  'chimes/meditation-bell-long': {
+    path: '/audio/chimes/_variants/meditation-bell-freesound-140128.wav',
+    category: 'chimes',
+    triggerPhase: 0,
+    baseVolume: -9,
+    fadeIn: 0,
+    fadeOut: 0,
+  },
+
+  'chimes/gong': {
+    path: '/audio/chimes/_variants/gong-freesound-347382.wav',
+    category: 'chimes',
+    triggerPhase: 0,
+    baseVolume: -15,
     fadeIn: 0,
     fadeOut: 0,
   },
@@ -241,6 +413,20 @@ export function getSoundIds(): SoundId[] {
  */
 export function getNatureSoundIds(): SoundId[] {
   return getSoundsByCategory('nature').map((s) => s.id);
+}
+
+/**
+ * Get all ambient sound IDs (for variant testing)
+ */
+export function getAmbientSoundIds(): SoundId[] {
+  return getSoundsByCategory('ambient').map((s) => s.id);
+}
+
+/**
+ * Get all chimes sound IDs (for variant testing)
+ */
+export function getChimesSoundIds(): SoundId[] {
+  return getSoundsByCategory('chimes').map((s) => s.id);
 }
 
 /**

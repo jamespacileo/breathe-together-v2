@@ -16,7 +16,7 @@ import { button, folder, useControls } from 'leva';
 import { useCallback, useEffect, useRef } from 'react';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { useAudio, useAudioAvailable } from './AudioProvider';
-import { getNatureSoundIds } from './registry';
+import { getAmbientSoundIds, getChimesSoundIds, getNatureSoundIds } from './registry';
 
 /**
  * Audio dev controls state shape (for presets)
@@ -24,8 +24,11 @@ import { getNatureSoundIds } from './registry';
 export interface AudioDevControlsState {
   masterVolume: number;
   ambientEnabled: boolean;
+  ambientSound: string;
   breathEnabled: boolean;
   chimesEnabled: boolean;
+  inhaleChime: string;
+  exhaleChime: string;
   natureSound: string;
   ambientVolume: number;
   breathVolume: number;
@@ -41,8 +44,11 @@ export interface AudioDevControlsState {
 export const AUDIO_DEV_DEFAULTS: AudioDevControlsState = {
   masterVolume: 0.7,
   ambientEnabled: true,
+  ambientSound: 'ambient/warm-pad',
   breathEnabled: true,
   chimesEnabled: false,
+  inhaleChime: 'chimes/inhale-bell',
+  exhaleChime: 'chimes/exhale-bell',
   natureSound: 'none',
   ambientVolume: 0.5,
   breathVolume: 0.6,
@@ -75,8 +81,10 @@ export function useAudioDevControls(): void {
   // biome-ignore lint/suspicious/noExplicitAny: Leva's set function type is complex and varies based on schema
   const setRef = useRef<((values: Record<string, any>) => void) | null>(null);
 
-  // Build nature sound options
+  // Build sound options
   const natureSoundOptions = ['none', ...getNatureSoundIds()];
+  const ambientSoundOptions = getAmbientSoundIds();
+  const chimesSoundOptions = getChimesSoundIds();
 
   // Leva controls
   // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
@@ -107,6 +115,13 @@ export function useAudioDevControls(): void {
               hint: 'Continuous background pads. Foundation layer that plays constantly.',
               onChange: (v: boolean) => audio.setAmbientEnabled(v),
             },
+            ambientSound: {
+              value: audio.state.ambientSound || 'ambient/warm-pad',
+              options: ambientSoundOptions,
+              label: '└ Ambient Sound',
+              hint: 'Select ambient drone variant. Switch to A/B test different sounds.',
+              onChange: (v: string) => audio.setAmbientSound(v),
+            },
             breathEnabled: {
               value: audio.state.breathEnabled,
               label: 'Breath Tones',
@@ -118,6 +133,20 @@ export function useAudioDevControls(): void {
               label: 'Transition Chimes',
               hint: 'Short bells at phase boundaries (inhale/exhale start).',
               onChange: (v: boolean) => audio.setChimesEnabled(v),
+            },
+            inhaleChime: {
+              value: audio.state.inhaleChime || 'chimes/inhale-bell',
+              options: chimesSoundOptions,
+              label: '└ Inhale Chime',
+              hint: 'Bell/bowl triggered at inhale start.',
+              onChange: (v: string) => audio.setInhaleChime(v),
+            },
+            exhaleChime: {
+              value: audio.state.exhaleChime || 'chimes/exhale-bell',
+              options: chimesSoundOptions,
+              label: '└ Exhale Chime',
+              hint: 'Bell/bowl triggered at exhale start.',
+              onChange: (v: string) => audio.setExhaleChime(v),
             },
             natureSound: {
               value: audio.state.natureSound || 'none',
@@ -226,8 +255,11 @@ export function useAudioDevControls(): void {
               // Apply defaults to audio context
               audio.setMasterVolume(AUDIO_DEV_DEFAULTS.masterVolume);
               audio.setAmbientEnabled(AUDIO_DEV_DEFAULTS.ambientEnabled);
+              audio.setAmbientSound(AUDIO_DEV_DEFAULTS.ambientSound);
               audio.setBreathEnabled(AUDIO_DEV_DEFAULTS.breathEnabled);
               audio.setChimesEnabled(AUDIO_DEV_DEFAULTS.chimesEnabled);
+              audio.setInhaleChime(AUDIO_DEV_DEFAULTS.inhaleChime);
+              audio.setExhaleChime(AUDIO_DEV_DEFAULTS.exhaleChime);
               audio.setNatureSound(
                 AUDIO_DEV_DEFAULTS.natureSound === 'none' ? null : AUDIO_DEV_DEFAULTS.natureSound,
               );
@@ -278,8 +310,11 @@ export function useAudioDevControls(): void {
       setRef.current({
         masterVolume: audio.state.masterVolume,
         ambientEnabled: audio.state.ambientEnabled,
+        ambientSound: audio.state.ambientSound || 'ambient/warm-pad',
         breathEnabled: audio.state.breathEnabled,
         chimesEnabled: audio.state.chimesEnabled,
+        inhaleChime: audio.state.inhaleChime || 'chimes/inhale-bell',
+        exhaleChime: audio.state.exhaleChime || 'chimes/exhale-bell',
         natureSound: audio.state.natureSound || 'none',
         ambientVolume: audio.state.categoryVolumes.ambient,
         breathVolume: audio.state.categoryVolumes.breath,

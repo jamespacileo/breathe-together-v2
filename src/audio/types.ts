@@ -69,12 +69,18 @@ export interface AudioState {
   masterVolume: number;
   /** Whether ambient sounds are enabled */
   ambientEnabled: boolean;
+  /** Currently selected ambient sound ID */
+  ambientSound: string | null;
   /** Whether breath-sync sounds are enabled */
   breathEnabled: boolean;
   /** Currently active nature soundscape (null = none) */
   natureSound: string | null;
   /** Whether transition chimes are enabled */
   chimesEnabled: boolean;
+  /** Currently selected inhale chime sound ID */
+  inhaleChime: string | null;
+  /** Currently selected exhale chime sound ID */
+  exhaleChime: string | null;
   /** Loading state for sounds */
   loadingStates: Record<string, SoundState>;
   /** Per-category volume levels (0-1) */
@@ -98,10 +104,16 @@ export interface AudioContextValue {
   setNatureSound: (soundId: string | null) => void;
   /** Enable/disable ambient sounds */
   setAmbientEnabled: (enabled: boolean) => void;
+  /** Set ambient sound variant */
+  setAmbientSound: (soundId: string) => void;
   /** Enable/disable breath-sync sounds */
   setBreathEnabled: (enabled: boolean) => void;
   /** Enable/disable transition chimes */
   setChimesEnabled: (enabled: boolean) => void;
+  /** Set inhale chime variant */
+  setInhaleChime: (soundId: string) => void;
+  /** Set exhale chime variant */
+  setExhaleChime: (soundId: string) => void;
   /** Set volume for a specific category (0-1) */
   setCategoryVolume: (category: SoundCategory, volume: number) => void;
   /** Set breath sync intensity (0-2) */

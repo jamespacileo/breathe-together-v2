@@ -35,9 +35,12 @@ const defaultState: AudioState = {
   ready: false,
   masterVolume: 0.7,
   ambientEnabled: true,
+  ambientSound: 'ambient/warm-pad',
   breathEnabled: true,
   natureSound: null,
   chimesEnabled: false,
+  inhaleChime: 'chimes/inhale-bell',
+  exhaleChime: 'chimes/exhale-bell',
   loadingStates: {},
   categoryVolumes: DEFAULT_CATEGORY_VOLUMES,
   syncIntensity: 1.0,
@@ -94,9 +97,12 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         const engine = new AudioEngine({
           masterVolume: currentState.masterVolume,
           ambientEnabled: currentState.ambientEnabled,
+          ambientSound: currentState.ambientSound,
           breathEnabled: currentState.breathEnabled,
           natureSound: currentState.natureSound,
           chimesEnabled: currentState.chimesEnabled,
+          inhaleChime: currentState.inhaleChime,
+          exhaleChime: currentState.exhaleChime,
           syncIntensity: currentState.syncIntensity,
           rampTime: currentState.rampTime,
           categoryVolumes: currentState.categoryVolumes,
@@ -145,6 +151,24 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     engineRef.current?.setNatureSound(soundId);
     engineRef.current?.updateState({ natureSound: soundId });
     setState((s) => ({ ...s, natureSound: soundId }));
+  }, []);
+
+  // Set ambient sound variant
+  const setAmbientSound = useCallback((soundId: string) => {
+    engineRef.current?.setAmbientSound(soundId);
+    setState((s) => ({ ...s, ambientSound: soundId }));
+  }, []);
+
+  // Set inhale chime variant
+  const setInhaleChime = useCallback((soundId: string) => {
+    engineRef.current?.setInhaleChime(soundId);
+    setState((s) => ({ ...s, inhaleChime: soundId }));
+  }, []);
+
+  // Set exhale chime variant
+  const setExhaleChime = useCallback((soundId: string) => {
+    engineRef.current?.setExhaleChime(soundId);
+    setState((s) => ({ ...s, exhaleChime: soundId }));
   }, []);
 
   // Set ambient enabled
@@ -213,8 +237,11 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     setMasterVolume,
     setNatureSound,
     setAmbientEnabled,
+    setAmbientSound,
     setBreathEnabled,
     setChimesEnabled,
+    setInhaleChime,
+    setExhaleChime,
     setCategoryVolume,
     setSyncIntensity,
     setRampTime,

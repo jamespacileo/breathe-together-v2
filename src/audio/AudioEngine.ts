@@ -16,7 +16,7 @@ import {
 } from './breathSync';
 import { disposeAllSounds, getLoadingStates, type LoadedSound, loadAllSounds } from './loader';
 import { AudioMixer } from './mixer';
-import { getSoundsByCategory, isValidSoundId, SOUNDS } from './registry';
+import { isValidSoundId, SOUNDS } from './registry';
 import type { AudioState, SoundCategory, SoundState } from './types';
 
 const LOG_PREFIX = '[Audio]';
@@ -27,9 +27,12 @@ const LOG_PREFIX = '[Audio]';
 export interface AudioEngineConfig {
   masterVolume: number;
   ambientEnabled: boolean;
+  ambientSound: string | null;
   breathEnabled: boolean;
   natureSound: string | null;
   chimesEnabled: boolean;
+  inhaleChime: string | null;
+  exhaleChime: string | null;
   syncIntensity: number;
   rampTime: number;
   categoryVolumes: Partial<Record<SoundCategory, number>>;
@@ -38,9 +41,12 @@ export interface AudioEngineConfig {
 const DEFAULT_CONFIG: AudioEngineConfig = {
   masterVolume: 0.7,
   ambientEnabled: true,
+  ambientSound: 'ambient/warm-pad',
   breathEnabled: true,
   natureSound: null,
   chimesEnabled: false,
+  inhaleChime: 'chimes/inhale-bell',
+  exhaleChime: 'chimes/exhale-bell',
   syncIntensity: 1.0,
   rampTime: 0.1,
   categoryVolumes: {},
@@ -182,7 +188,24 @@ export class AudioEngine {
    * Handle phase transition - trigger phase-specific sounds
    */
   private onPhaseChange(newPhase: number, _oldPhase: number): void {
+    // Handle chimes - only trigger selected variant
+    if (this.config.chimesEnabled) {
+      const chimeId =
+        newPhase === 0 ? this.config.inhaleChime : newPhase === 2 ? this.config.exhaleChime : null;
+      if (chimeId && this.isSoundReady(chimeId)) {
+        const sound = this.loadedSounds.get(chimeId);
+        if (sound && sound.player.state !== 'started') {
+          sound.player.start();
+          this.setPlayingState(chimeId, true);
+        }
+      }
+    }
+
+    // Handle breath sounds (non-chimes phase-triggered sounds)
     this.loadedSounds.forEach((sound, id) => {
+      // Skip chimes - handled above
+      if (sound.definition.category === 'chimes') return;
+
       if (
         shouldTriggerOnPhase(
           sound.definition,
@@ -304,33 +327,58 @@ export class AudioEngine {
   // ─────────────────────────────────────────────────────
 
   /**
-   * Start all ambient sounds
+   * Start the selected ambient sound
    */
   startAmbient(): void {
     if (!this.ready || !this.config.ambientEnabled) return;
 
-    getSoundsByCategory('ambient').forEach(({ id }) => {
-      if (this.isSoundReady(id)) {
-        const sound = this.loadedSounds.get(id);
-        if (sound && sound.player.state !== 'started') {
-          sound.player.start();
-          this.setPlayingState(id, true);
-        }
+    const soundId = this.config.ambientSound;
+    if (soundId && isValidSoundId(soundId) && this.isSoundReady(soundId)) {
+      const sound = this.loadedSounds.get(soundId);
+      if (sound && sound.player.state !== 'started') {
+        sound.player.start();
+        this.setPlayingState(soundId, true);
       }
-    });
+    }
   }
 
   /**
-   * Stop all ambient sounds
+   * Stop the current ambient sound
    */
   stopAmbient(): void {
-    getSoundsByCategory('ambient').forEach(({ id }) => {
-      const sound = this.loadedSounds.get(id);
+    const soundId = this.config.ambientSound;
+    if (soundId) {
+      const sound = this.loadedSounds.get(soundId);
       if (sound && sound.player.state === 'started') {
         sound.player.stop();
-        this.setPlayingState(id, false);
+        this.setPlayingState(soundId, false);
       }
-    });
+    }
+  }
+
+  /**
+   * Set ambient sound variant (only one at a time)
+   */
+  setAmbientSound(soundId: string): void {
+    // Stop current ambient sound
+    if (this.config.ambientSound) {
+      const currentSound = this.loadedSounds.get(this.config.ambientSound);
+      if (currentSound && currentSound.player.state === 'started') {
+        currentSound.player.stop();
+        this.setPlayingState(this.config.ambientSound, false);
+      }
+    }
+
+    this.config.ambientSound = soundId;
+
+    // Start new ambient sound if ambient is enabled
+    if (this.config.ambientEnabled && isValidSoundId(soundId) && this.isSoundReady(soundId)) {
+      const sound = this.loadedSounds.get(soundId);
+      if (sound && sound.player.state !== 'started') {
+        sound.player.start();
+        this.setPlayingState(soundId, true);
+      }
+    }
   }
 
   /**
@@ -356,6 +404,34 @@ export class AudioEngine {
         this.setPlayingState(soundId, true);
       }
     }
+  }
+
+  /**
+   * Set inhale chime variant
+   */
+  setInhaleChime(soundId: string): void {
+    this.config.inhaleChime = soundId;
+  }
+
+  /**
+   * Set exhale chime variant
+   */
+  setExhaleChime(soundId: string): void {
+    this.config.exhaleChime = soundId;
+  }
+
+  /**
+   * Get current inhale chime ID
+   */
+  getInhaleChime(): string | null {
+    return this.config.inhaleChime;
+  }
+
+  /**
+   * Get current exhale chime ID
+   */
+  getExhaleChime(): string | null {
+    return this.config.exhaleChime;
   }
 
   /**

@@ -9,3 +9,6 @@ pnpm-lock.yaml
 .vite
 
 .env.secrets
+
+# Sound variants (exploratory, not committed)
+public/audio/**/_variants/
