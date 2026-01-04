@@ -13,6 +13,7 @@ import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
+import { HolographicBreathUI } from '../entities/holographicBreathUI';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -37,6 +38,11 @@ export function BreathingLevel({
   showGlobe = true,
   showParticles = true,
   showEnvironment = true,
+  // Holographic UI toggles
+  showHolographicUI = true,
+  showPhaseRings = true,
+  showPhaseGlyphs = true,
+  showBreathWaves = true,
 }: Partial<BreathingLevelProps> = {}) {
   // Initialize inspirational text system (sets up ambient pool + welcome sequence)
   useInspirationInit();
@@ -143,6 +149,18 @@ export function BreathingLevel({
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
           </RefractionPipeline>
+
+          {/* Holographic Breath UI - 3D breathing cycle visualization */}
+          {/* Rendered OUTSIDE RefractionPipeline to avoid DoF blur */}
+          {/* Provides clear, readable phase indicators around the globe */}
+          {showHolographicUI && (
+            <HolographicBreathUI
+              showRings={showPhaseRings}
+              showGlyphs={showPhaseGlyphs}
+              showWaves={showBreathWaves}
+              globeRadius={1.5}
+            />
+          )}
 
           {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
           {DEV_MODE_ENABLED && (

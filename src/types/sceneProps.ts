@@ -36,6 +36,34 @@ export interface BreathingLevelProps {
    * @default true
    */
   showEnvironment?: boolean;
+
+  /**
+   * Show holographic breathing UI (3D phase rings, glyphs, waves).
+   * @group "Entity Visibility"
+   * @default true
+   */
+  showHolographicUI?: boolean;
+
+  /**
+   * Show phase rings (concentric circles at equator).
+   * @group "Holographic UI"
+   * @default true
+   */
+  showPhaseRings?: boolean;
+
+  /**
+   * Show phase glyphs (floating 4·7·8 numbers).
+   * @group "Holographic UI"
+   * @default true
+   */
+  showPhaseGlyphs?: boolean;
+
+  /**
+   * Show breath waves (horizontal ripple bands).
+   * @group "Holographic UI"
+   * @default true
+   */
+  showBreathWaves?: boolean;
 }
 
 // ============================================================================
