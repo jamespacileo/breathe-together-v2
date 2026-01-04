@@ -58,9 +58,9 @@ const BACKGROUND_OPACITY = 0.15;
 interface BreathTimerRibbonProps {
   /** Globe radius for positioning @default 1.5 */
   globeRadius?: number;
-  /** Height offset from equator (positive = above) @default -0.65 */
+  /** Height offset from equator (positive = above) @default -0.15 */
   heightOffset?: number;
-  /** Tilt angle in radians @default 0.25 */
+  /** Tilt angle in radians (0 = flat horizontal) @default 0 */
   tiltAngle?: number;
   /** Ring thickness (outer - inner radius) @default 0.06 */
   ringThickness?: number;
@@ -82,8 +82,8 @@ const RING_SEGMENTS = 64;
  */
 export function BreathTimerRibbon({
   globeRadius = 1.5,
-  heightOffset = -0.65,
-  tiltAngle = 0.25,
+  heightOffset = -0.15,
+  tiltAngle = 0,
   ringThickness = 0.06,
   opacity = 0.85,
   fontSize = 0.09,
@@ -208,7 +208,6 @@ export function BreathTimerRibbon({
         opacity={opacity}
         radius={ringRadius}
         heightOffset={heightOffset}
-        tiltAngle={tiltAngle}
       />
     </group>
   );
@@ -216,6 +215,7 @@ export function BreathTimerRibbon({
 
 /**
  * PhaseNameText - Curved text showing the current phase name
+ * Positioned below the ring, facing outward from the globe
  */
 function PhaseNameText({
   phaseName,
@@ -224,7 +224,6 @@ function PhaseNameText({
   opacity,
   radius,
   heightOffset,
-  tiltAngle,
 }: {
   phaseName: string;
   color: string;
@@ -232,17 +231,16 @@ function PhaseNameText({
   opacity: number;
   radius: number;
   heightOffset: number;
-  tiltAngle: number;
 }) {
-  // Position text at the front of the ring, slightly below the ring
-  const textY = heightOffset - 0.12;
+  // Position text slightly below the ring
+  const textY = heightOffset - 0.1;
   const textZ = radius;
 
   // Use negative curveRadius for convex curvature (text curves outward)
   const curveRadius = -radius;
 
   return (
-    <group rotation={[tiltAngle * 0.3, 0, 0]}>
+    <group>
       {/* Front-facing text */}
       <CurvedText
         fontSize={fontSize}

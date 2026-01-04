@@ -112,9 +112,6 @@ export function BreathingLevel({
             {/* Globe Ribbon Text - curved text wrapping around globe */}
             {showGlobe && <GlobeRibbonText />}
 
-            {/* Breath Timer Ribbon - progress indicator for current breathing phase */}
-            {showGlobe && <BreathTimerRibbon />}
-
             {showParticles && (
               <ParticleSwarm
                 users={deferredUsers}
@@ -139,6 +136,9 @@ export function BreathingLevel({
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
           </RefractionPipeline>
+
+          {/* Breath Timer Ribbon - outside RefractionPipeline to avoid DoF blur */}
+          {showGlobe && <BreathTimerRibbon />}
         </MomentumControls>
       </Suspense>
     </ErrorBoundary>
