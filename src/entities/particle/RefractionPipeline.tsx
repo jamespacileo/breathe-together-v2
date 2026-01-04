@@ -167,27 +167,25 @@ void main() {
 const bgFragmentShader = `
 varying vec2 vUv;
 void main() {
-  // Soft pastel gradient matching Monument Valley aesthetic
-  vec3 warmCream = vec3(0.98, 0.96, 0.92);    // Top - warm cream
-  vec3 softBlush = vec3(0.96, 0.91, 0.87);    // Bottom - soft blush/peach
+  // Cosmic space gradient for galaxy scene refraction
+  vec3 voidBlack = vec3(0.02, 0.02, 0.04);     // Deep void
+  vec3 deepSpace = vec3(0.05, 0.04, 0.08);     // Dark matter purple
+  vec3 nebulaHint = vec3(0.08, 0.05, 0.12);    // Subtle nebula
 
-  // Simple vertical gradient (bottom to top)
-  float t = vUv.y;
-  vec3 color = mix(softBlush, warmCream, t);
-
-  // Soft radial vignette (subtle warm edges)
+  // Radial gradient from center - darker at edges
   vec2 center = vUv - 0.5;
   float dist = length(center);
-  float vignette = smoothstep(0.8, 0.2, dist);
-  vec3 edgeTint = vec3(0.92, 0.86, 0.82); // Warm shadow at edges
-  color = mix(edgeTint, color, vignette * 0.85 + 0.15);
 
-  // Very subtle center brightening
-  float centerGlow = smoothstep(0.6, 0.0, dist) * 0.03;
-  color += vec3(1.0, 0.99, 0.97) * centerGlow;
+  // Create depth with radial gradient
+  float t = smoothstep(0.0, 0.7, dist);
+  vec3 color = mix(deepSpace, voidBlack, t);
 
-  // Minimal paper texture noise
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.015;
+  // Subtle nebula hints in corners
+  float nebulaMask = smoothstep(0.4, 0.8, dist);
+  color = mix(color, nebulaHint, nebulaMask * 0.3);
+
+  // Very subtle noise for texture
+  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
 
   gl_FragColor = vec4(color + noise, 1.0);
 }

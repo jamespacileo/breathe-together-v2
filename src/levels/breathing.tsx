@@ -89,7 +89,21 @@ export function BreathingLevel({
           polar={[-Math.PI * 0.3, Math.PI * 0.3]}
           azimuth={[-Infinity, Infinity]}
         >
-          {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
+          {/* Galaxy Environment - OUTSIDE RefractionPipeline to avoid DoF blur on constellations */}
+          {/* renderOrder ensures background renders first, constellations stay crisp and in-focus */}
+          {showEnvironment && (
+            <GalaxyEnvironment
+              showConstellations={devControls.showStars}
+              showSun={true}
+              nebulaIntensity={1.0}
+              backgroundStarDensity={1.0}
+              constellationLineOpacity={0.4}
+              constellationStarSize={0.35}
+              ambientIntensity={0.2}
+            />
+          )}
+
+          {/* 4-Pass FBO Refraction Pipeline - applies DoF to globe/shards only */}
           <RefractionPipeline
             ior={devControls.ior}
             backfaceIntensity={devControls.glassDepth}
@@ -98,18 +112,6 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Galaxy Environment - space scene with constellations and sun */}
-            {showEnvironment && (
-              <GalaxyEnvironment
-                showConstellations={devControls.showStars}
-                showSun={true}
-                nebulaIntensity={1.0}
-                backgroundStarDensity={1.0}
-                constellationLineOpacity={0.35}
-                ambientIntensity={devControls.ambientLightIntensity}
-              />
-            )}
-
             {showGlobe && <EarthGlobe />}
 
             {/* Ribbon System - configurable text ribbons around the globe */}
