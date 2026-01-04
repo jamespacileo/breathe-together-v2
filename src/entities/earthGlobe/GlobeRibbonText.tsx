@@ -10,6 +10,8 @@
  * - Auto-rotation synced with EarthGlobe (0.0008 rad/frame)
  * - Breathing-synchronized opacity animation
  * - Multiple ribbon positions (equator, tilted bands)
+ * - Scroll animation for continuous text movement
+ * - Inspirational text mode with message rotation
  */
 
 import { Text, type TextProps } from '@react-three/drei';
@@ -19,6 +21,7 @@ import type React from 'react';
 import { useMemo, useRef } from 'react';
 import { FrontSide, type Group } from 'three';
 
+import { type RibbonMessageFormat, useInspirationRibbon } from '../../hooks/useInspirationRibbon';
 import { breathPhase } from '../breath/traits';
 
 /**
@@ -100,6 +103,23 @@ interface GlobeRibbonTextProps {
   rotationDirection?: 1 | -1;
   /** Glyph geometry detail for smoother curves @default 4 */
   glyphGeometryDetail?: number;
+
+  // === SCROLL ANIMATION ===
+  /** Enable scroll animation (independent of globe rotation) @default false */
+  scrollEnabled?: boolean;
+  /**
+   * Scroll speed in radians per frame
+   * Positive = scroll right (opposite to reading direction)
+   * Negative = scroll left (reading direction)
+   * @default 0.001
+   */
+  scrollSpeed?: number;
+
+  // === INSPIRATIONAL MODE ===
+  /** Enable inspirational text mode (uses message store) @default false */
+  inspirationalMode?: boolean;
+  /** Message format for inspirational text @default 'symbols' */
+  messageFormat?: RibbonMessageFormat;
 }
 
 /**
@@ -226,6 +246,11 @@ function RibbonBand({
  * ribbons stay aligned as the globe rotates.
  *
  * BREATHING SYNC: Opacity pulses with the breathing cycle for visual harmony.
+ *
+ * SCROLL ANIMATION: Independent text scrolling for continuous movement effect.
+ *
+ * INSPIRATIONAL MODE: Rotates through inspirational messages synchronized
+ * with the breathing cycle, changing messages during exhale→inhale transitions.
  */
 export function GlobeRibbonText({
   text = '✦ BREATHE TOGETHER ✦ BREATHE TOGETHER ✦ BREATHE TOGETHER ✦',
@@ -239,22 +264,48 @@ export function GlobeRibbonText({
   breathSync = true,
   rotationDirection = 1,
   glyphGeometryDetail = 4,
+  // Scroll animation
+  scrollEnabled = false,
+  scrollSpeed = 0.001,
+  // Inspirational mode
+  inspirationalMode = false,
+  messageFormat = 'symbols',
 }: GlobeRibbonTextProps) {
   const groupRef = useRef<Group>(null);
+  const scrollGroupRef = useRef<Group>(null);
   const world = useWorld();
   const currentOpacity = useRef(opacity);
+
+  // Inspirational text hook (only active when inspirationalMode is true)
+  const inspiration = useInspirationRibbon({
+    enabled: inspirationalMode,
+    format: messageFormat,
+    baseOpacity: opacity,
+    minOpacity: opacity * 0.4,
+  });
+
+  // Determine which text to display
+  const displayText = inspirationalMode ? inspiration.text : text;
+
+  // Determine opacity source
+  const displayOpacity = inspirationalMode ? inspiration.opacity : currentOpacity.current;
 
   // Sync rotation with EarthGlobe and animate with breathing
   useFrame(() => {
     if (!groupRef.current) return;
 
-    // Rotation sync with globe
+    // Rotation sync with globe (outer group)
     if (syncRotation) {
       groupRef.current.rotation.y -= 0.0008 * rotationDirection;
     }
 
-    // Breathing-synchronized opacity animation
-    if (breathSync) {
+    // Scroll animation (inner group - independent of globe sync)
+    if (scrollEnabled && scrollGroupRef.current) {
+      scrollGroupRef.current.rotation.y += scrollSpeed;
+    }
+
+    // Breathing-synchronized opacity animation (only when not in inspirational mode)
+    if (breathSync && !inspirationalMode) {
       try {
         const breathEntity = world.queryFirst(breathPhase);
         if (breathEntity) {
@@ -273,16 +324,18 @@ export function GlobeRibbonText({
 
   return (
     <group ref={groupRef} name="Globe Ribbon Text">
-      <RibbonBand
-        text={text}
-        radius={ribbonRadius}
-        heightOffset={heightOffset}
-        tiltAngle={tiltAngle}
-        color={color}
-        fontSize={fontSize}
-        opacity={currentOpacity.current}
-        glyphGeometryDetail={glyphGeometryDetail}
-      />
+      <group ref={scrollGroupRef} name="Scroll Container">
+        <RibbonBand
+          text={displayText}
+          radius={ribbonRadius}
+          heightOffset={heightOffset}
+          tiltAngle={tiltAngle}
+          color={color}
+          fontSize={fontSize}
+          opacity={displayOpacity}
+          glyphGeometryDetail={glyphGeometryDetail}
+        />
+      </group>
     </group>
   );
 }
@@ -371,6 +424,114 @@ export function GlobeRibbonTextMultiple({
         fontSize={0.08}
         opacity={baseOpacity * 0.7}
         glyphGeometryDetail={4}
+      />
+    </group>
+  );
+}
+
+/**
+ * InspirationalGlobeRibbon - Elegant dual-ribbon design for inspirational messages
+ *
+ * Shows message top/bottom on separate ribbons with:
+ * - Upper ribbon: Message top line (tilted upward)
+ * - Lower ribbon: Message bottom line (tilted downward)
+ * - Continuous visible scrolling animation
+ * - Breath-synchronized opacity with subtle color shift
+ * - Counter-rotating ribbons for visual depth
+ *
+ * Mastercraft details:
+ * - Golden warmth on inhale, cool teal on exhale
+ * - Subtle glow effect
+ * - Opposing tilt angles create visual balance
+ * - Different scroll speeds for parallax effect
+ */
+export function InspirationalGlobeRibbon({
+  globeRadius = 1.5,
+  baseColor = '#7ec8c8',
+  accentColor = '#d4a574',
+  fontSize = 0.095,
+  baseOpacity = 0.85,
+}: {
+  globeRadius?: number;
+  /** Primary text color (teal) @default '#7ec8c8' */
+  baseColor?: string;
+  /** Accent color for warmth (gold) @default '#d4a574' */
+  accentColor?: string;
+  fontSize?: number;
+  baseOpacity?: number;
+}) {
+  const groupRef = useRef<Group>(null);
+  const topScrollRef = useRef<Group>(null);
+  const bottomScrollRef = useRef<Group>(null);
+
+  // Get inspirational text with breath sync
+  const inspiration = useInspirationRibbon({
+    enabled: true,
+    format: 'symbols',
+    baseOpacity,
+    minOpacity: baseOpacity * 0.35,
+  });
+
+  // Ribbon positioning
+  const ribbonRadius = globeRadius + 0.12;
+
+  // Animation frame for scrolling and globe sync
+  useFrame(() => {
+    if (!groupRef.current) return;
+
+    // Sync with globe rotation
+    groupRef.current.rotation.y -= 0.0008;
+
+    // Scroll animation - opposing directions for visual interest
+    // Upper ribbon scrolls left (reading direction), lower scrolls right
+    if (topScrollRef.current) {
+      topScrollRef.current.rotation.y -= 0.0018; // Faster, reading direction
+    }
+    if (bottomScrollRef.current) {
+      bottomScrollRef.current.rotation.y += 0.0012; // Slower, opposite direction
+    }
+  });
+
+  return (
+    <group ref={groupRef} name="Inspirational Globe Ribbon">
+      {/* Upper ribbon - message top line */}
+      <group ref={topScrollRef} name="Top Scroll">
+        <RibbonBand
+          text={inspiration.topText}
+          radius={ribbonRadius}
+          heightOffset={0.35}
+          tiltAngle={-0.22} // Tilted upward (negative X rotation)
+          color={baseColor}
+          fontSize={fontSize}
+          opacity={inspiration.opacity}
+          glyphGeometryDetail={5}
+        />
+      </group>
+
+      {/* Lower ribbon - message bottom line */}
+      <group ref={bottomScrollRef} name="Bottom Scroll">
+        <RibbonBand
+          text={inspiration.bottomText}
+          radius={ribbonRadius}
+          heightOffset={-0.35}
+          tiltAngle={0.22} // Tilted downward (positive X rotation)
+          color={accentColor}
+          fontSize={fontSize}
+          opacity={inspiration.opacity * 0.9}
+          glyphGeometryDetail={5}
+        />
+      </group>
+
+      {/* Subtle center accent ribbon - very faint decorative element */}
+      <RibbonBand
+        text="· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·"
+        radius={ribbonRadius - 0.02}
+        heightOffset={0}
+        tiltAngle={0.08}
+        color="#ffffff"
+        fontSize={0.04}
+        opacity={inspiration.opacity * 0.15}
+        glyphGeometryDetail={2}
       />
     </group>
   );
