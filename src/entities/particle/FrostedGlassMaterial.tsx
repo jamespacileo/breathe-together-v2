@@ -1,46 +1,63 @@
 /**
- * FrostedGlassMaterial - Enhanced shader material for icosahedral shards
+ * HolographicShardMaterial - Ethereal holographic shader for space-themed shards
  *
- * Features subtle visual effects that users won't consciously notice but will feel:
- * - Soft fresnel rim glow (edge lighting like the globe)
- * - Breathing luminosity pulse (subtle brightness variation)
- * - Per-instance mood colors with gentle saturation boost
- * - Subtle inner glow on exhale phase
+ * Creates a sci-fi holographic look inspired by:
+ * - Anderson Mancini's threejs-vanilla-holographic-material
+ * - Three.js Journey hologram shader tutorials
  *
- * For the refraction effect to work:
- * 1. Mesh must have userData.useRefraction = true
- * 2. InstancedMesh must have instanceColor attribute set
- * 3. RefractionPipeline must be present in the scene tree
+ * Features:
+ * - Animated horizontal scanlines
+ * - Fresnel-based iridescent rim glow
+ * - Semi-transparent with additive blending for ethereal feel
+ * - Color shifting based on viewing angle
+ * - Breathing-synchronized brightness pulse
+ * - Per-instance mood colors
  *
  * Performance: Uses InstancedMesh for single draw call (300+ particles = 1 draw call)
  */
 
 import * as THREE from 'three';
 
-// Vertex shader - passes normals and instance colors to fragment
-// Uses THREE.js built-in instanceColor attribute for per-instance colors
+// Vertex shader - passes position, normals and instance colors to fragment
+// Supports both regular meshes and InstancedMesh
 const shardVertexShader = `
 varying vec3 vNormal;
 varying vec3 vViewPosition;
 varying vec3 vColor;
+varying vec3 vWorldPosition;
 
 void main() {
-  vNormal = normalize(normalMatrix * normal);
-
   // Use instance color from InstancedMesh (set via setColorAt)
   #ifdef USE_INSTANCING_COLOR
     vColor = instanceColor;
   #else
-    vColor = vec3(0.85, 0.75, 0.65); // Fallback warm neutral
+    vColor = vec3(0.4, 0.7, 0.9); // Fallback cool blue
   #endif
 
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  // Handle instancing for transforms
+  #ifdef USE_INSTANCING
+    vec3 transformedNormal = mat3(normalMatrix) * mat3(instanceMatrix) * normal;
+    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+  #else
+    vec3 transformedNormal = normalMatrix * normal;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+  #endif
+
+  vNormal = normalize(transformedNormal);
   vViewPosition = -mvPosition.xyz;
-  gl_Position = projectionMatrix * mvPosition;
+  vWorldPosition = worldPos.xyz;
+
+  #ifdef USE_INSTANCING
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  #else
+    gl_Position = projectionMatrix * mvPosition;
+  #endif
 }
 `;
 
-// Fragment shader - fresnel rim + breathing luminosity
+// Fragment shader - holographic scanlines + fresnel iridescence
 const shardFragmentShader = `
 uniform float breathPhase;
 uniform float time;
@@ -48,47 +65,72 @@ uniform float time;
 varying vec3 vNormal;
 varying vec3 vViewPosition;
 varying vec3 vColor;
+varying vec3 vWorldPosition;
 
 void main() {
   vec3 viewDir = normalize(vViewPosition);
 
-  // Fresnel rim effect - soft edge glow
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+  // === FRESNEL FOR IRIDESCENT RIM ===
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.0);
 
-  // Breathing luminosity pulse - subtle brightness shift
-  // Peak brightness during hold phases (phase 0.25-0.5 and 0.75-1.0)
-  float breathLuminosity = 1.0 + breathPhase * 0.12;
+  // === SCANLINES (holographic effect) ===
+  // Horizontal scanlines that move slowly upward
+  float scanlineFreq = 40.0; // Number of scanlines
+  float scanlineSpeed = time * 0.5; // Slow upward movement
+  float scanline = sin((vWorldPosition.y * scanlineFreq + scanlineSpeed) * 3.14159) * 0.5 + 0.5;
+  // Softer scanlines - not too harsh
+  scanline = smoothstep(0.3, 0.7, scanline) * 0.3 + 0.7;
 
-  // Subtle saturation boost based on viewing angle
-  // Faces pointing toward camera are slightly more saturated
-  float facingBoost = max(dot(vNormal, viewDir), 0.0) * 0.08;
+  // === IRIDESCENT COLOR SHIFT ===
+  // Shift hue slightly based on viewing angle for rainbow effect
+  float hueShift = fresnel * 0.15;
+  vec3 shiftedColor = vColor;
+  // Simple hue rotation approximation
+  shiftedColor.r = vColor.r * cos(hueShift) - vColor.g * sin(hueShift) * 0.3;
+  shiftedColor.g = vColor.g * cos(hueShift * 0.5) + vColor.b * sin(hueShift) * 0.2;
+  shiftedColor.b = vColor.b + fresnel * 0.2; // Boost blue at edges
 
-  // Apply mood color with luminosity and saturation
-  vec3 baseColor = vColor * breathLuminosity;
+  // === BREATHING LUMINOSITY ===
+  float breathGlow = 0.8 + breathPhase * 0.4;
 
-  // Mix in a warm white rim glow (like the globe)
-  vec3 rimColor = vec3(0.98, 0.96, 0.94); // Soft warm white
-  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.25);
+  // === HOLOGRAPHIC BASE COLOR ===
+  vec3 baseColor = shiftedColor * breathGlow * scanline;
 
-  // Subtle inner luminance - very gentle glow from within
-  float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
-  colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
+  // === FRESNEL RIM GLOW ===
+  // Cool white-blue rim for ethereal edge
+  vec3 rimColor = mix(vec3(0.7, 0.85, 1.0), vColor, 0.3);
+  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.6);
 
-  // Slight desaturation toward edges for atmospheric feel
-  vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
-  vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
+  // === INNER CORE GLOW ===
+  // Subtle glow from center, stronger on exhale
+  float coreGlow = (1.0 - fresnel) * 0.15 * (0.8 + breathPhase * 0.4);
+  colorWithRim += vColor * coreGlow;
 
-  gl_FragColor = vec4(finalColor, 1.0);
+  // === HOLOGRAPHIC SHIMMER ===
+  // Subtle flicker based on time and position
+  float shimmer = sin(time * 3.0 + vWorldPosition.x * 10.0 + vWorldPosition.z * 10.0) * 0.05 + 1.0;
+  colorWithRim *= shimmer;
+
+  // === ALPHA FOR TRANSLUCENCY ===
+  // More transparent at edges (fresnel), more opaque at center
+  float alpha = 0.6 + (1.0 - fresnel) * 0.3 + breathPhase * 0.1;
+
+  // Boost brightness for additive-like feel (without actual additive blend)
+  colorWithRim *= 1.2;
+
+  gl_FragColor = vec4(colorWithRim, alpha);
 }
 `;
 
 /**
- * Creates an enhanced frosted glass shader material for icosahedral shards
+ * Creates an ethereal holographic shader material for space-themed shards
  *
  * Returns a ShaderMaterial with:
- * - Fresnel rim glow (soft edge lighting)
- * - Breathing luminosity (synced brightness pulse)
- * - Per-instance color support (via USE_INSTANCING_COLOR define)
+ * - Animated scanlines for holographic effect
+ * - Fresnel-based iridescent rim glow
+ * - Semi-transparent for ethereal feel
+ * - Breathing-synchronized brightness
+ * - Per-instance color support
  *
  * @param instanced - Whether to enable instancing color support (default: true)
  */
@@ -101,6 +143,8 @@ export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMateri
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,
     defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
-    side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
+    transparent: true,
+    depthWrite: false, // For proper transparency sorting
+    side: THREE.DoubleSide, // Show both sides for holographic feel
   });
 }

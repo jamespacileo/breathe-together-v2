@@ -13,7 +13,7 @@ import { GALAXY_PALETTE } from '../config/galaxyPalette';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
-import { GalaxyBackdrop, GalaxyForeground, Sun } from '../entities/galaxy';
+import { ConstellationSystem, GalaxyBackdrop, GalaxyForeground, Sun } from '../entities/galaxy';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -78,16 +78,12 @@ export function BreathingLevel({
         {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
         <AudioDevControls />
 
-        {/* Galaxy Backdrop - renders OUTSIDE MomentumControls as fixed sky background */}
-        {/* Background shader + constellations stay fixed, sun moves with scene */}
+        {/* Galaxy Backdrop - renders OUTSIDE MomentumControls as fixed deep space background */}
+        {/* Only the background shader stays fixed - constellations/sun rotate with scene */}
         {showEnvironment && (
           <GalaxyBackdrop
             showSun={false}
-            showConstellations={true}
-            constellationRadius={25}
-            starSize={1.2}
-            lineOpacity={0.4}
-            enableTwinkle={true}
+            showConstellations={false}
             nebulaIntensity={0.8}
             milkyWayIntensity={0.6}
           />
@@ -105,16 +101,28 @@ export function BreathingLevel({
           polar={[-Math.PI * 0.3, Math.PI * 0.3]}
           azimuth={[-Infinity, Infinity]}
         >
-          {/* Sun - INSIDE MomentumControls to rotate with scene, OUTSIDE RefractionPipeline for crisp rendering */}
+          {/* Sun + Constellations - INSIDE MomentumControls to rotate with scene */}
+          {/* OUTSIDE RefractionPipeline for crisp rendering without DoF blur */}
           {showEnvironment && (
-            <Sun
-              position={[60, 40, -80]}
-              radius={8}
-              lightIntensity={1.0}
-              coreColor={GALAXY_PALETTE.sun.core}
-              coronaColor={GALAXY_PALETTE.sun.corona}
-              breathingSync={true}
-            />
+            <>
+              <Sun
+                position={[60, 40, -80]}
+                radius={8}
+                lightIntensity={1.0}
+                coreColor={GALAXY_PALETTE.sun.core}
+                coronaColor={GALAXY_PALETTE.sun.corona}
+                breathingSync={true}
+              />
+              <ConstellationSystem
+                radius={25}
+                starSize={1.2}
+                lineOpacity={0.4}
+                lineColor={GALAXY_PALETTE.constellations.lines}
+                starColor={GALAXY_PALETTE.constellations.stars}
+                enableTwinkle={true}
+                breathingSync={true}
+              />
+            </>
           )}
 
           {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
