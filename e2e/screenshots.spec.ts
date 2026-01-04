@@ -39,8 +39,8 @@ function getPhasesInOptimalOrder(): Array<'inhale' | 'holdIn' | 'exhale'> {
 }
 
 test.describe('Preview Screenshots', () => {
-  // 60s timeout: ~30s page load + ~19s full cycle + admin page
-  test.setTimeout(60_000);
+  // 120s timeout: CI page loads are 40-50s + 19s breathing cycle + admin navigation
+  test.setTimeout(120_000);
 
   /**
    * Single test per viewport - captures ALL screenshots (breathing phases + admin)
