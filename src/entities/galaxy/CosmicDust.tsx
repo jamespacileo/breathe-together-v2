@@ -106,14 +106,16 @@ function CosmicDustComponent({
     const sizes = new Float32Array(actualCount);
     const phases = new Float32Array(actualCount);
 
-    // Dust color palette - cosmic blues, purples, whites
+    // Dust color palette - Kurzgesagt cosmic dust colors
+    // Using palette: cosmicDust.blue (#7c4dff), cosmicDust.purple (#b388ff),
+    // cosmicDust.white (#e8e8ff), cosmicDust.gold (#ffe082)
     const colorPalette = [
-      new Color('#aaccff'), // Light blue
-      new Color('#ccaaff'), // Light purple
-      new Color('#ffffff'), // White
-      new Color('#88aadd'), // Pale blue
-      new Color('#aa88cc'), // Muted purple
-      new Color('#ddddff'), // Blue-white
+      new Color('#7c4dff'), // Kurzgesagt purple-blue
+      new Color('#b388ff'), // Kurzgesagt light purple
+      new Color('#e8e8ff'), // Kurzgesagt blue-white
+      new Color('#ffe082'), // Kurzgesagt soft gold
+      new Color('#9b8bff'), // Brighter purple (linesBright)
+      new Color('#ffb300'), // Golden amber accent
     ];
 
     for (let i = 0; i < actualCount; i++) {

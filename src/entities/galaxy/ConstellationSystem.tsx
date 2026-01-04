@@ -247,9 +247,9 @@ interface ConstellationSystemProps {
   starSize?: number;
   /** Line opacity @default 0.3 */
   lineOpacity?: number;
-  /** Line color @default '#4488aa' */
+  /** Line color - Kurzgesagt purple-blue @default '#7b68ee' */
   lineColor?: string;
-  /** Star color @default '#ffffff' */
+  /** Star color - Kurzgesagt blue-white @default '#e8f4ff' */
   starColor?: string;
   /** Enable breathing sync @default true */
   breathingSync?: boolean;
@@ -261,8 +261,8 @@ function ConstellationSystemComponent({
   radius = 80,
   starSize = 1.0,
   lineOpacity = 0.3,
-  lineColor = '#4488aa',
-  starColor = '#ffffff',
+  lineColor = '#7b68ee', // Kurzgesagt purple-blue (matches palette)
+  starColor = '#e8f4ff', // Kurzgesagt blue-white stars
   breathingSync = true,
   enableTwinkle = true,
 }: ConstellationSystemProps) {
