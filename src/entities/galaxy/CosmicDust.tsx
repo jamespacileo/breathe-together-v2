@@ -44,13 +44,13 @@ void main() {
 
   vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
 
-  // Size with distance attenuation and breathing
-  float sizeMultiplier = 0.8 + breathPhase * 0.4;
-  gl_PointSize = size * sizeMultiplier * (300.0 / -mvPosition.z);
+  // Size with distance attenuation and breathing (reduced size)
+  float sizeMultiplier = 0.6 + breathPhase * 0.2;
+  gl_PointSize = size * sizeMultiplier * (200.0 / -mvPosition.z);
 
-  // Alpha varies with breathing and per-particle phase
+  // Alpha varies with breathing - much more subtle (0.1 to 0.25 range)
   float twinkle = 0.7 + 0.3 * sin(time * 2.0 + phase * 6.28);
-  vAlpha = twinkle * (0.3 + breathPhase * 0.5);
+  vAlpha = twinkle * (0.1 + breathPhase * 0.15);
 
   gl_Position = projectionMatrix * mvPosition;
 }

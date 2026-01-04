@@ -1,17 +1,14 @@
 /**
- * HolographicShardMaterial - Ethereal holographic shader for space-themed shards
+ * KurzgesagtCellMaterial - Vibrant cell-like shader for space-themed shards
  *
- * Creates a sci-fi holographic look inspired by:
- * - Anderson Mancini's threejs-vanilla-holographic-material
- * - Three.js Journey hologram shader tutorials
+ * Inspired by Kurzgesagt's "Immune" book illustrations:
+ * - Solid vibrant colors (not muddy or desaturated)
+ * - Subtle fresnel rim glow
+ * - Soft inner gradients
+ * - Breathing-synchronized brightness
  *
- * Features:
- * - Animated horizontal scanlines
- * - Fresnel-based iridescent rim glow
- * - Semi-transparent with additive blending for ethereal feel
- * - Color shifting based on viewing angle
- * - Breathing-synchronized brightness pulse
- * - Per-instance mood colors
+ * IMPORTANT: This shader preserves the input colors!
+ * Previous version was muddying colors with excessive hue shifting and scanlines.
  *
  * Performance: Uses InstancedMesh for single draw call (300+ particles = 1 draw call)
  */
@@ -57,7 +54,7 @@ void main() {
 }
 `;
 
-// Fragment shader - holographic scanlines + fresnel iridescence
+// Fragment shader - Kurzgesagt cell look: vibrant colors with subtle rim glow
 const shardFragmentShader = `
 uniform float breathPhase;
 uniform float time;
@@ -70,66 +67,53 @@ varying vec3 vWorldPosition;
 void main() {
   vec3 viewDir = normalize(vViewPosition);
 
-  // === FRESNEL FOR IRIDESCENT RIM ===
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.0);
+  // === FRESNEL FOR SOFT RIM ===
+  // Subtle edge detection - NOT for color shifting, just for rim highlight
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
 
-  // === SCANLINES (holographic effect) ===
-  // Horizontal scanlines that move slowly upward
-  float scanlineFreq = 40.0; // Number of scanlines
-  float scanlineSpeed = time * 0.5; // Slow upward movement
-  float scanline = sin((vWorldPosition.y * scanlineFreq + scanlineSpeed) * 3.14159) * 0.5 + 0.5;
-  // Softer scanlines - not too harsh
-  scanline = smoothstep(0.3, 0.7, scanline) * 0.3 + 0.7;
-
-  // === IRIDESCENT COLOR SHIFT ===
-  // Shift hue slightly based on viewing angle for rainbow effect
-  float hueShift = fresnel * 0.15;
-  vec3 shiftedColor = vColor;
-  // Simple hue rotation approximation
-  shiftedColor.r = vColor.r * cos(hueShift) - vColor.g * sin(hueShift) * 0.3;
-  shiftedColor.g = vColor.g * cos(hueShift * 0.5) + vColor.b * sin(hueShift) * 0.2;
-  shiftedColor.b = vColor.b + fresnel * 0.2; // Boost blue at edges
+  // === PRESERVE THE ORIGINAL VIBRANT COLOR ===
+  // No hue shifting, no scanlines - just the pure Kurzgesagt color
+  vec3 baseColor = vColor;
 
   // === BREATHING LUMINOSITY ===
-  float breathGlow = 0.8 + breathPhase * 0.4;
+  // Subtle brightness pulse synced to breath (0.9 to 1.1 range)
+  float breathGlow = 0.9 + breathPhase * 0.2;
+  baseColor *= breathGlow;
 
-  // === HOLOGRAPHIC BASE COLOR ===
-  vec3 baseColor = shiftedColor * breathGlow * scanline;
+  // === SOFT INNER GRADIENT ===
+  // Slightly brighter center, dimmer edges (opposite of fresnel)
+  float innerGlow = 1.0 - fresnel * 0.15;
+  baseColor *= innerGlow;
 
-  // === FRESNEL RIM GLOW ===
-  // Cool white-blue rim for ethereal edge
-  vec3 rimColor = mix(vec3(0.7, 0.85, 1.0), vColor, 0.3);
-  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.6);
+  // === SUBTLE RIM HIGHLIGHT ===
+  // Soft white-ish rim for depth (Kurzgesagt style edge highlight)
+  vec3 rimColor = vColor * 1.3 + vec3(0.15); // Lighter version of base color
+  vec3 finalColor = mix(baseColor, rimColor, fresnel * 0.35);
 
-  // === INNER CORE GLOW ===
-  // Subtle glow from center, stronger on exhale
-  float coreGlow = (1.0 - fresnel) * 0.15 * (0.8 + breathPhase * 0.4);
-  colorWithRim += vColor * coreGlow;
+  // === SUBTLE SHIMMER (very subtle) ===
+  // Minimal variation to keep it alive without muddying
+  float shimmer = sin(time * 1.5 + vWorldPosition.x * 5.0 + vWorldPosition.z * 5.0) * 0.03 + 1.0;
+  finalColor *= shimmer;
 
-  // === HOLOGRAPHIC SHIMMER ===
-  // Subtle flicker based on time and position
-  float shimmer = sin(time * 3.0 + vWorldPosition.x * 10.0 + vWorldPosition.z * 10.0) * 0.05 + 1.0;
-  colorWithRim *= shimmer;
+  // === OPACITY ===
+  // Mostly opaque like Kurzgesagt cells, slight transparency at edges
+  float alpha = 0.85 + (1.0 - fresnel) * 0.15;
 
-  // === ALPHA FOR TRANSLUCENCY ===
-  // More transparent at edges (fresnel), more opaque at center
-  float alpha = 0.6 + (1.0 - fresnel) * 0.3 + breathPhase * 0.1;
+  // Clamp to prevent over-saturation
+  finalColor = clamp(finalColor, 0.0, 1.0);
 
-  // Boost brightness for additive-like feel (without actual additive blend)
-  colorWithRim *= 1.2;
-
-  gl_FragColor = vec4(colorWithRim, alpha);
+  gl_FragColor = vec4(finalColor, alpha);
 }
 `;
 
 /**
- * Creates an ethereal holographic shader material for space-themed shards
+ * Creates a vibrant Kurzgesagt-style cell material for shards
  *
  * Returns a ShaderMaterial with:
- * - Animated scanlines for holographic effect
- * - Fresnel-based iridescent rim glow
- * - Semi-transparent for ethereal feel
+ * - Preserved vibrant input colors (no muddy transformations)
+ * - Subtle fresnel rim highlight
  * - Breathing-synchronized brightness
+ * - Mostly opaque with slight edge transparency
  * - Per-instance color support
  *
  * @param instanced - Whether to enable instancing color support (default: true)
@@ -144,7 +128,7 @@ export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMateri
     fragmentShader: shardFragmentShader,
     defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
     transparent: true,
-    depthWrite: false, // For proper transparency sorting
-    side: THREE.DoubleSide, // Show both sides for holographic feel
+    depthWrite: true, // Enable depth write for solid-ish appearance
+    side: THREE.FrontSide, // Only front side for cleaner look
   });
 }

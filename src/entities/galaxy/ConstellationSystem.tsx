@@ -243,13 +243,13 @@ const CONSTELLATIONS: Constellation[] = [
 interface ConstellationSystemProps {
   /** Radius of the constellation sphere @default 80 */
   radius?: number;
-  /** Star size multiplier @default 1.0 */
+  /** Star size multiplier @default 1.5 */
   starSize?: number;
-  /** Line opacity @default 0.3 */
+  /** Line opacity @default 0.5 */
   lineOpacity?: number;
-  /** Line color - Kurzgesagt purple-blue @default '#7b68ee' */
+  /** Line color - Kurzgesagt purple-blue @default '#9b8bff' */
   lineColor?: string;
-  /** Star color - Kurzgesagt blue-white @default '#e8f4ff' */
+  /** Star color - Kurzgesagt bright white @default '#ffffff' */
   starColor?: string;
   /** Enable breathing sync @default true */
   breathingSync?: boolean;
@@ -259,10 +259,10 @@ interface ConstellationSystemProps {
 
 function ConstellationSystemComponent({
   radius = 80,
-  starSize = 1.0,
-  lineOpacity = 0.3,
-  lineColor = '#7b68ee', // Kurzgesagt purple-blue (matches palette)
-  starColor = '#e8f4ff', // Kurzgesagt blue-white stars
+  starSize = 1.5, // Increased from 1.0 for more prominence
+  lineOpacity = 0.5, // Increased from 0.3 for better visibility
+  lineColor = '#9b8bff', // Brighter purple (linesBright from palette)
+  starColor = '#ffffff', // Pure white for maximum visibility
   breathingSync = true,
   enableTwinkle = true,
 }: ConstellationSystemProps) {
