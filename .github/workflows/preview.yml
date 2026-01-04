@@ -4,6 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+# Cancel previous runs when new commits are pushed
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   # CI/CD validation checks (runs in parallel with preview)
   validate:
@@ -288,12 +293,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -e "console.log(require('./package-lock.json').packages['node_modules/@playwright/test']?.version || 'unknown')")" >> $GITHUB_OUTPUT
+
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-v1.49.1
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
@@ -329,14 +338,28 @@ jobs:
           AWS_REGION: auto
           R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
         run: |
-          # Upload each screenshot to R2
-          for file in ./screenshots/*.png; do
-            filename=$(basename "$file")
-            aws s3 cp "$file" "s3://breathe-together-screenshots/pr-${{ env.PR_NUMBER }}/$filename" \
+          # Upload screenshots to R2 with retry logic
+          MAX_RETRIES=3
+          RETRY_DELAY=5
+
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Upload attempt $attempt of $MAX_RETRIES..."
+            if aws s3 sync ./screenshots "s3://breathe-together-screenshots/pr-${{ env.PR_NUMBER }}" \
               --endpoint-url "$R2_ENDPOINT" \
-              --content-type "image/png"
-            echo "Uploaded: $filename"
+              --content-type "image/png" \
+              --exclude "*" --include "*.png"; then
+              echo "Upload successful!"
+              exit 0
+            fi
+
+            if [ $attempt -lt $MAX_RETRIES ]; then
+              echo "Upload failed, retrying in ${RETRY_DELAY}s..."
+              sleep $RETRY_DELAY
+            fi
           done
+
+          echo "Upload failed after $MAX_RETRIES attempts"
+          exit 1
 
       - name: Upload screenshots as artifact
         if: steps.capture.outputs.has_screenshots == 'true'
