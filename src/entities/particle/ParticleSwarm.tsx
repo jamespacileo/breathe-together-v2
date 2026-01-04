@@ -18,7 +18,7 @@ import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
-import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
+import { ACTIVE_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
 import {
@@ -29,16 +29,16 @@ import {
   type User,
 } from './SlotManager';
 
-// Direct 1:1 mapping - each mood has exactly one color
+// Direct 1:1 mapping - each mood has exactly one color (using Cosmic Nebula palette)
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
-  gratitude: new THREE.Color(MONUMENT_VALLEY_PALETTE.gratitude),
-  presence: new THREE.Color(MONUMENT_VALLEY_PALETTE.presence),
-  release: new THREE.Color(MONUMENT_VALLEY_PALETTE.release),
-  connection: new THREE.Color(MONUMENT_VALLEY_PALETTE.connection),
+  gratitude: new THREE.Color(ACTIVE_PALETTE.gratitude),
+  presence: new THREE.Color(ACTIVE_PALETTE.presence),
+  release: new THREE.Color(ACTIVE_PALETTE.release),
+  connection: new THREE.Color(ACTIVE_PALETTE.connection),
 };
 
 // Default color for empty slots (won't be visible due to scale=0)
-const DEFAULT_COLOR = new THREE.Color(MONUMENT_VALLEY_PALETTE.presence);
+const DEFAULT_COLOR = new THREE.Color(ACTIVE_PALETTE.presence);
 
 /**
  * Calculate Fibonacci sphere point for even distribution

@@ -56,18 +56,18 @@ void main() {
   // Fresnel rim for atmospheric glow
   vec3 viewDir = normalize(vViewPosition);
   float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 4.0); // Tighter falloff
-  vec3 rimColor = vec3(0.94, 0.90, 0.86); // Muted warm cream, closer to background
+  vec3 rimColor = vec3(0.70, 0.85, 0.95); // Cosmic blue-white glow, fits space theme
 
   // Breathing modulation - subtle brightness shift
   float breathMod = 1.0 + breathPhase * 0.06;
   texColor *= breathMod;
 
   // Blend texture with fresnel rim - very subtle
-  vec3 finalColor = mix(texColor, rimColor, fresnel * 0.18);
+  vec3 finalColor = mix(texColor, rimColor, fresnel * 0.20);
 
-  // Subtle top-down lighting - very gentle
-  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.05;
-  finalColor += vec3(0.98, 0.95, 0.92) * topLight;
+  // Subtle top-down lighting from sun - cool cosmic light
+  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.06;
+  finalColor += vec3(0.95, 0.96, 0.98) * topLight; // Cool blue-white from sun
 
   gl_FragColor = vec4(finalColor, 1.0);
 }

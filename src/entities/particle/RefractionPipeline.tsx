@@ -54,11 +54,11 @@ varying vec3 eyeVector;
 varying vec3 worldNormal;
 
 void main() {
-  // Use instanceColor if available (InstancedMesh), otherwise fallback to white
+  // Use instanceColor if available (InstancedMesh), otherwise fallback to cosmic teal
   #ifdef USE_INSTANCING_COLOR
     vColor = instanceColor;
   #else
-    vColor = vec3(0.85, 0.75, 0.65); // Warm neutral fallback
+    vColor = vec3(0.36, 0.85, 0.76); // Cosmic teal fallback (presence color)
   #endif
 
   // Apply instance transform if using InstancedMesh
@@ -110,10 +110,10 @@ void main() {
   vec4 tex = texture2D(envMap, refractUv);
 
   // === BRIGHT LUMINOUS GEM COLOR ===
-  // Keep high saturation with brightness boost
-  vec3 warmWhite = vec3(1.0, 0.98, 0.95);
-  // 85% color intensity - vibrant
-  vec3 gemColor = mix(warmWhite, vColor, 0.85);
+  // Cool cosmic white for space theme
+  vec3 cosmicWhite = vec3(0.95, 0.97, 1.0); // Cool blue-white like starlight
+  // 85% color intensity - vibrant nebula colors
+  vec3 gemColor = mix(cosmicWhite, vColor, 0.85);
   // Brightness boost for luminous feel
   gemColor *= 1.15;
 
@@ -139,17 +139,17 @@ void main() {
 
   // === FRESNEL RIM (crystalline edge glow) ===
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
-  vec3 rimColor = vec3(1.0, 0.99, 0.97);
+  vec3 rimColor = vec3(0.96, 0.98, 1.0); // Cool cosmic rim like ice crystals
   vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.3);
 
   // === SPECULAR HIGHLIGHT (gem sparkle) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
   float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
-  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.3;
+  colorWithRim += vec3(0.96, 0.98, 1.0) * spec * 0.3; // Cool sparkle
 
-  // === TOP AMBIENT ===
+  // === TOP AMBIENT (from sun) ===
   float topLight = max(normal.y, 0.0) * 0.12;
-  colorWithRim += vec3(1.0, 0.99, 0.97) * topLight;
+  colorWithRim += vec3(0.97, 0.98, 1.0) * topLight; // Cool starlight from above
 
   gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
 }
