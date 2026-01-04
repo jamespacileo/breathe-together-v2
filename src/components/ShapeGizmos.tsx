@@ -16,10 +16,10 @@
  * Controlled via Leva Debug > Gizmos folder
  */
 
-import { Html, Line } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { VISUALS } from '../constants';
 import { breathPhase, orbitRadius } from '../entities/breath/traits';
@@ -53,17 +53,20 @@ interface ShapeGizmosProps {
 // ============================================================
 
 /**
- * XYZ Axes Gizmo following standard conventions:
+ * XYZ Axes Gizmo - OPTIMIZED
+ * - Single LineSegments for all 3 axis lines (1 draw call instead of 3)
+ * - InstancedMesh for cone arrowheads (1 draw call instead of 3)
+ * - Total: 2 draw calls instead of 6
+ *
+ * Follows standard conventions:
  * - X axis: Red (right)
  * - Y axis: Green (up)
  * - Z axis: Blue (forward)
- * - Includes cone arrowheads for direction
  */
 function AxesGizmo({
   position,
   length = 3.0,
   opacity = 0.9,
-  lineWidth = 3,
   arrowSize = 0.15,
 }: {
   position: [number, number, number];
@@ -72,57 +75,130 @@ function AxesGizmo({
   lineWidth?: number;
   arrowSize?: number;
 }) {
-  // Arrow geometry shared by all axes
-  const coneGeom = useMemo(() => new THREE.ConeGeometry(arrowSize, arrowSize * 2, 8), [arrowSize]);
+  const conesRef = useRef<THREE.InstancedMesh>(null);
+
+  // Batched line geometry for all 3 axes (1 draw call)
+  const { lineGeometry, lineMaterial } = useMemo(() => {
+    const positions = new Float32Array([
+      // X axis: origin to (length, 0, 0)
+      0,
+      0,
+      0,
+      length,
+      0,
+      0,
+      // Y axis: origin to (0, length, 0)
+      0,
+      0,
+      0,
+      0,
+      length,
+      0,
+      // Z axis: origin to (0, 0, length)
+      0,
+      0,
+      0,
+      0,
+      0,
+      length,
+    ]);
+
+    const colors = new Float32Array([
+      // X axis - Red
+      1, 0.2, 0.2, 1, 0.2, 0.2,
+      // Y axis - Green
+      0.2, 1, 0.2, 0.2, 1, 0.2,
+      // Z axis - Blue
+      0.2, 0.2, 1, 0.2, 0.2, 1,
+    ]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity,
+      linewidth: 1, // Note: linewidth > 1 only works on some platforms
+    });
+
+    return { lineGeometry: geo, lineMaterial: mat };
+  }, [length, opacity]);
+
+  // Shared cone geometry for arrowheads
+  const coneGeometry = useMemo(
+    () => new THREE.ConeGeometry(arrowSize, arrowSize * 2, 8),
+    [arrowSize],
+  );
+
+  // Material with vertex colors for instanced cones
+  const coneMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity,
+      }),
+    [opacity],
+  );
+
+  // Set up instanced cone transforms and colors
+  useEffect(() => {
+    const mesh = conesRef.current;
+    if (!mesh) return;
+
+    // Cone transforms: position at end of each axis, rotated to point outward
+    const transforms = [
+      // X axis cone: at (length, 0, 0), rotated -90° around Z
+      { pos: [length, 0, 0], rot: [0, 0, -Math.PI / 2], color: [1, 0.2, 0.2] },
+      // Y axis cone: at (0, length, 0), no rotation (points up by default)
+      { pos: [0, length, 0], rot: [0, 0, 0], color: [0.2, 1, 0.2] },
+      // Z axis cone: at (0, 0, length), rotated 90° around X
+      { pos: [0, 0, length], rot: [Math.PI / 2, 0, 0], color: [0.2, 0.2, 1] },
+    ];
+
+    const tempMatrix = new THREE.Matrix4();
+    const tempPosition = new THREE.Vector3();
+    const tempQuaternion = new THREE.Quaternion();
+    const tempEuler = new THREE.Euler();
+    const tempScale = new THREE.Vector3(1, 1, 1);
+    const tempColor = new THREE.Color();
+
+    for (let i = 0; i < 3; i++) {
+      const { pos, rot, color } = transforms[i];
+      tempPosition.set(pos[0], pos[1], pos[2]);
+      tempEuler.set(rot[0], rot[1], rot[2]);
+      tempQuaternion.setFromEuler(tempEuler);
+      tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
+      mesh.setMatrixAt(i, tempMatrix);
+      tempColor.setRGB(color[0], color[1], color[2]);
+      mesh.setColorAt(i, tempColor);
+    }
+
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [length]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      lineGeometry.dispose();
+      lineMaterial.dispose();
+      coneGeometry.dispose();
+      coneMaterial.dispose();
+    };
+  }, [lineGeometry, lineMaterial, coneGeometry, coneMaterial]);
 
   return (
     <group position={position}>
-      {/* X Axis - Red (right) */}
-      <Line
-        points={[
-          [0, 0, 0],
-          [length, 0, 0],
-        ]}
-        color="#ff3333"
-        lineWidth={lineWidth}
-        transparent
-        opacity={opacity}
-      />
-      <mesh position={[length, 0, 0]} rotation={[0, 0, -Math.PI / 2]} geometry={coneGeom}>
-        <meshBasicMaterial color="#ff3333" transparent opacity={opacity} />
-      </mesh>
+      {/* All axis lines in single draw call */}
+      <lineSegments geometry={lineGeometry} material={lineMaterial} />
 
-      {/* Y Axis - Green (up) */}
-      <Line
-        points={[
-          [0, 0, 0],
-          [0, length, 0],
-        ]}
-        color="#33ff33"
-        lineWidth={lineWidth}
-        transparent
-        opacity={opacity}
-      />
-      <mesh position={[0, length, 0]} geometry={coneGeom}>
-        <meshBasicMaterial color="#33ff33" transparent opacity={opacity} />
-      </mesh>
+      {/* All cone arrowheads in single draw call */}
+      <instancedMesh ref={conesRef} args={[coneGeometry, coneMaterial, 3]} frustumCulled={false} />
 
-      {/* Z Axis - Blue (forward) */}
-      <Line
-        points={[
-          [0, 0, 0],
-          [0, 0, length],
-        ]}
-        color="#3333ff"
-        lineWidth={lineWidth}
-        transparent
-        opacity={opacity}
-      />
-      <mesh position={[0, 0, length]} rotation={[Math.PI / 2, 0, 0]} geometry={coneGeom}>
-        <meshBasicMaterial color="#3333ff" transparent opacity={opacity} />
-      </mesh>
-
-      {/* Axis labels */}
+      {/* Axis labels (HTML overlays - not GPU rendered) */}
       <Html position={[length + arrowSize * 2, 0, 0]} center>
         <span
           style={{
@@ -532,9 +608,131 @@ function ShardGizmos({
 }
 
 // ============================================================
-// COUNTRY GIZMOS
+// COUNTRY GIZMOS - OPTIMIZED
 // ============================================================
 
+/**
+ * Instanced country markers - single draw call for all spheres
+ */
+function InstancedCountrySpheres({
+  countries,
+  globeRotationY,
+}: {
+  countries: CountryGizmoData[];
+  globeRotationY: number;
+}) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const geometry = useMemo(() => new THREE.SphereGeometry(0.03, 8, 6), []);
+  const material = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ffaa00' }), []);
+
+  // Update instance matrices with globe rotation
+  useFrame(() => {
+    if (!meshRef.current || countries.length === 0) return;
+    const mesh = meshRef.current;
+
+    // Create rotation matrix for globe rotation
+    const rotationMatrix = new THREE.Matrix4().makeRotationY(globeRotationY);
+    const tempPosition = new THREE.Vector3();
+
+    for (let i = 0; i < countries.length; i++) {
+      const country = countries[i];
+      tempPosition.set(country.position[0], country.position[1], country.position[2]);
+      tempPosition.applyMatrix4(rotationMatrix);
+      _tempMatrix.makeTranslation(tempPosition.x, tempPosition.y, tempPosition.z);
+      mesh.setMatrixAt(i, _tempMatrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.count = countries.length;
+  });
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+    };
+  }, [geometry, material]);
+
+  if (countries.length === 0) return null;
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[geometry, material, Math.max(countries.length, 1)]}
+      frustumCulled={false}
+    />
+  );
+}
+
+/**
+ * Instanced country rings - single draw call for all rings
+ */
+function InstancedCountryRings({
+  countries,
+  globeRotationY,
+}: {
+  countries: CountryGizmoData[];
+  globeRotationY: number;
+}) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const geometry = useMemo(() => new THREE.RingGeometry(0.04, 0.06, 16), []);
+  const material = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: '#ffaa00',
+        transparent: true,
+        opacity: 0.6,
+        side: THREE.DoubleSide,
+      }),
+    [],
+  );
+
+  // Update instance matrices with globe rotation and ring orientation
+  useFrame(() => {
+    if (!meshRef.current || countries.length === 0) return;
+    const mesh = meshRef.current;
+
+    // Create rotation matrix for globe rotation
+    const globeRotation = new THREE.Matrix4().makeRotationY(globeRotationY);
+    const ringRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+    const tempPosition = new THREE.Vector3();
+
+    for (let i = 0; i < countries.length; i++) {
+      const country = countries[i];
+      tempPosition.set(country.position[0], country.position[1], country.position[2]);
+      tempPosition.applyMatrix4(globeRotation);
+      _tempMatrix.compose(tempPosition, ringRotation, _tempScale.setScalar(1));
+      mesh.setMatrixAt(i, _tempMatrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.count = countries.length;
+  });
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+    };
+  }, [geometry, material]);
+
+  if (countries.length === 0) return null;
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[geometry, material, Math.max(countries.length, 1)]}
+      frustumCulled={false}
+    />
+  );
+}
+
+/**
+ * CountryGizmosRenderer - OPTIMIZED
+ * - InstancedMesh for spheres (1 draw call instead of N)
+ * - InstancedMesh for rings (1 draw call instead of N)
+ * - Total: 2 draw calls instead of 2N
+ */
 function CountryGizmosRenderer({
   countries,
   showLabels,
@@ -545,19 +743,18 @@ function CountryGizmosRenderer({
   globeRotationY: number;
 }) {
   return (
-    <group rotation={[0, globeRotationY, 0]} name="Country Gizmos">
-      {countries.map((country) => (
-        <group key={country.code} position={country.position}>
-          <mesh>
-            <sphereGeometry args={[0.03, 12, 12]} />
-            <meshBasicMaterial color="#ffaa00" />
-          </mesh>
-          <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.04, 0.06, 16]} />
-            <meshBasicMaterial color="#ffaa00" transparent opacity={0.6} side={THREE.DoubleSide} />
-          </mesh>
-          {showLabels && (
-            <Html position={[0, 0.12, 0]} center>
+    <group name="Country Gizmos">
+      {/* All country spheres in single draw call */}
+      <InstancedCountrySpheres countries={countries} globeRotationY={globeRotationY} />
+
+      {/* All country rings in single draw call */}
+      <InstancedCountryRings countries={countries} globeRotationY={globeRotationY} />
+
+      {/* Labels only when explicitly enabled (DOM elements, not instanced) */}
+      {showLabels && (
+        <group rotation={[0, globeRotationY, 0]}>
+          {countries.map((country) => (
+            <Html key={country.code} position={country.position} center>
               <div
                 style={{
                   background: 'rgba(0, 0, 0, 0.8)',
@@ -567,14 +764,15 @@ function CountryGizmosRenderer({
                   fontSize: '9px',
                   fontFamily: 'monospace',
                   whiteSpace: 'nowrap',
+                  transform: 'translateY(-12px)',
                 }}
               >
                 {country.code}
               </div>
             </Html>
-          )}
+          ))}
         </group>
-      ))}
+      )}
     </group>
   );
 }
