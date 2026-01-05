@@ -1,3 +1,4 @@
+import { Environment as DreiEnvironment } from '@react-three/drei';
 // NOTE: Stars from drei uses ShaderMaterial which is incompatible with WebGPU NodeMaterial system
 // TODO: Create TSL-based Stars component for WebGPU compatibility
 // import { Stars } from '@react-three/drei';
@@ -12,6 +13,15 @@ import { BackgroundGradient } from './BackgroundGradient';
 // import { CloudSystem } from './CloudSystem';
 import { EditorGrid } from './EditorGrid';
 import { SubtleLightRays } from './SubtleLightRays';
+
+/**
+ * HDRI file path for environment lighting
+ * Uses Belfast Sunset from Poly Haven - warm pastel sunset that matches Monument Valley aesthetic
+ * Self-hosted to avoid CDN reliability issues in production
+ *
+ * @see https://polyhaven.com/a/belfast_sunset
+ */
+const HDRI_PATH = '/hdri/belfast_sunset_1k.hdr';
 
 interface EnvironmentProps {
   enabled?: boolean;
@@ -39,6 +49,34 @@ interface EnvironmentProps {
   gridDivisions?: number;
   /** Grid line color @default '#666666' */
   gridColor?: string;
+  /**
+   * Enable HDRI environment lighting for enhanced reflections
+   * Uses Belfast Sunset HDRI for warm, pastel lighting that matches Monument Valley aesthetic
+   * Adds realistic reflections to PBR materials without changing the visual style
+   * @default true
+   */
+  enableHDRI?: boolean;
+  /**
+   * HDRI environment intensity multiplier
+   * Controls how much the HDRI affects scene lighting and reflections
+   * @default 0.3
+   * @min 0
+   * @max 1
+   */
+  hdriIntensity?: number;
+  /**
+   * Blur amount for HDRI background (if used as background)
+   * 0 = sharp, 1 = fully blurred
+   * Only applies when useHDRIBackground is true
+   * @default 0.5
+   */
+  hdriBlur?: number;
+  /**
+   * Use HDRI as scene background instead of gradient
+   * Creates a more realistic environment but loses the custom gradient
+   * @default false
+   */
+  useHDRIBackground?: boolean;
 }
 
 /**
@@ -62,6 +100,10 @@ export function Environment({
   gridSize = 20,
   gridDivisions = 20,
   gridColor = '#666666',
+  enableHDRI = true,
+  hdriIntensity = 0.3,
+  hdriBlur = 0.5,
+  useHDRIBackground = false,
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
   const { isMobile } = useViewport();
@@ -126,8 +168,21 @@ export function Environment({
   // Normal mode: full Monument Valley atmosphere
   return (
     <group>
+      {/* HDRI Environment - provides realistic reflections for PBR materials */}
+      {/* Uses self-hosted Belfast Sunset HDRI for warm, pastel lighting */}
+      {/* Does NOT replace the gradient background unless useHDRIBackground is true */}
+      {enableHDRI && (
+        <DreiEnvironment
+          files={HDRI_PATH}
+          background={useHDRIBackground}
+          backgroundBlurriness={hdriBlur}
+          environmentIntensity={hdriIntensity}
+        />
+      )}
+
       {/* Animated gradient background - renders behind everything */}
-      <BackgroundGradient />
+      {/* Only shown when not using HDRI as background */}
+      {!useHDRIBackground && <BackgroundGradient />}
 
       {/* NOTE: CloudSystem disabled - uses drei Clouds which has ShaderMaterial incompatible with WebGPU */}
       {/* TODO: Create TSL-based CloudSystem for WebGPU compatibility */}

@@ -5,11 +5,13 @@ import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GizmoEntities } from '../components/GizmoEntities';
 import { MomentumControls } from '../components/MomentumControls';
+import { PostProcessingEffects } from '../components/PostProcessingEffects';
 import { ShapeGizmos } from '../components/ShapeGizmos';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
+import { EarthGlobeTransmission } from '../entities/earthGlobe/EarthGlobeTransmission';
 // NOTE: GeoMarkers uses drei Text which causes "drawIndexed Infinity" error on WebGPU
 // TODO: Create TSL-based text/markers for WebGPU compatibility
 // import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
@@ -97,9 +99,26 @@ export function BreathingLevel({
           polar={[-Math.PI * 0.3, Math.PI * 0.3]}
           azimuth={[-Infinity, Infinity]}
         >
-          {/* 3D Scene Content - TSL materials with viewportSharedTexture refraction */}
+          {/* Postprocessing Effects - optional DoF, bloom, vignette */}
+          {devControls.usePostprocessingDoF && (
+            <PostProcessingEffects
+              enableDoF={devControls.enableDepthOfField}
+              focusDistance={devControls.focusDistance}
+              focalLength={devControls.ppFocalLength}
+              bokehScale={devControls.ppBokehScale}
+              enableBloom={devControls.enableBloom}
+              bloomIntensity={devControls.bloomIntensity}
+              bloomThreshold={devControls.bloomThreshold}
+              enableVignette={devControls.enableVignette}
+              vignetteDarkness={devControls.vignetteDarkness}
+            />
+          )}
+
+          {/* 3D Scene Content - TSL materials (RefractionPipeline disabled for WebGPU compatibility) */}
+          {/* NOTE: RefractionPipeline uses WebGLRenderTarget + ShaderMaterial - incompatible with WebGPU */}
+          {/* TODO: Create TSL-based refraction using viewportSharedTexture */}
           <group name="Scene Content">
-            {/* Environment - clouds, lighting, fog (or grid floor in stage mode) */}
+            {/* Environment - lighting, fog, HDRI (or grid floor in stage mode) */}
             {showEnvironment && (
               <Environment
                 ambientLightColor={devControls.ambientLightColor}
@@ -111,10 +130,24 @@ export function BreathingLevel({
                 gridSize={devControls.gridSize}
                 gridDivisions={devControls.gridDivisions}
                 gridColor={devControls.gridColor}
+                enableHDRI={devControls.enableHDRI}
+                hdriIntensity={devControls.hdriIntensity}
+                hdriBlur={devControls.hdriBlur}
+                useHDRIBackground={devControls.useHDRIBackground}
               />
             )}
 
-            {showGlobe && <EarthGlobe />}
+            {/* Globe - conditionally use transmission material */}
+            {showGlobe && !devControls.useTransmissionGlobe && <EarthGlobe />}
+            {showGlobe && devControls.useTransmissionGlobe && (
+              <EarthGlobeTransmission
+                transmission={devControls.globeTransmission}
+                roughness={devControls.globeRoughness}
+                ior={devControls.globeIor}
+                thickness={devControls.globeThickness}
+                chromaticAberration={devControls.globeChromaticAberration}
+              />
+            )}
 
             {/* NOTE: RibbonSystem disabled - uses drei Text which causes "drawIndexed Infinity" error on WebGPU */}
             {/* TODO: Create TSL-based text ribbons for WebGPU compatibility */}
