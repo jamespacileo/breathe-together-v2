@@ -40,7 +40,7 @@ void main() {
 }
 `;
 
-// Fragment shader - fresnel rim + breathing luminosity
+// Fragment shader - transparent gem with fresnel rim + breathing luminosity
 const shardFragmentShader = `
 uniform float breathPhase;
 uniform float time;
@@ -52,33 +52,34 @@ varying vec3 vColor;
 void main() {
   vec3 viewDir = normalize(vViewPosition);
 
-  // Fresnel rim effect - soft edge glow
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
+  // Fresnel rim effect - stronger for gem-like edges
+  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
 
   // Breathing luminosity pulse - subtle brightness shift
-  // Peak brightness during hold phases (phase 0.25-0.5 and 0.75-1.0)
-  float breathLuminosity = 1.0 + breathPhase * 0.12;
+  float breathLuminosity = 1.0 + breathPhase * 0.15;
 
-  // Subtle saturation boost based on viewing angle
-  // Faces pointing toward camera are slightly more saturated
-  float facingBoost = max(dot(vNormal, viewDir), 0.0) * 0.08;
+  // Gem-like transparency: much more transparent for gem appearance
+  // Base alpha varies from 0.15 (center) to 0.45 (edges) via fresnel
+  float baseAlpha = mix(0.15, 0.45, fresnel);
 
-  // Apply mood color with luminosity and saturation
-  vec3 baseColor = vColor * breathLuminosity;
+  // Apply mood color as tint (heavily reduced for gem transparency)
+  vec3 gemTint = vColor * 0.4; // Reduced from 0.7 to 0.4 for lighter tint
 
-  // Mix in golden constellation rim glow (matches stars)
+  // Mix in golden constellation rim glow (stronger on edges)
   vec3 rimColor = vec3(1.0, 0.86, 0.42); // Golden #ffdb6b
-  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.25);
+  vec3 colorWithRim = mix(gemTint, rimColor, fresnel * 0.4);
 
-  // Subtle inner luminance - very gentle glow from within
-  float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
-  colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
+  // Inner luminance - gem glow from within (stronger than before)
+  float innerGlow = (1.0 - fresnel) * 0.15 * breathLuminosity;
+  vec3 glowColor = mix(vColor, vec3(1.0, 1.0, 1.0), 0.5); // Whitened glow
+  colorWithRim += glowColor * innerGlow;
 
-  // Slight desaturation toward edges for atmospheric feel
+  // Atmospheric integration - very slight desaturation for cohesion
   vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
-  vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
+  vec3 finalColor = mix(desaturated, colorWithRim, 0.90);
 
-  gl_FragColor = vec4(finalColor, 1.0);
+  // Output with transparency for gem-like appearance
+  gl_FragColor = vec4(finalColor, baseAlpha * breathLuminosity);
 }
 `;
 
@@ -102,5 +103,9 @@ export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMateri
     fragmentShader: shardFragmentShader,
     defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
     side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
+    transparent: true, // Enable alpha blending for gem transparency
+    depthWrite: true, // CRITICAL FIX: Enable depth writes to fix 1 FPS performance (safe for convex front-face-only objects)
+    depthTest: true, // Enable depth testing to cull occluded fragments
+    blending: THREE.NormalBlending, // Standard transparency blending
   });
 }

@@ -11,17 +11,18 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Monument Valley Palette - muted night sky colors for icosahedral shards
- * Desaturated by ~20% for harmony with dark navy/teal background
- * These colors are processed through the gem shader for the illustrative look
+ * Monument Valley Palette - extremely muted atmospheric colors for transparent gem shards
+ * Desaturated by 65-70% in HSL space for misty, atmospheric night sky integration
+ * Colors act as subtle tints through transparent glass (alpha 0.15-0.45)
  *
+ * HSL desaturation approach ensures proper color grading vs RGB multiplication
  * Each color maps directly to one mood category (1:1 mapping)
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  gratitude: '#edc949', // Muted Gold - appreciation, thankfulness (was #ffbe0b, reduced saturation 100%→80%)
-  presence: '#1cc095', // Soft Teal - being here, calm, curiosity, rest (was #06d6a0, reduced saturation 95%→75%)
-  release: '#227d9f', // Soft Blue - letting go, processing (was #118ab2, reduced saturation 83%→65%)
-  connection: '#d66885', // Dusty Rose - love, community, togetherness (was #ef476f, reduced saturation 85%→65%)
+  gratitude: '#c7c5ad', // Misty beige-gold - appreciation (HSL: 55°, 20%, 73%)
+  presence: '#a3bab8', // Pale aqua-gray - being here (HSL: 175°, 15%, 68%)
+  release: '#9badb5', // Soft blue-gray - letting go (HSL: 200°, 18%, 66%)
+  connection: '#c0abb4', // Dusty mauve-gray - connection (HSL: 330°, 18%, 71%)
 } as const;
 
 /**
