@@ -126,15 +126,15 @@ interface NebulaLayerConfig {
   yOffset: number;
 }
 
-// Nebula layer configurations
+// Nebula layer configurations - ENHANCED for visibility
 const NEBULA_CONFIGS: NebulaLayerConfig[] = [
   {
     id: 'inner-wisps',
     zPosition: SCENE_DEPTH.LAYERS.NEAR_BG.z,
     scale: 30,
-    opacity: 0.08,
-    color1: '#f8d4c4',
-    color2: '#d4c8e8',
+    opacity: 0.25, // Increased from 0.08
+    color1: '#e8a090', // Warmer coral
+    color2: '#9080c0', // More saturated purple
     noiseScale: 2.0,
     animationSpeed: 1.0,
     yOffset: 5,
@@ -143,9 +143,9 @@ const NEBULA_CONFIGS: NebulaLayerConfig[] = [
     id: 'mid-clouds',
     zPosition: SCENE_DEPTH.LAYERS.MID_BG.z,
     scale: 50,
-    opacity: 0.06,
-    color1: '#e8d4c8',
-    color2: '#c8d8e8',
+    opacity: 0.18, // Increased from 0.06
+    color1: '#d8a090', // Warm terracotta
+    color2: '#7090b8', // Blue
     noiseScale: 1.5,
     animationSpeed: 0.5,
     yOffset: 0,
@@ -154,9 +154,9 @@ const NEBULA_CONFIGS: NebulaLayerConfig[] = [
     id: 'far-nebula',
     zPosition: SCENE_DEPTH.LAYERS.FAR_BG.z,
     scale: 80,
-    opacity: 0.04,
-    color1: '#d8d0c8',
-    color2: '#c8d4e0',
+    opacity: 0.12, // Increased from 0.04
+    color1: '#c09080', // Dusty rose
+    color2: '#6080a8', // Deeper blue
     noiseScale: 1.0,
     animationSpeed: 0.2,
     yOffset: -5,
@@ -165,9 +165,9 @@ const NEBULA_CONFIGS: NebulaLayerConfig[] = [
     id: 'deep-backdrop',
     zPosition: SCENE_DEPTH.LAYERS.DEEP_BG.z,
     scale: 120,
-    opacity: 0.025,
-    color1: '#d0ccc8',
-    color2: '#c0c8d8',
+    opacity: 0.08, // Increased from 0.025
+    color1: '#a08878', // Brown tint
+    color2: '#506898', // Deep blue
     noiseScale: 0.8,
     animationSpeed: 0.1,
     yOffset: -10,

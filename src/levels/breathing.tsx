@@ -156,6 +156,7 @@ export function BreathingLevel({
                 enableParallax={devControls.enableDepthParallax}
                 enableFog={devControls.enableDepthFog}
                 enableVignette={devControls.enableDepthVignette}
+                enableFloatingObjects={devControls.enableDepthFloatingObjects}
                 vignetteIntensity={devControls.depthVignetteIntensity}
               />
             )}

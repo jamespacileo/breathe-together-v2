@@ -39,50 +39,50 @@ interface DepthLayerConfig {
   breathInfluence: number;
 }
 
-// Layer configurations from near to far
+// Layer configurations from near to far - ENHANCED visibility
 const DEPTH_LAYERS: DepthLayerConfig[] = [
   {
     id: 'near-dust',
     zPosition: SCENE_DEPTH.LAYERS.NEAR_BG.z,
-    count: 60,
+    count: 80,
     scale: 25,
-    size: 0.12,
-    opacity: 0.15,
+    size: 0.2, // Increased from 0.12
+    opacity: 0.4, // Increased from 0.15
     speed: 0.8,
-    color: '#d4c8b8',
+    color: '#f0d8c0', // Warmer, more visible
     breathInfluence: 0.3,
   },
   {
     id: 'mid-motes',
     zPosition: SCENE_DEPTH.LAYERS.MID_BG.z,
-    count: 100,
+    count: 120,
     scale: 40,
-    size: 0.08,
-    opacity: 0.1,
+    size: 0.15, // Increased from 0.08
+    opacity: 0.3, // Increased from 0.1
     speed: 0.5,
-    color: '#c8d0d8',
+    color: '#c8e0f0', // More visible blue tint
     breathInfluence: 0.2,
   },
   {
     id: 'far-particles',
     zPosition: SCENE_DEPTH.LAYERS.FAR_BG.z,
-    count: 150,
+    count: 180,
     scale: 60,
-    size: 0.05,
-    opacity: 0.06,
+    size: 0.1, // Increased from 0.05
+    opacity: 0.2, // Increased from 0.06
     speed: 0.3,
-    color: '#b8c8d4',
+    color: '#90b8d8', // More saturated blue
     breathInfluence: 0.1,
   },
   {
     id: 'deep-dust',
     zPosition: SCENE_DEPTH.LAYERS.DEEP_BG.z,
-    count: 200,
+    count: 250,
     scale: 80,
-    size: 0.03,
-    opacity: 0.03,
+    size: 0.06, // Increased from 0.03
+    opacity: 0.12, // Increased from 0.03
     speed: 0.15,
-    color: '#a8b8c8',
+    color: '#7898b8', // More saturated
     breathInfluence: 0.05,
   },
 ];

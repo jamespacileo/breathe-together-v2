@@ -94,15 +94,15 @@ interface DepthRayConfig {
   rotation: number;
 }
 
-// Ray configurations at different depths
+// Ray configurations at different depths - ENHANCED visibility
 const DEPTH_RAY_CONFIGS: DepthRayConfig[] = [
   {
     id: 'near-ray-1',
     zPosition: SCENE_DEPTH.LAYERS.NEAR_BG.z,
     offset: [10, 15],
     scale: [15, 40],
-    color: '#fff8f0',
-    opacity: 0.04,
+    color: '#fff8e0',
+    opacity: 0.12, // Increased from 0.04
     intensity: 1.0,
     phaseOffset: 0,
     rotation: -0.2,
@@ -112,8 +112,8 @@ const DEPTH_RAY_CONFIGS: DepthRayConfig[] = [
     zPosition: SCENE_DEPTH.LAYERS.NEAR_BG.z - 5,
     offset: [-8, 12],
     scale: [12, 35],
-    color: '#ffe8d8',
-    opacity: 0.03,
+    color: '#ffd8b0',
+    opacity: 0.1, // Increased from 0.03
     intensity: 0.8,
     phaseOffset: 1.5,
     rotation: 0.15,
@@ -123,8 +123,8 @@ const DEPTH_RAY_CONFIGS: DepthRayConfig[] = [
     zPosition: SCENE_DEPTH.LAYERS.MID_BG.z,
     offset: [15, 20],
     scale: [25, 60],
-    color: '#fff0e8',
-    opacity: 0.025,
+    color: '#ffe0c0',
+    opacity: 0.08, // Increased from 0.025
     intensity: 0.9,
     phaseOffset: 0.8,
     rotation: -0.3,
@@ -134,8 +134,8 @@ const DEPTH_RAY_CONFIGS: DepthRayConfig[] = [
     zPosition: SCENE_DEPTH.LAYERS.MID_BG.z - 10,
     offset: [-12, 18],
     scale: [20, 50],
-    color: '#f8e8e0',
-    opacity: 0.02,
+    color: '#f8d0b0',
+    opacity: 0.06, // Increased from 0.02
     intensity: 0.7,
     phaseOffset: 2.0,
     rotation: 0.25,
@@ -145,8 +145,8 @@ const DEPTH_RAY_CONFIGS: DepthRayConfig[] = [
     zPosition: SCENE_DEPTH.LAYERS.FAR_BG.z,
     offset: [0, 25],
     scale: [40, 80],
-    color: '#f0e8e0',
-    opacity: 0.015,
+    color: '#e8d0c0',
+    opacity: 0.05, // Increased from 0.015
     intensity: 0.6,
     phaseOffset: 1.2,
     rotation: 0,

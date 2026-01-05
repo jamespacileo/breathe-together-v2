@@ -156,6 +156,7 @@ export const TUNING_DEFAULTS = {
   enableDepthParallax: true,
   enableDepthFog: false, // Disabled by default - can wash out gradient
   enableDepthVignette: true,
+  enableDepthFloatingObjects: true,
   depthVignetteIntensity: 0.35,
 } as const;
 
@@ -315,6 +316,7 @@ export interface DevControlsState {
   enableDepthParallax: boolean;
   enableDepthFog: boolean;
   enableDepthVignette: boolean;
+  enableDepthFloatingObjects: boolean;
   depthVignetteIntensity: number;
 }
 
@@ -412,6 +414,7 @@ function getDefaultDevControls(): DevControlsState {
     enableDepthParallax: TUNING_DEFAULTS.enableDepthParallax,
     enableDepthFog: TUNING_DEFAULTS.enableDepthFog,
     enableDepthVignette: TUNING_DEFAULTS.enableDepthVignette,
+    enableDepthFloatingObjects: TUNING_DEFAULTS.enableDepthFloatingObjects,
     depthVignetteIntensity: TUNING_DEFAULTS.depthVignetteIntensity,
   };
 }
@@ -1311,6 +1314,11 @@ export function useDevControls(): DevControlsState {
               value: TUNING_DEFAULTS.enableDepthVignette,
               label: 'Vignette',
               hint: 'Screen-space vignette for focus and depth.\n\n**Creates:** Darkened edges drawing attention to center',
+            },
+            enableDepthFloatingObjects: {
+              value: TUNING_DEFAULTS.enableDepthFloatingObjects,
+              label: 'Floating Objects',
+              hint: 'Animated geometric shapes throughout the scene.\n\n**Creates:** Moving crystals, orbs, and rings at various depths',
             },
           },
           { collapsed: false },

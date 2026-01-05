@@ -37,14 +37,14 @@ interface SilhouetteLayerConfig {
   driftSpeed: number;
 }
 
-// Silhouette layer configurations (near to far)
+// Silhouette layer configurations (near to far) - ENHANCED for visibility
 const SILHOUETTE_LAYERS: SilhouetteLayerConfig[] = [
   {
     id: 'near-silhouette',
     zPosition: SCENE_DEPTH.LAYERS.MID_BG.z,
     yPosition: -12,
-    opacity: SCENE_DEPTH.SILHOUETTES.BASE_OPACITY,
-    color: SCENE_DEPTH.SILHOUETTES.COLORS[0],
+    opacity: 0.25, // Increased from 0.08
+    color: '#5a4a40', // Darker brown for contrast
     scale: 1.0,
     peakCount: 5,
     maxHeight: 15,
@@ -55,8 +55,8 @@ const SILHOUETTE_LAYERS: SilhouetteLayerConfig[] = [
     id: 'mid-silhouette',
     zPosition: SCENE_DEPTH.LAYERS.FAR_BG.z,
     yPosition: -15,
-    opacity: SCENE_DEPTH.SILHOUETTES.BASE_OPACITY * 0.7,
-    color: SCENE_DEPTH.SILHOUETTES.COLORS[1],
+    opacity: 0.18, // Increased from 0.056
+    color: '#4a5060', // Blue-gray
     scale: 0.8,
     peakCount: 7,
     maxHeight: 20,
@@ -67,8 +67,8 @@ const SILHOUETTE_LAYERS: SilhouetteLayerConfig[] = [
     id: 'far-silhouette',
     zPosition: SCENE_DEPTH.LAYERS.DEEP_BG.z,
     yPosition: -18,
-    opacity: SCENE_DEPTH.SILHOUETTES.BASE_OPACITY * 0.5,
-    color: SCENE_DEPTH.SILHOUETTES.COLORS[2],
+    opacity: 0.12, // Increased from 0.04
+    color: '#405570', // Deep blue
     scale: 0.6,
     peakCount: 9,
     maxHeight: 25,

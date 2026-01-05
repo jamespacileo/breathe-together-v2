@@ -25,6 +25,7 @@ import { DepthRings } from './DepthRings';
 import { DepthStarField } from './DepthStarField';
 import { DepthVignette } from './DepthVignette';
 import { DistantSilhouettes } from './DistantSilhouettes';
+import { FloatingObjects } from './FloatingObjects';
 import { NebulaLayers } from './NebulaLayers';
 import { ParallaxBackground } from './ParallaxBackground';
 import { SubtleGroundPlane } from './SubtleGroundPlane';
@@ -113,6 +114,12 @@ export interface SceneDepthEffectsProps {
    */
   enableVignette?: boolean;
 
+  /**
+   * Enable floating geometric objects
+   * @default true
+   */
+  enableFloatingObjects?: boolean;
+
   // Effect-specific overrides
   /**
    * Vignette intensity
@@ -154,6 +161,7 @@ export const SceneDepthEffects = memo(function SceneDepthEffects({
   enableParallax = true,
   enableFog = false, // Disabled by default
   enableVignette = true,
+  enableFloatingObjects = true,
   vignetteIntensity = 0.35,
   silhouetteSeed = 42,
 }: SceneDepthEffectsProps) {
@@ -191,6 +199,9 @@ export const SceneDepthEffects = memo(function SceneDepthEffects({
 
       <DepthLightRays enabled={enableLightRays} opacity={globalOpacity} />
 
+      {/* Floating geometric objects */}
+      <FloatingObjects enabled={enableFloatingObjects} opacity={globalOpacity} />
+
       {/* Ground reference */}
       <SubtleGroundPlane enabled={enableGroundPlane} opacity={globalOpacity * 0.04} />
 
@@ -210,6 +221,7 @@ export { DepthRings } from './DepthRings';
 export { DepthStarField } from './DepthStarField';
 export { DepthVignette } from './DepthVignette';
 export { DistantSilhouettes } from './DistantSilhouettes';
+export { FloatingObjects } from './FloatingObjects';
 export { NebulaLayers } from './NebulaLayers';
 export { ParallaxBackground } from './ParallaxBackground';
 export { SubtleGroundPlane } from './SubtleGroundPlane';
