@@ -75,6 +75,7 @@ Camera (Z=10)
 | ParallaxBackground | `entities/environment/ParallaxBackground.tsx` | -20 to -85 | Camera-responsive layers | Low |
 | DepthFog | `entities/environment/DepthFog.tsx` | Scene-level | Atmospheric perspective | Low |
 | DepthVignette | `entities/environment/DepthVignette.tsx` | Screen-space | Edge darkening | Low |
+| FloatingObjects | `entities/environment/FloatingObjects.tsx` | -8 to -120 | Animated geometric shapes | Low |
 | **Post-Processing** |
 | RefractionPipeline | `entities/particle/RefractionPipeline.tsx` | N/A | 4-pass FBO refraction + DoF | High |
 | PostProcessingEffects | `components/PostProcessingEffects.tsx` | N/A | Optional bloom/vignette/DoF | Medium |
@@ -175,6 +176,16 @@ Edge darkening for focus:
 - Subtle color shift at edges
 - Aspect ratio corrected
 
+### 11. Floating Objects
+**File:** `src/entities/environment/FloatingObjects.tsx`
+
+Animated geometric shapes populating the scene:
+- Crystals, orbs, rings, and diamonds
+- Distributed at Z=-8 to Z=-120
+- Orbital motion and vertical bobbing
+- Breathing-synchronized scale pulsing
+- Progressive opacity falloff with distance
+
 ## Configuration
 
 ### Constants
@@ -216,6 +227,7 @@ All depth effects can be controlled via the Leva panel under "Scene Depth":
 | Parallax Background | `true` | Camera-responsive layers |
 | Depth Fog | `false` | Atmospheric fog |
 | Vignette | `true` | Edge darkening |
+| Floating Objects | `true` | Animated shapes |
 | Vignette Intensity | `0.35` | Darkness amount |
 
 ## Performance Considerations
@@ -234,6 +246,7 @@ All depth effects can be controlled via the Leva panel under "Scene Depth":
 | ParallaxBackground | Low | N/A | 3 |
 | DepthFog | Low | N/A | 0 |
 | DepthVignette | Low | N/A | 1 |
+| FloatingObjects | Low | N/A | 16 |
 
 ### Performance Presets
 
@@ -277,6 +290,7 @@ The depth effects are integrated via `SceneDepthEffects` component:
   enableParallax={true}
   enableFog={false}
   enableVignette={true}
+  enableFloatingObjects={true}
   vignetteIntensity={0.35}
 />
 ```
@@ -311,6 +325,7 @@ src/entities/environment/
 ├── ParallaxBackground.tsx       # NEW: Parallax layers
 ├── DepthFog.tsx                 # NEW: Atmospheric fog
 ├── DepthVignette.tsx            # NEW: Screen vignette
+├── FloatingObjects.tsx          # NEW: Animated geometric shapes
 └── SceneDepthEffects.tsx        # NEW: Unified depth system
 ```
 
