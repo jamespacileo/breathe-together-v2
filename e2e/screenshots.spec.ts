@@ -9,15 +9,18 @@ if (!existsSync(SCREENSHOTS_DIR)) {
 }
 
 test.describe('Preview Screenshots', () => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
 
   test('capture preview', async ({ page }, testInfo) => {
     const viewport = testInfo.project.name;
 
+    // Desktop viewport (1920x1080) needs longer timeout for SwiftShader rendering
+    const consoleTimeout = viewport === 'desktop' ? 90_000 : 60_000;
+
     // Set up console listener BEFORE navigation
     const screenshotReady = page.waitForEvent('console', {
       predicate: (msg) => msg.text().includes('[SCREENSHOT_READY]'),
-      timeout: 60_000,
+      timeout: consoleTimeout,
     });
 
     await page.goto('/');
