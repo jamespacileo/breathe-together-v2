@@ -60,11 +60,11 @@ float fbm(vec2 p) {
 }
 
 void main() {
-  // Night sky gradient - deep navy to golden horizon
+  // Night sky gradient - deep navy to blue-purple horizon
   vec3 skyTop = vec3(0.08, 0.17, 0.30);       // #152b4d Dark navy
   vec3 skyMid = vec3(0.23, 0.59, 0.68);       // #3a96ae Teal/cyan
-  vec3 horizon = vec3(0.96, 0.72, 0.28);      // #ffb547 Golden orange
-  vec3 warmGlow = vec3(0.96, 0.84, 0.39);     // #f5d663 Golden glow
+  vec3 horizon = vec3(0.35, 0.45, 0.75);      // #5972bf Deep blue
+  vec3 warmGlow = vec3(0.45, 0.35, 0.70);     // #7359b3 Blue-purple
 
   // Vertical position for gradient
   float y = vUv.y;

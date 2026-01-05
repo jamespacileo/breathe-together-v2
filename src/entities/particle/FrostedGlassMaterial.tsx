@@ -66,8 +66,8 @@ void main() {
   // Apply mood color with luminosity and saturation
   vec3 baseColor = vColor * breathLuminosity;
 
-  // Mix in a warm white rim glow (like the globe)
-  vec3 rimColor = vec3(0.98, 0.96, 0.94); // Soft warm white
+  // Mix in golden constellation rim glow (matches stars)
+  vec3 rimColor = vec3(1.0, 0.86, 0.42); // Golden #ffdb6b
   vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.25);
 
   // Subtle inner luminance - very gentle glow from within

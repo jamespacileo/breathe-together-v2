@@ -11,16 +11,17 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Monument Valley Palette - vibrant gem colors for icosahedral shards
+ * Monument Valley Palette - muted night sky colors for icosahedral shards
+ * Desaturated by ~20% for harmony with dark navy/teal background
  * These colors are processed through the gem shader for the illustrative look
  *
  * Each color maps directly to one mood category (1:1 mapping)
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  gratitude: '#ffbe0b', // Warm Gold - appreciation, thankfulness
-  presence: '#06d6a0', // Teal/Mint - being here, calm, curiosity, rest
-  release: '#118ab2', // Deep Blue - letting go, processing
-  connection: '#ef476f', // Warm Rose - love, community, togetherness
+  gratitude: '#edc949', // Muted Gold - appreciation, thankfulness (was #ffbe0b, reduced saturation 100%→80%)
+  presence: '#1cc095', // Soft Teal - being here, calm, curiosity, rest (was #06d6a0, reduced saturation 95%→75%)
+  release: '#227d9f', // Soft Blue - letting go, processing (was #118ab2, reduced saturation 83%→65%)
+  connection: '#d66885', // Dusty Rose - love, community, togetherness (was #ef476f, reduced saturation 85%→65%)
 } as const;
 
 /**

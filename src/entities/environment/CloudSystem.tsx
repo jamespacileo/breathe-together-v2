@@ -14,7 +14,7 @@
  * - Local-space animations that don't fight parent rotation
  */
 
-import { Cloud, Clouds } from '@react-three/drei';
+import { Cloud, Clouds, Sparkles } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { memo, useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -412,6 +412,15 @@ const AnimatedCloud = memo(function AnimatedCloud({
         volume={config.volume}
         color={config.color}
         fade={config.fade}
+      />
+      {/* Subtle golden sparkles around cloud for magical night sky atmosphere */}
+      <Sparkles
+        count={5}
+        scale={config.bounds[0] * 1.2}
+        size={2}
+        speed={0.3}
+        opacity={0.4}
+        color="#ffdb6b"
       />
     </group>
   );
