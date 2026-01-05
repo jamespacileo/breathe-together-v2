@@ -52,6 +52,7 @@ describe('presenceApi', () => {
         count: 100,
         moods: { gratitude: 25, presence: 35, release: 25, connection: 15 },
         users: [{ id: 'user-1', mood: 'gratitude' as const }],
+        countryCounts: { US: 50, GB: 30, JP: 20 },
         timestamp: Date.now(),
       };
       expect(PresenceStateSchema.parse(valid)).toEqual(valid);
@@ -161,10 +162,11 @@ describe('presenceApi', () => {
   describe('WsPresenceMessageSchema', () => {
     it('accepts valid WebSocket message', () => {
       const valid = {
-        type: 'presence',
+        type: 'presence' as const,
         count: 100,
         moods: { gratitude: 25, presence: 35, release: 25, connection: 15 },
         users: [{ id: 'user-1', mood: 'gratitude' as const }],
+        countryCounts: { US: 50, GB: 30, JP: 20 },
         timestamp: Date.now(),
       };
       expect(WsPresenceMessageSchema.parse(valid)).toEqual(valid);
@@ -175,6 +177,7 @@ describe('presenceApi', () => {
         count: 100,
         moods: { gratitude: 25, presence: 35, release: 25, connection: 15 },
         users: [],
+        countryCounts: {},
         timestamp: Date.now(),
       };
       const result = WsPresenceMessageSchema.parse(valid);
