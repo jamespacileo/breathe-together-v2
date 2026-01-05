@@ -65,9 +65,15 @@ void main() {
   // Apply mood color as tint (heavily reduced for gem transparency)
   vec3 gemTint = vColor * 0.4; // Reduced from 0.7 to 0.4 for lighter tint
 
-  // Mix in golden constellation rim glow (stronger on edges)
-  vec3 rimColor = vec3(1.0, 0.86, 0.42); // Golden #ffdb6b
-  vec3 colorWithRim = mix(gemTint, rimColor, fresnel * 0.4);
+  // Neon mood-colored rim glow (per-instance, not uniform golden)
+  // Amplify vColor saturation for neon effect (2.2x boost creates ~55-60% saturation from NEON_MOOD_PALETTE)
+  vec3 neonRimColor = vColor * 2.2; // Amplifies input neon colors for vibrant edges
+  vec3 colorWithRim = mix(gemTint, neonRimColor, fresnel * 0.55); // Increased from 0.4 for stronger rim
+
+  // Additive neon glow component for edge brilliance
+  // Quadratic falloff (fresnel²) creates sharp edge glow without washing out center
+  float neonGlow = fresnel * fresnel * 0.25;
+  colorWithRim += neonRimColor * neonGlow;
 
   // Inner luminance - gem glow from within (stronger than before)
   float innerGlow = (1.0 - fresnel) * 0.15 * breathLuminosity;

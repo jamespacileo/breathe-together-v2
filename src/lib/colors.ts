@@ -35,6 +35,18 @@ export function getMonumentValleyMoodColor(moodId: MoodId | '' | undefined): str
 }
 
 /**
+ * Neon-saturated mood colors for vibrant shard rim glow
+ * Higher saturation (55-60%) for neon effect while maintaining hue identity
+ * Used in ParticleSwarm for vibrant mood-colored edges on transparent glass shards
+ */
+export const NEON_MOOD_PALETTE = {
+  gratitude: '#f0d98a', // Neon warm gold - HSL: 55°, 55%, 74%
+  presence: '#6dd9d2', // Neon teal - HSL: 175°, 60%, 64%
+  release: '#6eb8d9', // Neon sky blue - HSL: 200°, 60%, 64%
+  connection: '#e89dc4', // Neon rose-pink - HSL: 330°, 60%, 76%
+} as const;
+
+/**
  * Legacy export for backward compatibility
  * @deprecated Use MONUMENT_VALLEY_PALETTE directly
  */
