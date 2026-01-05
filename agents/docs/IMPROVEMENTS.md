@@ -2031,3 +2031,422 @@ repo.record({ type: 'endpoint', target: url, status, latency });
 - [ ] Implement HealthCheckRepository
 - [ ] Implement PRRepository
 - [ ] Implement ContentRepository
+
+---
+
+## 10. API Pattern Corrections (Validated January 2026)
+
+Based on crosschecking with official Cloudflare documentation, the following corrections should be applied to proposals in Section 7.
+
+### 10.1 Sandbox SDK API Updates
+
+**Source:** [Sandbox SDK API Reference](https://developers.cloudflare.com/sandbox/api/)
+
+| Proposal Code | Correction | Reason |
+|---------------|------------|--------|
+| `sandbox.exec("cd repo && npm ci")` | ✅ Correct | Commands share state (working dir, env vars) since Aug 2025 update |
+| `Sandbox.create({ template: "node-20" })` | ⚠️ Verify template names | Check [available templates](https://developers.cloudflare.com/sandbox/get-started/) |
+| `sandbox.destroy()` | ✅ Correct | Required cleanup pattern |
+
+**Key API Changes (August 2025):**
+- `sessionId` parameter removed from all methods (`exec()`, `execStream()`, `startProcess()`)
+- Each sandbox maintains persistent session automatically
+- Commands within same sandbox share state (no need for `cd` prefixes between commands)
+
+**Corrected Code Review Agent Pattern:**
+```typescript
+const sandbox = await Sandbox.create();
+
+// Commands share state - working directory persists
+await sandbox.exec("git clone --depth=1 https://github.com/owner/repo.git repo");
+await sandbox.exec("cd repo");  // Working dir now /repo
+await sandbox.exec("npm ci");   // Runs in /repo
+const lintResults = await sandbox.exec("npm run lint -- --format=json", {
+  returnOutput: true,
+  ignoreExitCode: true,
+});
+```
+
+**Git Workflow Correction:**
+```typescript
+// Use gitCheckout for structured cloning (preferred)
+await sandbox.gitCheckout({
+  url: "https://github.com/owner/repo.git",
+  branch: prData.head.ref,
+  depth: 1,  // Shallow clone
+});
+
+// Or use exec for more control
+await sandbox.exec(`git clone --depth=1 --branch=${prData.head.ref} ${repoUrl}`);
+```
+
+---
+
+### 10.2 Browser Rendering API Updates
+
+**Source:** [Browser Rendering Docs](https://developers.cloudflare.com/browser-rendering/)
+
+**Binding Configuration:**
+```toml
+# wrangler.toml - CORRECT
+[browser]
+binding = "BROWSER"
+
+# NOT separate [browser] block with type
+```
+
+**Session Reuse with Durable Objects (Recommended):**
+```typescript
+// Using DO for persistent browser sessions
+export class PRQAAgent extends DurableObject<Env> {
+  private browser?: Browser;
+
+  async runQA(previewUrl: string): Promise<QAReport> {
+    // Reuse existing session or create new one
+    if (!this.browser) {
+      this.browser = await puppeteer.launch(this.env.BROWSER, {
+        keep_alive: 600000,  // 10 minutes max
+      });
+    }
+
+    const page = await this.browser.newPage();
+    // ... automation
+  }
+}
+```
+
+**Limitation Corrections:**
+- XPath selectors NOT supported (security constraint)
+- Default timeout: 60 seconds (not unlimited)
+- `keep_alive` max: 600000ms (10 minutes)
+- Free plan: 10 minutes/day limit
+
+---
+
+### 10.3 Durable Objects SQLite Best Practices
+
+**Source:** [Rules of Durable Objects](https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/)
+
+**Corrected Initialization Pattern:**
+```typescript
+export class GitHubAgent extends DurableObject<Env> {
+  private sql!: SqlStorage;
+
+  constructor(state: DurableObjectState, env: Env) {
+    super(state, env);
+    this.sql = state.storage.sql;
+
+    // Use blockConcurrencyWhile for migrations
+    state.blockConcurrencyWhile(async () => {
+      await this.runMigrations();
+    });
+  }
+
+  private async runMigrations(): Promise<void> {
+    // Schema migrations run before any requests
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS pull_requests (
+        id INTEGER PRIMARY KEY,
+        number INTEGER NOT NULL,
+        title TEXT,
+        state TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indexes for frequently queried columns
+    this.sql.exec(`
+      CREATE INDEX IF NOT EXISTS idx_pr_state ON pull_requests(state)
+    `);
+  }
+}
+```
+
+**Key Corrections:**
+- Use `blockConcurrencyWhile()` in constructor for migrations (not in `initializeSchema()`)
+- SQLite queries are synchronous (zero-latency) - no need for `await` on `sql.exec()`
+- Create indexes for frequently filtered columns
+- In-memory state is NOT preserved on eviction - always persist to SQLite
+
+---
+
+## 11. Test Infrastructure Consolidation
+
+Analysis of `agents/src/test/` reveals significant opportunities for simplification.
+
+### 11.1 Current Issues
+
+| Issue | Impact | Files Affected |
+|-------|--------|----------------|
+| Fixture duplication | 228 duplicated lines | `fixtures/github.ts`, `mocks/services/github.ts` |
+| Service recreation in tests | 28x repeated instantiation | `unit/services/github.test.ts` |
+| Backward-compat wrapper | Unnecessary indirection | `mocks/github.ts` |
+| Missing tests | 3,000+ lines untested | content, orchestrator, circuit-breaker, base classes |
+| Sequential execution | Slow test suite | `vitest.config.ts` |
+
+### 11.2 Fixture Consolidation
+
+**Delete:** `agents/src/test/fixtures/github.ts` (117 lines)
+**Keep:** `agents/src/test/mocks/services/github.ts` (already has fixtures)
+
+**Consolidated Fixture Structure:**
+```typescript
+// agents/src/test/mocks/services/github.ts
+export const fixtures = {
+  pullRequests: {
+    open: { /* ... */ },
+    draft: { /* ... */ },
+    closed: { /* ... */ },
+  },
+  workflowRuns: {
+    success: { /* ... */ },
+    inProgress: { /* ... */ },
+    failed: { /* ... */ },
+  },
+  deployments: {
+    preview: { /* ... */ },
+    production: { /* ... */ },
+  },
+} as const;
+
+// Re-export for backward compatibility during migration
+export const mockPullRequest = fixtures.pullRequests.open;
+export const mockDraftPullRequest = fixtures.pullRequests.draft;
+// etc.
+```
+
+**Update Imports:**
+```typescript
+// Before (github-agent.test.ts)
+import { mockPullRequest } from '../fixtures/github';
+
+// After
+import { fixtures } from '../mocks/services';
+const { open: mockPullRequest } = fixtures.pullRequests;
+```
+
+---
+
+### 11.3 Test Service Factory
+
+**Create:** `agents/src/test/factories/github-service.ts`
+
+```typescript
+// agents/src/test/factories/github-service.ts
+import { createGitHubService, type GitHubServiceConfig } from '../../services/github';
+
+const defaultConfig: GitHubServiceConfig = {
+  token: 'test-token',
+  owner: 'test-owner',
+  repo: 'test-repo',
+  timeout: 5000,
+  retryAttempts: 0,  // Fast failures in tests
+};
+
+export function createTestGitHubService(overrides?: Partial<GitHubServiceConfig>) {
+  return createGitHubService({ ...defaultConfig, ...overrides });
+}
+
+// For beforeEach pattern
+export function useTestGitHubService(overrides?: Partial<GitHubServiceConfig>) {
+  let service: ReturnType<typeof createGitHubService>;
+
+  beforeEach(() => {
+    service = createTestGitHubService(overrides);
+  });
+
+  return () => service;
+}
+```
+
+**Usage:**
+```typescript
+// Before (repeated 28x)
+const service = createGitHubService({
+  token: 'test-token',
+  owner: 'test-owner',
+  repo: 'test-repo',
+  timeout: 5000,
+  retryAttempts: 3,
+});
+
+// After (once per describe block)
+describe('GitHubService', () => {
+  const getService = useTestGitHubService();
+
+  it('fetches open PRs', async () => {
+    const response = await getService().getOpenPRs();
+    expect(response.status).toBe(200);
+  });
+});
+```
+
+---
+
+### 11.4 Delete Backward-Compat Wrapper
+
+**Delete:** `agents/src/test/mocks/github.ts` (16 lines)
+
+**Reason:** Only used in one file, adds unnecessary indirection
+
+**Migration:**
+```typescript
+// Before (github-agent.test.ts line 17)
+import { GITHUB_API_URL, server } from '../mocks/github';
+
+// After
+import { GITHUB_URLS, serviceServer } from '../mocks/services';
+const GITHUB_API_URL = GITHUB_URLS.repo();
+```
+
+---
+
+### 11.5 Vitest Configuration Improvements
+
+**Current Issues:**
+```typescript
+// vitest.config.ts
+testTimeout: 30000,  // Too long for unit tests
+isolate: true,       // Forces sequential execution
+```
+
+**Recommended Configuration:**
+```typescript
+// agents/vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    include: ['src/test/**/*.test.ts'],
+    setupFiles: ['src/test/setup.ts'],
+    globals: true,
+
+    // Performance
+    testTimeout: 10000,      // 10s for unit tests
+    hookTimeout: 30000,      // 30s for setup/teardown
+    pool: 'forks',           // Process isolation
+    isolate: false,          // Allow parallel within pools
+
+    // Coverage
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'json'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/test/**', 'src/**/*.d.ts'],
+      thresholds: {
+        lines: 60,
+        functions: 60,
+        branches: 50,
+        statements: 60,
+      },
+    },
+
+    // Reporters
+    reporters: ['default', 'html'],
+    outputFile: {
+      html: './test-results/index.html',
+    },
+  },
+});
+```
+
+---
+
+### 11.6 Missing Test Coverage
+
+**Priority 1 (Critical):**
+| File | Lines | Why Critical |
+|------|-------|--------------|
+| `services/circuit-breaker.ts` | ~100 | Resilience logic - must work correctly |
+| `services/base.ts` | ~200 | Shared by all services |
+| `core/base-agent.ts` | ~560 | Foundation for all agents |
+
+**Priority 2 (Important):**
+| File | Lines | Notes |
+|------|-------|-------|
+| `agents/content/index.ts` | 392 | Content cleanup logic |
+| `agents/orchestrator/index.ts` | 401 | Agent coordination |
+
+**Priority 3 (Nice to Have):**
+| File | Lines | Notes |
+|------|-------|-------|
+| `agents/health/index.ts` | 464 | Has integration test only |
+| `core/llm.ts` | ~100 | LLM utilities |
+
+---
+
+### 11.7 @cloudflare/vitest-pool-workers Migration
+
+**Source:** [Workers Vitest Integration](https://developers.cloudflare.com/workers/testing/vitest-integration/)
+
+For true Durable Object testing with SQLite storage:
+
+```typescript
+// vitest.config.ts
+import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        wrangler: { configPath: './wrangler.toml' },
+        isolatedStorage: true,  // Per-test isolation
+      },
+    },
+  },
+});
+```
+
+**Key Features:**
+- `isolatedStorage: true` - Storage writes undone after each test
+- `listDurableObjectIds(namespace)` - List created DOs in test
+- `runDurableObjectAlarm(stub)` - Manually trigger alarms in tests
+
+**Caveats:**
+- WebSockets require `isolatedStorage: false`
+- Alarms not reset between tests - must manually run/delete
+- Only works with Vitest 2.0.x - 3.2.x
+
+---
+
+### 11.8 Test Consolidation Summary
+
+| Action | Files | Lines Removed | Impact |
+|--------|-------|---------------|--------|
+| Delete fixtures/github.ts | 1 | 117 | Single source of truth |
+| Delete mocks/github.ts | 1 | 16 | Remove indirection |
+| Create test factories | +1 | -168 | Reduce repetition |
+| Update vitest config | 1 | 0 | Faster tests |
+| **Total** | **-1** | **~300** | **Cleaner, faster** |
+
+---
+
+### 11.9 Migration Checklist
+
+**Phase 1: Consolidate Fixtures**
+- [ ] Merge `fixtures/github.ts` into `mocks/services/github.ts`
+- [ ] Update imports in `github-agent.test.ts`
+- [ ] Delete `fixtures/github.ts`
+- [ ] Delete `mocks/github.ts` wrapper
+
+**Phase 2: Add Test Factories**
+- [ ] Create `test/factories/github-service.ts`
+- [ ] Refactor `services/github.test.ts` to use factory
+- [ ] Add `beforeEach` hook pattern
+
+**Phase 3: Update Vitest Config**
+- [ ] Reduce `testTimeout` to 10000
+- [ ] Set `isolate: false`
+- [ ] Add coverage thresholds
+- [ ] Add HTML reporter
+
+**Phase 4: Add Missing Tests**
+- [ ] `services/circuit-breaker.test.ts`
+- [ ] `services/base.test.ts`
+- [ ] `agents/content.test.ts`
+- [ ] `agents/orchestrator.test.ts`
+
+**Phase 5: Workers Pool Migration (Optional)**
+- [ ] Install `@cloudflare/vitest-pool-workers`
+- [ ] Configure `defineWorkersConfig`
+- [ ] Add DO integration tests with `isolatedStorage`
