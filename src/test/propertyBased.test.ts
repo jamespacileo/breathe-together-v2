@@ -297,8 +297,12 @@ describe('Property-Based Tests', () => {
       );
     });
 
+    // TODO: Hold phases use underdamped harmonic oscillator for subtle micro-movement,
+    // causing radius changes that exceed the 0.15 threshold. To fix:
+    // 1. Increase tolerance during hold phases (phaseType 1 or 3)
+    // 2. Or exclude hold phases from smoothness assertion
+    // 3. Or reduce oscillation amplitude in easing.ts
     it.skip('orbit radius changes smoothly', () => {
-      // SKIPPED: Needs tolerance adjustment for hold oscillations
       // PROPERTY: Continuous radius changes (except at cycle boundaries)
       fc.assert(
         fc.property(fc.integer({ min: 500, max: 100000000 }), (baseTime) => {
@@ -319,8 +323,12 @@ describe('Property-Based Tests', () => {
       );
     });
 
+    // TODO: Phase boundaries don't align perfectly with expected times because:
+    // 1. breathCalc uses easing functions that blur phase transitions
+    // 2. The 4-7-8 pattern may not use phaseType 3 (hold-out) at all
+    // 3. Phase detection happens after easing, not before
+    // To fix: Either adjust boundaries to match eased timing, or test raw cycle position instead
     it.skip('phase transitions occur at expected times', () => {
-      // SKIPPED: Phase boundary precision needs investigation
       // PROPERTY: Phase boundaries are consistent
       // 4s inhale + 7s hold + 8s exhale = 19s total
       fc.assert(

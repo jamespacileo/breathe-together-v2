@@ -7,3 +7,4 @@ export * from './colorMatchers';
 export * from './geometryHelpers';
 export * from './mockDataGenerators';
 export * from './sceneAssertions';
+export * from './testLogger';

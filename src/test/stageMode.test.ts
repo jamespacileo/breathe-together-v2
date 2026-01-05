@@ -16,7 +16,7 @@
 
 import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { analyzeScene, getPerformanceMetrics, PERFORMANCE_TARGETS } from './sceneAnalyzer';
+import { analyzeScene, getPerformanceMetrics } from './sceneAnalyzer';
 
 describe('EditorGrid Component Performance', () => {
   let scene: THREE.Scene;

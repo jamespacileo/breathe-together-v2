@@ -392,7 +392,7 @@ export async function getAdminBatchState(kv: KVNamespace): Promise<{
 // Cleanup Jobs
 // ============================================================================
 
-export async function cleanupExpiredOverrides(kv: KVNamespace): Promise<void> {
+export async function cleanupExpiredOverrides(_kv: KVNamespace): Promise<void> {
   // Note: KV doesn't provide list operation in free tier, so cleanup happens
   // on-demand when checking overrides (see getUserOverride)
   // In paid tier with KV list API, you could enumerate and delete expired

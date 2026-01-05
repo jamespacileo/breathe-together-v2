@@ -28,11 +28,7 @@ import {
   runComprehensiveCollisionTest,
   runTimeVaryingCollisionTest,
 } from '../lib/collisionGeometry';
-import {
-  expectNoGlobeCollisions,
-  expectNoParticleCollisions,
-  expectValidCollisionResult,
-} from './helpers';
+import { expectNoParticleCollisions, expectValidCollisionResult } from './helpers';
 
 describe('Shape Collision Detection', () => {
   /**
