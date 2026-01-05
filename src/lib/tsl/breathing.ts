@@ -13,8 +13,9 @@
  * ensuring all users worldwide see synchronized animations.
  */
 
-import { add, float, mix, mul, type ShaderNodeObject, smoothstep } from 'three/tsl';
+import { add, float, mix, mul, type ShaderNodeObject, smoothstep, uniform } from 'three/tsl';
 import type { Node } from 'three/webgpu';
+import { setUniformValue } from '../../types/tsl';
 
 /**
  * Generic breath phase type that accepts any TSL uniform node
@@ -141,15 +142,12 @@ export const BREATHING_PRESETS = {
  * @returns Object with uniform and update function
  */
 export function createBreathPhaseUniform(initialValue = 0) {
-  // Import at call time to avoid circular dependencies
-  const { uniform, float: tslFloat } = require('three/tsl');
-  const uBreathPhase = uniform(tslFloat(initialValue));
+  const uBreathPhase = uniform(float(initialValue));
 
   return {
     uniform: uBreathPhase,
     setValue: (value: number) => {
-      // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-      (uBreathPhase as any).value = value;
+      setUniformValue(uBreathPhase, value);
     },
   };
 }

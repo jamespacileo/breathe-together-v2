@@ -158,7 +158,9 @@ void main() {
 }
 `;
 
-// Background gradient shader (same as BackgroundGradient.tsx)
+// Simplified background gradient shader (static version for refraction pipeline)
+// Unlike BackgroundGradient.tsx, this omits animated clouds since env FBO is cached
+// every 10 frames (ENV_CACHE_FRAMES) - animation at 1/10th frame rate would look choppy
 const bgVertexShader = `
 varying vec2 vUv;
 void main() {

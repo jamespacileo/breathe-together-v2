@@ -27,11 +27,34 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo } from 'react';
 import type * as THREE from 'three';
 
 // TSL imports
-import { add, color, float, mix, mul, smoothstep, texture, uniform, uv, vec3 } from 'three/tsl';
+import {
+  add,
+  color,
+  float,
+  mix,
+  mul,
+  normalView,
+  smoothstep,
+  texture,
+  uniform,
+  uv,
+  vec3,
+} from 'three/tsl';
 import { MeshBasicNodeMaterial, MeshStandardNodeMaterial } from 'three/webgpu';
 
 // Shared TSL nodes - reusable shader patterns
 import {
+  BREATHING_PRESETS,
+  createAbsoluteFresnelNode,
+  createBreathingLuminosityNode,
+  createBreathingPulseNode,
+  createFresnelNode,
+  FRESNEL_PRESETS,
+} from '../../lib/tsl';
+import { setUniformValue } from '../../types/tsl';
+
+// Re-export shared patterns for convenience
+export {
   BREATHING_PRESETS,
   createAbsoluteFresnelNode,
   createBreathingLuminosityNode,
@@ -104,7 +127,6 @@ export const GlobeMaterialTSL = forwardRef<GlobeMaterialTSLRef, GlobeMaterialTSL
       );
 
       // Subtle top-down lighting using normalView
-      const { normalView } = require('three/tsl');
       const topLight = mul(smoothstep(float(-0.2), float(0.8), normalView.y), float(0.05));
       const topLightColor = vec3(0.98, 0.95, 0.92);
       const finalColor = add(colorWithRim, mul(topLightColor, topLight));
@@ -123,8 +145,7 @@ export const GlobeMaterialTSL = forwardRef<GlobeMaterialTSLRef, GlobeMaterialTSL
       ref,
       () => ({
         setBreathPhase: (phase: number) => {
-          // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-          (uBreathPhase as any).value = phase;
+          setUniformValue(uBreathPhase, phase);
         },
         material,
       }),
@@ -133,8 +154,7 @@ export const GlobeMaterialTSL = forwardRef<GlobeMaterialTSLRef, GlobeMaterialTSL
 
     // Update breath phase from props
     useEffect(() => {
-      // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-      (uBreathPhase as any).value = breathPhase;
+      setUniformValue(uBreathPhase, breathPhase);
     }, [breathPhase, uBreathPhase]);
 
     // Cleanup
@@ -197,8 +217,7 @@ export const GlowMaterialTSL = forwardRef<
     ref,
     () => ({
       setBreathPhase: (phase: number) => {
-        // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-        (uBreathPhase as any).value = phase;
+        setUniformValue(uBreathPhase, phase);
       },
       material,
     }),
@@ -206,8 +225,7 @@ export const GlowMaterialTSL = forwardRef<
   );
 
   useEffect(() => {
-    // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-    (uBreathPhase as any).value = breathPhase;
+    setUniformValue(uBreathPhase, breathPhase);
   }, [breathPhase, uBreathPhase]);
 
   useEffect(() => {
@@ -243,7 +261,6 @@ export function useGlobeMaterialsTSL(earthTexture: THREE.Texture) {
       mul(fresnel, float(FRESNEL_PRESETS.atmosphere.intensity)),
     );
 
-    const { normalView } = require('three/tsl');
     const topLight = mul(smoothstep(float(-0.2), float(0.8), normalView.y), float(0.05));
     const topLightColor = vec3(0.98, 0.95, 0.92);
     const finalColor = add(colorWithRim, mul(topLightColor, topLight));
@@ -282,8 +299,7 @@ export function useGlobeMaterialsTSL(earthTexture: THREE.Texture) {
     globeMaterial,
     glowMaterial,
     updateBreathPhase: (phase: number) => {
-      // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-      (uBreathPhase as any).value = phase;
+      setUniformValue(uBreathPhase, phase);
     },
   };
 }
