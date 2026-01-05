@@ -3,7 +3,7 @@
  *
  * Features:
  * - Stylized earth texture with pastel teal oceans and warm landmasses
- * - Subtle pulse animation (1.0 → 1.06, 6% scale change)
+ * - Visible pulse animation (1.0 → 1.10, 10% scale change)
  * - Slow Y-axis rotation
  * - Soft fresnel rim for atmospheric glow
  * - Layered atmosphere halo (3 pastel-colored translucent spheres)
@@ -58,8 +58,8 @@ void main() {
   float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 4.0); // Tighter falloff
   vec3 rimColor = vec3(0.94, 0.90, 0.86); // Muted warm cream, closer to background
 
-  // Breathing modulation - subtle brightness shift
-  float breathMod = 1.0 + breathPhase * 0.06;
+  // Breathing modulation - visible brightness shift
+  float breathMod = 1.0 + breathPhase * 0.10;
   texColor *= breathMod;
 
   // Blend texture with fresnel rim - very subtle
@@ -167,9 +167,9 @@ void main() {
  * Atmosphere halo configuration - pastel layers around the globe
  */
 const ATMOSPHERE_LAYERS = [
-  { scale: 1.08, color: '#f8d0a8', opacity: 0.08 }, // Inner: warm peach
-  { scale: 1.14, color: '#b8e8d4', opacity: 0.05 }, // Middle: soft teal
-  { scale: 1.22, color: '#c4b8e8', opacity: 0.03 }, // Outer: pale lavender
+  { scale: 1.08, color: '#f8d0a8', opacity: 0.15 }, // Inner: warm peach (more visible)
+  { scale: 1.14, color: '#b8e8d4', opacity: 0.1 }, // Middle: soft teal (more visible)
+  { scale: 1.22, color: '#c4b8e8', opacity: 0.06 }, // Outer: pale lavender (more visible)
 ];
 
 /**
@@ -254,7 +254,7 @@ export function EarthGlobe({
       new THREE.ShaderMaterial({
         uniforms: {
           glowColor: { value: GLOW_COLOR },
-          glowIntensity: { value: 0.25 },
+          glowIntensity: { value: 0.4 },
           breathPhase: { value: 0 },
         },
         vertexShader: glowVertexShader,
@@ -340,8 +340,8 @@ export function EarthGlobe({
         mistMaterial.uniforms.breathPhase.value = phase;
         mistMaterial.uniforms.time.value = state.clock.elapsedTime;
 
-        // Subtle pulse: 1.0 to 1.06 (6% scale change)
-        const scale = 1.0 + phase * 0.06;
+        // Visible pulse: 1.0 to 1.10 (10% scale change)
+        const scale = 1.0 + phase * 0.1;
         groupRef.current.scale.set(scale, scale, scale);
 
         // Animate atmosphere layers with slight phase offset for organic feel
@@ -401,10 +401,10 @@ export function EarthGlobe({
       {showSparkles && (
         <Sparkles
           count={sparkleCount}
-          size={4}
+          size={5}
           scale={[radius * 3.5, radius * 3.5, radius * 3.5]}
           speed={0.25}
-          opacity={0.45}
+          opacity={0.6}
           color="#f8d0a8"
         />
       )}
