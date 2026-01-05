@@ -61,6 +61,16 @@ function getMockCountry(index: number): string {
 }
 
 /**
+ * Options for injecting the current user into mock data
+ */
+export interface CurrentUserOptions {
+  /** Current user's session ID (stable UUID) */
+  sessionId: string;
+  /** Current user's selected mood */
+  mood: MoodId;
+}
+
+/**
  * Generate mock presence data with realistic mood distribution
  * Total allocation: 100% of users distributed across 4 moods
  *
@@ -69,13 +79,22 @@ function getMockCountry(index: number): string {
  * - 30% gratitude (appreciation, thankfulness)
  * - 20% release (letting go, processing, unwinding)
  * - 15% connection (here with others, community)
+ *
+ * @param userCount - Total number of users (including current user if provided)
+ * @param currentUser - Optional current user to inject at index 0
  */
-export function generateMockPresence(userCount: number): MockPresenceData {
+export function generateMockPresence(
+  userCount: number,
+  currentUser?: CurrentUserOptions,
+): MockPresenceData {
+  // Adjust count for mock users (subtract 1 if current user is included)
+  const mockUserCount = currentUser ? userCount - 1 : userCount;
+
   const moods: Record<MoodId, number> = {
-    presence: Math.floor(userCount * 0.35),
-    gratitude: Math.floor(userCount * 0.3),
-    release: Math.floor(userCount * 0.2),
-    connection: Math.floor(userCount * 0.15),
+    presence: Math.floor(mockUserCount * 0.35),
+    gratitude: Math.floor(mockUserCount * 0.3),
+    release: Math.floor(mockUserCount * 0.2),
+    connection: Math.floor(mockUserCount * 0.15),
   };
 
   // Generate stable mock users with deterministic IDs and countries
@@ -83,9 +102,22 @@ export function generateMockPresence(userCount: number): MockPresenceData {
   const countryCounts: Record<string, number> = {};
   const moodKeys: MoodId[] = ['presence', 'gratitude', 'release', 'connection'];
 
+  // Add current user at index 0 if provided
+  // This ensures the current user always has a stable position (slot 0)
+  if (currentUser) {
+    users.push({
+      id: currentUser.sessionId,
+      mood: currentUser.mood,
+      country: 'US', // Default country for current user in mock
+    });
+    countryCounts.US = 1;
+    // Increment the mood count for the current user's mood
+    moods[currentUser.mood]++;
+  }
+
   let globalIndex = 0;
   for (const mood of moodKeys) {
-    for (let i = 0; i < moods[mood]; i++) {
+    for (let i = 0; i < moods[mood] - (currentUser?.mood === mood ? 1 : 0); i++) {
       const country = getMockCountry(globalIndex);
       users.push({ id: `${mood}-${i}`, mood, country });
       countryCounts[country] = (countryCounts[country] || 0) + 1;

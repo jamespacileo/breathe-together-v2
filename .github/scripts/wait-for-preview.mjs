@@ -12,7 +12,7 @@
  * return 200 but haven't finished initializing Three.js.
  */
 
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 
 const PREVIEW_URL = process.env.PREVIEW_URL;
 const MAX_ATTEMPTS = 30;
@@ -47,7 +47,7 @@ async function checkPreviewReady() {
 
     try {
       await page.goto(PREVIEW_URL, {
-        waitUntil: 'networkidle',
+        waitUntil: 'domcontentloaded',
         timeout: 30000,
       });
 

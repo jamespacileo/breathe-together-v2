@@ -1,24 +1,22 @@
 /**
  * Shape Collision Tests for ParticleSwarm
  *
- * Tests collision detection at various breathing phases and particle counts.
+ * OUTCOME-FOCUSED: Validates that particles maintain proper spacing at all times,
+ * ensuring users see clean, non-overlapping particle animations.
  *
- * Design patterns used:
- * 1. **Parameterized breath phase** - Instead of waiting for real-time 19s cycle,
- *    we directly test at specific breath phases (0, 0.5, 1.0).
+ * Why this matters:
+ * - Overlapping particles create visual glitches (bad UX)
+ * - Collisions with globe break the spherical aesthetic
+ * - Wobble and breathing can temporarily reduce spacing
  *
- * 2. **Time-varying tests** - We scan across wobble/ambient periods to find
- *    worst-case collision scenarios.
- *
- * 3. **Pure function extraction** - Position calculations are extracted into
- *    collisionGeometry.ts for testability without WebGL.
- *
- * These tests are expected to FAIL initially because:
- * - At high particle counts (300+), Fibonacci spacing becomes tight
- * - Inhale phase (breathPhase=1) brings particles to minimum orbit radius
- * - Wobble and ambient motion can push particles into each other
+ * Testing approach:
+ * - Uses shared collision helpers for consistent assertions
+ * - Tests critical breath phases (inhale = tightest spacing)
+ * - Scans time-varying effects (wobble period) for worst cases
+ * - Pure functions enable testing without WebGL
  */
 
+import * as fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   calculateAllParticlePositions,
@@ -30,6 +28,7 @@ import {
   runComprehensiveCollisionTest,
   runTimeVaryingCollisionTest,
 } from '../lib/collisionGeometry';
+import { expectNoParticleCollisions, expectValidCollisionResult } from './helpers';
 
 describe('Shape Collision Detection', () => {
   /**
@@ -37,39 +36,45 @@ describe('Shape Collision Detection', () => {
    * Critical test: breathPhase=1.0 (inhale) when particles are closest to globe
    */
   describe('Particle-Particle Collisions', () => {
+    // OUTCOME: Users see clean particle animations at all user presence levels
     const particleCounts = [50, 100, 200, 300, 500];
 
     describe('at full inhale (breathPhase=1.0) - particles closest together', () => {
+      // OUTCOME: Worst-case spacing (particles at minimum orbit) maintains visual clarity
       it.each(particleCounts)('should have no collisions with %i particles', (count) => {
-        const result = checkParticleCollisions(1.0, { particleCount: count });
-
-        expect(result.hasCollision).toBe(false);
-        expect(result.minParticleDistance).toBeGreaterThanOrEqual(result.requiredMinDistance);
-
-        // Log collision details for debugging when test fails
-        if (result.hasCollision) {
-          console.log(`[COLLISION] ${count} particles at breathPhase=1.0:`, {
-            minDistance: result.minParticleDistance.toFixed(4),
-            required: result.requiredMinDistance.toFixed(4),
-            overlap: result.overlapAmount.toFixed(4),
-            pair: result.minDistancePair,
-          });
-        }
+        expectNoParticleCollisions(1.0, { particleCount: count });
       });
     });
 
     describe('at mid-breath (breathPhase=0.5)', () => {
+      // OUTCOME: Mid-cycle animations maintain spacing
       it.each(particleCounts)('should have no collisions with %i particles', (count) => {
-        const result = checkParticleCollisions(0.5, { particleCount: count });
-        expect(result.hasCollision).toBe(false);
+        expectNoParticleCollisions(0.5, { particleCount: count });
       });
     });
 
     describe('at full exhale (breathPhase=0) - particles most spread', () => {
+      // OUTCOME: Maximum spacing provides comfortable visual margin
       it.each(particleCounts)('should have no collisions with %i particles', (count) => {
-        const result = checkParticleCollisions(0.0, { particleCount: count });
-        expect(result.hasCollision).toBe(false);
+        expectNoParticleCollisions(0.0, { particleCount: count });
       });
+    });
+
+    it('should maintain no-collision property across any breath phase', () => {
+      // PROPERTY: No collisions at any breath phase, not just test points
+      // Uses property-based testing to verify continuous behavior
+      fc.assert(
+        fc.property(
+          fc.double({ min: 0, max: 1 }),
+          fc.integer({ min: 50, max: 300 }),
+          (breathPhase, particleCount) => {
+            const result = checkParticleCollisions(breathPhase, { particleCount });
+            expectValidCollisionResult(result);
+            expect(result.hasCollision).toBe(false);
+          },
+        ),
+        { numRuns: 100 },
+      );
     });
 
     /**

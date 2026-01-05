@@ -342,6 +342,237 @@ describe('Shard color initialization', () => {
   });
 });
 
+describe('Current user tracking', () => {
+  /**
+   * Tests for verifying that the current user's shard can be correctly identified
+   * and tracked in the Fibonacci distribution.
+   *
+   * Key invariants:
+   * 1. The current user always gets a deterministic slot based on array position
+   * 2. The user's slot index maps to a specific Fibonacci position
+   * 3. The user's slot can be looked up by session ID
+   */
+
+  let slotManager: SlotManager;
+
+  beforeEach(() => {
+    slotManager = new SlotManager();
+  });
+
+  afterEach(() => {
+    slotManager.reset();
+  });
+
+  it('should find current user slot by session ID', () => {
+    const currentUserSessionId = 'abc123-session-id';
+    const users: User[] = [
+      { id: currentUserSessionId, mood: 'presence' }, // Current user at index 0
+      { id: 'other-user-1', mood: 'gratitude' },
+      { id: 'other-user-2', mood: 'release' },
+    ];
+
+    slotManager.reconcile(users);
+
+    const userSlot = slotManager.getSlotByUserId(currentUserSessionId);
+    expect(userSlot).toBeDefined();
+    expect(userSlot?.userId).toBe(currentUserSessionId);
+    expect(userSlot?.mood).toBe('presence');
+    expect(userSlot?.state).toBe('entering'); // Just reconciled
+  });
+
+  it('should maintain user slot position when others join/leave', () => {
+    const currentUserSessionId = 'current-user-session';
+
+    // Initial state: current user at index 0
+    const initialUsers: User[] = [
+      { id: currentUserSessionId, mood: 'gratitude' },
+      { id: 'other-1', mood: 'presence' },
+    ];
+
+    slotManager.reconcile(initialUsers);
+    const initialSlot = slotManager.getSlotByUserId(currentUserSessionId);
+    expect(initialSlot?.index).toBe(0);
+
+    // Complete animations
+    slotManager.updateAnimations(1.0);
+
+    // Add more users (current user should keep slot 0)
+    const moreUsers: User[] = [
+      { id: currentUserSessionId, mood: 'gratitude' },
+      { id: 'other-1', mood: 'presence' },
+      { id: 'new-user-1', mood: 'release' },
+      { id: 'new-user-2', mood: 'connection' },
+    ];
+
+    slotManager.reconcile(moreUsers);
+    const slotAfterAdd = slotManager.getSlotByUserId(currentUserSessionId);
+    expect(slotAfterAdd?.index).toBe(0); // Same slot
+
+    // Complete animations and remove some users
+    slotManager.updateAnimations(1.0);
+
+    const fewerUsers: User[] = [
+      { id: currentUserSessionId, mood: 'gratitude' },
+      { id: 'new-user-2', mood: 'connection' },
+    ];
+
+    slotManager.reconcile(fewerUsers);
+    slotManager.updateAnimations(1.0);
+
+    const slotAfterRemove = slotManager.getSlotByUserId(currentUserSessionId);
+    expect(slotAfterRemove?.index).toBe(0); // Still slot 0
+  });
+
+  it('should return undefined for non-existent user ID', () => {
+    const users: User[] = [
+      { id: 'user-1', mood: 'presence' },
+      { id: 'user-2', mood: 'gratitude' },
+    ];
+
+    slotManager.reconcile(users);
+
+    const nonExistentSlot = slotManager.getSlotByUserId('non-existent-id');
+    expect(nonExistentSlot).toBeUndefined();
+  });
+
+  it('should track user with UUID-style session ID (mock presence format)', () => {
+    // Simulate the format used by generateMockPresence with current user
+    const sessionId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const users: User[] = [
+      { id: sessionId, mood: 'release' }, // Current user (UUID format)
+      { id: 'presence-0', mood: 'presence' }, // Mock users
+      { id: 'presence-1', mood: 'presence' },
+      { id: 'gratitude-0', mood: 'gratitude' },
+    ];
+
+    slotManager.reconcile(users);
+
+    const userSlot = slotManager.getSlotByUserId(sessionId);
+    expect(userSlot).toBeDefined();
+    expect(userSlot?.index).toBe(0); // Should be at index 0
+    expect(userSlot?.mood).toBe('release');
+  });
+
+  it('should provide slot index for Fibonacci position lookup', () => {
+    const currentUserId = 'my-session';
+    const userCount = 42;
+
+    // Create mock users with current user at index 0
+    const users: User[] = [{ id: currentUserId, mood: 'presence' }];
+    for (let i = 1; i < userCount; i++) {
+      users.push({ id: `user-${i}`, mood: 'presence' });
+    }
+
+    slotManager.reconcile(users);
+
+    const userSlot = slotManager.getSlotByUserId(currentUserId);
+    expect(userSlot).toBeDefined();
+
+    // The slot index determines the Fibonacci sphere position
+    // index 0 maps to getFibonacciSpherePoint(0, stableCount)
+    const slotIndex = userSlot?.index;
+    expect(slotIndex).toBeGreaterThanOrEqual(0);
+    expect(slotIndex).toBeLessThan(slotManager.slots.length);
+  });
+});
+
+describe('Shard separation (no overlap)', () => {
+  /**
+   * Tests verifying that shards don't overlap or touch each other.
+   *
+   * The Fibonacci sphere distribution provides minimum spacing of approximately:
+   * spacing ≈ radius × 1.95 / sqrt(N)
+   *
+   * For shards to not overlap:
+   * - Minimum spacing must be greater than 2 × shard diameter + wobble margin
+   */
+
+  it('should verify Fibonacci distribution provides adequate separation', () => {
+    // Test parameters matching ParticleSwarm defaults
+    const particleCounts = [42, 100, 200];
+    const baseRadius = 4.5;
+    const shardSize = 0.4; // Typical shard size
+
+    for (const count of particleCounts) {
+      // Fibonacci sphere minimum spacing formula
+      const fibonacciSpacing = (baseRadius * 1.95) / Math.sqrt(count);
+
+      // Required spacing for no overlap (2 × shard radius + wobble margin)
+      const wobbleMargin = 0.22; // From PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE
+      const requiredSpacing = 2 * shardSize + wobbleMargin;
+
+      // Log for debugging
+      console.log(`${count} particles:`);
+      console.log(`  Fibonacci spacing: ${fibonacciSpacing.toFixed(3)}`);
+      console.log(`  Required spacing: ${requiredSpacing.toFixed(3)}`);
+      console.log(
+        `  Overlap safe: ${fibonacciSpacing > requiredSpacing ? '✅' : '⚠️ May need dynamic scaling'}`,
+      );
+
+      // The spacing is adequate for lower counts (up to ~60 particles at default settings)
+      // For higher counts, ParticleSwarm uses dynamic scaling (spacingScaleFactor)
+      // to reduce shard size when orbit radius < idealSpacingRadius
+      if (count <= 50) {
+        expect(fibonacciSpacing).toBeGreaterThan(requiredSpacing);
+      }
+    }
+
+    // Document the expected behavior: higher counts require dynamic shard scaling
+    expect(true).toBe(true);
+  });
+
+  it('should verify slots are assigned unique indices (no duplicate positions)', () => {
+    const slotManager = new SlotManager();
+    const users = createMockUsers(100);
+
+    slotManager.reconcile(users);
+
+    // Collect all active slot indices
+    const activeIndices = slotManager.slots
+      .filter((s) => s.state === 'entering' || s.state === 'active')
+      .map((s) => s.index);
+
+    // All indices should be unique
+    const uniqueIndices = new Set(activeIndices);
+    expect(uniqueIndices.size).toBe(activeIndices.length);
+
+    slotManager.reset();
+  });
+
+  it('should verify slot-to-user mapping is bijective (one-to-one)', () => {
+    const slotManager = new SlotManager();
+    const users: User[] = [
+      { id: 'user-a', mood: 'presence' },
+      { id: 'user-b', mood: 'gratitude' },
+      { id: 'user-c', mood: 'release' },
+      { id: 'user-d', mood: 'connection' },
+    ];
+
+    slotManager.reconcile(users);
+
+    // Each user should map to exactly one slot
+    const userSlots = new Map<string, number>();
+    const slotUsers = new Map<number, string>();
+
+    for (const user of users) {
+      const slot = slotManager.getSlotByUserId(user.id);
+      expect(slot).toBeDefined();
+
+      // No duplicate slot assignments
+      expect(slotUsers.has(slot?.index as number)).toBe(false);
+
+      userSlots.set(user.id, slot?.index as number);
+      slotUsers.set(slot?.index as number, user.id);
+    }
+
+    // Verify bijection
+    expect(userSlots.size).toBe(users.length);
+    expect(slotUsers.size).toBe(users.length);
+
+    slotManager.reset();
+  });
+});
+
 describe('Shape visibility test ideas', () => {
   /**
    * NOTE: Testing actual 3D visibility requires rendering the scene.

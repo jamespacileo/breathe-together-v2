@@ -3,10 +3,23 @@ name: Preview Deployment
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number (if not run from PR context)'
+        required: false
+        default: ''
+
+# Cancel previous runs when new commits are pushed to save resources
+concurrency:
+  group: preview-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   # CI/CD validation checks (runs in parallel with preview)
   validate:
+    # Only run on pull_request or manual workflow_dispatch (not push events)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     name: Code Validation
     steps:
@@ -50,6 +63,8 @@ jobs:
 
   # Deploy worker preview first
   deploy-worker-preview:
+    # Only run on pull_request events (needs PR context for naming)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     name: Deploy Worker Preview
     steps:
@@ -280,10 +295,280 @@ jobs:
               ]
             }
 
+  # Capture screenshots after preview is deployed
+  screenshots:
+    needs: deploy-preview
+    runs-on: ubuntu-latest
+    name: Capture Screenshots
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PREVIEW_URL: https://breathe-together-v2-pr-${{ github.event.pull_request.number }}.palladio-registry.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -e "console.log(require('./package-lock.json').packages['node_modules/@playwright/test']?.version || 'unknown')")" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      - name: Install Playwright deps only
+        run: npx playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+
+      - name: Wait for preview to be ready
+        run: node .github/scripts/wait-for-preview.mjs
+
+      - name: Capture screenshots
+        id: capture
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ env.PREVIEW_URL }}
+          SCREENSHOTS_DIR: ./screenshots
+        run: |
+          npx playwright test screenshots --project=desktop --project=tablet --project=mobile --reporter=list
+          if [ -d "./screenshots" ] && [ "$(ls -A ./screenshots/*.png 2>/dev/null | wc -l)" -gt 0 ]; then
+            echo "has_screenshots=true" >> $GITHUB_OUTPUT
+            echo "Captured $(ls ./screenshots/*.png | wc -l) screenshots"
+          else
+            echo "has_screenshots=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Upload screenshots to R2
+        if: steps.capture.outputs.has_screenshots == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_REGION: auto
+          R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Upload screenshots to R2 with retry logic
+          # Store by commit hash to preserve history
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          MAX_RETRIES=3
+          RETRY_DELAY=5
+
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Upload attempt $attempt of $MAX_RETRIES..."
+            # Upload to commit-specific folder for history preservation
+            if aws s3 sync ./screenshots "s3://breathe-together-screenshots/pr-${{ env.PR_NUMBER }}/${SHORT_SHA}" \
+              --endpoint-url "$R2_ENDPOINT" \
+              --content-type "image/png" \
+              --exclude "*" --include "*.png"; then
+              echo "Upload successful to pr-${{ env.PR_NUMBER }}/${SHORT_SHA}/"
+              exit 0
+            fi
+
+            if [ $attempt -lt $MAX_RETRIES ]; then
+              echo "Upload failed, retrying in ${RETRY_DELAY}s..."
+              sleep $RETRY_DELAY
+            fi
+          done
+
+          echo "Upload failed after $MAX_RETRIES attempts"
+          exit 1
+
+      - name: Upload screenshots as artifact
+        if: steps.capture.outputs.has_screenshots == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-screenshots-pr-${{ env.PR_NUMBER }}
+          path: screenshots/
+          retention-days: 30
+
+      - name: Comment PR with screenshots
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          HAS_SCREENSHOTS: ${{ steps.capture.outputs.has_screenshots }}
+          R2_PUBLIC_URL: ${{ secrets.R2_SCREENSHOTS_URL }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const prNumber = parseInt(process.env.PR_NUMBER);
+            const previewUrl = process.env.PREVIEW_URL;
+            const hasScreenshots = process.env.HAS_SCREENSHOTS === 'true';
+            const r2BaseUrl = process.env.R2_PUBLIC_URL;
+            const commitSha = process.env.COMMIT_SHA;
+            const shortSha = commitSha.substring(0, 7);
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            const artifactUrl = `${repoUrl}/actions/runs/${context.runId}`;
+            const commitUrl = `${repoUrl}/commit/${commitSha}`;
+
+            // Human-readable timestamp (e.g., "Jan 4, 2026 at 6:15 PM UTC")
+            const now = new Date();
+            const humanTimestamp = now.toLocaleDateString('en-US', {
+              month: 'short', day: 'numeric', year: 'numeric',
+              timeZone: 'UTC'
+            }) + ' at ' + now.toLocaleTimeString('en-US', {
+              hour: 'numeric', minute: '2-digit', hour12: true,
+              timeZone: 'UTC'
+            }) + ' UTC';
+
+            let screenshotFiles = [];
+            try {
+              if (fs.existsSync('./screenshots')) {
+                screenshotFiles = fs.readdirSync('./screenshots').filter(f => f.endsWith('.png'));
+              }
+            } catch (e) { /* ignore */ }
+
+            const statusEmoji = hasScreenshots ? '✅' : '❌';
+            const statusText = hasScreenshots
+              ? `Captured ${screenshotFiles.length} screenshots`
+              : 'Screenshot capture failed';
+
+            // Find existing comment and extract history
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            const botComment = comments.find(c => c.body.includes('<!-- preview-screenshots-comment -->'));
+
+            // Extract previous history from existing comment
+            let previousHistory = [];
+            if (botComment) {
+              // Parse existing history entries from <!-- history-entry --> markers
+              const historyMatch = botComment.body.match(/<!-- screenshot-history -->([\s\S]*?)<!-- \/screenshot-history -->/);
+              if (historyMatch) {
+                const entryRegex = /<!-- history-entry -->([\s\S]*?)<!-- \/history-entry -->/g;
+                let match;
+                while ((match = entryRegex.exec(historyMatch[1])) !== null) {
+                  previousHistory.push(match[1].trim());
+                }
+              }
+
+              // Extract current screenshots as a new history entry (if they exist in comment)
+              const currentMatch = botComment.body.match(/<!-- current-screenshots -->([\s\S]*?)<!-- \/current-screenshots -->/);
+              if (currentMatch) {
+                // Extract timestamp from the current section
+                const timestampMatch = botComment.body.match(/<sub>📅 ([^<]+)<\/sub>/);
+                const prevTimestamp = timestampMatch ? timestampMatch[1] : 'Previous';
+
+                // Extract commit SHA from the current section
+                const commitMatch = botComment.body.match(/\| \[`([a-f0-9]{7})`\]/);
+                const prevCommit = commitMatch ? commitMatch[1] : '';
+
+                // Extract the R2 folder path from existing images
+                const imgUrlMatch = currentMatch[1].match(/src="([^"]+\/pr-\d+\/[a-f0-9]{7})\/desktop\.png/);
+
+                if (imgUrlMatch && prevCommit) {
+                  const prevR2Folder = imgUrlMatch[1];
+                  // Create minimized history entry with smaller thumbnails pointing to commit-specific folder
+                  const historyEntry = `**${prevTimestamp}** [\`${prevCommit}\`](${repoUrl}/commit/${prevCommit})
+                  | Desktop | Tablet | Mobile |
+                  |:---:|:---:|:---:|
+                  | <img src="${prevR2Folder}/desktop.png" width="120"/> | <img src="${prevR2Folder}/tablet.png" width="80"/> | <img src="${prevR2Folder}/mobile.png" width="50"/> |`;
+                  previousHistory.unshift(historyEntry);
+                }
+              }
+            }
+
+            // Keep only last 5 history entries to prevent comment bloat
+            previousHistory = previousHistory.slice(0, 5);
+
+            const bodyParts = [
+              '<!-- preview-screenshots-comment -->',
+              '## 📸 Preview Screenshots',
+              '',
+              `${statusEmoji} ${statusText} | [Preview](${previewUrl}) | [Artifacts](${artifactUrl})`,
+              '',
+            ];
+
+            if (hasScreenshots && r2BaseUrl) {
+              // Screenshots are stored by commit hash for history preservation
+              const r2Folder = `${r2BaseUrl}/pr-${prNumber}/${shortSha}`;
+
+              bodyParts.push('<!-- current-screenshots -->');
+              bodyParts.push(`| Desktop | Tablet | Mobile | Commit |`);
+              bodyParts.push('|:---:|:---:|:---:|:---:|');
+
+              const row = [];
+              for (const [name, width] of [['desktop', 280], ['tablet', 180], ['mobile', 100]]) {
+                const filename = `${name}.png`;
+                if (screenshotFiles.includes(filename)) {
+                  // Add cache-busting query param to force refresh
+                  const url = `${r2Folder}/${filename}?t=${Date.now()}`;
+                  row.push(`<a href="${r2Folder}/${filename}"><img src="${url}" width="${width}"/></a>`);
+                } else {
+                  row.push('-');
+                }
+              }
+              row.push(`[\`${shortSha}\`](${commitUrl})`);
+              bodyParts.push(`| ${row.join(' | ')} |`);
+              bodyParts.push('<!-- /current-screenshots -->');
+              bodyParts.push('');
+            }
+
+            bodyParts.push(`<sub>📅 ${humanTimestamp}</sub>`);
+            bodyParts.push('');
+
+            // Add history section if there are previous entries
+            if (previousHistory.length > 0) {
+              bodyParts.push('<details>');
+              bodyParts.push(`<summary>📜 Previous Screenshots (${previousHistory.length})</summary>`);
+              bodyParts.push('');
+              bodyParts.push('<!-- screenshot-history -->');
+              for (const entry of previousHistory) {
+                bodyParts.push('<!-- history-entry -->');
+                bodyParts.push(entry);
+                bodyParts.push('<!-- /history-entry -->');
+                bodyParts.push('');
+              }
+              bodyParts.push('<!-- /screenshot-history -->');
+              bodyParts.push('</details>');
+              bodyParts.push('');
+            }
+
+            bodyParts.push('---');
+            bodyParts.push('<sub>Screenshots auto-update on each push. Click images to view full size.</sub>');
+
+            const body = bodyParts.join('\n');
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
+
   # Notify when validation checks pass
   notify-validation-success:
     needs: validate
-    if: success()
+    if: success() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     name: Notify Validation Success
     steps:
@@ -343,8 +628,8 @@ jobs:
 
   # Notify on failures (validation or deployment)
   notify-failure:
-    needs: [validate, deploy-worker-preview, deploy-preview]
-    if: always() && (needs.validate.result == 'failure' || needs.deploy-worker-preview.result == 'failure' || needs.deploy-preview.result == 'failure')
+    needs: [validate, deploy-worker-preview, deploy-preview, screenshots]
+    if: always() && github.event_name == 'pull_request' && (needs.validate.result == 'failure' || needs.deploy-worker-preview.result == 'failure' || needs.deploy-preview.result == 'failure' || needs.screenshots.result == 'failure')
     runs-on: ubuntu-latest
     name: Notify Failures
     steps:
@@ -353,6 +638,7 @@ jobs:
         env:
           VALIDATION_FAILED: ${{ needs.validate.result == 'failure' }}
           DEPLOYMENT_FAILED: ${{ needs.deploy-preview.result == 'failure' }}
+          SCREENSHOTS_FAILED: ${{ needs.screenshots.result == 'failure' }}
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
@@ -363,7 +649,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "❌ ${{ needs.validate.result == 'failure' && needs.deploy-preview.result == 'failure' && 'Validation & Deployment Failed' || needs.validate.result == 'failure' && 'Code Validation Failed' || 'Preview Deployment Failed' }}",
+                    "text": "❌ ${{ needs.validate.result == 'failure' && 'Code Validation Failed' || needs.deploy-preview.result == 'failure' && 'Preview Deployment Failed' || needs.screenshots.result == 'failure' && 'Screenshot Capture Failed' || 'Preview Workflow Failed' }}",
                     "emoji": true
                   }
                 },
@@ -407,6 +693,15 @@ jobs:
                   ]
                 },
                 {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Screenshots:*\n${{ needs.screenshots.result == 'success' && '✅ Captured' || needs.screenshots.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }}"
+                    }
+                  ]
+                },
+                {
                   "type": "actions",
                   "elements": [
                     {
@@ -441,3 +736,4 @@ jobs:
                 }
               ]
             }
+# Test comment for Phase 4 history verification
