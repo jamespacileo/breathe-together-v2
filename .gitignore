@@ -9,3 +9,14 @@ pnpm-lock.yaml
 .vite
 
 .env.secrets
+
+# Playwright
+e2e/test-results/
+screenshots/
+test-screenshots/
+
+# Wrangler
+.wrangler/
+
+# Audio assets (not committed - use Git LFS or external CDN)
+public/audio/
