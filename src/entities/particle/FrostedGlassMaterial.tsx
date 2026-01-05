@@ -66,17 +66,17 @@ void main() {
   vec3 gemTint = vColor * 0.4; // Reduced from 0.7 to 0.4 for lighter tint
 
   // Neon mood-colored rim glow (per-instance, not uniform golden)
-  // Amplify vColor saturation for neon effect (2.2x boost creates ~55-60% saturation from NEON_MOOD_PALETTE)
-  vec3 neonRimColor = vColor * 2.2; // Amplifies input neon colors for vibrant edges
-  vec3 colorWithRim = mix(gemTint, neonRimColor, fresnel * 0.55); // Increased from 0.4 for stronger rim
+  // NEON_MOOD_PALETTE already has 55-60% saturation - no amplification needed
+  vec3 neonRimColor = vColor; // Use NEON_MOOD_PALETTE colors directly (no amplification to prevent clipping)
+  vec3 colorWithRim = mix(gemTint, neonRimColor, fresnel * 0.35); // Reduced from 0.55 to prevent washout
 
-  // Additive neon glow component for edge brilliance
-  // Quadratic falloff (fresnel²) creates sharp edge glow without washing out center
-  float neonGlow = fresnel * fresnel * 0.25;
+  // Subtle additive glow for edge accent (not overpowering)
+  // Quadratic falloff (fresnel²) with reduced strength to maintain transparency
+  float neonGlow = fresnel * fresnel * 0.08; // Reduced from 0.25 to prevent brightness clipping
   colorWithRim += neonRimColor * neonGlow;
 
-  // Inner luminance - gem glow from within (stronger than before)
-  float innerGlow = (1.0 - fresnel) * 0.15 * breathLuminosity;
+  // Inner luminance - subtle gem glow from within
+  float innerGlow = (1.0 - fresnel) * 0.05 * breathLuminosity; // Reduced from 0.15 to preserve transparency
   vec3 glowColor = mix(vColor, vec3(1.0, 1.0, 1.0), 0.5); // Whitened glow
   colorWithRim += glowColor * innerGlow;
 
@@ -84,8 +84,12 @@ void main() {
   vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
   vec3 finalColor = mix(desaturated, colorWithRim, 0.90);
 
+  // Environmental darkening - match dark night sky lighting (not bright studio)
+  // Shards should appear lit by environment (15-25% luminosity), not self-illuminated
+  vec3 envDarkened = finalColor * 0.4; // Scale to match atmospheric lighting
+
   // Output with transparency for gem-like appearance
-  gl_FragColor = vec4(finalColor, baseAlpha * breathLuminosity);
+  gl_FragColor = vec4(envDarkened, baseAlpha * breathLuminosity);
 }
 `;
 
