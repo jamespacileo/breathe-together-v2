@@ -5,9 +5,11 @@ import * as THREE from 'three';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
+import { BreathSparkles } from './BreathSparkles';
 import { CloudSystem } from './CloudSystem';
 import { ConstellationStars } from './ConstellationStars';
 import { EditorGrid } from './EditorGrid';
+import { ReflectiveFloor } from './ReflectiveFloor';
 import { StylizedSun } from './StylizedSun';
 import { SubtleLightRays } from './SubtleLightRays';
 
@@ -94,6 +96,33 @@ interface EnvironmentProps {
    * @default false
    */
   useHDRIBackground?: boolean;
+  /**
+   * Enable reflective floor for subtle reflections
+   * Adds depth and spatial awareness with soft reflections of scene
+   * @default false
+   */
+  showReflectiveFloor?: boolean;
+  /**
+   * Reflective floor color (matches background for seamless integration)
+   * @default '#f5f1e8'
+   */
+  reflectiveFloorColor?: string;
+  /**
+   * Reflection strength (0 = no reflection, 1 = full mirror)
+   * @default 0.3
+   */
+  reflectionMixStrength?: number;
+  /**
+   * Show breath-synchronized sparkles during exhale phase
+   * Visual feedback for "releasing breath" moment
+   * @default false
+   */
+  showBreathSparkles?: boolean;
+  /**
+   * Breath sparkles count
+   * @default 20
+   */
+  breathSparklesCount?: number;
 }
 
 /**
@@ -134,6 +163,11 @@ export function Environment({
   hdriIntensity = 0.3,
   hdriBlur = 0.5,
   useHDRIBackground = false,
+  showReflectiveFloor = false,
+  reflectiveFloorColor = '#f5f1e8',
+  reflectionMixStrength = 0.3,
+  showBreathSparkles = false,
+  breathSparklesCount = 20,
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
@@ -225,6 +259,10 @@ export function Environment({
       {/* Floating dust motes with gentle sparkle */}
       <AmbientDust count={isMobile ? 40 : 80} opacity={0.12} size={0.012} enabled={true} />
 
+      {/* Breath-synchronized sparkles during exhale phase */}
+      {/* Visual feedback for "releasing breath" moment */}
+      {showBreathSparkles && <BreathSparkles count={breathSparklesCount} />}
+
       {/* Subtle diagonal light rays from upper right */}
       <SubtleLightRays opacity={0.03} enabled={!isMobile} />
 
@@ -276,6 +314,16 @@ export function Environment({
 
       {/* Subtle hemisphere light for natural sky/ground color blending */}
       <hemisphereLight args={['#ffe8d6', '#f5e6d3', 0.4]} />
+
+      {/* Reflective floor - subtle reflections for enhanced depth */}
+      {/* Disabled on mobile for performance */}
+      {showReflectiveFloor && !isMobile && (
+        <ReflectiveFloor
+          color={reflectiveFloorColor}
+          mixStrength={reflectionMixStrength}
+          resolution={isTablet ? 256 : 512}
+        />
+      )}
     </group>
   );
 }
