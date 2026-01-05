@@ -70,7 +70,7 @@ export const TUNING_DEFAULTS = {
   showConstellationGizmos: false,
 
   // Celestial Labels (user-facing orientation helpers)
-  showCelestialLabels: false,
+  showCelestialLabels: true,
 
   // Colors - Background
   bgColorTop: '#f5f0e8',
