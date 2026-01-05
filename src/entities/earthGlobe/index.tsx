@@ -97,8 +97,8 @@ function createGlobeMaterial(earthTexture: Texture) {
 
   // Build color node using TSL
   const colorNode = Fn(() => {
-    // Sample earth texture
-    const texColor = earthTextureUniform.uv(uv()).rgb;
+    // Sample earth texture (using .sample() instead of deprecated .uv())
+    const texColor = earthTextureUniform.sample(uv()).rgb;
 
     // Fresnel rim for atmospheric glow
     const normal = transformedNormalView;

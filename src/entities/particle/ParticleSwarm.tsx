@@ -276,6 +276,7 @@ export function ParticleSwarm({
 }: ParticleSwarmProps) {
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
+  const instanceColorsInitializedRef = useRef(false);
   const wireframeRef = useRef<THREE.LineSegments>(null);
   const glowMeshRef = useRef<THREE.Mesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
@@ -352,6 +353,31 @@ export function ParticleSwarm({
 
   // Create shared material with instancing support
   const material = useMemo(() => createFrostedGlassMaterial(true), []);
+
+  // Callback ref to initialize instanceColor immediately when mesh is created
+  // This ensures the attribute exists before TSL material compiles
+  const initializeInstanceColors = useCallback(
+    (mesh: THREE.InstancedMesh | null) => {
+      if (mesh && !instanceColorsInitializedRef.current) {
+        // Initialize all instance colors with default color
+        const defaultColor = new THREE.Color(MONUMENT_VALLEY_PALETTE.presence);
+        for (let i = 0; i < performanceCap; i++) {
+          mesh.setColorAt(i, defaultColor);
+        }
+        if (mesh.instanceColor) {
+          mesh.instanceColor.needsUpdate = true;
+        }
+        instanceColorsInitializedRef.current = true;
+
+        // Store in ref for later access
+        instancedMeshRef.current = mesh;
+      } else if (!mesh) {
+        instanceColorsInitializedRef.current = false;
+        instancedMeshRef.current = null;
+      }
+    },
+    [performanceCap],
+  );
 
   // NOTE: Wireframe highlight disabled - EdgesGeometry causes "drawIndexed Infinity" error on WebGPU
   // TODO: Create TSL-based wireframe effect for WebGPU compatibility
@@ -768,7 +794,7 @@ export function ParticleSwarm({
   return (
     <>
       <instancedMesh
-        ref={instancedMeshRef}
+        ref={initializeInstanceColors}
         args={[geometry, material, performanceCap]}
         frustumCulled={false}
         name="Particle Swarm"
