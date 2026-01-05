@@ -361,17 +361,15 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
   const gmstRef = useRef(calculateGMST(new Date()));
   const groupRef = useRef<THREE.Group>(null);
 
-  // Set GIZMOS layer on all meshes every frame to ensure exclusion from DoF blur
-  // This catches any dynamically added children and ensures layers persist
-  useFrame(() => {
-    if (!groupRef.current) return;
-    groupRef.current.traverse((object) => {
-      // Only set if not already on GIZMOS layer (avoid unnecessary updates)
-      if (!object.layers.isEnabled(RENDER_LAYERS.GIZMOS)) {
-        object.layers.set(RENDER_LAYERS.GIZMOS);
-      }
-    });
-  });
+  // Note: GIZMOS layer is set directly in child components:
+  // - InstancedStarMarkers: sets layer on sphereRef and ringRef
+  // - BatchedConstellationLines: sets layer on linesRef
+  // - Celestial frame meshes use setGizmoLayer callback
+
+  // Helper to set GIZMOS layer on a mesh (called via ref callback)
+  const setGizmoLayer = (mesh: THREE.Object3D | null) => {
+    if (mesh) mesh.layers.set(RENDER_LAYERS.GIZMOS);
+  };
 
   // Create star lookup map
   const starMap = useMemo(() => {
@@ -441,7 +439,7 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
       {showCelestialFrame && (
         <>
           {/* Celestial sphere wireframe - very subtle */}
-          <mesh>
+          <mesh ref={setGizmoLayer}>
             <sphereGeometry args={[radius, 24, 24]} />
             <meshBasicMaterial
               color="#00ff88"
@@ -453,7 +451,7 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
           </mesh>
 
           {/* Equatorial plane - subtle ring */}
-          <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <mesh ref={setGizmoLayer} rotation={[Math.PI / 2, 0, 0]}>
             <ringGeometry args={[radius * 0.99, radius * 1.01, 64]} />
             <meshBasicMaterial
               color="#ffaa00"
@@ -465,8 +463,8 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
           </mesh>
 
           {/* North celestial pole - small marker */}
-          <group position={[0, radius, 0]}>
-            <mesh>
+          <group ref={setGizmoLayer} position={[0, radius, 0]}>
+            <mesh ref={setGizmoLayer}>
               <sphereGeometry args={[0.3, 8, 8]} />
               <meshBasicMaterial color="#00ffff" transparent opacity={0.8} depthWrite={false} />
             </mesh>
@@ -489,8 +487,8 @@ export const ConstellationGizmos = memo(function ConstellationGizmos({
           </group>
 
           {/* South celestial pole - small marker */}
-          <group position={[0, -radius, 0]}>
-            <mesh>
+          <group ref={setGizmoLayer} position={[0, -radius, 0]}>
+            <mesh ref={setGizmoLayer}>
               <sphereGeometry args={[0.3, 8, 8]} />
               <meshBasicMaterial color="#ff00ff" transparent opacity={0.8} depthWrite={false} />
             </mesh>
