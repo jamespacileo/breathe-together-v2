@@ -37,3 +37,8 @@ export function getMonumentValleyMoodColor(moodId: MoodId | '' | undefined): str
  * @deprecated Use MONUMENT_VALLEY_PALETTE directly
  */
 export const MOOD_COLORS = MONUMENT_VALLEY_PALETTE;
+
+/**
+ * Alias for test compatibility
+ */
+export const getMoodColor = getMonumentValleyMoodColor;
