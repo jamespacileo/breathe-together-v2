@@ -280,16 +280,16 @@ describe('Cloud System Integration Tests', () => {
       /**
        * CloudSystem integration with scene rotation:
        *
-       * Scene hierarchy:
+       * Scene hierarchy (TSL Migration - January 2026):
        * ```
        * <MomentumControls>         ← Rotates everything inside
-       *   <RefractionPipeline>
+       *   <group name="Scene Content">
        *     <Environment>
        *       <CloudSystem />      ← Clouds are inside, rotate with parent
        *     </Environment>
        *     <EarthGlobe />         ← Globe rotates with parent
-       *     <ParticleSwarm />      ← Shards rotate with parent
-       *   </RefractionPipeline>
+       *     <ParticleSwarm />      ← Shards rotate with parent (TSL refraction via viewportSharedTexture)
+       *   </group>
        * </MomentumControls>
        * ```
        *
@@ -300,6 +300,7 @@ describe('Cloud System Integration Tests', () => {
        *    in local space, adding subtle movement on top of parent rotation
        * 4. Clouds are distributed spherically around the globe, so they
        *    appear all around regardless of viewing angle
+       * 5. TSL materials use viewportSharedTexture for refraction effects
        *
        * Previous behavior (horizontal looping) would fight against parent
        * rotation because it used world-space absolute positions.

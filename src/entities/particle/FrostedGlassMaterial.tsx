@@ -1,106 +1,118 @@
 /**
- * FrostedGlassMaterial - Enhanced shader material for icosahedral shards
+ * FrostedGlassMaterial - TSL-based shader material for icosahedral shards
  *
- * Features subtle visual effects that users won't consciously notice but will feel:
+ * Features:
  * - Soft fresnel rim glow (edge lighting like the globe)
  * - Breathing luminosity pulse (subtle brightness variation)
- * - Per-instance mood colors with gentle saturation boost
- * - Subtle inner glow on exhale phase
+ * - Per-instance mood colors with muted pastel saturation
+ * - Semi-transparent glass-like appearance
+ * - Soft inner glow on inhale phase
  *
- * For the refraction effect to work:
- * 1. Mesh must have userData.useRefraction = true
- * 2. InstancedMesh must have instanceColor attribute set
- * 3. RefractionPipeline must be present in the scene tree
+ * MIGRATED TO TSL (Three.js Shading Language) - January 2026
+ * Simplified approach without viewportSharedTexture for reliable WebGPU rendering.
  *
  * Performance: Uses InstancedMesh for single draw call (300+ particles = 1 draw call)
  */
 
-import * as THREE from 'three';
-
-// Vertex shader - passes normals and instance colors to fragment
-// Uses THREE.js built-in instanceColor attribute for per-instance colors
-const shardVertexShader = `
-varying vec3 vNormal;
-varying vec3 vViewPosition;
-varying vec3 vColor;
-
-void main() {
-  vNormal = normalize(normalMatrix * normal);
-
-  // Use instance color from InstancedMesh (set via setColorAt)
-  #ifdef USE_INSTANCING_COLOR
-    vColor = instanceColor;
-  #else
-    vColor = vec3(0.85, 0.75, 0.65); // Fallback warm neutral
-  #endif
-
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-  vViewPosition = -mvPosition.xyz;
-  gl_Position = projectionMatrix * mvPosition;
-}
-`;
-
-// Fragment shader - fresnel rim + breathing luminosity
-const shardFragmentShader = `
-uniform float breathPhase;
-uniform float time;
-
-varying vec3 vNormal;
-varying vec3 vViewPosition;
-varying vec3 vColor;
-
-void main() {
-  vec3 viewDir = normalize(vViewPosition);
-
-  // Fresnel rim effect - soft edge glow
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.5);
-
-  // Breathing luminosity pulse - subtle brightness shift
-  // Peak brightness during hold phases (phase 0.25-0.5 and 0.75-1.0)
-  float breathLuminosity = 1.0 + breathPhase * 0.12;
-
-  // Subtle saturation boost based on viewing angle
-  // Faces pointing toward camera are slightly more saturated
-  float facingBoost = max(dot(vNormal, viewDir), 0.0) * 0.08;
-
-  // Apply mood color with luminosity and saturation
-  vec3 baseColor = vColor * breathLuminosity;
-
-  // Mix in a warm white rim glow (like the globe)
-  vec3 rimColor = vec3(0.98, 0.96, 0.94); // Soft warm white
-  vec3 colorWithRim = mix(baseColor, rimColor, fresnel * 0.25);
-
-  // Subtle inner luminance - very gentle glow from within
-  float innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3);
-  colorWithRim += vec3(1.0, 0.98, 0.95) * innerGlow;
-
-  // Slight desaturation toward edges for atmospheric feel
-  vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
-  vec3 finalColor = mix(desaturated, colorWithRim, 0.85 + facingBoost);
-
-  gl_FragColor = vec4(finalColor, 1.0);
-}
-`;
+import { FrontSide } from 'three';
+import {
+  add,
+  attribute,
+  cameraPosition,
+  clamp,
+  dot,
+  Fn,
+  max,
+  mix,
+  mul,
+  normalize,
+  positionWorld,
+  pow,
+  sub,
+  transformedNormalWorld,
+  uniform,
+  vec3,
+  vec4,
+} from 'three/tsl';
+import { MeshBasicNodeMaterial } from 'three/webgpu';
 
 /**
- * Creates an enhanced frosted glass shader material for icosahedral shards
+ * Creates a TSL-based frosted glass material for icosahedral shards
  *
- * Returns a ShaderMaterial with:
+ * Returns a MeshBasicNodeMaterial with:
  * - Fresnel rim glow (soft edge lighting)
  * - Breathing luminosity (synced brightness pulse)
- * - Per-instance color support (via USE_INSTANCING_COLOR define)
+ * - Per-instance color support (via instanceColor attribute)
+ * - Semi-transparent glass effect with soft edges
  *
  * @param instanced - Whether to enable instancing color support (default: true)
  */
-export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      breathPhase: { value: 0 },
-      time: { value: 0 },
-    },
-    vertexShader: shardVertexShader,
-    fragmentShader: shardFragmentShader,
-    defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
-    side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
-  });
+export function createFrostedGlassMaterial(instanced = true): MeshBasicNodeMaterial {
+  const material = new MeshBasicNodeMaterial();
+  material.side = FrontSide;
+  material.transparent = true;
+  material.depthWrite = false; // Proper transparency sorting
+
+  // Uniforms
+  const breathPhaseUniform = uniform(0);
+  const timeUniform = uniform(0);
+
+  // Store uniforms for external access
+  material.userData.breathPhase = breathPhaseUniform;
+  material.userData.time = timeUniform;
+
+  // Build color node using TSL
+  const colorNode = Fn(() => {
+    // Get normal and view direction
+    const normal = transformedNormalWorld;
+    const viewDir = normalize(sub(cameraPosition, positionWorld));
+
+    // Get instance color (from InstancedMesh.setColorAt)
+    // Falls back to warm neutral if not instanced
+    const instanceCol = instanced ? attribute('instanceColor') : vec3(0.85, 0.75, 0.65);
+
+    // Fresnel rim effect - strong edge glow for glass appearance
+    const fresnelBase = max(dot(normal, viewDir), 0.0);
+    const fresnel = pow(sub(1.0, fresnelBase), 2.0);
+
+    // Breathing luminosity pulse - subtle brightness shift
+    const breathLuminosity = add(1.0, mul(breathPhaseUniform, 0.15));
+
+    // === DESATURATE for Monument Valley pastel aesthetic ===
+    // Compute luminance and blend toward it for softer, more muted colors
+    const luminance = dot(instanceCol, vec3(0.299, 0.587, 0.114));
+    const desaturated = vec3(luminance, luminance, luminance);
+    // Mix 60% original color with 40% grayscale for pastel effect
+    const pastelColor = mix(desaturated, instanceCol, 0.6);
+
+    // Apply luminosity with slight brightness boost
+    const baseColor = mul(add(pastelColor, 0.15), breathLuminosity);
+
+    // Strong warm white rim glow - key to glass appearance
+    const rimColor = vec3(1.0, 0.98, 0.96);
+    const colorWithRim = mix(baseColor, rimColor, mul(fresnel, 0.5));
+
+    // Subtle inner glow that pulses with breathing
+    const innerGlowAmount = mul(
+      sub(1.0, fresnel),
+      mul(0.1, add(1.0, mul(breathPhaseUniform, 0.4))),
+    );
+    const glowColor = vec3(1.0, 0.99, 0.97);
+    const colorWithGlow = add(colorWithRim, mul(glowColor, innerGlowAmount));
+
+    // Clamp color but keep it bright
+    const finalColor = clamp(colorWithGlow, 0.0, 1.0);
+
+    // Alpha: more opaque in center, more transparent at edges (glass effect)
+    // Also slightly more transparent during exhale for breathing feel
+    const baseAlpha = mix(0.85, 0.55, fresnel);
+    const breathAlpha = sub(baseAlpha, mul(sub(1.0, breathPhaseUniform), 0.1));
+    const alpha = clamp(breathAlpha, 0.45, 0.9);
+
+    return vec4(finalColor, alpha);
+  })();
+
+  material.colorNode = colorNode;
+
+  return material;
 }

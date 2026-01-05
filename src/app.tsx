@@ -1,7 +1,6 @@
 import { Stats } from '@react-three/drei';
-import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
-import { lazy, Suspense, useMemo, useRef } from 'react';
-import type * as THREE from 'three';
+import { Canvas, type CanvasProps } from '@react-three/fiber';
+import { lazy, Suspense, useCallback, useRef } from 'react';
 import { AudioProvider } from './audio';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BreathEntity } from './entities/breath';
@@ -9,14 +8,11 @@ import { CameraRig } from './entities/camera/CameraRig';
 import { useViewport } from './hooks/useViewport';
 import { BreathingLevel, BreathingLevelUI } from './levels/breathing';
 import { KootaSystems } from './providers';
+// Import WebGPU/TSL setup - extends R3F with node materials
+import { createWebGPURenderer } from './webgpu-setup';
 
 // Lazy load admin panel (only loads when needed)
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
-
-// Extend R3F with Three.js types
-declare module '@react-three/fiber' {
-  interface ThreeElements extends ThreeToJSXElements<typeof THREE> {}
-}
 
 // Simple URL-based routing
 function useCurrentPath(): string {
@@ -32,7 +28,11 @@ function useCurrentPath(): string {
  * - HTML UI renders as siblings, naturally receiving events
  * - No need for exclusion zones or complex cursor management
  *
+ * Now uses WebGPU renderer with TSL (Three.js Shading Language) support.
+ * TSL materials use viewportSharedTexture for refraction effects.
+ *
  * @see https://r3f.docs.pmnd.rs/api/canvas#extracting-events
+ * @see https://github.com/mrdoob/three.js/wiki/Three.js-Shading-Language
  */
 export function App() {
   // biome-ignore lint/style/noNonNullAssertion: R3F eventSource requires non-null ref; ref is always assigned before Canvas renders
@@ -40,16 +40,23 @@ export function App() {
   const path = useCurrentPath();
   const { isMobile, isTablet } = useViewport();
 
-  // Disable antialias on mobile/tablet for 5-10% performance improvement
-  const glConfig = useMemo(
-    () => ({
-      antialias: !isMobile && !isTablet,
-      alpha: true,
-      localClippingEnabled: true,
-      // Reduce pixel ratio on mobile for better performance
-      pixelRatio: isMobile ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio,
-    }),
-    [isMobile, isTablet],
+  // Capture initial viewport classification for renderer configuration.
+  // This keeps the WebGPU/WebGL renderer stable even if viewport crosses
+  // mobile/desktop thresholds later (e.g., on resize).
+  const isMobileInitialRef = useRef(isMobile);
+  const isTabletInitialRef = useRef(isTablet);
+
+  // Create WebGPU renderer factory with TSL support
+  // Falls back to WebGL backend if WebGPU is not available
+  // Uses initial viewport values to prevent renderer recreation on resize
+  const glFactory = useCallback(
+    () =>
+      createWebGPURenderer({
+        antialias: !isMobileInitialRef.current && !isTabletInitialRef.current,
+        alpha: true,
+        powerPreference: isMobileInitialRef.current ? 'low-power' : 'high-performance',
+      }),
+    [], // Empty deps - renderer config is stable based on initial load
   );
 
   // Admin panel route
@@ -81,16 +88,18 @@ export function App() {
     <ErrorBoundary>
       {/* Shared event source - both Canvas and HTML UI are children */}
       <div ref={containerRef} className="relative w-full h-full">
-        {/* 3D Canvas - receives events via eventSource, has pointer-events: none */}
+        {/* 3D Canvas with WebGPU/TSL support */}
         {/* frameloop="demand" enables on-demand rendering for battery savings */}
-        {/* Scene invalidates via invalidate() in KootaSystems useFrame to ensure updates render */}
+        {/* Scene invalidates via invalidate() in KootaSystems useFrame */}
         <Canvas
           eventSource={containerRef}
           eventPrefix="client"
           frameloop="demand"
           shadows={false}
           camera={{ position: [0, 0, 10], fov: 45 }}
-          gl={glConfig}
+          // R3F v9 supports async gl factory for WebGPU - type assertion needed
+          // biome-ignore lint/suspicious/noExplicitAny: R3F v9 WebGPU async factory support not fully typed
+          gl={glFactory() as any}
           dpr={isMobile ? [1, 2] : [1, 2]}
           className="!absolute inset-0"
         >

@@ -1,11 +1,16 @@
-import { Environment as DreiEnvironment, Stars } from '@react-three/drei';
+import { Environment as DreiEnvironment } from '@react-three/drei';
+// NOTE: Stars from drei uses ShaderMaterial which is incompatible with WebGPU NodeMaterial system
+// TODO: Create TSL-based Stars component for WebGPU compatibility
+// import { Stars } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import * as THREE from 'three';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
-import { CloudSystem } from './CloudSystem';
+// NOTE: CloudSystem uses drei Clouds which uses ShaderMaterial - incompatible with WebGPU
+// TODO: Create TSL-based CloudSystem for WebGPU compatibility
+// import { CloudSystem } from './CloudSystem';
 import { EditorGrid } from './EditorGrid';
 import { SubtleLightRays } from './SubtleLightRays';
 
@@ -20,14 +25,12 @@ const HDRI_PATH = '/hdri/belfast_sunset_1k.hdr';
 
 interface EnvironmentProps {
   enabled?: boolean;
-  /** Show volumetric clouds @default true */
-  showClouds?: boolean;
-  /** Show distant stars @default true */
-  showStars?: boolean;
-  /** Cloud opacity @default 0.4 */
-  cloudOpacity?: number;
-  /** Cloud speed multiplier @default 0.3 */
-  cloudSpeed?: number;
+  // NOTE: Cloud/Star props disabled - WebGPU incompatible (drei uses ShaderMaterial)
+  // TODO: Re-enable when TSL-based alternatives are implemented
+  // showClouds?: boolean;
+  // showStars?: boolean;
+  // cloudOpacity?: number;
+  // cloudSpeed?: number;
   /** Ambient light color @default '#fff5eb' */
   ambientLightColor?: string;
   /** Ambient light intensity @default 0.5 */
@@ -88,10 +91,6 @@ interface EnvironmentProps {
  */
 export function Environment({
   enabled = true,
-  showClouds = true,
-  showStars = true,
-  cloudOpacity = 0.4,
-  cloudSpeed = 0.8,
   ambientLightColor = '#fff5eb',
   ambientLightIntensity = 0.5,
   keyLightColor = '#ffe4c4',
@@ -107,10 +106,7 @@ export function Environment({
   useHDRIBackground = false,
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
-  const { isMobile, isTablet } = useViewport();
-
-  // Reduce star count on mobile/tablet for better performance
-  const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
+  const { isMobile } = useViewport();
 
   // Handle background based on stage mode
   useEffect(() => {
@@ -188,9 +184,9 @@ export function Environment({
       {/* Only shown when not using HDRI as background */}
       {!useHDRIBackground && <BackgroundGradient />}
 
-      {/* Memoized cloud system - only initializes once, never re-renders from parent changes */}
-      {/* Includes: top/middle/bottom layers, parallax depths, right-to-left looping */}
-      {showClouds && <CloudSystem opacity={cloudOpacity} speed={cloudSpeed} enabled={true} />}
+      {/* NOTE: CloudSystem disabled - uses drei Clouds which has ShaderMaterial incompatible with WebGPU */}
+      {/* TODO: Create TSL-based CloudSystem for WebGPU compatibility */}
+      {/* {showClouds && <CloudSystem opacity={cloudOpacity} speed={cloudSpeed} enabled={true} />} */}
 
       {/* Subtle atmospheric details - users feel these more than see them */}
       {/* Floating dust motes with gentle sparkle */}
@@ -199,9 +195,9 @@ export function Environment({
       {/* Subtle diagonal light rays from upper right */}
       <SubtleLightRays opacity={0.03} enabled={!isMobile} />
 
-      {/* Subtle distant stars - very faint for dreamy atmosphere */}
-      {/* Count is responsive: 150 (mobile) / 300 (tablet) / 500 (desktop) */}
-      {showStars && (
+      {/* NOTE: Stars disabled - drei Stars uses ShaderMaterial incompatible with WebGPU */}
+      {/* TODO: Create TSL-based Stars component for WebGPU compatibility */}
+      {/* {showStars && (
         <Stars
           radius={100}
           depth={50}
@@ -211,7 +207,7 @@ export function Environment({
           fade
           speed={0.5}
         />
-      )}
+      )} */}
 
       {/* Warm ambient light - fills shadows softly */}
       <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />

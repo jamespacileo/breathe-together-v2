@@ -12,12 +12,15 @@ import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { EarthGlobeTransmission } from '../entities/earthGlobe/EarthGlobeTransmission';
-import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
-import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
+// NOTE: GeoMarkers uses drei Text which causes "drawIndexed Infinity" error on WebGPU
+// TODO: Create TSL-based text/markers for WebGPU compatibility
+// import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
+// NOTE: RibbonSystem uses drei Text which causes "drawIndexed Infinity" error on WebGPU
+// TODO: Create TSL-based text ribbons for WebGPU compatibility
+// import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
-import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useDevControls } from '../hooks/useDevControls';
 import { useInspirationInit } from '../hooks/useInspirationInit';
 import { usePresence } from '../hooks/usePresence';
@@ -26,13 +29,17 @@ import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
  * BreathingLevel - Core 3D meditation environment.
- * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * TSL MIGRATION (January 2026):
+ * - Refraction now handled via viewportSharedTexture in TSL materials
+ * - RefractionPipeline removed in favor of TSL's built-in refraction support
+ * - DoF temporarily removed (can be added back with TSL PostProcessing)
  *
  * This component handles ONLY the 3D scene content.
  * HTML UI is rendered separately via BreathingLevelUI (outside Canvas).
  *
  * User controls: Harmony, Shard Size, Breathing Space, Atmosphere (via Zustand store)
- * Dev controls: Glass effect, DoF, Environment, Debug (via Leva panel)
+ * Dev controls: Environment, Debug (via Leva panel)
  */
 export function BreathingLevel({
   // DEBUG-ONLY: Entity visibility toggles (all default true)
@@ -52,7 +59,8 @@ export function BreathingLevel({
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users, countryCounts, sessionId } = usePresence();
+  // NOTE: countryCounts temporarily unused - GeoMarkers disabled (WebGPU incompatible)
+  const { users, sessionId } = usePresence();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -91,7 +99,7 @@ export function BreathingLevel({
           polar={[-Math.PI * 0.3, Math.PI * 0.3]}
           azimuth={[-Infinity, Infinity]}
         >
-          {/* Postprocessing Effects - optional replacement for custom DoF */}
+          {/* Postprocessing Effects - optional DoF, bloom, vignette */}
           {devControls.usePostprocessingDoF && (
             <PostProcessingEffects
               enableDoF={devControls.enableDepthOfField}
@@ -106,23 +114,13 @@ export function BreathingLevel({
             />
           )}
 
-          {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
-          {/* When usePostprocessingDoF is true, disable custom DoF but keep refraction */}
-          <RefractionPipeline
-            ior={devControls.ior}
-            backfaceIntensity={devControls.glassDepth}
-            enableDepthOfField={!devControls.usePostprocessingDoF && devControls.enableDepthOfField}
-            focusDistance={devControls.focusDistance}
-            focalRange={devControls.focalRange}
-            maxBlur={devControls.maxBlur}
-          >
-            {/* Environment - clouds, lighting, fog, HDRI (or grid floor in stage mode) */}
+          {/* 3D Scene Content - TSL materials (RefractionPipeline disabled for WebGPU compatibility) */}
+          {/* NOTE: RefractionPipeline uses WebGLRenderTarget + ShaderMaterial - incompatible with WebGPU */}
+          {/* TODO: Create TSL-based refraction using viewportSharedTexture */}
+          <group name="Scene Content">
+            {/* Environment - lighting, fog, HDRI (or grid floor in stage mode) */}
             {showEnvironment && (
               <Environment
-                showClouds={devControls.showClouds}
-                showStars={devControls.showStars}
-                cloudOpacity={devControls.cloudOpacity}
-                cloudSpeed={devControls.cloudSpeed}
                 ambientLightColor={devControls.ambientLightColor}
                 ambientLightIntensity={devControls.ambientLightIntensity}
                 keyLightColor={devControls.keyLightColor}
@@ -151,10 +149,9 @@ export function BreathingLevel({
               />
             )}
 
-            {/* Ribbon System - configurable text ribbons around the globe */}
-            {/* Layers: top message, bottom message, decorative accents */}
-            {/* Features: randomized colors, parallax scroll, breath-synced opacity */}
-            {showGlobe && <RibbonSystem />}
+            {/* NOTE: RibbonSystem disabled - uses drei Text which causes "drawIndexed Infinity" error on WebGPU */}
+            {/* TODO: Create TSL-based text ribbons for WebGPU compatibility */}
+            {/* {showGlobe && <RibbonSystem />} */}
 
             {showParticles && (
               <ParticleSwarm
@@ -177,12 +174,12 @@ export function BreathingLevel({
               />
             )}
 
-            {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
-            {/* Now inside RefractionPipeline: occluded by globe/shards, has DoF effect */}
-            {showGlobe && Object.keys(countryCounts).length > 0 && (
+            {/* NOTE: GeoMarkers disabled - uses drei Text which causes "drawIndexed Infinity" error on WebGPU */}
+            {/* TODO: Create TSL-based markers for WebGPU compatibility */}
+            {/* {showGlobe && Object.keys(countryCounts).length > 0 && (
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
-            )}
-          </RefractionPipeline>
+            )} */}
+          </group>
 
           {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
           {DEV_MODE_ENABLED && (
@@ -202,7 +199,6 @@ export function BreathingLevel({
           )}
 
           {/* Shape Gizmos - debug visualization for centroids and bounds */}
-          {/* Rendered outside RefractionPipeline to avoid distortion effects */}
           {DEV_MODE_ENABLED && (
             <ShapeGizmos
               showGlobeCentroid={devControls.showGlobeCentroid}

@@ -276,6 +276,7 @@ export function ParticleSwarm({
 }: ParticleSwarmProps) {
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
+  const instanceColorsInitializedRef = useRef(false);
   const wireframeRef = useRef<THREE.LineSegments>(null);
   const glowMeshRef = useRef<THREE.Mesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
@@ -353,12 +354,38 @@ export function ParticleSwarm({
   // Create shared material with instancing support
   const material = useMemo(() => createFrostedGlassMaterial(true), []);
 
-  // Create wireframe geometry and material for user highlight
+  // Callback ref to initialize instanceColor immediately when mesh is created
+  // This ensures the attribute exists before TSL material compiles
+  const initializeInstanceColors = useCallback(
+    (mesh: THREE.InstancedMesh | null) => {
+      if (mesh && !instanceColorsInitializedRef.current) {
+        // Initialize all instance colors with default color
+        const defaultColor = new THREE.Color(MONUMENT_VALLEY_PALETTE.presence);
+        for (let i = 0; i < performanceCap; i++) {
+          mesh.setColorAt(i, defaultColor);
+        }
+        if (mesh.instanceColor) {
+          mesh.instanceColor.needsUpdate = true;
+        }
+        instanceColorsInitializedRef.current = true;
+
+        // Store in ref for later access
+        instancedMeshRef.current = mesh;
+      } else if (!mesh) {
+        instanceColorsInitializedRef.current = false;
+        instancedMeshRef.current = null;
+      }
+    },
+    [performanceCap],
+  );
+
+  // NOTE: Wireframe highlight disabled - EdgesGeometry causes "drawIndexed Infinity" error on WebGPU
+  // TODO: Create TSL-based wireframe effect for WebGPU compatibility
+  // Original code used: new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(shardSize * 1.15, 0))
   const wireframeGeometry = useMemo(() => {
-    // Slightly larger than shard for visible outline
-    const geo = new THREE.IcosahedronGeometry(shardSize * 1.15, 0);
-    return new THREE.EdgesGeometry(geo);
-  }, [shardSize]);
+    // Return empty BufferGeometry as placeholder (won't render anything useful)
+    return new THREE.BufferGeometry();
+  }, []);
 
   const wireframeMaterial = useMemo(() => {
     return new THREE.LineBasicMaterial({
@@ -424,6 +451,7 @@ export function ParticleSwarm({
 
   // Initialize the InstancedMesh with default matrices and colors
   // biome-ignore lint/correctness/useExhaustiveDependencies: geometry/material MUST be dependencies because r3f recreates the InstancedMesh when args change, requiring re-initialization
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: InstancedMesh initialization requires multiple matrix operations and color assignments for each instance - refactoring would reduce readability
   useEffect(() => {
     const mesh = instancedMeshRef.current;
     if (!mesh) return;
@@ -571,10 +599,12 @@ export function ParticleSwarm({
     // Update slot animations
     slotManager.updateAnimations(clampedDelta);
 
-    // Update shader uniforms
-    if (material.uniforms) {
-      material.uniforms.breathPhase.value = currentBreathPhase;
-      material.uniforms.time.value = time;
+    // Update shader uniforms (TSL uses userData pattern)
+    if (material.userData.breathPhase) {
+      material.userData.breathPhase.value = currentBreathPhase;
+    }
+    if (material.userData.time) {
+      material.userData.time.value = time;
     }
 
     // Position lerp factor for smooth redistribution
@@ -764,7 +794,7 @@ export function ParticleSwarm({
   return (
     <>
       <instancedMesh
-        ref={instancedMeshRef}
+        ref={initializeInstanceColors}
         args={[geometry, material, performanceCap]}
         frustumCulled={false}
         name="Particle Swarm"
