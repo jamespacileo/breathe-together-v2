@@ -431,8 +431,9 @@ describe('TSL Material Visual Integrity', () => {
 
     // Material should be transparent for glass effect
     expect(source).toContain('transparent = true');
-    // Should use viewportSharedTexture for refraction
-    expect(source).toContain('viewportSharedTexture');
+    // Should have fresnel-based alpha for glass appearance (not solid opaque)
+    expect(source).toContain('fresnel');
+    expect(source).toMatch(/alpha\s*=\s*clamp/);
   });
 
   it('BackgroundGradient should render behind scene content', async () => {
@@ -461,5 +462,192 @@ describe('TSL Material Visual Integrity', () => {
     expect(source).toMatch(/return\s+vec4\([^)]+,\s*alpha\s*\)/);
     // Should have depthWrite = false for proper transparency
     expect(source).toContain('depthWrite = false');
+  });
+
+  it('BackgroundGradient should have minimum color contrast for visibility', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const filePath = path.join(process.cwd(), 'src/entities/environment/BackgroundGradient.tsx');
+    const source = await fs.readFile(filePath, 'utf-8');
+
+    // Extract all vec3 color definitions used in gradient
+    const vec3Matches = Array.from(source.matchAll(/vec3\(([0-9.]+),\s*([0-9.]+),\s*([0-9.]+)\)/g));
+    const colors: { r: number; g: number; b: number; avg: number }[] = [];
+
+    for (const match of vec3Matches) {
+      const r = Number.parseFloat(match[1]);
+      const g = Number.parseFloat(match[2]);
+      const b = Number.parseFloat(match[3]);
+      if (
+        !Number.isNaN(r) &&
+        !Number.isNaN(g) &&
+        !Number.isNaN(b) &&
+        r <= 1.0 &&
+        g <= 1.0 &&
+        b <= 1.0
+      ) {
+        colors.push({ r, g, b, avg: (r + g + b) / 3 });
+      }
+    }
+
+    // Must have at least some gradient colors defined
+    expect(colors.length).toBeGreaterThan(0);
+
+    // At least one color should be darker than 0.85 average (not all near-white)
+    const hasDarkerColor = colors.some((c) => c.avg < 0.85);
+    expect(hasDarkerColor).toBe(true);
+
+    // The darkest color should provide meaningful contrast from white
+    const darkestAvg = Math.min(...colors.map((c) => c.avg));
+    expect(darkestAvg).toBeLessThan(0.9);
+  });
+});
+
+/**
+ * Tests for blank screen prevention
+ *
+ * These tests catch common issues that cause the entire scene to render as blank/white:
+ * 1. Deprecated TSL API usage (.uv() instead of .sample())
+ * 2. Missing instanceColor attribute initialization
+ * 3. Invalid material configurations
+ */
+describe('Blank Screen Prevention', () => {
+  it('should not use deprecated .uv() texture sampling method', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    // Files that use texture sampling
+    const texturedFiles = [
+      'src/entities/earthGlobe/index.tsx',
+      'src/entities/environment/BackgroundGradient.tsx',
+      'src/entities/particle/FrostedGlassMaterial.tsx',
+    ];
+
+    const violations: string[] = [];
+
+    for (const file of texturedFiles) {
+      const filePath = path.join(process.cwd(), file);
+      try {
+        const source = await fs.readFile(filePath, 'utf-8');
+        const lines = source.split('\n');
+
+        // Check for deprecated .uv() method on texture nodes
+        // Pattern: textureUniform.uv(...) should be textureUniform.sample(...)
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (!isCommentLine(line) && /\w+Uniform\.uv\s*\(/.test(line)) {
+            violations.push(`${file}:${i + 1} - deprecated .uv() method (use .sample() instead)`);
+          }
+        }
+      } catch {
+        // File doesn't exist, skip
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it('ParticleSwarm should initialize instanceColor before material compilation', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const filePath = path.join(process.cwd(), 'src/entities/particle/ParticleSwarm.tsx');
+    const source = await fs.readFile(filePath, 'utf-8');
+
+    // Should have callback ref pattern to initialize colors early
+    // This ensures instanceColor attribute exists before TSL material compiles
+    expect(source).toMatch(/setColorAt/);
+
+    // Should have needsUpdate = true after setting colors
+    expect(source).toContain('instanceColor.needsUpdate = true');
+  });
+
+  it('should not have materials returning constant white color', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const materialFiles = [
+      'src/entities/environment/BackgroundGradient.tsx',
+      'src/entities/particle/FrostedGlassMaterial.tsx',
+      'src/entities/earthGlobe/index.tsx',
+    ];
+
+    const violations: string[] = [];
+
+    for (const file of materialFiles) {
+      const filePath = path.join(process.cwd(), file);
+      try {
+        const source = await fs.readFile(filePath, 'utf-8');
+        const lines = source.split('\n');
+
+        // Check for constant white return values like: return vec4(1.0, 1.0, 1.0, 1.0)
+        // or return vec4(vec3(1.0), 1.0)
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (!isCommentLine(line)) {
+            if (/return\s+vec4\(\s*1\.0\s*,\s*1\.0\s*,\s*1\.0/.test(line)) {
+              violations.push(`${file}:${i + 1} - returns constant white color`);
+            }
+            if (/return\s+vec4\(\s*vec3\(\s*1\.0\s*\)/.test(line)) {
+              violations.push(`${file}:${i + 1} - returns constant white color`);
+            }
+          }
+        }
+      } catch {
+        // File doesn't exist, skip
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it('all TSL materials should have colorNode assigned', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const materialFiles = [
+      'src/entities/environment/BackgroundGradient.tsx',
+      'src/entities/particle/FrostedGlassMaterial.tsx',
+      'src/entities/environment/AmbientDust.tsx',
+      'src/entities/environment/SubtleLightRays.tsx',
+    ];
+
+    for (const file of materialFiles) {
+      const filePath = path.join(process.cwd(), file);
+      try {
+        const source = await fs.readFile(filePath, 'utf-8');
+
+        // Every material file should assign colorNode
+        expect(source).toContain('colorNode');
+        // colorNode should be assigned, not just referenced
+        expect(source).toMatch(/\.colorNode\s*=/);
+      } catch {
+        // File doesn't exist, fail the test
+        throw new Error(`Material file not found: ${file}`);
+      }
+    }
+  });
+
+  it('point materials should use pointUV for proper sprite rendering', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    // Files that use PointsNodeMaterial
+    const pointFiles = ['src/entities/environment/AmbientDust.tsx'];
+
+    for (const file of pointFiles) {
+      const filePath = path.join(process.cwd(), file);
+      try {
+        const source = await fs.readFile(filePath, 'utf-8');
+
+        // Should import pointUV from three/tsl
+        expect(source).toMatch(/import\s*\{[^}]*pointUV[^}]*\}\s*from\s*['"]three\/tsl['"]/);
+        // Should use pointUV for coordinate calculation (gl_PointCoord equivalent)
+        expect(source).toContain('pointUV');
+      } catch {
+        throw new Error(`Point material file not found: ${file}`);
+      }
+    }
   });
 });
