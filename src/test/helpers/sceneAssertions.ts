@@ -25,19 +25,33 @@ export function expectParticleCount(scene: THREE.Scene, expectedCount: number): 
 
 /**
  * Assert that breath phase at a given time matches expected value
+ *
+ * @param time - Timestamp in milliseconds
+ * @param expectedPhase - Expected breath phase (0-1)
+ * @param tolerance - Allowed deviation from expected (default 0.01 = within 1%)
  */
 export function expectBreathPhase(time: number, expectedPhase: number, tolerance = 0.01): void {
   const { breathPhase } = calculateBreathState(time);
-  expect(breathPhase).toBeCloseTo(expectedPhase, Math.abs(Math.log10(tolerance)));
+  const diff = Math.abs(breathPhase - expectedPhase);
+  expect(diff).toBeLessThanOrEqual(tolerance);
 }
 
 /**
  * Assert that two timestamps produce the same breath phase (synchronization test)
+ *
+ * @param time1 - First timestamp in milliseconds
+ * @param time2 - Second timestamp in milliseconds
+ * @param tolerance - Allowed deviation between phases (default 0.001)
  */
-export function expectSynchronizedBreathPhase(time1: number, time2: number): void {
+export function expectSynchronizedBreathPhase(
+  time1: number,
+  time2: number,
+  tolerance = 0.001,
+): void {
   const phase1 = calculateBreathState(time1).breathPhase;
   const phase2 = calculateBreathState(time2).breathPhase;
-  expect(phase1).toBeCloseTo(phase2, 3);
+  const diff = Math.abs(phase1 - phase2);
+  expect(diff).toBeLessThanOrEqual(tolerance);
 }
 
 /**

@@ -1,6 +1,6 @@
+import { existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from '@playwright/test';
-import { existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
 
 const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR || './screenshots';
 

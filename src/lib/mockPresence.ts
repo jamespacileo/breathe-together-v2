@@ -110,7 +110,7 @@ export function generateMockPresence(
       mood: currentUser.mood,
       country: 'US', // Default country for current user in mock
     });
-    countryCounts['US'] = 1;
+    countryCounts.US = 1;
     // Increment the mood count for the current user's mood
     moods[currentUser.mood]++;
   }
