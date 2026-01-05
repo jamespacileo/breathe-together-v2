@@ -1,20 +1,18 @@
 /**
- * AtmosphericParticles - Ambient floating particles using drei Sparkles
+ * AtmosphericParticles - Ambient floating particles
  *
- * Features:
+ * NOTE: Temporarily disabled - drei Sparkles uses ShaderMaterial which is
+ * incompatible with WebGPU NodeMaterial system.
+ *
+ * TODO: Create TSL-based particle system for WebGPU compatibility
+ *
+ * Features (when re-enabled):
  * - Floating particles distributed around the scene
  * - Breathing-synchronized opacity
  * - Warm gray color (#8c7b6c) for Monument Valley aesthetic
- *
- * Replaces custom THREE.Points implementation with drei for simpler lifecycle
  */
 
-import { Sparkles } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
-import { useWorld } from 'koota/react';
-import { memo, useRef } from 'react';
-import type * as THREE from 'three';
-import { breathPhase } from '../breath/traits';
+import { memo } from 'react';
 
 export interface AtmosphericParticlesProps {
   /**
@@ -59,54 +57,29 @@ export interface AtmosphericParticlesProps {
    * @default '#8c7b6c'
    */
   color?: string;
+
+  /**
+   * Enable/disable the component.
+   *
+   * @default true
+   */
+  enabled?: boolean;
 }
 
 /**
  * AtmosphericParticles - Floating ambient particles
  *
- * Creates an ethereal swarm of floating particles distributed around
- * the central globe. Uses drei Sparkles for automatic lifecycle management
- * with breathing-synchronized opacity modulation.
+ * NOTE: Temporarily returns null - drei Sparkles uses ShaderMaterial
+ * which is incompatible with WebGPU's NodeMaterial system.
  *
- * Wrapped with React.memo to prevent re-renders from parent component updates.
+ * TODO: Implement TSL-based particle system using PointsNodeMaterial
  */
-export const AtmosphericParticles = memo(function AtmosphericParticlesComponent({
-  count = 100,
-  size = 0.08,
-  baseOpacity = 0.1,
-  breathingOpacity = 0.15,
-  color = '#8c7b6c',
-}: AtmosphericParticlesProps = {}) {
-  const sparklesRef = useRef<THREE.Points>(null);
-  // Cache material reference to avoid repeated type casting in animation loop
-  const materialRef = useRef<THREE.PointsMaterial | null>(null);
-  const world = useWorld();
-
-  // Update opacity based on breathing phase
-  useFrame(() => {
-    if (!sparklesRef.current) return;
-
-    // Cache material on first frame to avoid repeated type assertion
-    if (!materialRef.current) {
-      materialRef.current = sparklesRef.current.material as THREE.PointsMaterial;
-    }
-
-    const breathEntity = world.queryFirst(breathPhase);
-    if (breathEntity && materialRef.current) {
-      const phase = breathEntity.get(breathPhase)?.value ?? 0;
-      materialRef.current.opacity = baseOpacity + phase * breathingOpacity;
-    }
-  });
-
-  return (
-    <Sparkles
-      ref={sparklesRef}
-      count={count}
-      scale={12}
-      size={size}
-      speed={0.5}
-      opacity={baseOpacity}
-      color={color}
-    />
-  );
+export const AtmosphericParticles = memo(function AtmosphericParticlesComponent(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _props: AtmosphericParticlesProps = {},
+) {
+  // TODO: Implement TSL-based particles for WebGPU compatibility
+  // drei Sparkles internally uses ShaderMaterial which throws:
+  // "NodeMaterial: Material 'ShaderMaterial' is not compatible"
+  return null;
 });

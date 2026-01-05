@@ -201,3 +201,135 @@ describe('Codebase glslFn Usage', () => {
     expect(violations).toEqual([]);
   });
 });
+
+/**
+ * Static analysis tests for ShaderMaterial usage
+ *
+ * THREE.ShaderMaterial is incompatible with WebGPU's NodeMaterial system.
+ * All custom shaders must use TSL NodeMaterials (MeshBasicNodeMaterial, etc.)
+ */
+describe('ShaderMaterial Incompatibility', () => {
+  it('should not use ShaderMaterial in scene components', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    // Check key scene components for ShaderMaterial usage
+    const sceneFiles = [
+      'src/entities/environment/BackgroundGradient.tsx',
+      'src/entities/environment/SubtleLightRays.tsx',
+      'src/entities/environment/AmbientDust.tsx',
+      'src/entities/earthGlobe/index.tsx',
+      'src/entities/earthGlobe/GeoMarkers.tsx',
+      'src/entities/particle/FrostedGlassMaterial.tsx',
+      'src/entities/particle/ParticleSwarm.tsx',
+    ];
+
+    const violations: string[] = [];
+
+    for (const file of sceneFiles) {
+      const filePath = path.join(process.cwd(), file);
+      try {
+        const source = await fs.readFile(filePath, 'utf-8');
+        // Check for ShaderMaterial import
+        if (/new\s+(THREE\.)?ShaderMaterial\s*\(/.test(source)) {
+          violations.push(`${file} (uses ShaderMaterial)`);
+        }
+      } catch {
+        // File doesn't exist, skip
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+});
+
+/**
+ * Helper to check if a line is a comment
+ */
+function isCommentLine(line: string): boolean {
+  const trimmed = line.trim();
+  return (
+    trimmed.startsWith('//') ||
+    trimmed.startsWith('*') ||
+    trimmed.startsWith('/*') ||
+    trimmed.startsWith('{/*')
+  );
+}
+
+/**
+ * Check if a source file uses incompatible drei components
+ * Returns array of violation messages
+ */
+async function checkDreiViolations(
+  filePath: string,
+  file: string,
+  components: string[],
+): Promise<string[]> {
+  const fs = await import('node:fs/promises');
+  const violations: string[] = [];
+
+  try {
+    const source = await fs.readFile(filePath, 'utf-8');
+    const lines = source.split('\n');
+
+    for (const component of components) {
+      // Check for uncommented import
+      const importRegex = new RegExp(
+        `import\\s*\\{[^}]*\\b${component}\\b[^}]*\\}\\s*from\\s*['"]@react-three/drei['"]`,
+      );
+      for (const line of lines) {
+        if (!isCommentLine(line) && importRegex.test(line)) {
+          violations.push(`${file} imports: ${component}`);
+          break;
+        }
+      }
+
+      // Check for uncommented JSX usage
+      const jsxRegex = new RegExp(`<${component}[\\s/>]`);
+      for (const line of lines) {
+        if (!isCommentLine(line) && jsxRegex.test(line)) {
+          violations.push(`${file} uses JSX: ${component}`);
+          break;
+        }
+      }
+    }
+  } catch {
+    // File doesn't exist, skip
+  }
+
+  return violations;
+}
+
+/**
+ * Tests for drei component compatibility with WebGPU
+ *
+ * These drei components use internal ShaderMaterial and are NOT compatible
+ * with WebGPU's NodeMaterial system:
+ * - Stars
+ * - Sparkles
+ * - Clouds/Cloud
+ *
+ * They must be disabled or replaced with TSL-based alternatives.
+ */
+describe('drei Component WebGPU Compatibility', () => {
+  it('should not import incompatible drei components in rendered scene files', async () => {
+    const path = await import('node:path');
+
+    const sceneFiles = [
+      'src/entities/environment/index.tsx',
+      'src/entities/earthGlobe/index.tsx',
+      'src/entities/particle/AtmosphericParticles.tsx',
+    ];
+
+    const incompatibleComponents = ['Stars', 'Sparkles', 'Cloud', 'Clouds'];
+    const allViolations: string[] = [];
+
+    for (const file of sceneFiles) {
+      const filePath = path.join(process.cwd(), file);
+      const violations = await checkDreiViolations(filePath, file, incompatibleComponents);
+      allViolations.push(...violations);
+    }
+
+    expect(allViolations).toEqual([]);
+  });
+});

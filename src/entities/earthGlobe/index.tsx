@@ -18,7 +18,8 @@
  * Uses drei's <Sphere>, <Ring>, and <Sparkles> components.
  */
 
-import { Ring, Sparkles, Sphere, useTexture } from '@react-three/drei';
+// NOTE: Sparkles from drei uses ShaderMaterial - incompatible with WebGPU
+import { Ring, Sphere, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
@@ -255,9 +256,11 @@ export function EarthGlobe({
   resolution = 64,
   enableRotation = true,
   showAtmosphere = true,
-  showSparkles = true,
+  // NOTE: Sparkle props temporarily unused - drei Sparkles incompatible with WebGPU
+  // TODO: Re-enable when TSL-based sparkle effect is implemented
+  _showSparkles = true,
   showRing = true,
-  sparkleCount = 60,
+  _sparkleCount = 60,
   showGlow = true,
   showMist = true,
 }: Partial<EarthGlobeProps> = {}) {
@@ -322,6 +325,7 @@ export function EarthGlobe({
   /**
    * Update globe scale, rotation, and shader uniforms
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Animation loop requires multiple uniform updates, scale calculations, and rotation - refactoring would reduce readability
   useFrame((state) => {
     if (!groupRef.current) return;
 
@@ -402,8 +406,9 @@ export function EarthGlobe({
       {/* Mist layer - animated noise haze */}
       {showMist && <Sphere args={[radius * 1.15, 32, 32]} material={mistMaterial} />}
 
-      {/* Soft sparkle aura - floating dust particles (more visible) */}
-      {showSparkles && (
+      {/* NOTE: Sparkles disabled - drei Sparkles uses ShaderMaterial incompatible with WebGPU */}
+      {/* TODO: Create TSL-based sparkle effect for WebGPU compatibility */}
+      {/* {showSparkles && (
         <Sparkles
           count={sparkleCount}
           size={4}
@@ -412,7 +417,7 @@ export function EarthGlobe({
           opacity={0.45}
           color="#f8d0a8"
         />
-      )}
+      )} */}
 
       {/* Subtle equator ring - rose gold accent */}
       {showRing && (
