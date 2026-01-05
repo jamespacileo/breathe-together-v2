@@ -76,7 +76,7 @@ export const AtmosphericParticles = memo(function AtmosphericParticlesComponent(
   size = 0.08,
   baseOpacity = 0.15,
   breathingOpacity = 0.2,
-  color = '#8c7b6c',
+  color = '#5fb8ce',
 }: AtmosphericParticlesProps = {}) {
   const sparklesRef = useRef<THREE.Points>(null);
   // Cache material reference to avoid repeated type casting in animation loop

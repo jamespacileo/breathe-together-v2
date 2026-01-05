@@ -76,13 +76,13 @@ function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
 // - Middle layer (radius 16-19): 5 clouds, midground depth
 // - Outer layer (radius 23-28): 4 clouds, near viewport boundaries
 export const CLOUD_CONFIGS: CloudConfig[] = [
-  // === INNER LAYER (radius 10-12) - 6 clouds, moderate proximity ===
+  // === INNER LAYER (radius 10-12) - 6 clouds, lighter teals (closest to viewer) ===
   {
-    id: 'inner-pink-1',
+    id: 'inner-teal-1',
     sphereIndex: 0,
     layerTotal: 6,
     radius: 10,
-    color: '#f8b4c4', // Soft pink
+    color: '#7acade', // Light teal
     opacity: 0.35,
     orbitSpeed: 0.012,
     segments: 22,
@@ -95,11 +95,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.3,
   },
   {
-    id: 'inner-lavender-2',
+    id: 'inner-teal-2',
     sphereIndex: 1,
     layerTotal: 6,
     radius: 10.8,
-    color: '#d4c4e8', // Soft lavender
+    color: '#5fb8ce', // Medium light teal
     opacity: 0.32,
     orbitSpeed: 0.01,
     segments: 20,
@@ -112,11 +112,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.25,
   },
   {
-    id: 'inner-blue-3',
+    id: 'inner-teal-3',
     sphereIndex: 2,
     layerTotal: 6,
     radius: 11.5,
-    color: '#a8d4e8', // Sky blue
+    color: '#6fc3d9', // Bright teal
     opacity: 0.3,
     orbitSpeed: 0.014,
     segments: 18,
@@ -129,11 +129,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.2,
   },
   {
-    id: 'inner-coral-4',
+    id: 'inner-teal-4',
     sphereIndex: 3,
     layerTotal: 6,
     radius: 10.3,
-    color: '#f8c8b8', // Soft coral
+    color: '#5fb8ce', // Light teal
     opacity: 0.28,
     orbitSpeed: 0.011,
     segments: 16,
@@ -146,11 +146,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.22,
   },
   {
-    id: 'inner-cream-5',
+    id: 'inner-teal-5',
     sphereIndex: 4,
     layerTotal: 6,
     radius: 11.2,
-    color: '#f8f0e8', // Warm cream
+    color: '#7acade', // Pale teal
     opacity: 0.25,
     orbitSpeed: 0.009,
     segments: 15,
@@ -163,11 +163,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.18,
   },
   {
-    id: 'inner-mint-6',
+    id: 'inner-teal-6',
     sphereIndex: 5,
     layerTotal: 6,
     radius: 10.5,
-    color: '#c8e8dc', // Soft mint
+    color: '#6fc3d9', // Light teal
     opacity: 0.3,
     orbitSpeed: 0.013,
     segments: 17,
@@ -180,13 +180,13 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.24,
   },
 
-  // === MIDDLE LAYER (radius 16-19) - 5 clouds, larger for midground ===
+  // === MIDDLE LAYER (radius 16-19) - 5 clouds, mid teals (midground depth) ===
   {
-    id: 'mid-peach-1',
+    id: 'mid-teal-1',
     sphereIndex: 0,
     layerTotal: 5,
     radius: 16,
-    color: '#f8d4b8', // Warm peach
+    color: '#4da6bd', // Mid teal
     opacity: 0.38,
     orbitSpeed: 0.008,
     segments: 24,
@@ -199,11 +199,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.35,
   },
   {
-    id: 'mid-mint-2',
+    id: 'mid-teal-2',
     sphereIndex: 1,
     layerTotal: 5,
     radius: 17,
-    color: '#b8e8d4', // Soft mint
+    color: '#3a96ae', // Teal cyan
     opacity: 0.35,
     orbitSpeed: 0.007,
     segments: 22,
@@ -216,11 +216,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.3,
   },
   {
-    id: 'mid-rose-3',
+    id: 'mid-teal-3',
     sphereIndex: 2,
     layerTotal: 5,
     radius: 18,
-    color: '#e8c4d4', // Dusty rose
+    color: '#2d7a8f', // Deep teal
     opacity: 0.32,
     orbitSpeed: 0.009,
     segments: 20,
@@ -233,11 +233,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.28,
   },
   {
-    id: 'mid-sage-4',
+    id: 'mid-teal-4',
     sphereIndex: 3,
     layerTotal: 5,
     radius: 16.5,
-    color: '#c8dcc8', // Soft sage
+    color: '#4da6bd', // Mid teal
     opacity: 0.3,
     orbitSpeed: 0.006,
     segments: 18,
@@ -250,11 +250,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.32,
   },
   {
-    id: 'mid-blush-5',
+    id: 'mid-teal-5',
     sphereIndex: 4,
     layerTotal: 5,
     radius: 17.5,
-    color: '#f0d4d4', // Blush pink
+    color: '#3a96ae', // Teal cyan
     opacity: 0.28,
     orbitSpeed: 0.0075,
     segments: 19,
@@ -267,13 +267,13 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.26,
   },
 
-  // === OUTER LAYER (radius 23-28) - 4 clouds, at viewport boundaries ===
+  // === OUTER LAYER (radius 23-28) - 4 clouds, dark navies (background) ===
   {
-    id: 'outer-mist-1',
+    id: 'outer-navy-1',
     sphereIndex: 0,
     layerTotal: 4,
     radius: 23,
-    color: '#e8e4e0', // Warm mist
+    color: '#152b4d', // Dark navy
     opacity: 0.35,
     orbitSpeed: 0.005,
     segments: 28,
@@ -286,11 +286,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.4,
   },
   {
-    id: 'outer-pink-2',
+    id: 'outer-navy-2',
     sphereIndex: 1,
     layerTotal: 4,
     radius: 25,
-    color: '#f8b4c4', // Soft pink
+    color: '#1a3352', // Deep navy
     opacity: 0.3,
     orbitSpeed: 0.004,
     segments: 26,
@@ -303,11 +303,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.35,
   },
   {
-    id: 'outer-lavender-3',
+    id: 'outer-navy-3',
     sphereIndex: 2,
     layerTotal: 4,
     radius: 27,
-    color: '#d4c4e8', // Soft lavender
+    color: '#0d2d45', // Dark teal navy
     opacity: 0.28,
     orbitSpeed: 0.0045,
     segments: 25,
@@ -320,11 +320,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.38,
   },
   {
-    id: 'outer-peach-4',
+    id: 'outer-navy-4',
     sphereIndex: 3,
     layerTotal: 4,
     radius: 24,
-    color: '#f8d4b8', // Warm peach
+    color: '#152b4d', // Dark navy
     opacity: 0.3,
     orbitSpeed: 0.0055,
     segments: 24,

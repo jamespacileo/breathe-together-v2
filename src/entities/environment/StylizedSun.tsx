@@ -223,12 +223,12 @@ export const StylizedSun = memo(function StylizedSun({
   enabled = true,
   radius = 28,
   size = 12,
-  coreColor = '#fffcf0',
-  coronaColor = '#ffd9a8',
-  glowColor = '#ffb080',
+  coreColor = '#ffcd4a',
+  coronaColor = '#ffe680',
+  glowColor = '#ffd966',
   breathSync = true,
   rayCount = 16,
-  intensity = 0.7,
+  intensity = 0.5,
   showGizmo = false,
 }: StylizedSunProps) {
   const groupRef = useRef<THREE.Group>(null);

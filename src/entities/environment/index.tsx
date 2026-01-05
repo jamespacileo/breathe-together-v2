@@ -187,10 +187,10 @@ export function Environment({
       // Normal mode: let BackgroundGradient handle it
       scene.background = null;
 
-      // Subtle fog for atmospheric perspective and depth
-      // Warm beige color matching background gradient
+      // Night sky fog for atmospheric depth
+      // Deep navy blue matching night sky background
       // Near: 20 (clouds start to fade), Far: 35 (fully faded at outer boundaries)
-      scene.fog = new THREE.Fog('#e8dcd0', 20, 35);
+      scene.fog = new THREE.Fog('#1a3352', 20, 35);
     }
 
     return () => {

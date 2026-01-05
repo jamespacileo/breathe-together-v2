@@ -70,8 +70,8 @@ const dustFragmentShader = `
     // Add sparkle
     alpha += vSparkle * 0.5;
 
-    // Warm dust color (slightly golden)
-    vec3 color = vec3(1.0, 0.98, 0.94);
+    // Golden moonlit dust
+    vec3 color = vec3(0.98, 0.90, 0.60);
 
     // Sparkle makes it whiter
     color = mix(color, vec3(1.0), vSparkle);

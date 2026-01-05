@@ -138,16 +138,18 @@ export const RENDER_LAYERS = {
  * is intentional. This prevents accidental black/white screen issues.
  */
 export const VISUAL_COLORS = {
-  /** Background gradient top color - warm gray (#d1c7b8) */
-  BACKGROUND_TOP: '#d1c7b8',
-  /** Background gradient mid color - soft taupe (#e0d6c7) */
-  BACKGROUND_MID: '#e0d6c7',
+  /** Background gradient top color - deep navy night sky (#152b4d) */
+  BACKGROUND_TOP: '#152b4d',
+  /** Background gradient mid color - teal cyan (#3a96ae) */
+  BACKGROUND_MID: '#3a96ae',
   /** Globe earthy brown tone (used for fallback/references) */
   GLOBE_BROWN: '#8b6f47',
-  /** Cloud base colors - soft pink */
-  CLOUD_PINK: '#f8b4c4',
-  /** Cloud base colors - soft lavender */
-  CLOUD_LAVENDER: '#d4c4e8',
+  /** Cloud base colors - light teal */
+  CLOUD_TEAL_LIGHT: '#7acade',
+  /** Cloud base colors - mid teal */
+  CLOUD_TEAL_MID: '#3a96ae',
+  /** Cloud base colors - dark navy */
+  CLOUD_NAVY: '#152b4d',
 } as const;
 
 /**
