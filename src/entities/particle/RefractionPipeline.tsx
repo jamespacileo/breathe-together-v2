@@ -599,20 +599,20 @@ export function RefractionPipeline({
       mesh.material = refractionMaterial;
     }
 
-    // Reset camera layers to render all for composite pass (except gizmos)
+    // Reset layerCamera for composite pass - renders all except gizmos
+    // IMPORTANT: We use layerCamera instead of the main camera to avoid
+    // interfering with r3f's camera state, which could cause rendering issues
     layerCamera.layers.enableAll();
-    // Exclude gizmos from DoF - they render after post-processing
-    camera.layers.enableAll();
-    camera.layers.disable(RENDER_LAYERS.GIZMOS);
+    layerCamera.layers.disable(RENDER_LAYERS.GIZMOS);
 
     if (enableDepthOfField) {
       // Pass 3: Render composite to compositeFBO (with depth for DoF)
-      // Gizmos are excluded via camera.layers.disable(GIZMOS)
+      // Uses layerCamera which excludes GIZMOS layer
       gl.setRenderTarget(compositeFBO);
       gl.clear();
       gl.render(bgScene, orthoCamera);
       gl.clearDepth();
-      gl.render(scene, camera);
+      gl.render(scene, layerCamera);
 
       // Restore original materials
       for (const mesh of meshes) {
@@ -630,18 +630,18 @@ export function RefractionPipeline({
       gl.render(dofScene, orthoCamera);
 
       // Pass 5: Render gizmos directly to screen (no DoF blur)
-      // Re-enable gizmos layer and render only gizmos
-      camera.layers.set(RENDER_LAYERS.GIZMOS);
-      gl.render(scene, camera);
-      // Restore camera to render all layers for next frame
-      camera.layers.enableAll();
+      // Configure layerCamera to render ONLY gizmos layer
+      layerCamera.layers.set(RENDER_LAYERS.GIZMOS);
+      gl.render(scene, layerCamera);
+      // Restore layerCamera to all layers for next frame
+      layerCamera.layers.enableAll();
     } else {
       // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
       gl.setRenderTarget(null);
       gl.clear();
       gl.render(bgScene, orthoCamera);
       gl.clearDepth();
-      gl.render(scene, camera);
+      gl.render(scene, layerCamera);
 
       // Restore original materials
       for (const mesh of meshes) {
@@ -652,10 +652,10 @@ export function RefractionPipeline({
       }
 
       // Render gizmos directly to screen (after main scene, no blur)
-      camera.layers.set(RENDER_LAYERS.GIZMOS);
-      gl.render(scene, camera);
-      // Restore camera to render all layers for next frame
-      camera.layers.enableAll();
+      layerCamera.layers.set(RENDER_LAYERS.GIZMOS);
+      gl.render(scene, layerCamera);
+      // Restore layerCamera to all layers for next frame
+      layerCamera.layers.enableAll();
     }
   }, 1); // Priority 1 to run before default render
 
