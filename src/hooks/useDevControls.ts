@@ -141,6 +141,22 @@ export const TUNING_DEFAULTS = {
   dragTimeConstant: 0.325,
   dragVelocityMultiplier: 0.15,
   dragMinVelocity: 50,
+
+  // Scene Depth Effects (dev-only)
+  enableSceneDepth: true,
+  sceneDepthOpacity: 1.0,
+  sceneDepthDensity: 1.0,
+  enableDepthAtmosphere: true,
+  enableDepthStars: true,
+  enableDepthSilhouettes: true,
+  enableDepthRings: true,
+  enableDepthNebula: true,
+  enableDepthLightRays: true,
+  enableDepthGroundPlane: true,
+  enableDepthParallax: true,
+  enableDepthFog: false, // Disabled by default - can wash out gradient
+  enableDepthVignette: true,
+  depthVignetteIntensity: 0.35,
 } as const;
 
 /**
@@ -284,6 +300,22 @@ export interface DevControlsState {
   dragTimeConstant: number;
   dragVelocityMultiplier: number;
   dragMinVelocity: number;
+
+  // Scene Depth Effects
+  enableSceneDepth: boolean;
+  sceneDepthOpacity: number;
+  sceneDepthDensity: number;
+  enableDepthAtmosphere: boolean;
+  enableDepthStars: boolean;
+  enableDepthSilhouettes: boolean;
+  enableDepthRings: boolean;
+  enableDepthNebula: boolean;
+  enableDepthLightRays: boolean;
+  enableDepthGroundPlane: boolean;
+  enableDepthParallax: boolean;
+  enableDepthFog: boolean;
+  enableDepthVignette: boolean;
+  depthVignetteIntensity: number;
 }
 
 /** Get default values for all dev controls */
@@ -367,6 +399,20 @@ function getDefaultDevControls(): DevControlsState {
     dragTimeConstant: TUNING_DEFAULTS.dragTimeConstant,
     dragVelocityMultiplier: TUNING_DEFAULTS.dragVelocityMultiplier,
     dragMinVelocity: TUNING_DEFAULTS.dragMinVelocity,
+    enableSceneDepth: TUNING_DEFAULTS.enableSceneDepth,
+    sceneDepthOpacity: TUNING_DEFAULTS.sceneDepthOpacity,
+    sceneDepthDensity: TUNING_DEFAULTS.sceneDepthDensity,
+    enableDepthAtmosphere: TUNING_DEFAULTS.enableDepthAtmosphere,
+    enableDepthStars: TUNING_DEFAULTS.enableDepthStars,
+    enableDepthSilhouettes: TUNING_DEFAULTS.enableDepthSilhouettes,
+    enableDepthRings: TUNING_DEFAULTS.enableDepthRings,
+    enableDepthNebula: TUNING_DEFAULTS.enableDepthNebula,
+    enableDepthLightRays: TUNING_DEFAULTS.enableDepthLightRays,
+    enableDepthGroundPlane: TUNING_DEFAULTS.enableDepthGroundPlane,
+    enableDepthParallax: TUNING_DEFAULTS.enableDepthParallax,
+    enableDepthFog: TUNING_DEFAULTS.enableDepthFog,
+    enableDepthVignette: TUNING_DEFAULTS.enableDepthVignette,
+    depthVignetteIntensity: TUNING_DEFAULTS.depthVignetteIntensity,
   };
 }
 
@@ -1182,6 +1228,113 @@ export function useDevControls(): DevControlsState {
         ),
       },
       { collapsed: true, order: 5 },
+    ),
+
+    // ==========================================
+    // 8. SCENE DEPTH (depth enhancement effects)
+    // ==========================================
+    'Scene Depth': folder(
+      {
+        enableSceneDepth: {
+          value: TUNING_DEFAULTS.enableSceneDepth,
+          label: 'Enable All',
+          hint: 'Master toggle for all scene depth effects.\n\n**Performance:** Disable on low-end devices if FPS drops',
+        },
+        sceneDepthOpacity: {
+          value: TUNING_DEFAULTS.sceneDepthOpacity,
+          min: 0,
+          max: 2,
+          step: 0.1,
+          label: 'Global Opacity',
+          hint: 'Master opacity for all depth effects.\n\n**Adjust for:** Subtle (0.5) → Normal (1.0) → Bold (1.5+)',
+          render: (get) => get('Scene Depth.enableSceneDepth'),
+        },
+        sceneDepthDensity: {
+          value: TUNING_DEFAULTS.sceneDepthDensity,
+          min: 0.25,
+          max: 2,
+          step: 0.25,
+          label: 'Particle Density',
+          hint: 'Multiplier for particle counts in depth layers.\n\n**Performance:** Lower on mobile (0.5), higher on desktop (1.5+)',
+          render: (get) => get('Scene Depth.enableSceneDepth'),
+        },
+
+        // Individual effect toggles
+        Effects: folder(
+          {
+            enableDepthAtmosphere: {
+              value: TUNING_DEFAULTS.enableDepthAtmosphere,
+              label: 'Atmospheric Layers',
+              hint: 'Multi-layer floating particles at different Z-depths.\n\n**Creates:** Sense of vast space through layered dust motes',
+            },
+            enableDepthStars: {
+              value: TUNING_DEFAULTS.enableDepthStars,
+              label: 'Depth Star Field',
+              hint: 'Multi-layer star field with depth stratification.\n\n**Creates:** Near stars (bright), mid stars, far stars (faint)',
+            },
+            enableDepthSilhouettes: {
+              value: TUNING_DEFAULTS.enableDepthSilhouettes,
+              label: 'Distant Silhouettes',
+              hint: 'Monument Valley style distant mountain silhouettes.\n\n**Creates:** Layered geometric shapes suggesting distant terrain',
+            },
+            enableDepthRings: {
+              value: TUNING_DEFAULTS.enableDepthRings,
+              label: 'Orbital Rings',
+              hint: 'Dotted/dashed rings at multiple depths.\n\n**Creates:** Spatial reference points and orbital feel',
+            },
+            enableDepthNebula: {
+              value: TUNING_DEFAULTS.enableDepthNebula,
+              label: 'Nebula Layers',
+              hint: 'Shader-based nebula clouds at different depths.\n\n**Creates:** Painterly, galaxy-like backdrop',
+            },
+            enableDepthLightRays: {
+              value: TUNING_DEFAULTS.enableDepthLightRays,
+              label: 'Depth Light Rays',
+              hint: 'God rays emanating from distant light source.\n\n**Creates:** Volumetric light and depth cues',
+            },
+            enableDepthGroundPlane: {
+              value: TUNING_DEFAULTS.enableDepthGroundPlane,
+              label: 'Ground Plane',
+              hint: 'Very subtle ground reference with radial fade.\n\n**Creates:** Spatial anchor without visual distraction',
+            },
+            enableDepthParallax: {
+              value: TUNING_DEFAULTS.enableDepthParallax,
+              label: 'Parallax Background',
+              hint: 'Multi-layer background that moves with camera.\n\n**Creates:** Depth through differential motion',
+            },
+            enableDepthFog: {
+              value: TUNING_DEFAULTS.enableDepthFog,
+              label: 'Depth Fog',
+              hint: 'Atmospheric fog with warm-to-cool color shift.\n\n**Warning:** May wash out gradient background',
+            },
+            enableDepthVignette: {
+              value: TUNING_DEFAULTS.enableDepthVignette,
+              label: 'Vignette',
+              hint: 'Screen-space vignette for focus and depth.\n\n**Creates:** Darkened edges drawing attention to center',
+            },
+          },
+          { collapsed: false },
+        ),
+
+        // Vignette-specific controls
+        Vignette: folder(
+          {
+            depthVignetteIntensity: {
+              value: TUNING_DEFAULTS.depthVignetteIntensity,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Intensity',
+              hint: 'How dark the vignette edges become.\n\n**Subtle:** 0.2 | **Normal:** 0.35 | **Strong:** 0.5+',
+              render: (get) =>
+                get('Scene Depth.enableSceneDepth') &&
+                get('Scene Depth.Effects.enableDepthVignette'),
+            },
+          },
+          { collapsed: true },
+        ),
+      },
+      { collapsed: false, order: 6 },
     ),
   }));
 

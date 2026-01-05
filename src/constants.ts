@@ -172,3 +172,93 @@ export const VISUAL_OPACITY = {
   /** Globe main material (fully opaque) */
   GLOBE: 1.0,
 } as const;
+
+/**
+ * Scene Depth Configuration
+ *
+ * Defines Z-depth layers and atmospheric perspective settings
+ * to create a sense of vast 3D space in the scene.
+ *
+ * Camera is at Z=10, looking toward Z=0 (globe center).
+ * Negative Z values are "behind" the globe from camera's perspective.
+ */
+export const SCENE_DEPTH = {
+  /** Z-depth layers for scene elements */
+  LAYERS: {
+    /** Foreground particles - closest to camera */
+    FOREGROUND: { z: 3, opacity: 1.0, scale: 1.0 },
+    /** Main action zone - globe and primary particles */
+    MAIN: { z: 0, opacity: 1.0, scale: 1.0 },
+    /** Near background - subtle atmospheric elements */
+    NEAR_BG: { z: -15, opacity: 0.8, scale: 0.9 },
+    /** Mid background - silhouettes and nebula */
+    MID_BG: { z: -40, opacity: 0.5, scale: 0.7 },
+    /** Far background - distant stars and rings */
+    FAR_BG: { z: -80, opacity: 0.3, scale: 0.5 },
+    /** Deep background - very distant elements */
+    DEEP_BG: { z: -120, opacity: 0.15, scale: 0.3 },
+  },
+
+  /** Fog configuration for atmospheric perspective */
+  FOG: {
+    /** Warm cream color (matches background) */
+    COLOR_NEAR: '#f5f0e8',
+    /** Cooler blue-gray for distant objects */
+    COLOR_FAR: '#d4dce8',
+    /** Distance where fog starts (from camera) */
+    NEAR: 8,
+    /** Distance where fog is fully dense */
+    FAR: 150,
+    /** Fog density factor (0-1) */
+    DENSITY: 0.015,
+  },
+
+  /** Atmospheric perspective color shift */
+  ATMOSPHERE: {
+    /** Saturation multiplier for distant objects (0-1) */
+    SATURATION_FALLOFF: 0.3,
+    /** Lightness increase for distant objects */
+    LIGHTNESS_BOOST: 0.15,
+    /** Hue shift toward blue for distant objects (degrees) */
+    HUE_SHIFT: 20,
+  },
+
+  /** Particle Z-distribution settings */
+  PARTICLE_DEPTH: {
+    /** Front particles Z offset (toward camera) */
+    FRONT_OFFSET: 2.5,
+    /** Back particles Z offset (away from camera) */
+    BACK_OFFSET: -3.5,
+    /** Percentage of particles pushed to front layer */
+    FRONT_RATIO: 0.15,
+    /** Percentage of particles pushed to back layer */
+    BACK_RATIO: 0.15,
+  },
+
+  /** Distant silhouette configuration */
+  SILHOUETTES: {
+    /** Number of silhouette layers */
+    LAYER_COUNT: 3,
+    /** Base opacity for nearest silhouette layer */
+    BASE_OPACITY: 0.08,
+    /** Colors for silhouette layers (near to far) */
+    COLORS: ['#c4b8a8', '#b8c4c8', '#a8b8c4'],
+  },
+
+  /** Star field depth layers */
+  STARS: {
+    NEAR: { radius: 40, count: 200, size: 3, opacity: 0.6 },
+    MID: { radius: 80, count: 400, size: 2, opacity: 0.4 },
+    FAR: { radius: 150, count: 800, size: 1, opacity: 0.2 },
+  },
+
+  /** Orbital ring configuration */
+  RINGS: {
+    /** Z-positions for orbital rings */
+    POSITIONS: [-20, -50, -90],
+    /** Base opacity for rings */
+    BASE_OPACITY: 0.06,
+    /** Ring radii */
+    RADII: [25, 45, 70],
+  },
+} as const;

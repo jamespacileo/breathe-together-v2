@@ -15,6 +15,7 @@ import { EarthGlobeTransmission } from '../entities/earthGlobe/EarthGlobeTransmi
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
+import { SceneDepthEffects } from '../entities/environment/SceneDepthEffects';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -136,6 +137,26 @@ export function BreathingLevel({
                 hdriIntensity={devControls.hdriIntensity}
                 hdriBlur={devControls.hdriBlur}
                 useHDRIBackground={devControls.useHDRIBackground}
+              />
+            )}
+
+            {/* Scene Depth Effects - creates sense of vast 3D space */}
+            {showEnvironment && !devControls.stageMode && (
+              <SceneDepthEffects
+                enabled={devControls.enableSceneDepth}
+                globalOpacity={devControls.sceneDepthOpacity}
+                globalDensity={devControls.sceneDepthDensity}
+                enableAtmosphericLayers={devControls.enableDepthAtmosphere}
+                enableStarField={devControls.enableDepthStars}
+                enableSilhouettes={devControls.enableDepthSilhouettes}
+                enableRings={devControls.enableDepthRings}
+                enableNebula={devControls.enableDepthNebula}
+                enableLightRays={devControls.enableDepthLightRays}
+                enableGroundPlane={devControls.enableDepthGroundPlane}
+                enableParallax={devControls.enableDepthParallax}
+                enableFog={devControls.enableDepthFog}
+                enableVignette={devControls.enableDepthVignette}
+                vignetteIntensity={devControls.depthVignetteIntensity}
               />
             )}
 
