@@ -161,7 +161,7 @@ export function BreathingLevel({
                 users={deferredUsers}
                 currentUserId={sessionId}
                 baseRadius={orbitRadius}
-                maxShardSize={shardSize}
+                baseShardSize={shardSize}
                 highlightCurrentUser={devControls.highlightCurrentUser}
                 highlightStyle={devControls.highlightStyle}
               />

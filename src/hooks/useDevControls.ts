@@ -26,7 +26,7 @@ const STORAGE_KEY = 'breathe-together-dev-presets';
 export const TUNING_DEFAULTS = {
   // Particles (user-facing)
   harmony: 48,
-  shardSize: 0.5,
+  shardSize: 12.5, // Was 2.5 (multiplied by 5 to bake in baseShardSize scaling)
   orbitRadius: 4.5,
 
   // Glass effect (dev-only)
@@ -149,19 +149,19 @@ export const TUNING_DEFAULTS = {
 export const PRESETS = {
   calm: {
     harmony: 24,
-    shardSize: 0.35,
+    shardSize: 9.0, // Was 1.8 (× 5)
     orbitRadius: 5.5,
     atmosphereDensity: 50,
   },
   centered: {
     harmony: 48,
-    shardSize: 0.5,
+    shardSize: 12.5, // Was 2.5 (× 5)
     orbitRadius: 4.5,
     atmosphereDensity: 100,
   },
   immersive: {
     harmony: 96,
-    shardSize: 0.65,
+    shardSize: 16.0, // Was 3.2 (× 5)
     orbitRadius: 3.5,
     atmosphereDensity: 200,
   },
