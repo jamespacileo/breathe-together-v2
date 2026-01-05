@@ -363,12 +363,9 @@ export function RefractionPipeline({
     return { envFBO, backfaceFBO, compositeFBO };
   }, [size.width, size.height, backfaceWidth, backfaceHeight]);
 
-  // Create a camera for layer-based selective rendering
-  // Clone the main camera and modify its layers for each pass
-  const layerCamera = useMemo(() => {
-    const cam = new THREE.PerspectiveCamera();
-    return cam;
-  }, []);
+  // Store original camera layers mask for restoration after render passes
+  // We'll modify the main camera's layers directly (more reliable than a separate camera)
+  const originalLayersMaskRef = useRef<number>(0);
 
   // Create background scene with ortho camera
   const { bgScene, orthoCamera, bgMesh } = useMemo(() => {
@@ -538,19 +535,13 @@ export function RefractionPipeline({
   useFrame(() => {
     frameCountRef.current++;
 
-    // Sync layer camera with main camera each frame
-    // IMPORTANT: Since we run at priority 1 (before r3f's default render), the main
-    // camera's matrices may not be updated yet. We must manually update them first.
+    // Save original camera layers for restoration at end of frame
+    // We modify the main camera's layers directly (more reliable than a separate camera)
+    originalLayersMaskRef.current = perspCamera.layers.mask;
+
+    // Ensure camera matrices are up to date (we run at priority 1 before r3f's update)
     perspCamera.updateMatrixWorld(true);
     perspCamera.updateProjectionMatrix();
-
-    // copy() copies properties (position, rotation, fov, etc.) but NOT the matrices
-    // We must explicitly copy the matrices that THREE.js uses for actual rendering
-    layerCamera.copy(perspCamera);
-    layerCamera.projectionMatrix.copy(perspCamera.projectionMatrix);
-    layerCamera.projectionMatrixInverse.copy(perspCamera.projectionMatrixInverse);
-    layerCamera.matrixWorld.copy(perspCamera.matrixWorld);
-    layerCamera.matrixWorldInverse.copy(perspCamera.matrixWorldInverse);
 
     // Throttled mesh detection: only check every N frames to reduce scene traversal overhead
     // Uses RENDER_LAYERS.PARTICLES instead of userData.useRefraction
@@ -605,10 +596,10 @@ export function RefractionPipeline({
     for (const mesh of meshes) {
       mesh.material = backfaceMaterial;
     }
-    layerCamera.layers.set(RENDER_LAYERS.PARTICLES);
+    perspCamera.layers.set(RENDER_LAYERS.PARTICLES);
     gl.setRenderTarget(backfaceFBO);
     gl.clear();
-    gl.render(scene, layerCamera);
+    gl.render(scene, perspCamera);
 
     // Update refraction material uniforms with FBO textures
     refractionMaterial.uniforms.envMap.value = envFBO.texture;
@@ -619,20 +610,18 @@ export function RefractionPipeline({
       mesh.material = refractionMaterial;
     }
 
-    // Reset layerCamera for composite pass - renders all except gizmos
-    // IMPORTANT: We use layerCamera instead of the main camera to avoid
-    // interfering with r3f's camera state, which could cause rendering issues
-    layerCamera.layers.enableAll();
-    layerCamera.layers.disable(RENDER_LAYERS.GIZMOS);
+    // Reset camera for composite pass - renders all except gizmos
+    perspCamera.layers.enableAll();
+    perspCamera.layers.disable(RENDER_LAYERS.GIZMOS);
 
     if (enableDepthOfField) {
       // Pass 3: Render composite to compositeFBO (with depth for DoF)
-      // Uses layerCamera which excludes GIZMOS layer
+      // Uses perspCamera which excludes GIZMOS layer
       gl.setRenderTarget(compositeFBO);
       gl.clear();
       gl.render(bgScene, orthoCamera);
       gl.clearDepth();
-      gl.render(scene, layerCamera);
+      gl.render(scene, perspCamera);
 
       // Restore original materials
       for (const mesh of meshes) {
@@ -652,18 +641,18 @@ export function RefractionPipeline({
       // Pass 5: Render gizmos directly to screen (no DoF blur)
       // Clear depth so gizmos aren't affected by DoF quad depth values
       gl.clearDepth();
-      // Configure layerCamera to render ONLY gizmos layer
-      layerCamera.layers.set(RENDER_LAYERS.GIZMOS);
-      gl.render(scene, layerCamera);
-      // Restore layerCamera to all layers for next frame
-      layerCamera.layers.enableAll();
+      // Configure camera to render ONLY gizmos layer
+      perspCamera.layers.set(RENDER_LAYERS.GIZMOS);
+      gl.render(scene, perspCamera);
+      // Restore camera layers to original state for r3f's render
+      perspCamera.layers.mask = originalLayersMaskRef.current;
     } else {
       // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
       gl.setRenderTarget(null);
       gl.clear();
       gl.render(bgScene, orthoCamera);
       gl.clearDepth();
-      gl.render(scene, layerCamera);
+      gl.render(scene, perspCamera);
 
       // Restore original materials
       for (const mesh of meshes) {
@@ -674,10 +663,10 @@ export function RefractionPipeline({
       }
 
       // Render gizmos directly to screen (after main scene, no blur)
-      layerCamera.layers.set(RENDER_LAYERS.GIZMOS);
-      gl.render(scene, layerCamera);
-      // Restore layerCamera to all layers for next frame
-      layerCamera.layers.enableAll();
+      perspCamera.layers.set(RENDER_LAYERS.GIZMOS);
+      gl.render(scene, perspCamera);
+      // Restore camera layers to original state for r3f's render
+      perspCamera.layers.mask = originalLayersMaskRef.current;
     }
   }, 1); // Priority 1 to run before default render
 
