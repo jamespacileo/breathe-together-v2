@@ -125,3 +125,50 @@ export const RENDER_LAYERS = {
   /** Atmospheric effects (reserved for future use) */
   EFFECTS: 3,
 } as const;
+
+/**
+ * Visual Color Constants
+ *
+ * Single source of truth for critical scene colors.
+ * Tests import these values to validate source code consistency.
+ *
+ * IMPORTANT: When changing these colors, tests will verify the change
+ * is intentional. This prevents accidental black/white screen issues.
+ */
+export const VISUAL_COLORS = {
+  /** Background gradient top color - warm cream (#f5f0e8) */
+  BACKGROUND_TOP: '#f5f0e8',
+  /** Background gradient mid color - soft ivory (#faf2e6) */
+  BACKGROUND_MID: '#faf2e6',
+  /** Globe earthy brown tone (used for fallback/references) */
+  GLOBE_BROWN: '#8b6f47',
+  /** Cloud base colors - soft pink */
+  CLOUD_PINK: '#f8b4c4',
+  /** Cloud base colors - soft lavender */
+  CLOUD_LAVENDER: '#d4c4e8',
+} as const;
+
+/**
+ * Visual Opacity Constants
+ *
+ * Single source of truth for critical opacity values.
+ * Tests import these to verify visibility requirements.
+ *
+ * Opacity ranges:
+ * - 0.0 = completely invisible (NEVER use for scene objects)
+ * - 0.2-0.4 = subtle (clouds, atmosphere overlays)
+ * - 0.5-0.9 = visible translucent (glass effects)
+ * - 1.0 = fully opaque (globe, solid objects)
+ */
+export const VISUAL_OPACITY = {
+  /** Minimum visible cloud opacity */
+  CLOUD_MIN: 0.2,
+  /** Maximum cloud opacity (still subtle) */
+  CLOUD_MAX: 0.5,
+  /** Atmosphere overlay opacity (very subtle) */
+  ATMOSPHERE: 0.08,
+  /** Frosted glass opacity (highly visible) */
+  FROSTED_GLASS: 0.9,
+  /** Globe main material (fully opaque) */
+  GLOBE: 1.0,
+} as const;
