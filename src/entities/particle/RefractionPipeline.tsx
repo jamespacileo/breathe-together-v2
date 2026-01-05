@@ -530,7 +530,13 @@ export function RefractionPipeline({
     frameCountRef.current++;
 
     // Sync layer camera with main camera each frame
+    // copy() copies properties (position, rotation, fov, etc.) but NOT the matrices
+    // We must explicitly copy the matrices that THREE.js uses for actual rendering
     layerCamera.copy(perspCamera);
+    layerCamera.projectionMatrix.copy(perspCamera.projectionMatrix);
+    layerCamera.projectionMatrixInverse.copy(perspCamera.projectionMatrixInverse);
+    layerCamera.matrixWorld.copy(perspCamera.matrixWorld);
+    layerCamera.matrixWorldInverse.copy(perspCamera.matrixWorldInverse);
 
     // Throttled mesh detection: only check every N frames to reduce scene traversal overhead
     // Uses RENDER_LAYERS.PARTICLES instead of userData.useRefraction
