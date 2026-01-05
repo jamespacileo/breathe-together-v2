@@ -57,6 +57,12 @@ interface MomentumControlsProps {
   maxZoom?: number;
   /** Zoom sensitivity (default: 0.001) */
   zoomSpeed?: number;
+  /** Enable automatic rotation when user isn't interacting (default: true) */
+  autoRotate?: boolean;
+  /** Auto rotation speed in radians per second (default: 0.05) */
+  autoRotateSpeed?: number;
+  /** Delay before auto-rotate resumes after user interaction (seconds, default: 3) */
+  autoRotateDelay?: number;
   children?: React.ReactNode;
 }
 
@@ -89,10 +95,14 @@ export function MomentumControls({
   minZoom = ZOOM_DEFAULTS.min,
   maxZoom = ZOOM_DEFAULTS.max,
   zoomSpeed = ZOOM_DEFAULTS.speed,
+  autoRotate = true,
+  autoRotateSpeed = 0.05,
+  autoRotateDelay = 3,
   children,
 }: MomentumControlsProps) {
   const gl = useThree((state) => state.gl);
   const events = useThree((state) => state.events);
+  const clock = useThree((state) => state.clock);
   const { size } = useThree();
 
   const domElement = gl.domElement;
@@ -126,6 +136,8 @@ export function MomentumControls({
     damping,
     zoom: 1.0,
     targetZoom: 1.0,
+    lastInteractionTime: 0, // Track when user last interacted
+    isUserInteracting: false, // Track if user is currently dragging
   });
 
   // Group ref for direct manipulation
@@ -147,8 +159,20 @@ export function MomentumControls({
   }, [cursor, enabled, domElement]);
 
   // Smooth animation loop
-  useFrame((_state, delta) => {
+  useFrame((state, delta) => {
     if (!ref.current || !enabled) return;
+
+    // Auto-rotation logic
+    if (autoRotate && !animation.current.isUserInteracting) {
+      const timeSinceInteraction = state.clock.elapsedTime - animation.current.lastInteractionTime;
+
+      // Only auto-rotate after delay has passed
+      if (timeSinceInteraction > autoRotateDelay) {
+        // Slowly rotate the target (horizontal rotation only)
+        const newAzimuth = animation.current.target[1] + autoRotateSpeed * delta;
+        animation.current.target[1] = MathUtils.clamp(newAzimuth, ...rAzimuth);
+      }
+    }
 
     // Smoothly interpolate rotation toward target
     easing.dampE(ref.current.rotation, animation.current.target, animation.current.damping, delta);
@@ -176,6 +200,10 @@ export function MomentumControls({
       },
       onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo }) => {
         if (!enabled) return memo;
+
+        // Track user interaction for auto-rotate pause
+        animation.current.isUserInteracting = down;
+        animation.current.lastInteractionTime = clock.elapsedTime;
 
         // Initialize memo with current rotation on drag start
         const [oldY, oldX] = memo || animation.current.target;

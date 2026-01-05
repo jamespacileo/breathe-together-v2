@@ -235,7 +235,7 @@ export const StylizedSun = memo(function StylizedSun({
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const world = useWorld();
 
-  // Calculate sun position based on real astronomical data
+  // Calculate initial sun position - will be updated each frame in useFrame
   const sunPosition = useMemo(() => {
     const now = new Date();
     const gmst = calculateGMST(now);
@@ -267,12 +267,33 @@ export const StylizedSun = memo(function StylizedSun({
   // Get breath phase value
   const [currentBreathPhase, setCurrentBreathPhase] = useState(0.5);
 
+  // Track last position update time to throttle astronomical calculations
+  const lastPositionUpdateRef = useRef(0);
+  const UPDATE_INTERVAL = 10; // Update position every 10 seconds (sun moves ~0.04°)
+
   // Animate sun
   useFrame((state) => {
     if (!enabled || !materialRef.current) return;
 
     // Update time
     materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+
+    // Update sun position periodically (astronomical calculations are expensive)
+    const currentTime = state.clock.elapsedTime;
+    if (currentTime - lastPositionUpdateRef.current > UPDATE_INTERVAL) {
+      lastPositionUpdateRef.current = currentTime;
+
+      // Recalculate sun position based on current time
+      const now = new Date();
+      const gmst = calculateGMST(now);
+      const sunData = calculateSunPosition(now);
+      const [x, y, z] = celestialToCartesian(sunData.ra, sunData.dec, radius, gmst);
+
+      // Update group position
+      if (groupRef.current) {
+        groupRef.current.position.set(x, y, z);
+      }
+    }
 
     // Update breath phase from ECS
     if (breathSync) {
