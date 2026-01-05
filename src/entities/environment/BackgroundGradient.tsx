@@ -124,7 +124,7 @@ export function BackgroundGradient() {
       },
       vertexShader,
       fragmentShader,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false,
       side: DoubleSide,
     });
