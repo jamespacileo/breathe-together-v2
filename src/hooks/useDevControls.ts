@@ -165,6 +165,17 @@ export const TUNING_DEFAULTS = {
   dragTimeConstant: 0.325,
   dragVelocityMultiplier: 0.15,
   dragMinVelocity: 50,
+
+  // Breath Effects (dev-only)
+  showBreathStreams: true,
+  breathStreamCount: 8,
+  breathStreamOpacity: 0.6,
+  showExpansionRings: true,
+  expansionRingCount: 5,
+  expansionRingOpacity: 0.35,
+  showGoldenThreads: true,
+  goldenThreadOpacity: 0.4,
+  goldenThreadDistance: 3.0,
 } as const;
 
 /**
@@ -332,6 +343,17 @@ export interface DevControlsState {
   dragTimeConstant: number;
   dragVelocityMultiplier: number;
   dragMinVelocity: number;
+
+  // Breath Effects
+  showBreathStreams: boolean;
+  breathStreamCount: number;
+  breathStreamOpacity: number;
+  showExpansionRings: boolean;
+  expansionRingCount: number;
+  expansionRingOpacity: number;
+  showGoldenThreads: boolean;
+  goldenThreadOpacity: number;
+  goldenThreadDistance: number;
 }
 
 /** Get default values for all dev controls */
@@ -433,6 +455,15 @@ function getDefaultDevControls(): DevControlsState {
     dragTimeConstant: TUNING_DEFAULTS.dragTimeConstant,
     dragVelocityMultiplier: TUNING_DEFAULTS.dragVelocityMultiplier,
     dragMinVelocity: TUNING_DEFAULTS.dragMinVelocity,
+    showBreathStreams: TUNING_DEFAULTS.showBreathStreams,
+    breathStreamCount: TUNING_DEFAULTS.breathStreamCount,
+    breathStreamOpacity: TUNING_DEFAULTS.breathStreamOpacity,
+    showExpansionRings: TUNING_DEFAULTS.showExpansionRings,
+    expansionRingCount: TUNING_DEFAULTS.expansionRingCount,
+    expansionRingOpacity: TUNING_DEFAULTS.expansionRingOpacity,
+    showGoldenThreads: TUNING_DEFAULTS.showGoldenThreads,
+    goldenThreadOpacity: TUNING_DEFAULTS.goldenThreadOpacity,
+    goldenThreadDistance: TUNING_DEFAULTS.goldenThreadDistance,
   };
 }
 
@@ -830,6 +861,93 @@ export function useDevControls(): DevControlsState {
         ),
       },
       { collapsed: true, order: 0 },
+    ),
+
+    // ==========================================
+    // BREATH EFFECTS (symbolic visual enhancements)
+    // ==========================================
+    'Breath Effects': folder(
+      {
+        'Breath Streams': folder(
+          {
+            showBreathStreams: {
+              value: TUNING_DEFAULTS.showBreathStreams,
+              label: 'Enable',
+              hint: 'Toggle curved particle streams flowing with breath.\n\n**Inhale:** Streams flow toward globe\n**Exhale:** Streams flow outward\n\n**Symbolism:** Makes the invisible breath visible',
+            },
+            breathStreamCount: {
+              value: TUNING_DEFAULTS.breathStreamCount,
+              min: 4,
+              max: 16,
+              step: 1,
+              label: 'Stream Count',
+              hint: 'Number of streams distributed around the globe.\n\n**Performance:** 8 streams = ~200 particles total',
+            },
+            breathStreamOpacity: {
+              value: TUNING_DEFAULTS.breathStreamOpacity,
+              min: 0.1,
+              max: 1.0,
+              step: 0.05,
+              label: 'Opacity',
+              hint: 'Base opacity of stream particles.\n\n**Recommendation:** 0.4-0.6 for subtle, 0.8+ for prominent',
+            },
+          },
+          { collapsed: false },
+        ),
+        'Expansion Rings': folder(
+          {
+            showExpansionRings: {
+              value: TUNING_DEFAULTS.showExpansionRings,
+              label: 'Enable',
+              hint: 'Toggle concentric rings that expand/contract with breath.\n\n**Inhale:** Rings contract inward\n**Exhale:** Rings expand outward\n\n**Metaphor:** Wave-like nature of breath through the body',
+            },
+            expansionRingCount: {
+              value: TUNING_DEFAULTS.expansionRingCount,
+              min: 3,
+              max: 10,
+              step: 1,
+              label: 'Ring Count',
+              hint: 'Number of concentric rings.\n\n**Style:** Fewer = cleaner, More = denser wave pattern',
+            },
+            expansionRingOpacity: {
+              value: TUNING_DEFAULTS.expansionRingOpacity,
+              min: 0.1,
+              max: 0.8,
+              step: 0.05,
+              label: 'Opacity',
+              hint: 'Base opacity of rings.\n\n**Recommendation:** 0.25-0.4 for subtle ambient effect',
+            },
+          },
+          { collapsed: false },
+        ),
+        'Golden Threads': folder(
+          {
+            showGoldenThreads: {
+              value: TUNING_DEFAULTS.showGoldenThreads,
+              label: 'Enable',
+              hint: 'Toggle golden lines connecting nearby particles.\n\n**Hold phases:** Threads glow brighter\n\n**Symbolism:** Interconnection between all breathers',
+            },
+            goldenThreadOpacity: {
+              value: TUNING_DEFAULTS.goldenThreadOpacity,
+              min: 0.1,
+              max: 0.8,
+              step: 0.05,
+              label: 'Opacity',
+              hint: 'Base opacity of connection threads.\n\n**Recommendation:** 0.3-0.5 for visible but not dominant',
+            },
+            goldenThreadDistance: {
+              value: TUNING_DEFAULTS.goldenThreadDistance,
+              min: 1.5,
+              max: 5.0,
+              step: 0.25,
+              label: 'Connection Distance',
+              hint: 'Maximum distance for nodes to connect.\n\n**Lower:** Fewer connections, cleaner look\n**Higher:** Denser network',
+            },
+          },
+          { collapsed: false },
+        ),
+      },
+      { collapsed: false, order: 0.5 },
     ),
 
     // ==========================================

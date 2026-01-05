@@ -11,6 +11,7 @@ import { ShapeGizmos } from '../components/ShapeGizmos';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
+import { BreathStreams, ExpansionRings, GoldenThreadNetwork } from '../entities/breathEffects';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { EarthGlobeTransmission } from '../entities/earthGlobe/EarthGlobeTransmission';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
@@ -205,6 +206,26 @@ export function BreathingLevel({
                 baseOpacity={devControls.atmosphereBaseOpacity}
                 breathingOpacity={devControls.atmosphereBreathingOpacity}
                 color={devControls.atmosphereColor}
+              />
+            )}
+
+            {/* Breath Effects - symbolic visual enhancements */}
+            {devControls.showBreathStreams && (
+              <BreathStreams
+                streamCount={devControls.breathStreamCount}
+                opacity={devControls.breathStreamOpacity}
+              />
+            )}
+            {devControls.showExpansionRings && (
+              <ExpansionRings
+                ringCount={devControls.expansionRingCount}
+                opacity={devControls.expansionRingOpacity}
+              />
+            )}
+            {devControls.showGoldenThreads && (
+              <GoldenThreadNetwork
+                opacity={devControls.goldenThreadOpacity}
+                connectionDistance={devControls.goldenThreadDistance}
               />
             )}
 
