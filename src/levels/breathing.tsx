@@ -16,6 +16,7 @@ import { EarthGlobeTransmission } from '../entities/earthGlobe/EarthGlobeTransmi
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
+import { ConstellationGizmos } from '../entities/environment/ConstellationGizmos';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -121,17 +122,26 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Environment - clouds, lighting, fog, HDRI (or grid floor in stage mode) */}
+            {/* Environment - clouds, lighting, fog, constellations, sun, HDRI (or grid floor in stage mode) */}
             {showEnvironment && (
               <Environment
                 showClouds={devControls.showClouds}
                 showStars={devControls.showStars}
+                showConstellations={devControls.showConstellations}
+                showConstellationLines={devControls.showConstellationLines}
+                showSun={devControls.showSun}
                 cloudOpacity={devControls.cloudOpacity}
                 cloudSpeed={devControls.cloudSpeed}
                 ambientLightColor={devControls.ambientLightColor}
                 ambientLightIntensity={devControls.ambientLightIntensity}
                 keyLightColor={devControls.keyLightColor}
                 keyLightIntensity={devControls.keyLightIntensity}
+                constellationStarSize={devControls.constellationStarSize}
+                constellationLineOpacity={devControls.constellationLineOpacity}
+                sunSize={devControls.sunSize}
+                sunIntensity={devControls.sunIntensity}
+                showSunGizmo={devControls.showSunGizmo}
+                showConstellationGizmos={devControls.showConstellationGizmos}
                 stageMode={devControls.stageMode}
                 showGridFloor={devControls.showGridFloor}
                 gridSize={devControls.gridSize}
@@ -233,6 +243,12 @@ export function BreathingLevel({
               showAxes={devControls.showGizmoAxes}
               showLabels={devControls.showGizmoLabels}
             />
+          )}
+
+          {/* Constellation Gizmos - star markers, constellation wireframes, labels */}
+          {/* Rendered outside RefractionPipeline to avoid depth-of-field blur */}
+          {DEV_MODE_ENABLED && devControls.showConstellationGizmos && (
+            <ConstellationGizmos radius={25} />
           )}
         </MomentumControls>
       </Suspense>

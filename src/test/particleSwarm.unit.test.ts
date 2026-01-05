@@ -557,12 +557,13 @@ describe('Shard separation (no overlap)', () => {
     for (const user of users) {
       const slot = slotManager.getSlotByUserId(user.id);
       expect(slot).toBeDefined();
+      if (!slot) continue; // TypeScript guard
 
       // No duplicate slot assignments
-      expect(slotUsers.has(slot?.index as number)).toBe(false);
+      expect(slotUsers.has(slot.index)).toBe(false);
 
-      userSlots.set(user.id, slot?.index as number);
-      slotUsers.set(slot?.index as number, user.id);
+      userSlots.set(user.id, slot.index);
+      slotUsers.set(slot.index, user.id);
     }
 
     // Verify bijection

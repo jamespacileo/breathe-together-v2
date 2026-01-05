@@ -7,8 +7,10 @@ import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
 import { BreathSparkles } from './BreathSparkles';
 import { CloudSystem } from './CloudSystem';
+import { ConstellationStars } from './ConstellationStars';
 import { EditorGrid } from './EditorGrid';
 import { ReflectiveFloor } from './ReflectiveFloor';
+import { StylizedSun } from './StylizedSun';
 import { SubtleLightRays } from './SubtleLightRays';
 
 /**
@@ -24,8 +26,14 @@ interface EnvironmentProps {
   enabled?: boolean;
   /** Show volumetric clouds @default true */
   showClouds?: boolean;
-  /** Show distant stars @default true */
+  /** Show distant stars (drei random stars) @default false */
   showStars?: boolean;
+  /** Show real constellations with connecting lines @default true */
+  showConstellations?: boolean;
+  /** Show constellation connecting lines @default true */
+  showConstellationLines?: boolean;
+  /** Show stylized sun @default true */
+  showSun?: boolean;
   /** Cloud opacity @default 0.4 */
   cloudOpacity?: number;
   /** Cloud speed multiplier @default 0.3 */
@@ -38,6 +46,18 @@ interface EnvironmentProps {
   keyLightColor?: string;
   /** Key light intensity @default 0.8 */
   keyLightIntensity?: number;
+  /** Constellation star size multiplier @default 0.4 */
+  constellationStarSize?: number;
+  /** Constellation line opacity @default 0.25 */
+  constellationLineOpacity?: number;
+  /** Sun size @default 8 */
+  sunSize?: number;
+  /** Sun intensity @default 1 */
+  sunIntensity?: number;
+  /** Show sun debug gizmo @default false */
+  showSunGizmo?: boolean;
+  /** Show constellation debug gizmos @default false */
+  showConstellationGizmos?: boolean;
   /** Stage mode - editor-style view with grid floor @default false */
   stageMode?: boolean;
   /** Show grid floor in stage mode @default true */
@@ -118,13 +138,22 @@ interface EnvironmentProps {
 export function Environment({
   enabled = true,
   showClouds = true,
-  showStars = true,
+  showStars = false,
+  showConstellations = true,
+  showConstellationLines = true,
+  showSun = true,
   cloudOpacity = 0.4,
   cloudSpeed = 0.8,
   ambientLightColor = '#fff5eb',
   ambientLightIntensity = 0.5,
   keyLightColor = '#ffe4c4',
   keyLightIntensity = 0.8,
+  constellationStarSize = 0.4,
+  constellationLineOpacity = 0.25,
+  sunSize = 8,
+  sunIntensity = 1,
+  showSunGizmo = false,
+  showConstellationGizmos = false,
   stageMode = false,
   showGridFloor = true,
   gridSize = 20,
@@ -250,6 +279,21 @@ export function Environment({
           speed={0.5}
         />
       )}
+
+      {/* Real constellation stars with connecting lines */}
+      {/* Positions based on actual star coordinates (RA/Dec) synchronized to UTC time */}
+      {showConstellations && (
+        <ConstellationStars
+          showLines={showConstellationLines}
+          starSize={constellationStarSize}
+          lineOpacity={constellationLineOpacity}
+          opacity={isMobile ? 0.6 : 0.8}
+        />
+      )}
+
+      {/* Stylized sun - positioned based on real astronomical calculations */}
+      {/* Warm gradient with rays, breathing-synchronized pulsing */}
+      {showSun && <StylizedSun size={sunSize} intensity={sunIntensity} showGizmo={showSunGizmo} />}
 
       {/* Warm ambient light - fills shadows softly */}
       <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />
