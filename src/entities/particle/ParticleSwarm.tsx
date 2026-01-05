@@ -86,18 +86,14 @@ export interface ParticleSwarmProps {
   /**
    * Base size for shards.
    * Formula: shardSize = baseShardSize / sqrt(count), clamped to [min, max].
-   * @default 4.0
+   * maxShardSize is auto-derived as baseShardSize / 5.
+   * @default 12.5
    */
   baseShardSize?: number;
   /** Globe radius for minimum distance calculation @default 1.5 */
   globeRadius?: number;
   /** Buffer distance between shard surface and globe surface @default 0.3 */
   buffer?: number;
-  /**
-   * Maximum shard size cap (prevents oversized shards at low counts).
-   * @default 0.6
-   */
-  maxShardSize?: number;
   /**
    * Minimum shard size (prevents tiny shards at high counts).
    * @default 0.15
@@ -244,10 +240,9 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
 export function ParticleSwarm({
   users,
   baseRadius = 4.5,
-  baseShardSize = 4.0,
+  baseShardSize = 12.5, // Updated from 4.0 to match TUNING_DEFAULTS
   globeRadius = 1.5,
   buffer = 0.3,
-  maxShardSize = 0.6,
   minShardSize = 0.15,
   performanceCap = 1000,
 }: ParticleSwarmProps) {
@@ -277,6 +272,9 @@ export function ParticleSwarm({
   useEffect(() => {
     pendingUsersRef.current = normalizedUsers;
   }, [normalizedUsers]);
+
+  // Auto-derive maxShardSize from baseShardSize (maintains 1/5 ratio)
+  const maxShardSize = baseShardSize / 5;
 
   // Calculate shard size based on current user count
   const shardSize = useMemo(() => {
