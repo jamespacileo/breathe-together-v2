@@ -88,11 +88,15 @@ export function BackgroundGradient() {
       const uvCoord = uv();
       const y = uvCoord.y;
 
-      // Creamy neutral background - soft warm tones
-      const skyTop = vec3(0.96, 0.94, 0.91); // Warm cream
-      const skyMid = vec3(0.98, 0.95, 0.9); // Soft ivory
-      const horizon = vec3(0.99, 0.94, 0.88); // Warm white
-      const warmGlow = vec3(0.98, 0.92, 0.85); // Subtle warm glow
+      // Monument Valley inspired pastel gradient - visible color transitions
+      // Top: Soft sky blue with slight lavender tint
+      const skyTop = vec3(0.78, 0.85, 0.92); // Pale sky blue
+      // Upper mid: Transition to warmer tones
+      const skyMid = vec3(0.88, 0.82, 0.85); // Dusty rose/lavender
+      // Horizon: Warm peach/coral glow
+      const horizon = vec3(0.95, 0.82, 0.75); // Soft coral/apricot
+      // Bottom: Warm terracotta undertone
+      const warmGlow = vec3(0.92, 0.78, 0.7); // Warm terracotta
 
       // Smooth multi-stop gradient using smoothstep blending
       const t1 = smoothstep(0.5, 0.9, y);
@@ -119,21 +123,21 @@ export function BackgroundGradient() {
       const cloudMaskBase = smoothstep(0.2, 0.55, add(mul(clouds, 0.5), mul(clouds2, 0.5)));
       const cloudMask = mul(mul(cloudMaskBase, smoothstep(0.1, 0.4, y)), smoothstep(0.95, 0.6, y));
 
-      // Cloud color - pure warm white
-      const cloudColor = vec3(1.0, 0.99, 0.97);
+      // Cloud color - soft cream that contrasts with gradient
+      const cloudColor = vec3(0.98, 0.96, 0.94);
 
-      // Blend clouds very subtly into sky
-      const color1 = mix(skyColor, cloudColor, mul(cloudMask, 0.15));
+      // Blend clouds into sky (more visible)
+      const color1 = mix(skyColor, cloudColor, mul(cloudMask, 0.25));
 
-      // Very subtle vignette - just darkens corners slightly
+      // Subtle vignette for depth
       const vignetteUv = sub(mul(uvCoord, 2.0), 1.0);
-      const vignette = sub(1.0, dot(mul(vignetteUv, 0.15), mul(vignetteUv, 0.15)));
-      const color2 = mul(color1, mix(0.97, 1.0, vignette));
+      const vignette = sub(1.0, dot(mul(vignetteUv, 0.2), mul(vignetteUv, 0.2)));
+      const color2 = mul(color1, mix(0.92, 1.0, vignette));
 
-      // Paper texture noise (very subtle)
+      // Paper texture noise (subtle)
       const noise = mul(
         sub(fract(mul(sin(dot(uvCoord, vec2(12.9898, 78.233))), 43758.5453)), 0.5),
-        0.008,
+        0.01,
       );
       const finalColor = add(color2, noise);
 

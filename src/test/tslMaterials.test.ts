@@ -388,3 +388,78 @@ describe('Three.js Geometry WebGPU Compatibility', () => {
     expect(violations).toEqual([]);
   });
 });
+
+/**
+ * Tests for TSL material visual integrity
+ *
+ * These tests verify that TSL materials have proper configurations
+ * for visible rendering (not washed out to white).
+ */
+describe('TSL Material Visual Integrity', () => {
+  it('BackgroundGradient should have visible color contrast', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const filePath = path.join(process.cwd(), 'src/entities/environment/BackgroundGradient.tsx');
+    const source = await fs.readFile(filePath, 'utf-8');
+
+    // Extract vec3 color values and check they're not all near-white
+    const vec3Matches = Array.from(source.matchAll(/vec3\(([0-9.]+),\s*([0-9.]+),\s*([0-9.]+)\)/g));
+    const colors: { r: number; g: number; b: number }[] = [];
+
+    for (const match of vec3Matches) {
+      const r = Number.parseFloat(match[1]);
+      const g = Number.parseFloat(match[2]);
+      const b = Number.parseFloat(match[3]);
+      if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+        colors.push({ r, g, b });
+      }
+    }
+
+    // At least some gradient colors should have visible contrast (not all > 0.9)
+    const hasVisibleContrast = colors.some((c) => c.r < 0.9 || c.g < 0.9 || c.b < 0.9);
+
+    expect(hasVisibleContrast).toBe(true);
+  });
+
+  it('FrostedGlassMaterial should use transparent blending', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const filePath = path.join(process.cwd(), 'src/entities/particle/FrostedGlassMaterial.tsx');
+    const source = await fs.readFile(filePath, 'utf-8');
+
+    // Material should be transparent for glass effect
+    expect(source).toContain('transparent = true');
+    // Should use viewportSharedTexture for refraction
+    expect(source).toContain('viewportSharedTexture');
+  });
+
+  it('BackgroundGradient should render behind scene content', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const filePath = path.join(process.cwd(), 'src/entities/environment/BackgroundGradient.tsx');
+    const source = await fs.readFile(filePath, 'utf-8');
+
+    // Should have negative renderOrder to render first
+    expect(source).toMatch(/renderOrder\s*=\s*\{?\s*-/);
+    // Should disable depth testing/writing for background
+    expect(source).toContain('depthTest = false');
+    expect(source).toContain('depthWrite = false');
+  });
+
+  it('FrostedGlassMaterial should return variable alpha for glass effect', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const filePath = path.join(process.cwd(), 'src/entities/particle/FrostedGlassMaterial.tsx');
+    const source = await fs.readFile(filePath, 'utf-8');
+
+    // The final return vec4 should have an alpha variable (not constant 1.0)
+    // Looking for patterns like "vec4(..., alpha)" where alpha is a variable
+    expect(source).toMatch(/return\s+vec4\([^)]+,\s*alpha\s*\)/);
+    // Should have depthWrite = false for proper transparency
+    expect(source).toContain('depthWrite = false');
+  });
+});
