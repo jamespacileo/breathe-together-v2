@@ -49,6 +49,53 @@ describe('Color Palette Contracts', () => {
       expectColorDiversity(colors, 50);
     });
 
+    it('all mood colors are unique (no duplicates)', () => {
+      // OUTCOME: Prevents mono-color screen (all same color)
+      // This caught the all-white mutation test
+      const colors = [
+        getMoodColor('gratitude'),
+        getMoodColor('presence'),
+        getMoodColor('release'),
+        getMoodColor('connection'),
+      ];
+
+      // All colors should be different hex values
+      const uniqueColors = new Set(colors);
+      expect(uniqueColors.size).toBe(4);
+
+      // Explicitly check no duplicates
+      expect(colors[0]).not.toBe(colors[1]);
+      expect(colors[0]).not.toBe(colors[2]);
+      expect(colors[0]).not.toBe(colors[3]);
+      expect(colors[1]).not.toBe(colors[2]);
+      expect(colors[1]).not.toBe(colors[3]);
+      expect(colors[2]).not.toBe(colors[3]);
+    });
+
+    it('mood colors span RGB color space (not all clustered)', () => {
+      // OUTCOME: Prevents all colors being shades of one color
+      const colors = {
+        gratitude: hexToRgb(getMoodColor('gratitude')),
+        presence: hexToRgb(getMoodColor('presence')),
+        release: hexToRgb(getMoodColor('release')),
+        connection: hexToRgb(getMoodColor('connection')),
+      };
+
+      // Should have variety across RGB channels
+      // Check we have at least one color dominated by each primary
+      const hasRedDominant = Object.values(colors).some(
+        (c) => c.r > 200 && c.r > c.g + 50 && c.r > c.b + 50,
+      );
+      const hasGreenDominant = Object.values(colors).some((c) => c.g > 150 && c.g > c.r * 0.7);
+      const hasBlueDominant = Object.values(colors).some((c) => c.b > 150 && c.b > c.r * 0.7);
+
+      // At least 2 out of 3 primary-dominated colors should exist
+      const varietyCount = [hasRedDominant, hasGreenDominant, hasBlueDominant].filter(
+        (x) => x,
+      ).length;
+      expect(varietyCount).toBeGreaterThanOrEqual(2);
+    });
+
     it('mood colors have consistent saturation', () => {
       // OUTCOME: Colors feel cohesive (not some muted, some vibrant)
       const moods = ['gratitude', 'presence', 'release', 'connection'] as const;

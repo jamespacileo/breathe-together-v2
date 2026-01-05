@@ -19,7 +19,7 @@ import { useFrame } from '@react-three/fiber';
 import { memo, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
-interface CloudConfig {
+export interface CloudConfig {
   id: string;
   /** Index for Fibonacci sphere distribution */
   sphereIndex: number;
@@ -75,7 +75,7 @@ function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
 // - Inner layer (radius 7-8): 6 clouds, closest to shards
 // - Middle layer (radius 9-10): 5 clouds
 // - Outer layer (radius 11-13): 4 clouds, furthest, largest
-const CLOUD_CONFIGS: CloudConfig[] = [
+export const CLOUD_CONFIGS: CloudConfig[] = [
   // === INNER LAYER (radius 7-8) - 6 clouds, subtle and close ===
   {
     id: 'inner-pink-1',
