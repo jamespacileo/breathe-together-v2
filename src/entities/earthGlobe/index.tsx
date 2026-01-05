@@ -12,6 +12,8 @@
  * - Sparkle aura (visible floating dust particles)
  * - Equator ring (subtle rose gold accent ring)
  *
+ * MIGRATED TO TSL (Three.js Shading Language) - January 2026
+ *
  * Visual style: Monument Valley pastel aesthetic with soft, ethereal glow.
  * Uses drei's <Sphere>, <Ring>, and <Sparkles> components.
  */
@@ -20,148 +22,44 @@ import { Ring, Sparkles, Sphere, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import {
+  AdditiveBlending,
+  BackSide,
+  Color,
+  FrontSide,
+  type Group,
+  type Mesh,
+  MeshBasicMaterial,
+  SphereGeometry,
+  SRGBColorSpace,
+  type Texture,
+} from 'three';
+import {
+  abs,
+  add,
+  cameraPosition,
+  dot,
+  Fn,
+  max,
+  mix,
+  mul,
+  normalize,
+  positionWorld,
+  pow,
+  sin,
+  smoothstep,
+  sub,
+  texture,
+  transformedNormalView,
+  uniform,
+  uv,
+  vec3,
+  vec4,
+} from 'three/tsl';
+import { MeshBasicNodeMaterial } from 'three/webgpu';
 
 import { useDisposeGeometries, useDisposeMaterials } from '../../hooks/useDisposeMaterials';
 import { breathPhase } from '../breath/traits';
-
-// Vertex shader for textured globe with fresnel
-const globeVertexShader = `
-varying vec3 vNormal;
-varying vec3 vViewPosition;
-varying vec2 vUv;
-
-void main() {
-  vNormal = normalize(normalMatrix * normal);
-  vUv = uv;
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-  vViewPosition = -mvPosition.xyz;
-  gl_Position = projectionMatrix * mvPosition;
-}
-`;
-
-// Fragment shader - texture with fresnel rim glow
-const globeFragmentShader = `
-uniform sampler2D earthTexture;
-uniform float breathPhase;
-
-varying vec3 vNormal;
-varying vec3 vViewPosition;
-varying vec2 vUv;
-
-void main() {
-  // Sample earth texture
-  vec3 texColor = texture2D(earthTexture, vUv).rgb;
-
-  // Fresnel rim for atmospheric glow
-  vec3 viewDir = normalize(vViewPosition);
-  float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 4.0); // Tighter falloff
-  vec3 rimColor = vec3(0.94, 0.90, 0.86); // Muted warm cream, closer to background
-
-  // Breathing modulation - subtle brightness shift
-  float breathMod = 1.0 + breathPhase * 0.06;
-  texColor *= breathMod;
-
-  // Blend texture with fresnel rim - very subtle
-  vec3 finalColor = mix(texColor, rimColor, fresnel * 0.18);
-
-  // Subtle top-down lighting - very gentle
-  float topLight = smoothstep(-0.2, 0.8, vNormal.y) * 0.05;
-  finalColor += vec3(0.98, 0.95, 0.92) * topLight;
-
-  gl_FragColor = vec4(finalColor, 1.0);
-}
-`;
-
-// Glow shader - cheap additive fresnel glow
-const glowVertexShader = `
-varying vec3 vNormal;
-varying vec3 vViewPosition;
-
-void main() {
-  vNormal = normalize(normalMatrix * normal);
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-  vViewPosition = -mvPosition.xyz;
-  gl_Position = projectionMatrix * mvPosition;
-}
-`;
-
-const glowFragmentShader = `
-uniform vec3 glowColor;
-uniform float glowIntensity;
-uniform float breathPhase;
-
-varying vec3 vNormal;
-varying vec3 vViewPosition;
-
-void main() {
-  vec3 viewDir = normalize(vViewPosition);
-  // Fresnel - softer edges with tighter falloff
-  float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 3.5);
-  // Breathing pulse - gentler
-  float pulse = 1.0 + breathPhase * 0.2;
-  float alpha = fresnel * glowIntensity * pulse;
-  gl_FragColor = vec4(glowColor, alpha);
-}
-`;
-
-// Mist shader - subtle animated noise haze
-const mistVertexShader = `
-varying vec3 vNormal;
-varying vec3 vViewPosition;
-varying vec2 vUv;
-
-void main() {
-  vNormal = normalize(normalMatrix * normal);
-  vUv = uv;
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-  vViewPosition = -mvPosition.xyz;
-  gl_Position = projectionMatrix * mvPosition;
-}
-`;
-
-const mistFragmentShader = `
-uniform float time;
-uniform float breathPhase;
-uniform vec3 mistColor;
-
-varying vec3 vNormal;
-varying vec3 vViewPosition;
-varying vec2 vUv;
-
-// Simple noise function
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-
-float noise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  float a = hash(i);
-  float b = hash(i + vec2(1.0, 0.0));
-  float c = hash(i + vec2(0.0, 1.0));
-  float d = hash(i + vec2(1.0, 1.0));
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-
-void main() {
-  vec3 viewDir = normalize(vViewPosition);
-  float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 1.5);
-
-  // Animated noise for misty effect
-  vec2 uv = vUv * 4.0 + time * 0.02;
-  float n = noise(uv) * 0.5 + noise(uv * 2.0) * 0.3 + noise(uv * 4.0) * 0.2;
-
-  // Breathing modulation
-  float breath = 0.6 + breathPhase * 0.4;
-
-  // Combine fresnel edge with noise
-  float alpha = fresnel * n * 0.15 * breath;
-
-  gl_FragColor = vec4(mistColor, alpha);
-}
-`;
 
 /**
  * Atmosphere halo configuration - pastel layers around the globe
@@ -176,8 +74,153 @@ const ATMOSPHERE_LAYERS = [
  * Pre-allocated Color objects for shader uniforms
  * Hoisted to module level to avoid recreation on component remount
  */
-const GLOW_COLOR = new THREE.Color('#efe5da'); // Very soft muted cream
-const MIST_COLOR = new THREE.Color('#f0ebe6'); // Soft warm white
+const GLOW_COLOR = new Color('#efe5da'); // Very soft muted cream
+const MIST_COLOR = new Color('#f0ebe6'); // Soft warm white
+
+/**
+ * Creates a TSL-based textured globe material with fresnel rim glow
+ */
+function createGlobeMaterial(earthTexture: Texture) {
+  const material = new MeshBasicNodeMaterial();
+  material.side = FrontSide;
+
+  // Uniforms
+  const breathPhaseUniform = uniform(0);
+  const earthTextureUniform = texture(earthTexture);
+
+  // Store uniforms for external access
+  material.userData.breathPhase = breathPhaseUniform;
+
+  // Build color node using TSL
+  const colorNode = Fn(() => {
+    // Sample earth texture
+    const texColor = earthTextureUniform.uv(uv()).rgb;
+
+    // Fresnel rim for atmospheric glow
+    const normal = transformedNormalView;
+    // Calculate view direction from world position
+    const viewDir = normalize(sub(cameraPosition, positionWorld));
+    const fresnelBase = max(dot(normal, viewDir), 0.0);
+    const fresnel = pow(sub(1.0, fresnelBase), 4.0); // Tighter falloff
+
+    // Rim color - muted warm cream
+    const rimColor = vec3(0.94, 0.9, 0.86);
+
+    // Breathing modulation - subtle brightness shift
+    const breathMod = add(1.0, mul(breathPhaseUniform, 0.06));
+    const modulatedTex = mul(texColor, breathMod);
+
+    // Blend texture with fresnel rim - very subtle
+    const colorWithRim = mix(modulatedTex, rimColor, mul(fresnel, 0.18));
+
+    // Subtle top-down lighting - very gentle
+    const topLight = mul(smoothstep(-0.2, 0.8, normal.y), 0.05);
+    const topLightColor = vec3(0.98, 0.95, 0.92);
+    const finalColor = add(colorWithRim, mul(topLightColor, topLight));
+
+    return vec4(finalColor, 1.0);
+  })();
+
+  material.colorNode = colorNode;
+
+  return material;
+}
+
+/**
+ * Creates a TSL-based glow material - additive blended fresnel glow
+ */
+function createGlowMaterial() {
+  const material = new MeshBasicNodeMaterial();
+  material.side = FrontSide;
+  material.transparent = true;
+  material.blending = AdditiveBlending;
+  material.depthWrite = false;
+
+  // Uniforms
+  const glowColorUniform = uniform(GLOW_COLOR);
+  const glowIntensityUniform = uniform(0.25);
+  const breathPhaseUniform = uniform(0);
+
+  // Store uniforms for external access
+  material.userData.glowColor = glowColorUniform;
+  material.userData.glowIntensity = glowIntensityUniform;
+  material.userData.breathPhase = breathPhaseUniform;
+
+  // Build color node using TSL
+  const colorNode = Fn(() => {
+    const normal = transformedNormalView;
+    // Calculate view direction from world position
+    const viewDir = normalize(sub(cameraPosition, positionWorld));
+
+    // Fresnel - softer edges with tighter falloff
+    const fresnel = pow(sub(1.0, abs(dot(normal, viewDir))), 3.5);
+
+    // Breathing pulse - gentler
+    const pulse = add(1.0, mul(breathPhaseUniform, 0.2));
+
+    // Alpha with glow intensity and pulse
+    const alpha = mul(mul(fresnel, glowIntensityUniform), pulse);
+
+    return vec4(glowColorUniform.x, glowColorUniform.y, glowColorUniform.z, alpha);
+  })();
+
+  material.colorNode = colorNode;
+
+  return material;
+}
+
+/**
+ * Creates a TSL-based mist material - animated noise haze
+ */
+function createMistMaterial() {
+  const material = new MeshBasicNodeMaterial();
+  material.side = FrontSide;
+  material.transparent = true;
+  material.depthWrite = false;
+
+  // Uniforms
+  const timeUniform = uniform(0);
+  const breathPhaseUniform = uniform(0);
+  const mistColorUniform = uniform(MIST_COLOR);
+
+  // Store uniforms for external access
+  material.userData.time = timeUniform;
+  material.userData.breathPhase = breathPhaseUniform;
+  material.userData.mistColor = mistColorUniform;
+
+  // Build color node using TSL
+  const colorNode = Fn(() => {
+    const normal = transformedNormalView;
+    // Calculate view direction from world position
+    const viewDir = normalize(sub(cameraPosition, positionWorld));
+
+    // Fresnel for edge effect
+    const fresnel = pow(sub(1.0, abs(dot(normal, viewDir))), 1.5);
+
+    // Simple hash-based noise (TSL compatible)
+    // Using UV with time offset for animated noise
+    const noiseUV = add(mul(uv(), 4.0), mul(timeUniform, 0.02));
+
+    // Simple sine-based noise approximation
+    const n1 = mul(add(sin(mul(noiseUV.x, 12.9898)), sin(mul(noiseUV.y, 78.233))), 0.5);
+    const n2 = mul(add(sin(mul(noiseUV.x, 25.9796)), sin(mul(noiseUV.y, 156.466))), 0.3);
+    const n3 = mul(add(sin(mul(noiseUV.x, 51.9592)), sin(mul(noiseUV.y, 312.932))), 0.2);
+    const noise = add(add(mul(n1, 0.5), mul(n2, 0.3)), mul(n3, 0.2));
+    const noiseClamped = add(mul(noise, 0.5), 0.5); // Normalize to 0-1
+
+    // Breathing modulation
+    const breath = add(0.6, mul(breathPhaseUniform, 0.4));
+
+    // Combine fresnel edge with noise
+    const alpha = mul(mul(mul(fresnel, noiseClamped), 0.15), breath);
+
+    return vec4(mistColorUniform.x, mistColorUniform.y, mistColorUniform.z, alpha);
+  })();
+
+  material.colorNode = colorNode;
+
+  return material;
+}
 
 /**
  * EarthGlobe component props
@@ -218,9 +261,9 @@ export function EarthGlobe({
   showGlow = true,
   showMist = true,
 }: Partial<EarthGlobeProps> = {}) {
-  const groupRef = useRef<THREE.Group>(null);
-  const ringRef = useRef<THREE.Mesh>(null);
-  const atmosphereRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const groupRef = useRef<Group>(null);
+  const ringRef = useRef<Mesh>(null);
+  const atmosphereRefs = useRef<(Mesh | null)[]>([]);
   const world = useWorld();
 
   // Load earth texture using drei's useTexture hook
@@ -228,76 +271,29 @@ export function EarthGlobe({
 
   // Configure texture
   useEffect(() => {
-    earthTexture.colorSpace = THREE.SRGBColorSpace;
+    earthTexture.colorSpace = SRGBColorSpace;
     earthTexture.anisotropy = 16;
   }, [earthTexture]);
 
-  // Create shader material with texture
-  const material = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        uniforms: {
-          earthTexture: { value: earthTexture },
-          breathPhase: { value: 0 },
-        },
-        vertexShader: globeVertexShader,
-        fragmentShader: globeFragmentShader,
-        side: THREE.FrontSide,
-      }),
-    [earthTexture],
-  );
+  // Create TSL materials
+  const material = useMemo(() => createGlobeMaterial(earthTexture), [earthTexture]);
 
-  // Create glow material - additive blended fresnel glow
-  // Uses pre-allocated GLOW_COLOR from module level
-  const glowMaterial = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        uniforms: {
-          glowColor: { value: GLOW_COLOR },
-          glowIntensity: { value: 0.25 },
-          breathPhase: { value: 0 },
-        },
-        vertexShader: glowVertexShader,
-        fragmentShader: glowFragmentShader,
-        side: THREE.FrontSide,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    [],
-  );
+  const glowMaterial = useMemo(() => createGlowMaterial(), []);
 
-  // Create mist material - animated noise haze
-  // Uses pre-allocated MIST_COLOR from module level
-  const mistMaterial = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        uniforms: {
-          time: { value: 0 },
-          breathPhase: { value: 0 },
-          mistColor: { value: MIST_COLOR },
-        },
-        vertexShader: mistVertexShader,
-        fragmentShader: mistFragmentShader,
-        side: THREE.FrontSide,
-        transparent: true,
-        depthWrite: false,
-      }),
-    [],
-  );
+  const mistMaterial = useMemo(() => createMistMaterial(), []);
 
   // Create memoized atmosphere geometries and materials to prevent GPU leaks
-  const atmosphereGeometry = useMemo(() => new THREE.SphereGeometry(radius, 32, 32), [radius]);
+  const atmosphereGeometry = useMemo(() => new SphereGeometry(radius, 32, 32), [radius]);
 
   const atmosphereMaterials = useMemo(
     () =>
       ATMOSPHERE_LAYERS.map(
         (layer) =>
-          new THREE.MeshBasicMaterial({
+          new MeshBasicMaterial({
             color: layer.color,
             transparent: true,
             opacity: layer.opacity,
-            side: THREE.BackSide,
+            side: BackSide,
             depthWrite: false,
           }),
       ),
@@ -307,11 +303,11 @@ export function EarthGlobe({
   // Create memoized ring material to prevent GPU leak
   const ringMaterial = useMemo(
     () =>
-      new THREE.MeshBasicMaterial({
+      new MeshBasicMaterial({
         color: '#e8c4b8',
         transparent: true,
         opacity: 0.15,
-        side: THREE.FrontSide, // Ring only viewed from above, no backface needed
+        side: FrontSide, // Ring only viewed from above, no backface needed
         depthWrite: false,
       }),
     [],
@@ -334,11 +330,20 @@ export function EarthGlobe({
       const breathEntity = world.queryFirst(breathPhase);
       if (breathEntity) {
         const phase = breathEntity.get(breathPhase)?.value ?? 0;
-        // Update shader uniforms
-        material.uniforms.breathPhase.value = phase;
-        glowMaterial.uniforms.breathPhase.value = phase;
-        mistMaterial.uniforms.breathPhase.value = phase;
-        mistMaterial.uniforms.time.value = state.clock.elapsedTime;
+
+        // Update TSL material uniforms via userData
+        if (material.userData.breathPhase) {
+          material.userData.breathPhase.value = phase;
+        }
+        if (glowMaterial.userData.breathPhase) {
+          glowMaterial.userData.breathPhase.value = phase;
+        }
+        if (mistMaterial.userData.breathPhase) {
+          mistMaterial.userData.breathPhase.value = phase;
+        }
+        if (mistMaterial.userData.time) {
+          mistMaterial.userData.time.value = state.clock.elapsedTime;
+        }
 
         // Subtle pulse: 1.0 to 1.06 (6% scale change)
         const scale = 1.0 + phase * 0.06;

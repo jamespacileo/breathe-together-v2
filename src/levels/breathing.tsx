@@ -15,7 +15,6 @@ import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
-import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useDevControls } from '../hooks/useDevControls';
 import { useInspirationInit } from '../hooks/useInspirationInit';
 import { usePresence } from '../hooks/usePresence';
@@ -24,13 +23,17 @@ import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
  * BreathingLevel - Core 3D meditation environment.
- * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ *
+ * TSL MIGRATION (January 2026):
+ * - Refraction now handled via viewportSharedTexture in TSL materials
+ * - RefractionPipeline removed in favor of TSL's built-in refraction support
+ * - DoF temporarily removed (can be added back with TSL PostProcessing)
  *
  * This component handles ONLY the 3D scene content.
  * HTML UI is rendered separately via BreathingLevelUI (outside Canvas).
  *
  * User controls: Harmony, Shard Size, Breathing Space, Atmosphere (via Zustand store)
- * Dev controls: Glass effect, DoF, Environment, Debug (via Leva panel)
+ * Dev controls: Environment, Debug (via Leva panel)
  */
 export function BreathingLevel({
   // DEBUG-ONLY: Entity visibility toggles (all default true)
@@ -89,15 +92,8 @@ export function BreathingLevel({
           polar={[-Math.PI * 0.3, Math.PI * 0.3]}
           azimuth={[-Infinity, Infinity]}
         >
-          {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
-          <RefractionPipeline
-            ior={devControls.ior}
-            backfaceIntensity={devControls.glassDepth}
-            enableDepthOfField={devControls.enableDepthOfField}
-            focusDistance={devControls.focusDistance}
-            focalRange={devControls.focalRange}
-            maxBlur={devControls.maxBlur}
-          >
+          {/* 3D Scene Content - TSL materials with viewportSharedTexture refraction */}
+          <group name="Scene Content">
             {/* Environment - clouds, lighting, fog (or grid floor in stage mode) */}
             {showEnvironment && (
               <Environment
@@ -146,11 +142,10 @@ export function BreathingLevel({
             )}
 
             {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
-            {/* Now inside RefractionPipeline: occluded by globe/shards, has DoF effect */}
             {showGlobe && Object.keys(countryCounts).length > 0 && (
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
             )}
-          </RefractionPipeline>
+          </group>
 
           {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
           {DEV_MODE_ENABLED && (
@@ -170,7 +165,6 @@ export function BreathingLevel({
           )}
 
           {/* Shape Gizmos - debug visualization for centroids and bounds */}
-          {/* Rendered outside RefractionPipeline to avoid distortion effects */}
           {DEV_MODE_ENABLED && (
             <ShapeGizmos
               showGlobeCentroid={devControls.showGlobeCentroid}
