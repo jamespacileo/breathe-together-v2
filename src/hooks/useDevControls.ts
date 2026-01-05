@@ -69,6 +69,9 @@ export const TUNING_DEFAULTS = {
   showMoonGizmo: false,
   showConstellationGizmos: false,
 
+  // Celestial Labels (user-facing orientation helpers)
+  showCelestialLabels: true,
+
   // Colors - Background
   bgColorTop: '#f5f0e8',
   bgColorHorizon: '#fcf0e0',
@@ -236,6 +239,9 @@ export interface DevControlsState {
   showMoonGizmo: boolean;
   showConstellationGizmos: boolean;
 
+  // Celestial Labels
+  showCelestialLabels: boolean;
+
   // Colors - Background
   bgColorTop: string;
   bgColorHorizon: string;
@@ -364,6 +370,7 @@ function getDefaultDevControls(): DevControlsState {
     showSunGizmo: TUNING_DEFAULTS.showSunGizmo,
     showMoonGizmo: TUNING_DEFAULTS.showMoonGizmo,
     showConstellationGizmos: TUNING_DEFAULTS.showConstellationGizmos,
+    showCelestialLabels: TUNING_DEFAULTS.showCelestialLabels,
     bgColorTop: TUNING_DEFAULTS.bgColorTop,
     bgColorHorizon: TUNING_DEFAULTS.bgColorHorizon,
     ambientLightColor: TUNING_DEFAULTS.ambientLightColor,
@@ -824,6 +831,11 @@ export function useDevControls(): DevControlsState {
               step: 0.1,
               label: 'Moon Intensity',
               hint: 'Overall brightness/opacity of the moon. Higher values create more prominent glow.',
+            },
+            showCelestialLabels: {
+              value: TUNING_DEFAULTS.showCelestialLabels,
+              label: 'Show Labels',
+              hint: 'Show minimal text labels for Sun, Moon, constellations, and cardinal directions.\n\n**Use case:** Help users orient themselves in the 3D sky.',
             },
           },
           { collapsed: false },
