@@ -121,8 +121,9 @@ const EquatorRing = memo(function EquatorRing({
 });
 
 /**
- * Simplified Orbit Plane - Shows Earth-Sun relationship
- * This is a pedagogical visualization, not astronomically accurate scale
+ * Simplified Orbit Plane - Shows Earth orbiting the Sun
+ * This is a pedagogical visualization showing Earth's position on its orbit around the Sun
+ * The Sun is shown at the center of the orbit, with Earth's current position marked
  */
 const OrbitPlaneGizmo = memo(function OrbitPlaneGizmo({
   globeRadius,
@@ -133,9 +134,23 @@ const OrbitPlaneGizmo = memo(function OrbitPlaneGizmo({
   color: string;
   sunDirection: THREE.Vector3;
 }) {
-  // Create orbit ellipse points - larger radius for visibility
-  const orbitRadius = globeRadius * 5;
+  // Orbit radius - distance from Sun to orbit visualization
+  const orbitRadius = globeRadius * 4;
 
+  // Sun position (center of orbit system, offset from Earth)
+  // The Sun is in the direction of sunDirection from Earth
+  const sunPos = useMemo(() => {
+    const dir = sunDirection.clone();
+    // Project onto XZ plane for cleaner visualization
+    dir.y = 0;
+    if (dir.length() < 0.01) {
+      return new THREE.Vector3(orbitRadius * 0.6, 0, 0);
+    }
+    dir.normalize();
+    return dir.multiplyScalar(orbitRadius * 0.6);
+  }, [sunDirection, orbitRadius]);
+
+  // Create orbit ellipse points centered on the Sun
   const orbitPoints = useMemo(() => {
     const points: THREE.Vector3[] = [];
     const segments = 64;
@@ -143,62 +158,31 @@ const OrbitPlaneGizmo = memo(function OrbitPlaneGizmo({
     for (let i = 0; i <= segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
       points.push(
-        new THREE.Vector3(Math.cos(angle) * orbitRadius, 0, Math.sin(angle) * orbitRadius),
+        new THREE.Vector3(
+          sunPos.x + Math.cos(angle) * orbitRadius,
+          0,
+          sunPos.z + Math.sin(angle) * orbitRadius,
+        ),
       );
     }
 
     return points;
-  }, [orbitRadius]);
+  }, [orbitRadius, sunPos]);
 
-  // Sun position indicator on orbit (projected onto XZ plane)
-  const simplifiedSunPos = useMemo(() => {
-    const dir = sunDirection.clone();
-    // Project onto XZ plane and normalize
-    dir.y = 0;
-    if (dir.length() < 0.01) {
-      // Sun is directly above/below, default to +X
-      return new THREE.Vector3(orbitRadius, 0, 0);
-    }
-    dir.normalize();
-    return dir.multiplyScalar(orbitRadius);
-  }, [sunDirection, orbitRadius]);
+  // Earth's position on the orbit (opposite to sun direction from Earth's perspective)
+  // Since Earth is at scene origin, its position on the orbit is at origin
+  const earthOrbitPos = new THREE.Vector3(0, 0, 0);
 
   return (
     <group>
-      {/* Orbit path - dashed ellipse */}
-      <Line
-        points={orbitPoints}
-        color={color}
-        lineWidth={2}
-        transparent
-        opacity={0.6}
-        dashed
-        dashSize={0.5}
-        gapSize={0.25}
-        renderOrder={997}
-      />
-
-      {/* Sun direction indicator - yellow sphere */}
-      <mesh position={simplifiedSunPos} renderOrder={999}>
-        <sphereGeometry args={[0.25, 16, 16]} />
+      {/* Sun at center of orbit - large yellow sphere */}
+      <mesh position={sunPos} renderOrder={999}>
+        <sphereGeometry args={[0.35, 16, 16]} />
         <meshBasicMaterial color="#ffdd44" transparent opacity={0.9} depthTest={false} />
       </mesh>
 
-      {/* Line from Earth to Sun indicator */}
-      <Line
-        points={[new THREE.Vector3(0, 0, 0), simplifiedSunPos]}
-        color="#ffdd44"
-        lineWidth={2}
-        transparent
-        opacity={0.5}
-        dashed
-        dashSize={0.3}
-        gapSize={0.15}
-        renderOrder={996}
-      />
-
       {/* Sun label */}
-      <Html position={[simplifiedSunPos.x, 0.5, simplifiedSunPos.z]} center>
+      <Html position={[sunPos.x, 0.6, sunPos.z]} center>
         <div
           style={{
             background: 'rgba(50, 40, 0, 0.85)',
@@ -213,7 +197,65 @@ const OrbitPlaneGizmo = memo(function OrbitPlaneGizmo({
             border: '1px solid #ffdd44',
           }}
         >
-          ☀ Sun direction
+          ☀ Sun
+        </div>
+      </Html>
+
+      {/* Orbit path - dashed ellipse centered on Sun */}
+      <Line
+        points={orbitPoints}
+        color={color}
+        lineWidth={2}
+        transparent
+        opacity={0.6}
+        dashed
+        dashSize={0.5}
+        gapSize={0.25}
+        renderOrder={997}
+      />
+
+      {/* Earth position marker on orbit (at scene origin where the globe is) */}
+      <mesh position={earthOrbitPos} rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
+        <ringGeometry args={[globeRadius * 1.1, globeRadius * 1.15, 32]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.8}
+          side={THREE.DoubleSide}
+          depthTest={false}
+        />
+      </mesh>
+
+      {/* Line from Sun to Earth */}
+      <Line
+        points={[sunPos, earthOrbitPos]}
+        color="#ffdd44"
+        lineWidth={2}
+        transparent
+        opacity={0.4}
+        dashed
+        dashSize={0.3}
+        gapSize={0.15}
+        renderOrder={996}
+      />
+
+      {/* Earth position label */}
+      <Html position={[0, -globeRadius - 0.5, 0]} center>
+        <div
+          style={{
+            background: 'rgba(30, 60, 100, 0.85)',
+            color: color,
+            padding: '3px 8px',
+            borderRadius: '4px',
+            fontSize: '10px',
+            fontFamily: 'monospace',
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            border: `1px solid ${color}`,
+          }}
+        >
+          🌍 Earth (you are here)
         </div>
       </Html>
     </group>
@@ -375,6 +417,17 @@ const AxialTiltIndicator = memo(function AxialTiltIndicator({
 });
 
 /**
+ * Calculate sun direction vector for current time
+ */
+function getSunDirection(): THREE.Vector3 {
+  const now = new Date();
+  const gmst = calculateGMST(now);
+  const sunData = calculateSunPosition(now);
+  const [x, y, z] = celestialToCartesian(sunData.ra, sunData.dec, 1, gmst);
+  return new THREE.Vector3(x, y, z);
+}
+
+/**
  * Main GlobeGizmos component
  */
 export const GlobeGizmos = memo(function GlobeGizmos({
@@ -390,15 +443,13 @@ export const GlobeGizmos = memo(function GlobeGizmos({
   orbitColor = '#4488ff',
   shadowColor = '#000033',
 }: GlobeGizmosProps) {
-  const sunDirectionRef = useRef(new THREE.Vector3(1, 0, 0));
+  // Initialize with actual sun position (not default) to prevent sudden appearance
+  const sunDirectionRef = useRef(getSunDirection());
 
   // Update sun direction each frame for accurate positioning
   useFrame(() => {
-    const now = new Date();
-    const gmst = calculateGMST(now);
-    const sunData = calculateSunPosition(now);
-    const [x, y, z] = celestialToCartesian(sunData.ra, sunData.dec, 1, gmst);
-    sunDirectionRef.current.set(x, y, z);
+    const dir = getSunDirection();
+    sunDirectionRef.current.copy(dir);
   });
 
   // Nothing to show
