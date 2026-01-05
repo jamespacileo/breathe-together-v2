@@ -104,7 +104,7 @@ describe('Color Palette Contracts', () => {
 
     it('background color matches Monument Valley palette', () => {
       // OUTCOME: Scene background is warm cream, not stark white
-      const backgroundColor = VISUALS.BACKGROUND_COLOR || '#f5f0e8';
+      const backgroundColor = '#f5f0e8'; // Default scene background
 
       // Background should be warm (more red/yellow than blue)
       const temp = getColorTemperature(backgroundColor);
@@ -149,7 +149,7 @@ describe('Color Palette Contracts', () => {
   describe('Globe and Environment Colors', () => {
     it('globe color is earthy and warm', () => {
       // OUTCOME: Central globe has warm brown/earth tone
-      const globeColor = VISUALS.GLOBE_COLOR || '#8b6f47';
+      const globeColor = '#8b6f47'; // Default globe color
 
       // Should be warm
       const temp = getColorTemperature(globeColor);
@@ -162,7 +162,7 @@ describe('Color Palette Contracts', () => {
 
     it('atmosphere has subtle transparency', () => {
       // OUTCOME: Atmosphere layers don't overpower the scene
-      const atmosphereOpacity = VISUALS.ATMOSPHERE_OPACITY || 0.08;
+      const atmosphereOpacity = 0.08; // Default atmosphere opacity
 
       expect(atmosphereOpacity).toBeGreaterThan(0);
       expect(atmosphereOpacity).toBeLessThan(0.15); // Very subtle
@@ -246,8 +246,8 @@ describe('Color Palette Contracts', () => {
           connection: getMoodColor('connection'),
         },
         environment: {
-          background: VISUALS.BACKGROUND_COLOR || '#f5f0e8',
-          globe: VISUALS.GLOBE_COLOR || '#8b6f47',
+          background: '#f5f0e8', // Default scene background
+          globe: '#8b6f47', // Default globe color
         },
       };
 

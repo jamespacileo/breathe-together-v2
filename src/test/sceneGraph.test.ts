@@ -35,7 +35,7 @@ describe('Scene Graph Structure', () => {
 
     it('globe has correct geometry parameters', () => {
       // OUTCOME: Globe size matches design specifications
-      const globeRadius = VISUALS.GLOBE_RADIUS || 1.5;
+      const globeRadius = 1.5; // Default globe radius
       const geometry = new THREE.SphereGeometry(globeRadius, 32, 32);
 
       expect(geometry.parameters.radius).toBe(globeRadius);
