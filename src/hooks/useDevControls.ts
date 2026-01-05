@@ -59,8 +59,14 @@ export const TUNING_DEFAULTS = {
   sunSize: 8,
   sunIntensity: 1,
 
+  // Moon (dev-only)
+  showMoon: true,
+  moonSize: 4,
+  moonIntensity: 1,
+
   // Celestial Gizmos (dev-only)
   showSunGizmo: false,
+  showMoonGizmo: false,
   showConstellationGizmos: false,
 
   // Colors - Background
@@ -220,8 +226,14 @@ export interface DevControlsState {
   sunSize: number;
   sunIntensity: number;
 
+  // Moon
+  showMoon: boolean;
+  moonSize: number;
+  moonIntensity: number;
+
   // Celestial Gizmos
   showSunGizmo: boolean;
+  showMoonGizmo: boolean;
   showConstellationGizmos: boolean;
 
   // Colors - Background
@@ -346,7 +358,11 @@ function getDefaultDevControls(): DevControlsState {
     constellationLineOpacity: TUNING_DEFAULTS.constellationLineOpacity,
     sunSize: TUNING_DEFAULTS.sunSize,
     sunIntensity: TUNING_DEFAULTS.sunIntensity,
+    showMoon: TUNING_DEFAULTS.showMoon,
+    moonSize: TUNING_DEFAULTS.moonSize,
+    moonIntensity: TUNING_DEFAULTS.moonIntensity,
     showSunGizmo: TUNING_DEFAULTS.showSunGizmo,
+    showMoonGizmo: TUNING_DEFAULTS.showMoonGizmo,
     showConstellationGizmos: TUNING_DEFAULTS.showConstellationGizmos,
     bgColorTop: TUNING_DEFAULTS.bgColorTop,
     bgColorHorizon: TUNING_DEFAULTS.bgColorHorizon,
@@ -788,6 +804,27 @@ export function useDevControls(): DevControlsState {
               label: 'Sun Intensity',
               hint: 'Overall brightness/opacity of the sun. Higher values create more prominent glow.',
             },
+            showMoon: {
+              value: TUNING_DEFAULTS.showMoon,
+              label: 'Stylized Moon',
+              hint: 'Toggle stylized moon positioned based on real astronomical calculations. Shows accurate moon phase.',
+            },
+            moonSize: {
+              value: TUNING_DEFAULTS.moonSize,
+              min: 1,
+              max: 10,
+              step: 0.5,
+              label: 'Moon Size',
+              hint: 'Size of the moon disc and glow.\n\n**Typical range:** Small (2) → Medium (4) → Large (8)',
+            },
+            moonIntensity: {
+              value: TUNING_DEFAULTS.moonIntensity,
+              min: 0.2,
+              max: 2,
+              step: 0.1,
+              label: 'Moon Intensity',
+              hint: 'Overall brightness/opacity of the moon. Higher values create more prominent glow.',
+            },
           },
           { collapsed: false },
         ),
@@ -1133,6 +1170,7 @@ export function useDevControls(): DevControlsState {
                   showShardWireframes: true,
                   showShardConnections: true,
                   showSunGizmo: true,
+                  showMoonGizmo: true,
                   showConstellationGizmos: true,
                   showGlobePoles: true,
                   showGlobeEquator: true,
@@ -1154,6 +1192,7 @@ export function useDevControls(): DevControlsState {
                   showShardWireframes: false,
                   showShardConnections: false,
                   showSunGizmo: false,
+                  showMoonGizmo: false,
                   showConstellationGizmos: false,
                   showGlobePoles: false,
                   showGlobeEquator: false,
@@ -1225,6 +1264,11 @@ export function useDevControls(): DevControlsState {
               value: TUNING_DEFAULTS.showSunGizmo,
               label: 'Sun Gizmo',
               hint: 'Show debug gizmo for sun position and size.\n\n**Shows:** Wireframe sphere, axes helper, distance ring',
+            },
+            showMoonGizmo: {
+              value: TUNING_DEFAULTS.showMoonGizmo,
+              label: 'Moon Gizmo',
+              hint: 'Show debug gizmo for moon position and size.\n\n**Shows:** Wireframe sphere, axes helper, distance ring',
             },
             showConstellationGizmos: {
               value: TUNING_DEFAULTS.showConstellationGizmos,

@@ -142,6 +142,10 @@ export function BreathingLevel({
                 sunSize={devControls.sunSize}
                 sunIntensity={devControls.sunIntensity}
                 showSunGizmo={devControls.showSunGizmo}
+                showMoon={devControls.showMoon}
+                moonSize={devControls.moonSize}
+                moonIntensity={devControls.moonIntensity}
+                showMoonGizmo={devControls.showMoonGizmo}
                 showConstellationGizmos={devControls.showConstellationGizmos}
                 stageMode={devControls.stageMode}
                 showGridFloor={devControls.showGridFloor}
