@@ -47,7 +47,7 @@ async function checkPreviewReady() {
 
     try {
       await page.goto(PREVIEW_URL, {
-        waitUntil: 'networkidle',
+        waitUntil: 'domcontentloaded',
         timeout: 30000,
       });
 
