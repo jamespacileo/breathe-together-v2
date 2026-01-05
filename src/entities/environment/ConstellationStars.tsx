@@ -78,9 +78,9 @@ export const ConstellationStars = memo(function ConstellationStars({
   radius = 25,
   starSize = 2.0,
   starColor = '#ffffff',
-  lineColor = '#f8e8d0',
-  lineOpacity = 0.7,
-  lineWidth = 1.5,
+  lineColor = '#ffffff',
+  lineOpacity = 0.8,
+  lineWidth = 3.0,
   twinkle = true,
   twinkleSpeed = 1,
   opacity = 1.0,
@@ -287,10 +287,6 @@ export const ConstellationStars = memo(function ConstellationStars({
             lineWidth={lineWidth}
             transparent
             opacity={lineOpacity}
-            // Soft dashed pattern for ethereal feel
-            dashed
-            dashSize={2}
-            gapSize={1}
           />
         ))}
     </group>
