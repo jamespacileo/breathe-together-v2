@@ -43,7 +43,6 @@ void main() {
 // Fragment shader - fresnel rim + breathing luminosity
 const shardFragmentShader = `
 uniform float breathPhase;
-uniform float time;
 
 varying vec3 vNormal;
 varying vec3 vViewPosition;
@@ -96,7 +95,6 @@ export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMateri
   return new THREE.ShaderMaterial({
     uniforms: {
       breathPhase: { value: 0 },
-      time: { value: 0 },
     },
     vertexShader: shardVertexShader,
     fragmentShader: shardFragmentShader,

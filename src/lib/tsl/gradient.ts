@@ -7,7 +7,7 @@
  * - Atmosphere color transitions
  */
 
-import { color, float, mix, type ShaderNodeObject, smoothstep } from 'three/tsl';
+import { color, float, mix, mul, pow, type ShaderNodeObject, smoothstep, sub } from 'three/tsl';
 import type { Node } from 'three/webgpu';
 
 /**
@@ -99,7 +99,6 @@ export function createRadialGradientNode(
   distance: ShaderNodeObject<Node>,
   falloff = 1.0,
 ): ShaderNodeObject<Node> {
-  const { pow } = require('three/tsl');
   const t = pow(distance, float(falloff));
   return mix(color(centerColor), color(edgeColor), t);
 }
@@ -130,7 +129,6 @@ export function createVignetteNode(
   intensity = 0.15,
   softness = 0.5,
 ) {
-  const { sub, mul } = require('three/tsl');
   const vignette = smoothstep(float(softness), float(1.0), distance);
   return sub(float(1.0), mul(vignette, float(intensity)));
 }

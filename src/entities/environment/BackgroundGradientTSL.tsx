@@ -35,6 +35,7 @@ import {
   vec3,
 } from 'three/tsl';
 import { MeshBasicNodeMaterial } from 'three/webgpu';
+import { setUniformValue } from '../../types/tsl';
 
 interface BackgroundGradientTSLProps {
   /** Enable vignette effect (default: true) */
@@ -106,8 +107,7 @@ export function BackgroundGradientTSL({ enableVignette = true }: BackgroundGradi
 
   // Animate time uniform (for future cloud animation)
   useFrame((state) => {
-    // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-    (uTime as any).value = state.clock.elapsedTime;
+    setUniformValue(uTime, state.clock.elapsedTime);
   });
 
   // Create geometry

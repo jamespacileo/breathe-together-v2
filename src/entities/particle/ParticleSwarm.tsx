@@ -593,7 +593,6 @@ export function ParticleSwarm({
     // Update shader uniforms
     if (material.uniforms) {
       material.uniforms.breathPhase.value = currentBreathPhase;
-      material.uniforms.time.value = time;
     }
 
     // Position lerp factor for smooth redistribution

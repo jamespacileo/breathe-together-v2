@@ -39,6 +39,7 @@ import {
   createInvertedFresnelNode,
   FRESNEL_PRESETS,
 } from '../../lib/tsl';
+import { setUniformValue } from '../../types/tsl';
 
 /**
  * Props for the TSL frosted glass material
@@ -155,9 +156,7 @@ export const FrostedGlassMaterialTSL = forwardRef<
     ref,
     () => ({
       setBreathPhase: (phase: number) => {
-        // TSL uniforms accept numbers at runtime despite strict typing
-        // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-        (uniforms.uBreathPhase as any).value = phase;
+        setUniformValue(uniforms.uBreathPhase, phase);
       },
       material,
     }),
@@ -166,8 +165,7 @@ export const FrostedGlassMaterialTSL = forwardRef<
 
   // Update breath phase from props
   useEffect(() => {
-    // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-    (uniforms.uBreathPhase as any).value = breathPhase;
+    setUniformValue(uniforms.uBreathPhase, breathPhase);
   }, [breathPhase, uniforms]);
 
   // Cleanup
@@ -265,8 +263,7 @@ export function useFrostedGlassTSL(
   return {
     material,
     updateBreathPhase: (phase: number) => {
-      // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-      (uBreathPhase as any).value = phase;
+      setUniformValue(uBreathPhase, phase);
     },
   };
 }
