@@ -7,8 +7,11 @@ import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
 import { BreathSparkles } from './BreathSparkles';
 import { CloudSystem } from './CloudSystem';
+import { DepthLayers } from './DepthLayers';
 import { EditorGrid } from './EditorGrid';
+import { HorizonPlane } from './HorizonPlane';
 import { ReflectiveFloor } from './ReflectiveFloor';
+import { Skydome } from './Skydome';
 import { SubtleLightRays } from './SubtleLightRays';
 
 /**
@@ -103,6 +106,42 @@ interface EnvironmentProps {
    * @default 20
    */
   breathSparklesCount?: number;
+  /**
+   * Show depth layers for 3D depth perception (distant nebulae, haze bands)
+   * Creates sense of vast space behind the globe
+   * @default true
+   */
+  showDepthLayers?: boolean;
+  /**
+   * Depth layer nebula opacity (distant cosmic clouds)
+   * @default 0.15
+   */
+  depthNebulaOpacity?: number;
+  /**
+   * Depth layer haze opacity (atmospheric bands)
+   * @default 0.08
+   */
+  depthHazeOpacity?: number;
+  /**
+   * Show horizon plane (subtle ground reference)
+   * @default true
+   */
+  showHorizonPlane?: boolean;
+  /**
+   * Horizon plane vertical position
+   * @default -3
+   */
+  horizonPlaneHeight?: number;
+  /**
+   * Show skydome (gradient sky sphere)
+   * @default true
+   */
+  showSkydome?: boolean;
+  /**
+   * Skydome cloud density (0-1)
+   * @default 0.15
+   */
+  skydomeCloudDensity?: number;
 }
 
 /**
@@ -139,6 +178,13 @@ export function Environment({
   reflectionMixStrength = 0.3,
   showBreathSparkles = false,
   breathSparklesCount = 20,
+  showDepthLayers = true,
+  depthNebulaOpacity = 0.15,
+  depthHazeOpacity = 0.08,
+  showHorizonPlane = true,
+  horizonPlaneHeight = -3,
+  showSkydome = true,
+  skydomeCloudDensity = 0.15,
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
@@ -206,6 +252,18 @@ export function Environment({
   // Normal mode: full Monument Valley atmosphere
   return (
     <group>
+      {/* Skydome - large gradient sphere for infinite sky illusion */}
+      {/* Renders first (behind everything) */}
+      {showSkydome && !isMobile && (
+        <Skydome
+          zenithColor="#e8e4f0"
+          horizonColor="#f8f0e8"
+          nadirColor="#f0e8e0"
+          cloudDensity={skydomeCloudDensity}
+          cloudSpeed={0.01}
+        />
+      )}
+
       {/* HDRI Environment - provides realistic reflections for PBR materials */}
       {/* Uses self-hosted Belfast Sunset HDRI for warm, pastel lighting */}
       {/* Does NOT replace the gradient background unless useHDRIBackground is true */}
@@ -219,8 +277,10 @@ export function Environment({
       )}
 
       {/* Animated gradient background - renders behind everything */}
-      {/* Only shown when not using HDRI as background */}
-      {!useHDRIBackground && <BackgroundGradient />}
+      {/* Only shown when not using HDRI as background and no skydome */}
+      {!useHDRIBackground && !showSkydome && <BackgroundGradient />}
+      {/* If skydome is enabled but on mobile, still show the gradient */}
+      {!useHDRIBackground && showSkydome && isMobile && <BackgroundGradient />}
 
       {/* Memoized cloud system - only initializes once, never re-renders from parent changes */}
       {/* Includes: top/middle/bottom layers, parallax depths, right-to-left looping */}
@@ -233,6 +293,16 @@ export function Environment({
       {/* Breath-synchronized sparkles during exhale phase */}
       {/* Visual feedback for "releasing breath" moment */}
       {showBreathSparkles && <BreathSparkles count={breathSparklesCount} />}
+
+      {/* Depth layers - distant nebulae and haze bands for 3D depth perception */}
+      {/* Disabled on mobile for performance */}
+      {showDepthLayers && !isMobile && (
+        <DepthLayers
+          enabled={true}
+          nebulaOpacity={depthNebulaOpacity}
+          hazeOpacity={depthHazeOpacity}
+        />
+      )}
 
       {/* Subtle diagonal light rays from upper right */}
       <SubtleLightRays opacity={0.03} enabled={!isMobile} />
@@ -270,6 +340,12 @@ export function Environment({
 
       {/* Subtle hemisphere light for natural sky/ground color blending */}
       <hemisphereLight args={['#ffe8d6', '#f5e6d3', 0.4]} />
+
+      {/* Horizon plane - subtle ground reference with fade to horizon */}
+      {/* Disabled on mobile for performance */}
+      {showHorizonPlane && !isMobile && (
+        <HorizonPlane height={horizonPlaneHeight} gridOpacity={0.12} fadeStart={10} fadeEnd={80} />
+      )}
 
       {/* Reflective floor - subtle reflections for enhanced depth */}
       {/* Disabled on mobile for performance */}

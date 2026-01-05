@@ -1,13 +1,17 @@
 /**
- * RefractionPipeline - 4-pass FBO rendering for frosted glass refraction + depth of field
+ * RefractionPipeline - 5-pass FBO rendering for frosted glass refraction + selective depth of field
  *
- * Implements the Monument Valley reference rendering pipeline:
+ * Implements the Monument Valley reference rendering pipeline with selective DoF:
  * Pass 1: Render background gradient → envFBO texture (cached when static)
  * Pass 2: Render scene with backface material → backfaceFBO texture (half resolution)
- * Pass 3: Render scene with refraction material → compositeFBO (with depth)
- * Pass 4: Apply depth of field blur → screen
+ * Pass 3: Render scene WITHOUT particles (environment, globe) → sceneFBO (SHARP - no DoF)
+ * Pass 4: Render particles with refraction material → particlesFBO (with depth for DoF)
+ * Pass 5: Composite: sceneFBO (sharp) + DoF(particlesFBO) → screen
  *
- * Performance optimizations (Jan 2025):
+ * Key improvement (Jan 2026): DoF only affects particle shards, not globe/environment.
+ * This creates proper depth separation where the globe/environment stays crisp.
+ *
+ * Performance optimizations:
  * - THREE.Layers for selective rendering (RENDER_LAYERS.PARTICLES for refraction)
  * - Half-resolution backface pass (50% width/height, bilinear filtering)
  * - Environment FBO caching (re-renders only every ENV_CACHE_FRAMES frames)
@@ -206,6 +210,7 @@ void main() {
 `;
 
 // Depth of Field fragment shader - bokeh-style blur based on depth
+// Now outputs RGBA with alpha for compositing (particles over scene)
 const dofFragmentShader = `
 uniform sampler2D colorTexture;
 uniform sampler2D depthTexture;
@@ -224,9 +229,9 @@ float linearizeDepth(float depth) {
   return (2.0 * cameraNear * cameraFar) / (cameraFar + cameraNear - z * (cameraFar - cameraNear));
 }
 
-// Simple box blur kernel with variable radius
-vec3 boxBlur(vec2 uv, float radius) {
-  vec3 color = vec3(0.0);
+// Simple box blur kernel with variable radius - now returns vec4 for alpha
+vec4 boxBlur(vec2 uv, float radius) {
+  vec4 color = vec4(0.0);
   float count = 0.0;
   vec2 texelSize = 1.0 / resolution;
 
@@ -236,7 +241,7 @@ vec3 boxBlur(vec2 uv, float radius) {
       vec2 offset = vec2(x, y) * texelSize * radius;
       // Circular mask for bokeh shape
       if (length(vec2(x, y)) <= 3.0) {
-        color += texture2D(colorTexture, uv + offset).rgb;
+        color += texture2D(colorTexture, uv + offset);
         count += 1.0;
       }
     }
@@ -262,16 +267,45 @@ void main() {
   float coc = smoothstep(0.0, focalRange, distanceBeyondFocus) * maxBlur;
 
   // Apply blur based on CoC
-  vec3 color;
+  vec4 color;
   if (coc < 0.5) {
     // Sharp - just sample directly
-    color = texture2D(colorTexture, vUv).rgb;
+    color = texture2D(colorTexture, vUv);
   } else {
     // Blur - apply box blur with radius based on CoC
     color = boxBlur(vUv, coc);
   }
 
-  gl_FragColor = vec4(color, 1.0);
+  gl_FragColor = color;
+}
+`;
+
+// Composite shader - blends sharp scene with DoF particles
+const compositeVertexShader = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position, 1.0);
+}
+`;
+
+// Composite fragment shader - layer particles (with DoF) over sharp scene
+const compositeFragmentShader = `
+uniform sampler2D sceneTexture;     // Sharp scene (globe, environment)
+uniform sampler2D particlesTexture; // Particles with DoF applied
+uniform sampler2D particleDepth;    // Particle depth for proper ordering
+
+varying vec2 vUv;
+
+void main() {
+  vec4 sceneColor = texture2D(sceneTexture, vUv);
+  vec4 particleColor = texture2D(particlesTexture, vUv);
+
+  // Blend particles over scene using particle alpha
+  // Particles rendered with alpha show through to scene
+  vec3 finalColor = mix(sceneColor.rgb, particleColor.rgb, particleColor.a);
+
+  gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
@@ -341,7 +375,7 @@ export function RefractionPipeline({
   const backfaceHeight = Math.floor(size.height * BACKFACE_RESOLUTION_SCALE);
 
   // Create render targets
-  const { envFBO, backfaceFBO, compositeFBO } = useMemo(() => {
+  const { envFBO, backfaceFBO, sceneFBO, particlesFBO, dofOutputFBO } = useMemo(() => {
     // Environment FBO - full resolution, cached for ENV_CACHE_FRAMES
     const envFBO = new THREE.WebGLRenderTarget(size.width, size.height, {
       minFilter: THREE.LinearFilter,
@@ -355,15 +389,31 @@ export function RefractionPipeline({
       magFilter: THREE.LinearFilter,
     });
 
-    // Composite FBO with depth texture for DoF
-    const depthTexture = new THREE.DepthTexture(size.width, size.height);
-    depthTexture.format = THREE.DepthFormat;
-    depthTexture.type = THREE.UnsignedIntType;
-    const compositeFBO = new THREE.WebGLRenderTarget(size.width, size.height, {
-      depthTexture: depthTexture,
+    // Scene FBO - renders environment + globe (everything except particles) - SHARP
+    const sceneFBO = new THREE.WebGLRenderTarget(size.width, size.height, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
       depthBuffer: true,
     });
-    return { envFBO, backfaceFBO, compositeFBO };
+
+    // Particles FBO with depth texture for DoF - renders particles only with alpha
+    const particleDepthTexture = new THREE.DepthTexture(size.width, size.height);
+    particleDepthTexture.format = THREE.DepthFormat;
+    particleDepthTexture.type = THREE.UnsignedIntType;
+    const particlesFBO = new THREE.WebGLRenderTarget(size.width, size.height, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthTexture: particleDepthTexture,
+      depthBuffer: true,
+    });
+
+    // DoF output FBO - particles with blur applied
+    const dofOutputFBO = new THREE.WebGLRenderTarget(size.width, size.height, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    });
+
+    return { envFBO, backfaceFBO, sceneFBO, particlesFBO, dofOutputFBO };
   }, [size.width, size.height, backfaceWidth, backfaceHeight]);
 
   // Create a camera for layer-based selective rendering
@@ -389,7 +439,7 @@ export function RefractionPipeline({
     return { bgScene, orthoCamera, bgMesh };
   }, []);
 
-  // Create DoF scene for final composite
+  // Create DoF scene for particle blur
   const { dofScene, dofMesh, dofMaterial } = useMemo(() => {
     const dofScene = new THREE.Scene();
 
@@ -406,6 +456,7 @@ export function RefractionPipeline({
       },
       vertexShader: dofVertexShader,
       fragmentShader: dofFragmentShader,
+      transparent: true, // Enable alpha for compositing
     });
     const dofGeometry = new THREE.PlaneGeometry(2, 2);
     const dofMesh = new THREE.Mesh(dofGeometry, dofMaterial);
@@ -421,6 +472,26 @@ export function RefractionPipeline({
     focalRange,
     maxBlur,
   ]);
+
+  // Create composite scene for final output (scene + DoF particles)
+  const { compositeScene, compositeMesh, compositeMaterial } = useMemo(() => {
+    const compositeScene = new THREE.Scene();
+
+    const compositeMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        sceneTexture: { value: null },
+        particlesTexture: { value: null },
+        particleDepth: { value: null },
+      },
+      vertexShader: compositeVertexShader,
+      fragmentShader: compositeFragmentShader,
+    });
+    const compositeGeometry = new THREE.PlaneGeometry(2, 2);
+    const compositeMesh = new THREE.Mesh(compositeGeometry, compositeMaterial);
+    compositeScene.add(compositeMesh);
+
+    return { compositeScene, compositeMesh, compositeMaterial };
+  }, []);
 
   // Create materials
   const { backfaceMaterial, refractionMaterial } = useMemo(() => {
@@ -473,7 +544,9 @@ export function RefractionPipeline({
     envFBO.setSize(size.width, size.height);
     // Backface uses half resolution
     backfaceFBO.setSize(backfaceWidth, backfaceHeight);
-    compositeFBO.setSize(size.width, size.height);
+    sceneFBO.setSize(size.width, size.height);
+    particlesFBO.setSize(size.width, size.height);
+    dofOutputFBO.setSize(size.width, size.height);
     refractionMaterial.uniforms.resolution.value.set(size.width, size.height);
     dofMaterial.uniforms.resolution.value.set(size.width, size.height);
     // Force env FBO re-render on resize
@@ -485,7 +558,9 @@ export function RefractionPipeline({
     backfaceHeight,
     envFBO,
     backfaceFBO,
-    compositeFBO,
+    sceneFBO,
+    particlesFBO,
+    dofOutputFBO,
     refractionMaterial,
     dofMaterial,
   ]);
@@ -509,33 +584,43 @@ export function RefractionPipeline({
     return () => {
       envFBO.dispose();
       backfaceFBO.dispose();
+      sceneFBO.dispose();
       // Dispose depth texture explicitly before render target
-      compositeFBO.depthTexture?.dispose();
-      compositeFBO.dispose();
+      particlesFBO.depthTexture?.dispose();
+      particlesFBO.dispose();
+      dofOutputFBO.dispose();
       backfaceMaterial.dispose();
       refractionMaterial.dispose();
       dofMaterial.dispose();
+      compositeMaterial.dispose();
       bgMesh.geometry.dispose();
       (bgMesh.material as THREE.Material).dispose();
       dofMesh.geometry.dispose();
       (dofMesh.material as THREE.Material).dispose();
+      compositeMesh.geometry.dispose();
+      (compositeMesh.material as THREE.Material).dispose();
     };
   }, [
     envFBO,
     backfaceFBO,
-    compositeFBO,
+    sceneFBO,
+    particlesFBO,
+    dofOutputFBO,
     backfaceMaterial,
     refractionMaterial,
     dofMaterial,
+    compositeMaterial,
     bgMesh,
     dofMesh,
+    compositeMesh,
   ]);
 
-  // 4-pass rendering loop with performance optimizations:
+  // 5-pass rendering loop with selective DoF (only particles get blur):
   // - Layer-based mesh detection (RENDER_LAYERS.PARTICLES)
   // - Environment FBO caching (re-render every ENV_CACHE_FRAMES)
   // - Half-resolution backface pass
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Multi-pass refraction pipeline requires mesh detection, material swapping, 4 FBO passes, and DoF toggle - splitting would reduce readability of the sequential rendering logic
+  // - Separate scene (sharp) and particle (DoF) rendering
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Multi-pass refraction pipeline requires mesh detection, material swapping, 5 FBO passes, and DoF toggle - splitting would reduce readability of the sequential rendering logic
   useFrame(() => {
     frameCountRef.current++;
 
@@ -573,7 +658,7 @@ export function RefractionPipeline({
 
     const meshes = refractionMeshesRef.current;
 
-    // Store original materials
+    // Store original materials and visibility
     meshDataRef.current.clear();
     for (const mesh of meshes) {
       meshDataRef.current.set(mesh, mesh.material);
@@ -604,21 +689,54 @@ export function RefractionPipeline({
     refractionMaterial.uniforms.envMap.value = envFBO.texture;
     refractionMaterial.uniforms.backfaceMap.value = backfaceFBO.texture;
 
-    // Swap to refraction material
+    // Swap to refraction material for particles
     for (const mesh of meshes) {
       mesh.material = refractionMaterial;
     }
 
-    // Reset camera layers to render all for composite pass
-    layerCamera.layers.enableAll();
-
     if (enableDepthOfField) {
-      // Pass 3: Render composite to compositeFBO (with depth for DoF)
-      gl.setRenderTarget(compositeFBO);
+      // === SELECTIVE DOF PIPELINE (5-pass) ===
+
+      // Pass 3: Render scene WITHOUT particles (environment, globe) → sceneFBO (SHARP)
+      // Hide particles temporarily
+      for (const mesh of meshes) {
+        mesh.visible = false;
+      }
+      layerCamera.layers.enableAll();
+      gl.setRenderTarget(sceneFBO);
       gl.clear();
-      gl.render(bgScene, orthoCamera);
+      gl.render(bgScene, orthoCamera); // Background gradient
       gl.clearDepth();
+      gl.render(scene, layerCamera); // Scene content (no particles - they're hidden)
+
+      // Pass 4: Render particles ONLY → particlesFBO (with depth for DoF)
+      // Show particles, hide everything else via layer
+      for (const mesh of meshes) {
+        mesh.visible = true;
+      }
+      layerCamera.layers.set(RENDER_LAYERS.PARTICLES);
+      gl.setRenderTarget(particlesFBO);
+      // Clear with transparent black so particles composite properly
+      gl.setClearColor(0x000000, 0);
+      gl.clear();
       gl.render(scene, layerCamera);
+      // Reset clear color
+      gl.setClearColor(0x000000, 1);
+
+      // Pass 5a: Apply DoF blur to particles only → dofOutputFBO
+      gl.setRenderTarget(dofOutputFBO);
+      gl.clear();
+      dofMaterial.uniforms.colorTexture.value = particlesFBO.texture;
+      dofMaterial.uniforms.depthTexture.value = particlesFBO.depthTexture;
+      gl.render(dofScene, orthoCamera);
+
+      // Pass 5b: Composite sharp scene + blurred particles → screen
+      gl.setRenderTarget(null);
+      gl.clear();
+      compositeMaterial.uniforms.sceneTexture.value = sceneFBO.texture;
+      compositeMaterial.uniforms.particlesTexture.value = dofOutputFBO.texture;
+      compositeMaterial.uniforms.particleDepth.value = particlesFBO.depthTexture;
+      gl.render(compositeScene, orthoCamera);
 
       // Restore original materials
       for (const mesh of meshes) {
@@ -627,15 +745,9 @@ export function RefractionPipeline({
           mesh.material = original;
         }
       }
-
-      // Pass 4: Apply depth of field and render to screen
-      gl.setRenderTarget(null);
-      gl.clear();
-      dofMaterial.uniforms.colorTexture.value = compositeFBO.texture;
-      dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
-      gl.render(dofScene, orthoCamera);
     } else {
-      // Optimized path: Skip compositeFBO, render directly to screen (saves 1 FBO pass)
+      // Optimized path: No DoF, render everything directly to screen
+      layerCamera.layers.enableAll();
       gl.setRenderTarget(null);
       gl.clear();
       gl.render(bgScene, orthoCamera);
