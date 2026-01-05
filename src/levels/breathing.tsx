@@ -117,7 +117,7 @@ export function BreathingLevel({
               <ParticleSwarm
                 users={deferredUsers}
                 baseRadius={orbitRadius}
-                baseShardSize={shardSize * 7}
+                baseShardSize={shardSize * 3.2}
                 maxShardSize={shardSize}
               />
             )}
