@@ -1,6 +1,9 @@
 import { useWorld } from 'koota/react';
 import { useEffect, useState } from 'react';
-import { breathPhase as breathPhaseTrait, phaseType as phaseTypeTrait } from '../entities/breath/traits';
+import {
+  breathPhase as breathPhaseTrait,
+  phaseType as phaseTypeTrait,
+} from '../entities/breath/traits';
 
 /**
  * Hook to get human-readable breath phase description for accessibility.

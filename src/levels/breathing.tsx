@@ -146,18 +146,12 @@ export function BreathingLevel({
 
             {/* Globe - conditionally use transmission material */}
             {showGlobe && !devControls.useTransmissionGlobe && (
-              <A11y
-                role="content"
-                description={`Breathing meditation sphere - ${phaseLabel} phase`}
-              >
+              <A11y role="image" description={`Breathing meditation sphere - ${phaseLabel} phase`}>
                 <EarthGlobe />
               </A11y>
             )}
             {showGlobe && devControls.useTransmissionGlobe && (
-              <A11y
-                role="content"
-                description={`Breathing meditation sphere - ${phaseLabel} phase`}
-              >
+              <A11y role="image" description={`Breathing meditation sphere - ${phaseLabel} phase`}>
                 <EarthGlobeTransmission
                   transmission={devControls.globeTransmission}
                   roughness={devControls.globeRoughness}
@@ -175,14 +169,14 @@ export function BreathingLevel({
 
             {showParticles && (
               <A11y
-                role="content"
+                role="image"
                 description="Atmospheric particles orbiting in sync with breathing cycle"
               >
                 <ParticleSwarm
                   users={deferredUsers}
                   currentUserId={sessionId}
                   baseRadius={orbitRadius}
-                  maxShardSize={shardSize}
+                  baseShardSize={shardSize}
                   highlightCurrentUser={devControls.highlightCurrentUser}
                   highlightStyle={devControls.highlightStyle}
                 />

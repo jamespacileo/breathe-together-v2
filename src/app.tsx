@@ -1,5 +1,5 @@
-import { AdaptiveDpr, Stats, useTexture } from '@react-three/drei';
 import { A11yAnnouncer } from '@react-three/a11y';
+import { AdaptiveDpr, Stats, useTexture } from '@react-three/drei';
 import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
 import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import type * as THREE from 'three';

@@ -12,8 +12,8 @@
  */
 
 import { Sparkles } from '@react-three/drei';
-import { useWorld } from 'koota/react';
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from 'koota/react';
 import { useState } from 'react';
 import { breathPhase as breathPhaseTrait, phaseType as phaseTypeTrait } from '../breath/traits';
 
