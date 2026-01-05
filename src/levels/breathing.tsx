@@ -123,7 +123,7 @@ export function BreathingLevel({
             maxBlur={devControls.maxBlur}
           >
             {/* Scene Depth Effects - multi-layer system for 3D depth perception */}
-            {/* Includes: particles, stars, nebula, silhouettes, rings, ground, vignette */}
+            {/* Includes: particles, stars, nebula, silhouettes, rings, ground, vignette, distant clouds, floating objects */}
             {showEnvironment && (
               <SceneDepthEffects
                 enabled={devControls.showDepthEffects}
@@ -137,6 +137,8 @@ export function BreathingLevel({
                 enableFog={false}
                 enableParallax={true}
                 enableLightRays={true}
+                enableDistantClouds={true}
+                enableFloatingObjects={true}
                 intensity={deferredAtmosphereDensity / 100}
               />
             )}

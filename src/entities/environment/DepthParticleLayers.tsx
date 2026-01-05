@@ -20,8 +20,6 @@ interface DepthParticleLayersProps {
   enabled?: boolean;
   /** Overall opacity multiplier */
   opacity?: number;
-  /** Base color for all particles */
-  color?: string;
   /** Speed multiplier for all layers */
   speedMultiplier?: number;
 }
@@ -108,7 +106,7 @@ function ParticleLayer({ z, opacity, size, count, speed, color }: ParticleLayerP
         opacity={opacity}
         sizeAttenuation
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
       />
     </points>
   );
@@ -117,7 +115,6 @@ function ParticleLayer({ z, opacity, size, count, speed, color }: ParticleLayerP
 export function DepthParticleLayers({
   enabled = true,
   opacity = 1,
-  color = '#e8dcd0',
   speedMultiplier = 1,
 }: DepthParticleLayersProps) {
   if (!enabled) return null;
@@ -132,7 +129,7 @@ export function DepthParticleLayers({
         size={NEAR.size}
         count={NEAR.count}
         speed={NEAR.speed * speedMultiplier}
-        color={color}
+        color={NEAR.color}
       />
       <ParticleLayer
         z={MID.z}
@@ -140,7 +137,7 @@ export function DepthParticleLayers({
         size={MID.size}
         count={MID.count}
         speed={MID.speed * speedMultiplier}
-        color={color}
+        color={MID.color}
       />
       <ParticleLayer
         z={FAR.z}
@@ -148,7 +145,7 @@ export function DepthParticleLayers({
         size={FAR.size}
         count={FAR.count}
         speed={FAR.speed * speedMultiplier}
-        color={color}
+        color={FAR.color}
       />
     </group>
   );

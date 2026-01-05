@@ -25,15 +25,11 @@ interface GroundPlaneProps {
   size?: number;
 }
 
-export function GroundPlane({
-  enabled = true,
-  opacity = 1,
-  color = '#c4b8a8',
-  size,
-}: GroundPlaneProps) {
+export function GroundPlane({ enabled = true, opacity = 1, color, size }: GroundPlaneProps) {
   const meshRef = useRef<THREE.Mesh>(null);
 
-  const { Y, OPACITY, SIZE } = SCENE_DEPTH.GROUND;
+  const { Y, OPACITY, SIZE, COLOR } = SCENE_DEPTH.GROUND;
+  const finalColor = color ?? COLOR;
   const finalSize = size ?? SIZE;
   const finalOpacity = OPACITY * opacity;
 
@@ -51,7 +47,7 @@ export function GroundPlane({
     <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, Y, 0]} name="ground-plane">
       <planeGeometry args={[finalSize, finalSize]} />
       <meshBasicMaterial
-        color={color}
+        color={finalColor}
         transparent
         opacity={finalOpacity}
         side={THREE.DoubleSide}

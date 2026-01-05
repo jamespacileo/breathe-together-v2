@@ -338,6 +338,66 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
   },
 ];
 
+// Additional cloud colors for generated clouds
+const EXTRA_CLOUD_COLORS = [
+  '#f8b4c4', // Soft pink
+  '#d4c4e8', // Soft lavender
+  '#a8d4e8', // Sky blue
+  '#f8c8b8', // Soft coral
+  '#f8f0e8', // Warm cream
+  '#c8e8dc', // Soft mint
+  '#f8d4b8', // Warm peach
+  '#b8e8d4', // Soft mint green
+  '#e8c4d4', // Dusty rose
+];
+
+/**
+ * Generate additional clouds to fill out the scene
+ * Creates clouds at various radii with random positioning
+ */
+function generateExtraClouds(startId: number): CloudConfig[] {
+  const extras: CloudConfig[] = [];
+
+  // Layer definitions: { radius range, count, layer type }
+  const layerDefs = [
+    { minR: 7, maxR: 8.5, count: 8, layer: 'inner' as const },
+    { minR: 9, maxR: 11, count: 10, layer: 'middle' as const },
+    { minR: 11.5, maxR: 14, count: 12, layer: 'outer' as const },
+  ];
+
+  let id = startId;
+  for (const layerDef of layerDefs) {
+    for (let i = 0; i < layerDef.count; i++) {
+      const color = EXTRA_CLOUD_COLORS[Math.floor(Math.random() * EXTRA_CLOUD_COLORS.length)];
+      const radius = layerDef.minR + Math.random() * (layerDef.maxR - layerDef.minR);
+
+      extras.push({
+        id: `gen-cloud-${id++}`,
+        sphereIndex: i + 10, // Offset from manual configs
+        layerTotal: layerDef.count + 10,
+        radius,
+        color,
+        opacity: 0.25 + Math.random() * 0.15,
+        orbitSpeed: 0.005 + Math.random() * 0.01,
+        segments: 14 + Math.floor(Math.random() * 10),
+        bounds: [3 + Math.random() * 4, 1 + Math.random() * 1.5, 2 + Math.random() * 2],
+        volume: 2 + Math.random() * 3,
+        fade: 10 + Math.random() * 10,
+        layer: layerDef.layer,
+        bobSpeed: 0.05 + Math.random() * 0.1,
+        bobAmount: 0.1 + Math.random() * 0.15,
+        breathAmount: 0.2 + Math.random() * 0.2,
+      });
+    }
+  }
+
+  return extras;
+}
+
+// Generate extra clouds and combine with manual configs
+const EXTRA_CLOUDS = generateExtraClouds(100);
+const ALL_CLOUD_CONFIGS = [...CLOUD_CONFIGS, ...EXTRA_CLOUDS];
+
 // Reusable objects to avoid GC pressure
 const _tempDirection = new THREE.Vector3();
 const _yAxis = new THREE.Vector3(0, 1, 0);
@@ -431,8 +491,9 @@ export const CloudSystem = memo(function CloudSystem({
   speed = 0.8,
   enabled = true,
 }: CloudSystemProps) {
-  // Memoize the cloud configs array reference (it's already static, but this is defensive)
-  const configs = useMemo(() => CLOUD_CONFIGS, []);
+  // Use combined configs (manual + generated) for more clouds
+  // Total: 15 manual + 30 generated = 45 clouds
+  const configs = useMemo(() => ALL_CLOUD_CONFIGS, []);
 
   if (!enabled) return null;
 

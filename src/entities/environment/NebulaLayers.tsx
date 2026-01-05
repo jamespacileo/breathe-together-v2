@@ -53,7 +53,7 @@ function CloudSprite({ position, scale, opacity, color, rotationSpeed }: CloudSp
         opacity={opacity}
         side={THREE.DoubleSide}
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
       />
     </mesh>
   );
@@ -125,8 +125,8 @@ function NebulaLayer({
 export function NebulaLayers({
   enabled = true,
   opacity = 1,
-  color = '#e8d8c8',
-  colorSecondary = '#c8d8e8',
+  color = '#9ab8c8', // Darker teal-gray for better visibility
+  colorSecondary = '#b8a8c8', // Soft lavender-gray
   speed = 1,
 }: NebulaLayersProps) {
   if (!enabled) return null;
@@ -143,7 +143,7 @@ export function NebulaLayers({
         color={color}
         colorSecondary={colorSecondary}
         speed={speed * 1.5}
-        cloudCount={8}
+        cloudCount={INNER.count}
       />
       {/* Mid layer - slower drift */}
       <NebulaLayer
@@ -153,7 +153,7 @@ export function NebulaLayers({
         color={color}
         colorSecondary={colorSecondary}
         speed={speed * 0.7}
-        cloudCount={12}
+        cloudCount={MID.count}
       />
       {/* Outer layer - nearly static backdrop */}
       <NebulaLayer
@@ -163,7 +163,7 @@ export function NebulaLayers({
         color={color}
         colorSecondary={colorSecondary}
         speed={speed * 0.2}
-        cloudCount={15}
+        cloudCount={OUTER.count}
       />
     </group>
   );

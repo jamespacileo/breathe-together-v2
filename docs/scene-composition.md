@@ -47,7 +47,7 @@ The scene uses a multi-layer depth system to create the illusion of a vast 3D en
 | **EarthGlobe** | Mesh | 0 | Scale | color, opacity | `src/entities/earthGlobe/index.tsx` |
 | **ParticleSwarm** | InstancedMesh | -8 to +4 | Orbit + Scale | users, baseRadius, baseShardSize | `src/entities/particle/ParticleSwarm.tsx` |
 | **AtmosphericParticles** | Points | Near sphere | Opacity | count, size, color | `src/entities/particle/AtmosphericParticles.tsx` |
-| **DepthParticleLayers** | Points (3) | -15, -40, -80 | No | opacity, color, speedMultiplier | `src/entities/environment/DepthParticleLayers.tsx` |
+| **DepthParticleLayers** | Points (3) | -15, -40, -80 | No | opacity, speedMultiplier | `src/entities/environment/DepthParticleLayers.tsx` |
 | **DepthStarLayers** | Points (3) | 50, 100, 180 | Twinkle | opacity, twinkle, rotationSpeed | `src/entities/environment/DepthStarLayers.tsx` |
 | **NebulaLayers** | Planes (3) | -20, -50, -100 | Drift | opacity, color, speed | `src/entities/environment/NebulaLayers.tsx` |
 | **DistantSilhouettes** | Meshes (3) | -50, -100, -150 | Sway | opacity | `src/entities/environment/DistantSilhouettes.tsx` |
@@ -57,7 +57,9 @@ The scene uses a multi-layer depth system to create the illusion of a vast 3D en
 | **DepthVignette** | Fullscreen Quad | Screen | No | intensity, radius, softness | `src/entities/environment/DepthVignette.tsx` |
 | **DepthFog** | Scene Fog | Global | No | density, color | `src/entities/environment/DepthFog.tsx` |
 | **ParallaxLayers** | Planes (4) | -30 to -150 | Camera | opacity, intensity | `src/entities/environment/ParallaxLayers.tsx` |
-| **CloudSystem** | Sprites | Near | Drift | opacity, speed | `src/entities/environment/CloudSystem.tsx` |
+| **CloudSystem** | Sprites (45) | 7-14 | Drift | opacity, speed | `src/entities/environment/CloudSystem.tsx` |
+| **DistantCloudSystem** | Sprites (45) | 20-65 | Drift | opacity, speed | `src/entities/environment/DistantCloudSystem.tsx` |
+| **FloatingObjects** | Meshes (~50) | -10 to -130 | Rotate + Drift | opacity, speed | `src/entities/environment/FloatingObjects.tsx` |
 | **BackgroundGradient** | Fullscreen | Back | No | colorTop, colorHorizon | `src/entities/environment/BackgroundGradient.tsx` |
 
 ## Depth Constants
@@ -66,15 +68,29 @@ All depth-related configuration is centralized in `src/constants.ts` under `SCEN
 
 ```typescript
 SCENE_DEPTH = {
+  // Atmospheric particles use teal/cyan colors for contrast on warm background
   ATMOSPHERE_LAYERS: {
-    NEAR: { z: -15, opacity: 0.6, size: 0.08, count: 80, speed: 1.2 },
-    MID:  { z: -40, opacity: 0.35, size: 0.05, count: 120, speed: 0.7 },
-    FAR:  { z: -80, opacity: 0.15, size: 0.03, count: 200, speed: 0.3 },
+    NEAR: { z: -15, opacity: 0.5, size: 0.12, count: 150, speed: 1.2, color: '#7ab8c9' },
+    MID:  { z: -40, opacity: 0.35, size: 0.08, count: 200, speed: 0.7, color: '#9ac4d4' },
+    FAR:  { z: -80, opacity: 0.2, size: 0.05, count: 300, speed: 0.3, color: '#b8d0dc' },
   },
   STAR_LAYERS: {
-    NEAR: { radius: 50, count: 200, size: 0.15, opacity: 0.8 },
-    MID:  { radius: 100, count: 400, size: 0.08, opacity: 0.5 },
-    FAR:  { radius: 180, count: 800, size: 0.04, opacity: 0.25 },
+    NEAR: { radius: 50, count: 300, size: 0.2, opacity: 0.9 },
+    MID:  { radius: 100, count: 600, size: 0.12, opacity: 0.7 },
+    FAR:  { radius: 180, count: 1000, size: 0.06, opacity: 0.4 },
+  },
+  // Silhouettes use darker blue-gray for visibility
+  SILHOUETTES: {
+    LAYER_1: { z: -50, opacity: 0.25, color: '#8a9dad' },
+    LAYER_2: { z: -100, opacity: 0.18, color: '#7a8d9d' },
+    LAYER_3: { z: -150, opacity: 0.12, color: '#6a7d8d' },
+  },
+  // Distant clouds at various radii
+  DISTANT_CLOUDS: {
+    LAYER_1: { radius: 20, count: 8, opacity: 0.35, scale: 1.5 },
+    LAYER_2: { radius: 30, count: 10, opacity: 0.25, scale: 2.0 },
+    LAYER_3: { radius: 45, count: 12, opacity: 0.18, scale: 2.5 },
+    LAYER_4: { radius: 65, count: 15, opacity: 0.12, scale: 3.0 },
   },
   FOG: {
     NEAR_COLOR: '#f5f0e8',  // Warm cream (near)

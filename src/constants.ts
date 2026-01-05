@@ -176,70 +176,82 @@ export const VISUAL_OPACITY = {
 // ========================================
 // Scene Depth Configuration
 // Multi-layer depth system for 3D spatial perception
+// Colors and opacities tuned for visibility on warm cream background (#f5f0e8)
 // ========================================
 export const SCENE_DEPTH = {
   // Atmospheric particle layers (parallax depth)
+  // Using darker teal/cyan colors that contrast with warm background
   ATMOSPHERE_LAYERS: {
-    NEAR: { z: -15, opacity: 0.6, size: 0.08, count: 80, speed: 1.2 },
-    MID: { z: -40, opacity: 0.35, size: 0.05, count: 120, speed: 0.7 },
-    FAR: { z: -80, opacity: 0.15, size: 0.03, count: 200, speed: 0.3 },
+    NEAR: { z: -15, opacity: 0.5, size: 0.12, count: 150, speed: 1.2, color: '#7ab8c9' },
+    MID: { z: -40, opacity: 0.35, size: 0.08, count: 200, speed: 0.7, color: '#9ac4d4' },
+    FAR: { z: -80, opacity: 0.2, size: 0.05, count: 300, speed: 0.3, color: '#b8d0dc' },
   },
 
-  // Star field depth layers
+  // Star field depth layers - brighter for visibility
   STAR_LAYERS: {
-    NEAR: { radius: 50, count: 200, size: 0.15, opacity: 0.8 },
-    MID: { radius: 100, count: 400, size: 0.08, opacity: 0.5 },
-    FAR: { radius: 180, count: 800, size: 0.04, opacity: 0.25 },
+    NEAR: { radius: 50, count: 300, size: 0.2, opacity: 0.9 },
+    MID: { radius: 100, count: 600, size: 0.12, opacity: 0.7 },
+    FAR: { radius: 180, count: 1000, size: 0.06, opacity: 0.4 },
   },
 
   // Fog depth settings (exponential fog with color shift)
   FOG: {
     NEAR_COLOR: '#f5f0e8', // Warm cream (near)
-    FAR_COLOR: '#a8c4d4', // Cool blue-gray (far)
-    DENSITY: 0.008,
+    FAR_COLOR: '#8ba8b8', // Deeper cool blue-gray (far)
+    DENSITY: 0.006,
     NEAR: 10,
     FAR: 200,
   },
 
-  // Distant silhouette layers
+  // Distant silhouette layers - darker, more saturated colors for contrast
   SILHOUETTES: {
-    LAYER_1: { z: -50, opacity: 0.12, color: '#c4b5a6' },
-    LAYER_2: { z: -100, opacity: 0.08, color: '#b8a99a' },
-    LAYER_3: { z: -150, opacity: 0.05, color: '#a89888' },
+    LAYER_1: { z: -50, opacity: 0.25, color: '#8a9dad' }, // Dusty blue-gray
+    LAYER_2: { z: -100, opacity: 0.18, color: '#7a8d9d' }, // Deeper blue-gray
+    LAYER_3: { z: -150, opacity: 0.12, color: '#6a7d8d' }, // Deep slate blue
   },
 
-  // Nebula/cloud depth layers
+  // Nebula/cloud depth layers - more clouds, higher opacity
   NEBULA: {
-    INNER: { z: -20, opacity: 0.15, scale: 30 },
-    MID: { z: -50, opacity: 0.1, scale: 60 },
-    OUTER: { z: -100, opacity: 0.06, scale: 100 },
+    INNER: { z: -20, opacity: 0.25, scale: 35, count: 12 },
+    MID: { z: -50, opacity: 0.18, scale: 70, count: 18 },
+    OUTER: { z: -100, opacity: 0.12, scale: 120, count: 25 },
   },
 
-  // Orbital rings
+  // Orbital rings - more visible
   RINGS: {
-    INNER: { z: -5, radius: 4, opacity: 0.15 },
-    MID: { z: -25, radius: 12, opacity: 0.08 },
-    OUTER: { z: -60, radius: 25, opacity: 0.04 },
+    INNER: { z: -5, radius: 4, opacity: 0.3 },
+    MID: { z: -25, radius: 12, opacity: 0.18 },
+    OUTER: { z: -60, radius: 25, opacity: 0.1 },
   },
 
-  // Ground plane
+  // Ground plane - more visible
   GROUND: {
     Y: -8,
-    OPACITY: 0.04,
-    SIZE: 100,
+    OPACITY: 0.08,
+    SIZE: 150,
+    COLOR: '#c4b8a8', // Warmer tone that still contrasts
   },
 
-  // Vignette
+  // Vignette - slightly stronger
   VIGNETTE: {
-    INTENSITY: 0.4,
-    RADIUS: 0.85,
-    SOFTNESS: 0.5,
+    INTENSITY: 0.5,
+    RADIUS: 0.8,
+    SOFTNESS: 0.45,
+    COLOR: '#2a3a4a', // Dark blue-gray for depth
   },
 
   // Particle Z-distribution for ParticleSwarm
   PARTICLE_Z: {
     MIN: -8,
     MAX: 4,
-    VARIANCE: 0.6, // How much Z varies from base orbit
+    VARIANCE: 0.6,
+  },
+
+  // Distant cloud layers (beyond main CloudSystem)
+  DISTANT_CLOUDS: {
+    LAYER_1: { radius: 20, count: 8, opacity: 0.35, scale: 1.5 },
+    LAYER_2: { radius: 30, count: 10, opacity: 0.25, scale: 2.0 },
+    LAYER_3: { radius: 45, count: 12, opacity: 0.18, scale: 2.5 },
+    LAYER_4: { radius: 65, count: 15, opacity: 0.12, scale: 3.0 },
   },
 } as const;

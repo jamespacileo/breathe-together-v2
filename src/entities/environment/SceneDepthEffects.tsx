@@ -21,7 +21,9 @@ import { DepthFog } from './DepthFog';
 import { DepthParticleLayers } from './DepthParticleLayers';
 import { DepthStarLayers } from './DepthStarLayers';
 import { DepthVignette } from './DepthVignette';
+import { DistantCloudSystem } from './DistantCloudSystem';
 import { DistantSilhouettes } from './DistantSilhouettes';
+import { FloatingObjects } from './FloatingObjects';
 import { GroundPlane } from './GroundPlane';
 import { NebulaLayers } from './NebulaLayers';
 import { OrbitalRings } from './OrbitalRings';
@@ -52,6 +54,10 @@ export interface SceneDepthEffectsProps {
   enableParallax?: boolean;
   /** Enable light rays */
   enableLightRays?: boolean;
+  /** Enable distant clouds */
+  enableDistantClouds?: boolean;
+  /** Enable floating objects */
+  enableFloatingObjects?: boolean;
 
   /** Overall intensity multiplier (affects opacity of all effects) */
   intensity?: number;
@@ -69,6 +75,8 @@ export function SceneDepthEffects({
   enableFog = false, // Disabled by default - can wash out the scene
   enableParallax = true,
   enableLightRays = true,
+  enableDistantClouds = true,
+  enableFloatingObjects = true,
   intensity = 1,
 }: SceneDepthEffectsProps) {
   if (!enabled) return null;
@@ -82,9 +90,15 @@ export function SceneDepthEffects({
       <DistantSilhouettes enabled={enableSilhouettes} opacity={intensity} />
       <DepthStarLayers enabled={enableStars} opacity={intensity} />
 
+      {/* Distant clouds - outside MomentumControls for parallax */}
+      <DistantCloudSystem enabled={enableDistantClouds} opacity={0.4 * intensity} speed={0.6} />
+
       {/* Mid-distance atmospheric effects */}
       <NebulaLayers enabled={enableNebula} opacity={intensity} />
       <SubtleLightRays enabled={enableLightRays} opacity={0.04 * intensity} />
+
+      {/* Floating geometric objects for movement and life */}
+      <FloatingObjects enabled={enableFloatingObjects} opacity={intensity} />
 
       {/* Orbital structure */}
       <OrbitalRings enabled={enableRings} opacity={intensity} />
@@ -109,7 +123,9 @@ export { DepthFog } from './DepthFog';
 export { DepthParticleLayers } from './DepthParticleLayers';
 export { DepthStarLayers } from './DepthStarLayers';
 export { DepthVignette } from './DepthVignette';
+export { DistantCloudSystem } from './DistantCloudSystem';
 export { DistantSilhouettes } from './DistantSilhouettes';
+export { FloatingObjects } from './FloatingObjects';
 export { GroundPlane } from './GroundPlane';
 export { NebulaLayers } from './NebulaLayers';
 export { OrbitalRings } from './OrbitalRings';

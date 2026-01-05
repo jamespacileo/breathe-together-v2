@@ -58,13 +58,14 @@ export function DepthVignette({
   intensity,
   radius,
   softness,
-  color = '#1a1510',
+  color,
 }: DepthVignetteProps) {
-  const { INTENSITY, RADIUS, SOFTNESS } = SCENE_DEPTH.VIGNETTE;
+  const { INTENSITY, RADIUS, SOFTNESS, COLOR } = SCENE_DEPTH.VIGNETTE;
 
   const finalIntensity = intensity ?? INTENSITY;
   const finalRadius = radius ?? RADIUS;
   const finalSoftness = softness ?? SOFTNESS;
+  const finalColor = color ?? COLOR;
 
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -74,9 +75,9 @@ export function DepthVignette({
       uIntensity: { value: finalIntensity },
       uRadius: { value: finalRadius },
       uSoftness: { value: finalSoftness },
-      uColor: { value: new THREE.Color(color) },
+      uColor: { value: new THREE.Color(finalColor) },
     }),
-    [finalIntensity, finalRadius, finalSoftness, color],
+    [finalIntensity, finalRadius, finalSoftness, finalColor],
   );
 
   // Cleanup shader material on unmount
