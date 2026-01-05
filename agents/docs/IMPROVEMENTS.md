@@ -1672,3 +1672,362 @@ export { PRQAAgent } from "./agents/pr-qa-agent";
 ```
 
 This provides a foundation for the most impactful agent while using Cloudflare-native services throughout.
+
+---
+
+## 8. Validation & Current API Status (January 2026)
+
+### 8.1 Cloudflare Sandbox SDK
+
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| **Availability** | Beta | SDK is in active development, not GA |
+| **Latest Update** | August 2025 | Major release with streaming, Git, process control |
+| **Container Support** | Available | Announced June 2025, shipped with Sandbox SDK |
+| **Stability** | Experimental | Cloudflare notes it's "exploring how isolated workloads scale" |
+
+**Key Features Confirmed:**
+- ✅ Live streaming of output
+- ✅ Persistent Python/JavaScript interpreters
+- ✅ File system access
+- ✅ Git operations (clone, checkout)
+- ✅ Background process control
+- ✅ Public URL exposure for running services
+
+**Recommendation:** Use for Code Review Agent but note beta status in error handling. Add fallback for sandbox unavailability.
+
+**Sources:**
+- [Sandbox SDK Docs](https://developers.cloudflare.com/sandbox/)
+- [August 2025 Major Update](https://developers.cloudflare.com/changelog/2025-08-05-sandbox-sdk-major-update/)
+
+---
+
+### 8.2 Browser Rendering + Playwright MCP
+
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| **Availability** | GA | Billing started August 20, 2025 |
+| **Playwright MCP Version** | v0.0.5 | Synced with upstream v0.0.30 |
+| **Playwright Version** | v1.54.1 | Latest as of January 2026 |
+| **Local Dev Support** | ✅ Yes | Works with `npx wrangler dev` |
+
+**Accessibility Snapshot Mode (Recommended for PR QA Agent):**
+- Fast and lightweight - uses Playwright's accessibility tree
+- LLM-friendly - no vision models required
+- Deterministic - avoids screenshot ambiguity
+- Better for automated testing than screenshot mode
+
+**Sources:**
+- [Playwright MCP Docs](https://developers.cloudflare.com/browser-rendering/playwright/playwright-mcp/)
+- [cloudflare/playwright-mcp GitHub](https://github.com/cloudflare/playwright-mcp)
+
+---
+
+### 8.3 Gemini 2.0 Flash Grounding
+
+| Aspect | Details |
+|--------|---------|
+| **Free Tier** | 500 RPD (free tier) / 1,500 RPD (paid tier) |
+| **Paid Pricing** | $35 per 1,000 grounded queries |
+| **Token Pricing** | $0.10 / $0.40 per million (input/output) |
+| **API Tool** | `googleSearch` tool (replaces `google_search_retrieval`) |
+
+**Cost Estimate for Research Agent:**
+
+| Usage Level | Monthly Queries | Grounding Cost | Token Cost | Total |
+|-------------|-----------------|----------------|------------|-------|
+| Light | 500/day | Free | ~$5 | ~$5 |
+| Moderate | 1,500/day | Free | ~$15 | ~$15 |
+| Heavy | 3,000/day | ~$52.50 | ~$30 | ~$82.50 |
+
+**Note:** December 2025 quota changes may affect rate limits. Monitor for 429 errors.
+
+**Sources:**
+- [Gemini API Pricing](https://ai.google.dev/gemini-api/docs/pricing)
+- [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/google-search)
+
+---
+
+## 9. Architecture Simplification Opportunities
+
+Analysis of the current agents codebase (~6,700 lines) reveals significant opportunities for consolidation and improved patterns.
+
+### 9.1 Current Issues Summary
+
+| Issue | Impact | Lines Affected |
+|-------|--------|----------------|
+| Duplicated task dispatcher pattern | 4x copy-paste | ~100 lines |
+| GitHubAgent doesn't use GitHubService | Duplicate fetch logic, no circuit breaker | ~150 lines |
+| Config scattered across agents | Hard to maintain | ~50 lines |
+| Switch statement anti-pattern | Hard to test, extend | All agents |
+| SQL scattered throughout | No type safety, hard to maintain | ~200 lines |
+
+### 9.2 Proposed Architecture Improvements
+
+#### 9.2.1 Extract BaseTaskAgent (HIGH Priority)
+
+**Current hierarchy:**
+```
+BaseAgent (560 lines)
+  ↓
+[GitHubAgent, HealthAgent, ContentAgent, OrchestratorAgent]
+ (682)        (464)        (392)          (401)
+```
+
+**Proposed hierarchy:**
+```
+BaseAgent (560 lines)
+  ↓
+BaseTaskAgent (new, ~150 lines)
+  - Task handler registry
+  - executeTask() with timing
+  - Route registration
+  ↓
+[SpecializedAgents] (reduced to ~300 lines each)
+```
+
+**Implementation:**
+
+```typescript
+// agents/src/core/base-task-agent.ts
+import { BaseAgent } from './base-agent';
+
+type TaskHandler<P = unknown> = (payload: P, startTime: number) => Promise<TaskResult>;
+
+export abstract class BaseTaskAgent extends BaseAgent {
+  private taskHandlers = new Map<string, TaskHandler>();
+  private routeHandlers = new Map<string, () => Response | Promise<Response>>();
+
+  protected registerTask<P>(name: string, handler: TaskHandler<P>): void {
+    this.taskHandlers.set(name, handler as TaskHandler);
+  }
+
+  protected registerRoute(method: string, path: string, handler: () => Response | Promise<Response>): void {
+    this.routeHandlers.set(`${method} ${path}`, handler);
+  }
+
+  protected async executeTask(task: Task): Promise<TaskResult> {
+    const startTime = Date.now();
+    const handler = this.taskHandlers.get(task.name);
+
+    if (!handler) {
+      return this.errorResult(`Unknown task: ${task.name}`, startTime);
+    }
+
+    try {
+      return await handler(task.payload, startTime);
+    } catch (error) {
+      return this.errorResult(error instanceof Error ? error.message : String(error), startTime);
+    }
+  }
+
+  protected handleCustomRoute(request: Request, path: string): Response | Promise<Response> {
+    const handler = this.routeHandlers.get(`${request.method} ${path}`);
+    return handler?.() ?? this.jsonResponse({ error: 'Not found' }, 404);
+  }
+
+  protected successResult<T>(data: T, startTime: number): TaskResult {
+    return { success: true, data, duration: Date.now() - startTime };
+  }
+
+  protected errorResult(error: string, startTime: number): TaskResult {
+    return { success: false, error, duration: Date.now() - startTime };
+  }
+}
+```
+
+**Refactored GitHubAgent (example):**
+
+```typescript
+// agents/src/agents/github/index.ts (reduced from 682 to ~350 lines)
+export class GitHubAgent extends BaseTaskAgent {
+  private github!: GitHubService;
+
+  protected async initializeSchema(): Promise<void> {
+    await super.initializeSchema();
+    // Schema initialization...
+
+    // Initialize service
+    this.github = createGitHubService(this.env);
+
+    // Register task handlers (replaces switch statement)
+    this.registerTask('fetchOpenPRs', (_, start) => this.fetchOpenPRs(start));
+    this.registerTask('fetchPRDeployments', (p, start) => this.fetchPRDeployments(p, start));
+    this.registerTask('refreshPRData', (_, start) => this.refreshPRData(start));
+
+    // Register routes (replaces if/else chain)
+    this.registerRoute('GET', '/prs', () => this.getPRsWithDeployments());
+    this.registerRoute('GET', '/deployments', () => this.getDeployments());
+    this.registerRoute('POST', '/prs/refresh', () => this.triggerPRRefresh());
+  }
+
+  private async fetchOpenPRs(startTime: number): Promise<TaskResult> {
+    const prs = await this.github.getOpenPRs(); // Uses GitHubService with circuit breaker
+    // Store in SQL...
+    return this.successResult({ count: prs.length }, startTime);
+  }
+}
+```
+
+---
+
+#### 9.2.2 Integrate GitHubService into GitHubAgent (HIGH Priority)
+
+**Current duplication:**
+- `GitHubAgent.fetchGitHub<T>()` - raw fetch, no protection
+- `GitHubService.validatedGet<T>()` - circuit breaker, rate limiting, Zod validation
+
+**Migration steps:**
+
+1. Add GitHubService instance to GitHubAgent
+2. Replace `fetchGitHub()` calls with `github.getOpenPRs()` etc.
+3. Remove duplicate type definitions
+4. Delete `fetchGitHub()` and `getApiConfig()` methods
+
+**Benefits:**
+- Circuit breaker protects against GitHub API outages
+- Rate limiting prevents 429 errors
+- Zod validation catches malformed responses
+- Single source of truth for GitHub API logic
+
+---
+
+#### 9.2.3 Centralize Configuration (MEDIUM Priority)
+
+**Current state:**
+```typescript
+// HealthAgent (lines 20-29)
+const ENDPOINTS = ['https://api1...', 'https://api2...'];
+const LATENCY_THRESHOLDS = { warning: 1000, critical: 5000 };
+
+// ContentAgent (lines 21-26)
+const CONTENT_CONFIG = { maxRetention: 30, ... };
+```
+
+**Proposed structure:**
+```
+agents/src/config/
+├── endpoints.ts      # Health check endpoints + pipelines
+├── thresholds.ts     # Latency, retention thresholds
+├── content.ts        # Content agent config
+└── index.ts          # Re-exports all config
+```
+
+```typescript
+// agents/src/config/index.ts
+export const config = {
+  endpoints: {
+    health: ['https://api.github.com', 'https://api.cloudflare.com', ...],
+    pipelines: ['production', 'staging'],
+  },
+  thresholds: {
+    latency: { warning: 1000, critical: 5000 },
+    retention: { default: 30, maxDays: 90 },
+  },
+  content: {
+    maxRetentionDays: 30,
+    batchSize: 100,
+  },
+} as const;
+```
+
+---
+
+#### 9.2.4 Extract Service Layer (MEDIUM Priority)
+
+Create services for HealthAgent and ContentAgent following GitHubService pattern:
+
+```typescript
+// agents/src/services/health/index.ts
+export class HealthCheckService extends BaseService {
+  async checkEndpoint(url: string): Promise<HealthCheckResult> {
+    return this.executeWithProtection(async () => {
+      const start = Date.now();
+      const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      return {
+        url,
+        status: response.status,
+        latency: Date.now() - start,
+        healthy: response.ok,
+      };
+    });
+  }
+}
+```
+
+---
+
+#### 9.2.5 Repository Pattern for SQL (LOW Priority, HIGH Impact)
+
+**Current pattern (scattered SQL):**
+```typescript
+this.sql.exec(`INSERT INTO health_checks (check_type, target, status, latency_ms) VALUES (?, ?, ?, ?)`,
+  'endpoint', url, status, latency);
+```
+
+**Proposed pattern:**
+```typescript
+// agents/src/repositories/health-check-repository.ts
+export class HealthCheckRepository {
+  constructor(private sql: SQLStorage) {}
+
+  record(check: HealthCheck): void {
+    this.sql.exec(`INSERT INTO health_checks (...) VALUES (?, ?, ?, ?)`,
+      check.type, check.target, check.status, check.latency);
+  }
+
+  getRecent(limit = 100): HealthCheck[] {
+    return this.sql.exec(`SELECT * FROM health_checks ORDER BY created_at DESC LIMIT ?`, limit)
+      .toArray()
+      .map(HealthCheck.fromRow);
+  }
+}
+
+// In HealthAgent:
+const repo = new HealthCheckRepository(this.sql);
+repo.record({ type: 'endpoint', target: url, status, latency });
+```
+
+---
+
+### 9.3 Implementation Priority Matrix
+
+| Improvement | Effort | Impact | Priority | Lines Saved |
+|-------------|--------|--------|----------|-------------|
+| BaseTaskAgent + handler registry | Medium | High | **P1** | ~400 |
+| Integrate GitHubService | Medium | High | **P1** | ~150 |
+| Centralize config | Low | Medium | **P2** | ~50 |
+| Extract HealthService | Medium | Medium | **P2** | ~80 |
+| Repository pattern | High | High | **P3** | ~200 |
+
+**Total potential reduction:** ~880 lines (13% of codebase)
+
+---
+
+### 9.4 Migration Path
+
+**Phase 1: Core Abstractions (Week 1)**
+- [ ] Create `BaseTaskAgent` with handler registry
+- [ ] Create `TaskResult` helper methods
+- [ ] Migrate GitHubAgent to new pattern (proof of concept)
+
+**Phase 2: Service Integration (Week 2)**
+- [ ] Integrate GitHubService into GitHubAgent
+- [ ] Remove duplicate fetch methods
+- [ ] Add circuit breaker monitoring
+
+**Phase 3: Remaining Agents (Week 3)**
+- [ ] Migrate HealthAgent to BaseTaskAgent
+- [ ] Migrate ContentAgent to BaseTaskAgent
+- [ ] Migrate OrchestratorAgent to BaseTaskAgent
+
+**Phase 4: Service Layer (Week 4)**
+- [ ] Extract HealthCheckService
+- [ ] Extract ContentService
+- [ ] Centralize configuration
+
+**Phase 5: Repository Pattern (Week 5+)**
+- [ ] Create base Repository class
+- [ ] Implement HealthCheckRepository
+- [ ] Implement PRRepository
+- [ ] Implement ContentRepository
