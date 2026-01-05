@@ -3,10 +3,11 @@
  *
  * Renders as a fullscreen quad behind all other content with:
  * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
- * - Animated procedural clouds using FBM noise
+ * - Animated procedural clouds using TSL noise
  * - Subtle vignette effect
  *
  * MIGRATED TO TSL (Three.js Shading Language) - January 2026
+ * NOTE: Uses pure TSL noise (no glslFn) for WebGPU compatibility
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -17,8 +18,8 @@ import {
   add,
   dot,
   Fn,
+  floor,
   fract,
-  glslFn,
   mix,
   mul,
   positionGeometry,
@@ -34,43 +35,37 @@ import {
 import { MeshBasicNodeMaterial } from 'three/webgpu';
 
 /**
- * GLSL FBM noise function for cloud-like patterns
- * Wrapped with glslFn for use in TSL
+ * Pure TSL value noise function for WebGPU compatibility
+ * Uses a hash-based approach that compiles to both GLSL and WGSL
  */
-const fbmNoiseGLSL = glslFn(`
-  vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-  vec2 mod289v2(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-  vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+const valueNoise = Fn(([p]: [ReturnType<typeof vec2>]) => {
+  const i = floor(p);
+  const f = fract(p);
 
-  float snoise(vec2 v) {
-    const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
-    vec2 i = floor(v + dot(v, C.yy));
-    vec2 x0 = v - i + dot(i, C.xx);
-    vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-    vec4 x12 = x0.xyxy + C.xxzz;
-    x12.xy -= i1;
-    i = mod289v2(i);
-    vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
-    vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-    m = m*m; m = m*m;
-    vec3 x = 2.0 * fract(p * C.www) - 1.0;
-    vec3 h = abs(x) - 0.5;
-    vec3 ox = floor(x + 0.5);
-    vec3 a0 = x - ox;
-    m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
-    vec3 g;
-    g.x = a0.x * x0.x + h.x * x0.y;
-    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-    return 130.0 * dot(m, g);
-  }
+  // Smooth interpolation (cubic Hermite)
+  const u = mul(mul(f, f), sub(3.0, mul(2.0, f)));
 
-  float main(vec2 p) {
-    float f = 0.0;
-    f += 0.5000 * snoise(p); p *= 2.02;
-    f += 0.2500 * snoise(p);
-    return f / 0.75;
-  }
-`);
+  // Four corners using hash function
+  const a = fract(mul(sin(dot(i, vec2(127.1, 311.7))), 43758.5453));
+  const b = fract(mul(sin(dot(add(i, vec2(1.0, 0.0)), vec2(127.1, 311.7))), 43758.5453));
+  const c = fract(mul(sin(dot(add(i, vec2(0.0, 1.0)), vec2(127.1, 311.7))), 43758.5453));
+  const d = fract(mul(sin(dot(add(i, vec2(1.0, 1.0)), vec2(127.1, 311.7))), 43758.5453));
+
+  // Bilinear interpolation
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+});
+
+/**
+ * FBM (Fractal Brownian Motion) using value noise
+ * Two octaves for soft cloud-like patterns
+ */
+const fbmNoise = Fn(([p]: [ReturnType<typeof vec2>]) => {
+  const n1 = valueNoise(p);
+  const n2 = valueNoise(mul(p, 2.02));
+
+  // Combine octaves: 0.5 * n1 + 0.25 * n2, normalized to ~0-1
+  return mul(add(mul(n1, 0.5), mul(n2, 0.25)), 1.333);
+});
 
 export function BackgroundGradient() {
   const meshRef = useRef<Mesh>(null);
@@ -111,14 +106,14 @@ export function BackgroundGradient() {
 
       // Animated cloud-like wisps using FBM noise
       const cloudUv = add(mul(uvCoord, vec2(2.0, 1.0)), vec2(mul(timeUniform, 0.015), 0.0));
-      const clouds = fbmNoiseGLSL(mul(cloudUv, 2.5));
+      const clouds = fbmNoise(mul(cloudUv, 2.5));
 
       // Second layer of clouds moving slightly differently
       const cloudUv2 = add(
         mul(uvCoord, vec2(1.5, 0.8)),
         vec2(add(mul(timeUniform, 0.01), 50.0), mul(timeUniform, 0.003)),
       );
-      const clouds2 = fbmNoiseGLSL(mul(cloudUv2, 2.0));
+      const clouds2 = fbmNoise(mul(cloudUv2, 2.0));
 
       // Combine cloud layers - fade at top and bottom
       const cloudMaskBase = smoothstep(0.2, 0.55, add(mul(clouds, 0.5), mul(clouds2, 0.5)));
