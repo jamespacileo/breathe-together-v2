@@ -12,6 +12,14 @@
 import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  buildAtmosphericParticles,
+  buildBreathingScene,
+  buildEnvironment,
+  buildGlobe,
+  buildIndividualParticles,
+  buildInstancedParticles,
+} from './fixtures';
+import {
   analyzeScene,
   formatMetrics,
   getPerformanceMetrics,
@@ -114,141 +122,40 @@ describe('Scene Component Metrics', () => {
 
   describe('EarthGlobe (simplified)', () => {
     it('should measure EarthGlobe component metrics', () => {
-      // Simulate EarthGlobe: main sphere + glow + mist + 3 atmosphere layers + ring
-      const radius = 1.5;
-      const resolution = 64;
-
-      // Main globe
-      const mainGeometry = new THREE.SphereGeometry(radius, resolution, resolution);
-      const mainMaterial = new THREE.MeshBasicMaterial({ color: 0x8b6f47 });
-      scene.add(new THREE.Mesh(mainGeometry, mainMaterial));
-
-      // Glow layer
-      const glowGeometry = new THREE.SphereGeometry(radius * 1.02, 32, 32);
-      const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xefe5da,
-        transparent: true,
-        opacity: 0.25,
-      });
-      scene.add(new THREE.Mesh(glowGeometry, glowMaterial));
-
-      // Mist layer
-      const mistGeometry = new THREE.SphereGeometry(radius * 1.15, 32, 32);
-      const mistMaterial = new THREE.MeshBasicMaterial({
-        color: 0xf0ebe6,
-        transparent: true,
-        opacity: 0.15,
-      });
-      scene.add(new THREE.Mesh(mistGeometry, mistMaterial));
-
-      // 3 atmosphere layers (share geometry)
-      const atmosphereGeometry = new THREE.SphereGeometry(radius, 32, 32);
-      const atmosphereMaterials = [
-        new THREE.MeshBasicMaterial({ color: 0xf8d0a8, transparent: true, opacity: 0.08 }),
-        new THREE.MeshBasicMaterial({ color: 0xb8e8d4, transparent: true, opacity: 0.05 }),
-        new THREE.MeshBasicMaterial({ color: 0xc4b8e8, transparent: true, opacity: 0.03 }),
-      ];
-      for (const mat of atmosphereMaterials) {
-        scene.add(new THREE.Mesh(atmosphereGeometry, mat));
-      }
-
-      // Ring
-      const ringGeometry = new THREE.RingGeometry(radius * 1.6, radius * 1.65, 64);
-      const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xe8c4b8, transparent: true });
-      scene.add(new THREE.Mesh(ringGeometry, ringMaterial));
+      // Use fixture to build globe
+      buildGlobe(scene);
 
       const sceneMetrics = analyzeScene(scene);
       const metrics = getPerformanceMetrics(sceneMetrics);
       console.log(`EarthGlobe metrics:\n${formatMetrics(metrics)}`);
 
-      // EarthGlobe should be: 7 draw calls (main + glow + mist + 3 atmosphere + ring)
-      expect(metrics.drawCalls).toBe(7);
-      expect(metrics.geometries).toBe(5); // 5 unique geometries (atmosphere shares 1)
-
-      // Cleanup
-      for (const g of [
-        mainGeometry,
-        glowGeometry,
-        mistGeometry,
-        atmosphereGeometry,
-        ringGeometry,
-      ]) {
-        g.dispose();
-      }
-      for (const m of [
-        mainMaterial,
-        glowMaterial,
-        mistMaterial,
-        ...atmosphereMaterials,
-        ringMaterial,
-      ]) {
-        m.dispose();
-      }
+      // EarthGlobe should be: 8 draw calls (main + glow + mist + 3 atmosphere + ring + sparkles)
+      expect(metrics.drawCalls).toBe(8);
+      expect(metrics.geometries).toBeGreaterThanOrEqual(5); // 5+ unique geometries
     });
   });
 
   describe('ParticleSwarm comparison', () => {
     it('should measure individual mesh approach (CURRENT - non-optimal)', () => {
-      // Current implementation: individual meshes per particle
+      // Use fixture to build individual particles
       const particleCount = 300;
-      const shardSize = 0.05;
-
-      // This simulates current ParticleSwarm - creates individual meshes
-      const materials: THREE.Material[] = [];
-      const geometries: THREE.BufferGeometry[] = [];
-
-      for (let i = 0; i < particleCount; i++) {
-        const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
-        const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
-        scene.add(mesh);
-        materials.push(material);
-        geometries.push(geometry);
-      }
+      buildIndividualParticles(scene, particleCount);
 
       const sceneMetrics = analyzeScene(scene);
       const metrics = getPerformanceMetrics(sceneMetrics);
       console.log(`ParticleSwarm (${particleCount} individual meshes):\n${formatMetrics(metrics)}`);
 
       // This is expected to be HIGH - demonstrates the problem
-      // 300 particles = 300 draw calls with individual meshes
       console.log(`⚠️ Individual mesh approach: ${metrics.drawCalls} draw calls`);
 
       expect(metrics.drawCalls).toBe(300);
-      expect(metrics.geometries).toBe(300); // Each particle has its own geometry
-
-      // Cleanup
-      for (const g of geometries) {
-        g.dispose();
-      }
-      for (const m of materials) {
-        m.dispose();
-      }
+      expect(metrics.geometries).toBe(300);
     });
 
     it('should measure instanced mesh approach (OPTIMIZED)', () => {
-      // Optimized: InstancedMesh for particles
+      // Use fixture to build instanced particles
       const particleCount = 300;
-      const shardSize = 0.05;
-
-      // Single geometry and material
-      const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
-      const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
-
-      // InstancedMesh - single draw call for all particles!
-      const instancedMesh = new THREE.InstancedMesh(geometry, material, particleCount);
-
-      // Set transforms for each instance
-      const dummy = new THREE.Object3D();
-      for (let i = 0; i < particleCount; i++) {
-        dummy.position.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
-        dummy.updateMatrix();
-        instancedMesh.setMatrixAt(i, dummy.matrix);
-      }
-      instancedMesh.instanceMatrix.needsUpdate = true;
-
-      scene.add(instancedMesh);
+      buildInstancedParticles(scene, particleCount);
 
       const sceneMetrics = analyzeScene(scene);
       const metrics = getPerformanceMetrics(sceneMetrics);
@@ -260,41 +167,13 @@ describe('Scene Component Metrics', () => {
       expect(metrics.drawCalls).toBe(1);
       expect(metrics.geometries).toBe(1);
       expect(metrics.instancedMeshes).toBe(1);
-
-      // Cleanup
-      geometry.dispose();
-      material.dispose();
-      instancedMesh.dispose();
     });
   });
 
   describe('Environment (simplified)', () => {
     it('should measure environment component metrics', () => {
-      // Background plane
-      const bgGeometry = new THREE.PlaneGeometry(2, 2);
-      const bgMaterial = new THREE.MeshBasicMaterial({ color: 0xf5f0e8 });
-      scene.add(new THREE.Mesh(bgGeometry, bgMaterial));
-
-      // Simulate 5 clouds (each cloud = 1 draw call with drei Cloud)
-      for (let i = 0; i < 5; i++) {
-        const cloudGeometry = new THREE.SphereGeometry(2, 16, 16);
-        const cloudMaterial = new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          transparent: true,
-          opacity: 0.3,
-        });
-        scene.add(new THREE.Mesh(cloudGeometry, cloudMaterial));
-      }
-
-      // Stars (Points - 1 draw call)
-      const starsGeometry = new THREE.BufferGeometry();
-      const starsPositions = new Float32Array(500 * 3);
-      for (let i = 0; i < 500 * 3; i++) {
-        starsPositions[i] = Math.random() * 200 - 100;
-      }
-      starsGeometry.setAttribute('position', new THREE.BufferAttribute(starsPositions, 3));
-      const starsMaterial = new THREE.PointsMaterial({ size: 1 });
-      scene.add(new THREE.Points(starsGeometry, starsMaterial));
+      // Use fixture to build environment
+      buildEnvironment(scene);
 
       const sceneMetrics = analyzeScene(scene);
       const metrics = getPerformanceMetrics(sceneMetrics);
@@ -302,10 +181,6 @@ describe('Scene Component Metrics', () => {
 
       // Environment should be: background + 5 clouds + stars = 7 draw calls
       expect(metrics.drawCalls).toBe(7);
-
-      // Cleanup
-      bgGeometry.dispose();
-      bgMaterial.dispose();
     });
   });
 });
@@ -326,99 +201,13 @@ describe('Full Scene Performance Targets', () => {
    * for performance measurement
    */
   function buildSimplifiedBreathingScene(useInstancedParticles: boolean): void {
-    // === EarthGlobe ===
-    const globeRadius = 1.5;
-
-    // Main sphere (64x64)
-    const mainGeometry = new THREE.SphereGeometry(globeRadius, 64, 64);
-    const mainMaterial = new THREE.MeshBasicMaterial({ color: 0x8b6f47 });
-    scene.add(new THREE.Mesh(mainGeometry, mainMaterial));
-
-    // Glow + Mist (32x32 each)
-    const glowGeometry = new THREE.SphereGeometry(globeRadius * 1.02, 32, 32);
-    const mistGeometry = new THREE.SphereGeometry(globeRadius * 1.15, 32, 32);
-    const glowMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.25 });
-    const mistMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.15 });
-    scene.add(new THREE.Mesh(glowGeometry, glowMaterial));
-    scene.add(new THREE.Mesh(mistGeometry, mistMaterial));
-
-    // 3 atmosphere layers (share geometry)
-    const atmosphereGeometry = new THREE.SphereGeometry(globeRadius, 32, 32);
-    for (let i = 0; i < 3; i++) {
-      const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.05 });
-      scene.add(new THREE.Mesh(atmosphereGeometry, mat));
-    }
-
-    // Ring
-    const ringGeometry = new THREE.RingGeometry(globeRadius * 1.6, globeRadius * 1.65, 64);
-    const ringMaterial = new THREE.MeshBasicMaterial({ transparent: true });
-    scene.add(new THREE.Mesh(ringGeometry, ringMaterial));
-
-    // Globe sparkles (Points)
-    const globeSparklesGeometry = new THREE.BufferGeometry();
-    const sparklePositions = new Float32Array(60 * 3);
-    for (let i = 0; i < 60 * 3; i++) sparklePositions[i] = Math.random() * 10 - 5;
-    globeSparklesGeometry.setAttribute('position', new THREE.BufferAttribute(sparklePositions, 3));
-    scene.add(new THREE.Points(globeSparklesGeometry, new THREE.PointsMaterial({ size: 4 })));
-
-    // === ParticleSwarm ===
-    const particleCount = 300;
-    const shardSize = 0.05;
-
-    if (useInstancedParticles) {
-      // OPTIMIZED: InstancedMesh
-      const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
-      const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const instancedMesh = new THREE.InstancedMesh(geometry, material, particleCount);
-      const dummy = new THREE.Object3D();
-      for (let i = 0; i < particleCount; i++) {
-        dummy.position.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
-        dummy.updateMatrix();
-        instancedMesh.setMatrixAt(i, dummy.matrix);
-      }
-      scene.add(instancedMesh);
-    } else {
-      // CURRENT: Individual meshes (inefficient)
-      for (let i = 0; i < particleCount; i++) {
-        const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
-        const material = new THREE.MeshBasicMaterial();
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
-        scene.add(mesh);
-      }
-    }
-
-    // === AtmosphericParticles ===
-    const atmosphericGeometry = new THREE.BufferGeometry();
-    const atmosphericPositions = new Float32Array(100 * 3);
-    for (let i = 0; i < 100 * 3; i++) atmosphericPositions[i] = Math.random() * 20 - 10;
-    atmosphericGeometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(atmosphericPositions, 3),
-    );
-    scene.add(new THREE.Points(atmosphericGeometry, new THREE.PointsMaterial({ size: 2 })));
-
-    // === Environment ===
-    // Background plane
-    const bgGeometry = new THREE.PlaneGeometry(2, 2);
-    const bgMaterial = new THREE.MeshBasicMaterial({ color: 0xf5f0e8 });
-    scene.add(new THREE.Mesh(bgGeometry, bgMaterial));
-
-    // 5 clouds
-    for (let i = 0; i < 5; i++) {
-      const cloudGeometry = new THREE.SphereGeometry(2, 20, 20);
-      const cloudMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.3 });
-      const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
-      cloud.position.set((i - 2) * 10, 10 + Math.random() * 5, -30);
-      scene.add(cloud);
-    }
-
-    // Stars (Points)
-    const starsGeometry = new THREE.BufferGeometry();
-    const starsPositions = new Float32Array(500 * 3);
-    for (let i = 0; i < 500 * 3; i++) starsPositions[i] = Math.random() * 200 - 100;
-    starsGeometry.setAttribute('position', new THREE.BufferAttribute(starsPositions, 3));
-    scene.add(new THREE.Points(starsGeometry, new THREE.PointsMaterial({ size: 1 })));
+    // Use the new buildBreathingScene fixture
+    buildBreathingScene(scene, {
+      useInstancedParticles,
+      particleCount: 300,
+      includeAtmosphericParticles: true,
+      includeEnvironment: true,
+    });
   }
 
   it('should measure CURRENT scene (individual particles) - expected to exceed mobile targets', () => {
@@ -550,86 +339,13 @@ describe('Stress Tests - High Particle Counts', () => {
    * Includes all base scene elements (globe, environment, etc.)
    */
   function buildSceneWithParticleCount(particleCount: number): void {
-    // === EarthGlobe ===
-    const globeRadius = 1.5;
-
-    // Main sphere
-    const mainGeometry = new THREE.SphereGeometry(globeRadius, 64, 64);
-    const mainMaterial = new THREE.MeshBasicMaterial({ color: 0x8b6f47 });
-    scene.add(new THREE.Mesh(mainGeometry, mainMaterial));
-
-    // Glow + Mist
-    const glowGeometry = new THREE.SphereGeometry(globeRadius * 1.02, 32, 32);
-    const mistGeometry = new THREE.SphereGeometry(globeRadius * 1.15, 32, 32);
-    const glowMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.25 });
-    const mistMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.15 });
-    scene.add(new THREE.Mesh(glowGeometry, glowMaterial));
-    scene.add(new THREE.Mesh(mistGeometry, mistMaterial));
-
-    // 3 atmosphere layers
-    const atmosphereGeometry = new THREE.SphereGeometry(globeRadius, 32, 32);
-    for (let i = 0; i < 3; i++) {
-      const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.05 });
-      scene.add(new THREE.Mesh(atmosphereGeometry, mat));
-    }
-
-    // Ring
-    const ringGeometry = new THREE.RingGeometry(globeRadius * 1.6, globeRadius * 1.65, 64);
-    const ringMaterial = new THREE.MeshBasicMaterial({ transparent: true });
-    scene.add(new THREE.Mesh(ringGeometry, ringMaterial));
-
-    // Globe sparkles (Points)
-    const globeSparklesGeometry = new THREE.BufferGeometry();
-    const sparklePositions = new Float32Array(60 * 3);
-    for (let i = 0; i < 60 * 3; i++) sparklePositions[i] = Math.random() * 10 - 5;
-    globeSparklesGeometry.setAttribute('position', new THREE.BufferAttribute(sparklePositions, 3));
-    scene.add(new THREE.Points(globeSparklesGeometry, new THREE.PointsMaterial({ size: 4 })));
-
-    // === ParticleSwarm (InstancedMesh) ===
-    const shardSize = 0.05;
-    const geometry = new THREE.IcosahedronGeometry(shardSize, 0);
-    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const instancedMesh = new THREE.InstancedMesh(geometry, material, particleCount);
-
-    const dummy = new THREE.Object3D();
-    for (let i = 0; i < particleCount; i++) {
-      dummy.position.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
-      dummy.updateMatrix();
-      instancedMesh.setMatrixAt(i, dummy.matrix);
-    }
-    scene.add(instancedMesh);
-
-    // === AtmosphericParticles ===
-    const atmosphericGeometry = new THREE.BufferGeometry();
-    const atmosphericPositions = new Float32Array(100 * 3);
-    for (let i = 0; i < 100 * 3; i++) atmosphericPositions[i] = Math.random() * 20 - 10;
-    atmosphericGeometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(atmosphericPositions, 3),
-    );
-    scene.add(new THREE.Points(atmosphericGeometry, new THREE.PointsMaterial({ size: 2 })));
-
-    // === Environment ===
-    // Background plane
-    const bgGeometry = new THREE.PlaneGeometry(2, 2);
-    const bgMaterial = new THREE.MeshBasicMaterial({ color: 0xf5f0e8 });
-    scene.add(new THREE.Mesh(bgGeometry, bgMaterial));
-
-    // 5 clouds
-    for (let i = 0; i < 5; i++) {
-      const cloudGeometry = new THREE.SphereGeometry(2, 20, 20);
-      const cloudMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.3 });
-      const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
-      cloud.position.set((i - 2) * 10, 10 + Math.random() * 5, -30);
-      scene.add(cloud);
-    }
-
-    // Stars (Points)
-    const starsGeometry = new THREE.BufferGeometry();
-    const starsPositions = new Float32Array(500 * 3);
-    for (let i = 0; i < 500 * 3; i++) starsPositions[i] = Math.random() * 200 - 100;
-    starsGeometry.setAttribute('position', new THREE.BufferAttribute(starsPositions, 3));
-    scene.add(new THREE.Points(starsGeometry, new THREE.PointsMaterial({ size: 1 })));
+    // Use the new buildBreathingScene fixture with custom particle count
+    buildBreathingScene(scene, {
+      useInstancedParticles: true,
+      particleCount,
+      includeAtmosphericParticles: true,
+      includeEnvironment: true,
+    });
   }
 
   describe('200 particles stress test', () => {

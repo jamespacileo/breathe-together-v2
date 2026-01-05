@@ -184,25 +184,18 @@ describe('Behavior Tests: User Outcomes', () => {
   });
 
   describe('Breathing Cycle Follows 4-7-8 Pattern', () => {
-    // TODO: Fix phase boundary detection - the easing functions cause phase types
-    // to not align exactly with expected time boundaries. Need to either:
-    // 1. Adjust test expectations to match actual easing behavior
-    // 2. Use wider boundary tolerance in breathCalc.ts
-    // Issue: Phase boundaries are soft due to easing, not hard at 4s/11s/19s
-    it.skip('cycles through all phases in correct order', () => {
+    it('cycles through all phases in correct order', () => {
       // OUTCOME: User experiences inhale → hold-in → exhale → (repeat)
-      // Use fixed timestamps to avoid Date.now() variability
-      const _cycleStart = 0; // Start at beginning of cycle
+      // Note: 4-7-8 pattern has no hold-out phase (HOLD_OUT=0s)
 
-      // Check phases at key moments (4s inhale, 7s hold-in, 8s exhale)
-      // Use mid-phase times to avoid boundaries
+      // Test mid-phase timing to avoid boundary issues
       const phases = [
         { time: 2000, expectedType: 0, name: 'mid-inhale' }, // 2s into inhale (0-4s)
-        { time: 7000, expectedType: 1, name: 'mid-hold' }, // 3s into hold (4-11s)
+        { time: 7500, expectedType: 1, name: 'mid-hold-in' }, // 3.5s into hold (4-11s)
         { time: 15000, expectedType: 2, name: 'mid-exhale' }, // 4s into exhale (11-19s)
       ];
 
-      for (const { time, expectedType } of phases) {
+      for (const { time, expectedType, name } of phases) {
         const state = calculateBreathState(time);
         expect(state.phaseType).toBe(expectedType);
         expectValidBreathingCycle(time);
@@ -239,34 +232,40 @@ describe('Behavior Tests: User Outcomes', () => {
       expect(exhaledState.orbitRadius).toBeLessThanOrEqual(VISUALS.PARTICLE_ORBIT_MAX);
     });
 
-    // TODO: Phase transition validation observes 2→0 direct transitions which may be
-    // intentional (4-7-8 pattern has no hold-out phase). Need to verify:
-    // 1. Whether HOLD_OUT=0 is the intended behavior
-    // 2. If 2→0 is valid, update the valid transitions list
-    // 3. Consider if phase 3 (hold-out) should exist at all in 4-7-8 pattern
-    it.skip('no invalid phase transitions occur', () => {
+    it('no invalid phase transitions occur', () => {
       // OUTCOME: Phase never jumps unexpectedly
-      // Sample at 500ms intervals (fast enough to catch transitions)
-      let previousPhaseType = -1;
+      // Note: 4-7-8 pattern has HOLD_OUT=0, so exhale goes directly to inhale (2→0)
 
-      for (let ms = 0; ms < 20000; ms += 500) {
+      let previousPhaseType = -1;
+      const transitionsSeen: string[] = [];
+
+      // Sample at 100ms intervals to catch all transitions
+      for (let ms = 0; ms < 20000; ms += 100) {
         const { phaseType } = calculateBreathState(ms);
 
         if (previousPhaseType !== -1 && phaseType !== previousPhaseType) {
-          // Only track actual transitions (phase changed)
-          // Valid transitions: 0→1, 1→2, 2→3, 3→0, 2→0 (if no hold-out)
+          const transition = `${previousPhaseType}→${phaseType}`;
+          transitionsSeen.push(transition);
+
+          // Valid transitions for 4-7-8 pattern (no hold-out):
+          // 0→1 (inhale to hold-in)
+          // 1→2 (hold-in to exhale)
+          // 2→0 (exhale directly to inhale - no hold-out phase)
           const validTransition =
             (previousPhaseType === 0 && phaseType === 1) ||
             (previousPhaseType === 1 && phaseType === 2) ||
-            (previousPhaseType === 2 && phaseType === 3) ||
-            (previousPhaseType === 3 && phaseType === 0) ||
-            (previousPhaseType === 2 && phaseType === 0); // Direct if HOLD_OUT=0
+            (previousPhaseType === 2 && phaseType === 0); // Direct transition (HOLD_OUT=0)
 
           expect(validTransition).toBe(true);
         }
 
         previousPhaseType = phaseType;
       }
+
+      // Verify we saw all expected transitions
+      expect(transitionsSeen).toContain('0→1'); // Inhale to hold-in
+      expect(transitionsSeen).toContain('1→2'); // Hold-in to exhale
+      expect(transitionsSeen).toContain('2→0'); // Exhale to inhale (no hold-out)
     });
   });
 
