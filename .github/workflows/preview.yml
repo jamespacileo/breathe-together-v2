@@ -25,6 +25,7 @@ jobs:
   validate:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Validate & Build
     steps:
       - uses: actions/checkout@v4
@@ -79,6 +80,7 @@ jobs:
     needs: validate
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Deploy Worker Preview
     steps:
       - uses: actions/checkout@v4
@@ -112,6 +114,7 @@ jobs:
     needs: validate
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Deploy Frontend Preview
     permissions:
       contents: read
@@ -222,6 +225,7 @@ jobs:
     needs: deploy-preview
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Capture Screenshots
     permissions:
       contents: write

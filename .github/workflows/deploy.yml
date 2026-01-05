@@ -19,6 +19,7 @@ jobs:
   # Fast validation: biome + typecheck run in parallel, then build
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Validate & Build
     outputs:
       build-time: ${{ steps.build.outputs.duration }}
@@ -77,6 +78,7 @@ jobs:
   deploy-worker:
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Deploy Worker
     outputs:
       worker-url: ${{ steps.deploy.outputs.deployment-url }}
@@ -110,6 +112,7 @@ jobs:
   deploy-frontend:
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Deploy Frontend
     outputs:
       frontend-url: ${{ steps.get-urls.outputs.frontend-url }}
