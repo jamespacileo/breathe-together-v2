@@ -1,6 +1,7 @@
-import { Stats } from '@react-three/drei';
+import { A11yAnnouncer } from '@react-three/a11y';
+import { AdaptiveDpr, Stats, useTexture } from '@react-three/drei';
 import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
-import { lazy, Suspense, useMemo, useRef } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import type * as THREE from 'three';
 import { AudioProvider } from './audio';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -39,6 +40,11 @@ export function App() {
   const containerRef = useRef<HTMLDivElement>(null!);
   const path = useCurrentPath();
   const { isMobile, isTablet } = useViewport();
+
+  // Preload earth texture to prevent flash during initial load
+  useEffect(() => {
+    useTexture.preload('/textures/earth-texture.png');
+  }, []);
 
   // Disable antialias on mobile/tablet for 5-10% performance improvement
   const glConfig = useMemo(
@@ -95,6 +101,7 @@ export function App() {
           className="!absolute inset-0"
         >
           {import.meta.env.DEV && <Stats />}
+          <AdaptiveDpr pixelated />
           <CameraRig />
           <KootaSystems breathSystemEnabled={true}>
             <AudioProvider>
@@ -106,6 +113,9 @@ export function App() {
 
         {/* HTML UI - siblings of Canvas, naturally receive pointer events */}
         <BreathingLevelUI />
+
+        {/* A11y announcer for screen reader support */}
+        <A11yAnnouncer />
       </div>
     </ErrorBoundary>
   );

@@ -1,3 +1,4 @@
+import { A11y } from '@react-three/a11y';
 import { Leva } from 'leva';
 import { Perf } from 'r3f-perf';
 import { Suspense, useDeferredValue } from 'react';
@@ -18,6 +19,7 @@ import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
+import { useBreathPhaseDescription } from '../hooks/useBreathPhaseDescription';
 import { useDevControls } from '../hooks/useDevControls';
 import { useInspirationInit } from '../hooks/useInspirationInit';
 import { usePresence } from '../hooks/usePresence';
@@ -53,6 +55,9 @@ export function BreathingLevel({
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
   const { users, countryCounts, sessionId } = usePresence();
+
+  // Accessibility - breath phase description for screen readers
+  const { phaseLabel } = useBreathPhaseDescription();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -140,15 +145,21 @@ export function BreathingLevel({
             )}
 
             {/* Globe - conditionally use transmission material */}
-            {showGlobe && !devControls.useTransmissionGlobe && <EarthGlobe />}
+            {showGlobe && !devControls.useTransmissionGlobe && (
+              <A11y role="image" description={`Breathing meditation sphere - ${phaseLabel} phase`}>
+                <EarthGlobe />
+              </A11y>
+            )}
             {showGlobe && devControls.useTransmissionGlobe && (
-              <EarthGlobeTransmission
-                transmission={devControls.globeTransmission}
-                roughness={devControls.globeRoughness}
-                ior={devControls.globeIor}
-                thickness={devControls.globeThickness}
-                chromaticAberration={devControls.globeChromaticAberration}
-              />
+              <A11y role="image" description={`Breathing meditation sphere - ${phaseLabel} phase`}>
+                <EarthGlobeTransmission
+                  transmission={devControls.globeTransmission}
+                  roughness={devControls.globeRoughness}
+                  ior={devControls.globeIor}
+                  thickness={devControls.globeThickness}
+                  chromaticAberration={devControls.globeChromaticAberration}
+                />
+              </A11y>
             )}
 
             {/* Ribbon System - configurable text ribbons around the globe */}
@@ -157,14 +168,19 @@ export function BreathingLevel({
             {showGlobe && <RibbonSystem />}
 
             {showParticles && (
-              <ParticleSwarm
-                users={deferredUsers}
-                currentUserId={sessionId}
-                baseRadius={orbitRadius}
-                baseShardSize={shardSize}
-                highlightCurrentUser={devControls.highlightCurrentUser}
-                highlightStyle={devControls.highlightStyle}
-              />
+              <A11y
+                role="image"
+                description="Atmospheric particles orbiting in sync with breathing cycle"
+              >
+                <ParticleSwarm
+                  users={deferredUsers}
+                  currentUserId={sessionId}
+                  baseRadius={orbitRadius}
+                  baseShardSize={shardSize}
+                  highlightCurrentUser={devControls.highlightCurrentUser}
+                  highlightStyle={devControls.highlightStyle}
+                />
+              </A11y>
             )}
 
             {showParticles && (
