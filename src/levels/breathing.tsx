@@ -1,9 +1,7 @@
-import { A11y } from '@react-three/a11y';
 import { Leva } from 'leva';
 import { Perf } from 'r3f-perf';
 import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
-import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GizmoEntities } from '../components/GizmoEntities';
 import { MomentumControls } from '../components/MomentumControls';
 import { PostProcessingEffects } from '../components/PostProcessingEffects';
@@ -58,7 +56,8 @@ export function BreathingLevel({
   const { users, countryCounts, sessionId } = usePresence();
 
   // Accessibility - breath phase description for screen readers
-  const { phaseLabel } = useBreathPhaseDescription();
+  // Note: phaseLabel available via useBreathPhaseDescription() for future A11y integration
+  // const { phaseLabel } = useBreathPhaseDescription();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -66,193 +65,180 @@ export function BreathingLevel({
   const deferredUsers = useDeferredValue(users);
 
   return (
-    <ErrorBoundary>
-      <Suspense fallback={null}>
-        {/* Performance monitor (dev only) */}
-        {DEV_MODE_ENABLED && devControls.showPerfMonitor && (
-          <Perf
-            position={devControls.perfPosition}
-            minimal={devControls.perfMinimal}
-            showGraph={devControls.perfShowGraph}
-            logsPerSecond={devControls.perfLogsPerSecond}
-            antialias={devControls.perfAntialias}
-            overClock={devControls.perfOverClock}
-            deepAnalyze={devControls.perfDeepAnalyze}
-            matrixUpdate={devControls.perfMatrixUpdate}
+    <Suspense fallback={null}>
+      {/* Performance monitor (dev only) */}
+      {DEV_MODE_ENABLED && devControls.showPerfMonitor && (
+        <Perf
+          position={devControls.perfPosition}
+          minimal={devControls.perfMinimal}
+          showGraph={devControls.perfShowGraph}
+          logsPerSecond={devControls.perfLogsPerSecond}
+          antialias={devControls.perfAntialias}
+          overClock={devControls.perfOverClock}
+          deepAnalyze={devControls.perfDeepAnalyze}
+          matrixUpdate={devControls.perfMatrixUpdate}
+        />
+      )}
+
+      {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
+      <AudioDevControls />
+
+      {/* MomentumControls wraps everything - iOS-style momentum scrolling for 3D rotation */}
+      <MomentumControls
+        cursor={true}
+        speed={devControls.dragSpeed}
+        damping={devControls.dragDamping}
+        momentum={devControls.dragMomentum}
+        timeConstant={devControls.dragTimeConstant}
+        velocityMultiplier={devControls.dragVelocityMultiplier}
+        minVelocityThreshold={devControls.dragMinVelocity}
+        polar={[-Math.PI * 0.3, Math.PI * 0.3]}
+        azimuth={[-Infinity, Infinity]}
+      >
+        {/* Postprocessing Effects - optional replacement for custom DoF */}
+        {devControls.usePostprocessingDoF && (
+          <PostProcessingEffects
+            enableDoF={devControls.enableDepthOfField}
+            focusDistance={devControls.focusDistance}
+            focalLength={devControls.ppFocalLength}
+            bokehScale={devControls.ppBokehScale}
+            enableBloom={devControls.enableBloom}
+            bloomIntensity={devControls.bloomIntensity}
+            bloomThreshold={devControls.bloomThreshold}
+            enableVignette={devControls.enableVignette}
+            vignetteDarkness={devControls.vignetteDarkness}
           />
         )}
 
-        {/* Audio dev controls - adds Audio folder to Leva panel in dev mode */}
-        <AudioDevControls />
-
-        {/* MomentumControls wraps everything - iOS-style momentum scrolling for 3D rotation */}
-        <MomentumControls
-          cursor={true}
-          speed={devControls.dragSpeed}
-          damping={devControls.dragDamping}
-          momentum={devControls.dragMomentum}
-          timeConstant={devControls.dragTimeConstant}
-          velocityMultiplier={devControls.dragVelocityMultiplier}
-          minVelocityThreshold={devControls.dragMinVelocity}
-          polar={[-Math.PI * 0.3, Math.PI * 0.3]}
-          azimuth={[-Infinity, Infinity]}
+        {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
+        {/* When usePostprocessingDoF is true, disable custom DoF but keep refraction */}
+        <RefractionPipeline
+          ior={devControls.ior}
+          backfaceIntensity={devControls.glassDepth}
+          enableDepthOfField={!devControls.usePostprocessingDoF && devControls.enableDepthOfField}
+          focusDistance={devControls.focusDistance}
+          focalRange={devControls.focalRange}
+          maxBlur={devControls.maxBlur}
         >
-          {/* Postprocessing Effects - optional replacement for custom DoF */}
-          {devControls.usePostprocessingDoF && (
-            <PostProcessingEffects
-              enableDoF={devControls.enableDepthOfField}
-              focusDistance={devControls.focusDistance}
-              focalLength={devControls.ppFocalLength}
-              bokehScale={devControls.ppBokehScale}
-              enableBloom={devControls.enableBloom}
-              bloomIntensity={devControls.bloomIntensity}
-              bloomThreshold={devControls.bloomThreshold}
-              enableVignette={devControls.enableVignette}
-              vignetteDarkness={devControls.vignetteDarkness}
+          {/* Environment - clouds, lighting, fog, constellations, sun, HDRI (or grid floor in stage mode) */}
+          {showEnvironment && (
+            <Environment
+              showClouds={devControls.showClouds}
+              showStars={devControls.showStars}
+              showConstellations={devControls.showConstellations}
+              showConstellationLines={devControls.showConstellationLines}
+              showSun={devControls.showSun}
+              cloudOpacity={devControls.cloudOpacity}
+              cloudSpeed={devControls.cloudSpeed}
+              ambientLightColor={devControls.ambientLightColor}
+              ambientLightIntensity={devControls.ambientLightIntensity}
+              keyLightColor={devControls.keyLightColor}
+              keyLightIntensity={devControls.keyLightIntensity}
+              constellationStarSize={devControls.constellationStarSize}
+              constellationLineOpacity={devControls.constellationLineOpacity}
+              sunSize={devControls.sunSize}
+              sunIntensity={devControls.sunIntensity}
+              showSunGizmo={devControls.showSunGizmo}
+              showConstellationGizmos={devControls.showConstellationGizmos}
+              stageMode={devControls.stageMode}
+              showGridFloor={devControls.showGridFloor}
+              gridSize={devControls.gridSize}
+              gridDivisions={devControls.gridDivisions}
+              gridColor={devControls.gridColor}
+              enableHDRI={devControls.enableHDRI}
+              hdriIntensity={devControls.hdriIntensity}
+              hdriBlur={devControls.hdriBlur}
+              useHDRIBackground={devControls.useHDRIBackground}
             />
           )}
 
-          {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
-          {/* When usePostprocessingDoF is true, disable custom DoF but keep refraction */}
-          <RefractionPipeline
-            ior={devControls.ior}
-            backfaceIntensity={devControls.glassDepth}
-            enableDepthOfField={!devControls.usePostprocessingDoF && devControls.enableDepthOfField}
-            focusDistance={devControls.focusDistance}
-            focalRange={devControls.focalRange}
-            maxBlur={devControls.maxBlur}
-          >
-            {/* Environment - clouds, lighting, fog, constellations, sun, HDRI (or grid floor in stage mode) */}
-            {showEnvironment && (
-              <Environment
-                showClouds={devControls.showClouds}
-                showStars={devControls.showStars}
-                showConstellations={devControls.showConstellations}
-                showConstellationLines={devControls.showConstellationLines}
-                showSun={devControls.showSun}
-                cloudOpacity={devControls.cloudOpacity}
-                cloudSpeed={devControls.cloudSpeed}
-                ambientLightColor={devControls.ambientLightColor}
-                ambientLightIntensity={devControls.ambientLightIntensity}
-                keyLightColor={devControls.keyLightColor}
-                keyLightIntensity={devControls.keyLightIntensity}
-                constellationStarSize={devControls.constellationStarSize}
-                constellationLineOpacity={devControls.constellationLineOpacity}
-                sunSize={devControls.sunSize}
-                sunIntensity={devControls.sunIntensity}
-                showSunGizmo={devControls.showSunGizmo}
-                showConstellationGizmos={devControls.showConstellationGizmos}
-                stageMode={devControls.stageMode}
-                showGridFloor={devControls.showGridFloor}
-                gridSize={devControls.gridSize}
-                gridDivisions={devControls.gridDivisions}
-                gridColor={devControls.gridColor}
-                enableHDRI={devControls.enableHDRI}
-                hdriIntensity={devControls.hdriIntensity}
-                hdriBlur={devControls.hdriBlur}
-                useHDRIBackground={devControls.useHDRIBackground}
-              />
-            )}
-
-            {/* Globe - conditionally use transmission material */}
-            {showGlobe && !devControls.useTransmissionGlobe && (
-              <A11y role="image" description={`Breathing meditation sphere - ${phaseLabel} phase`}>
-                <EarthGlobe />
-              </A11y>
-            )}
-            {showGlobe && devControls.useTransmissionGlobe && (
-              <A11y role="image" description={`Breathing meditation sphere - ${phaseLabel} phase`}>
-                <EarthGlobeTransmission
-                  transmission={devControls.globeTransmission}
-                  roughness={devControls.globeRoughness}
-                  ior={devControls.globeIor}
-                  thickness={devControls.globeThickness}
-                  chromaticAberration={devControls.globeChromaticAberration}
-                />
-              </A11y>
-            )}
-
-            {/* Ribbon System - configurable text ribbons around the globe */}
-            {/* Layers: top message, bottom message, decorative accents */}
-            {/* Features: randomized colors, parallax scroll, breath-synced opacity */}
-            {showGlobe && <RibbonSystem />}
-
-            {showParticles && (
-              <A11y
-                role="image"
-                description="Atmospheric particles orbiting in sync with breathing cycle"
-              >
-                <ParticleSwarm
-                  users={deferredUsers}
-                  currentUserId={sessionId}
-                  baseRadius={orbitRadius}
-                  baseShardSize={shardSize}
-                  highlightCurrentUser={devControls.highlightCurrentUser}
-                  highlightStyle={devControls.highlightStyle}
-                />
-              </A11y>
-            )}
-
-            {showParticles && (
-              <AtmosphericParticles
-                count={Math.round(deferredAtmosphereDensity)}
-                size={devControls.atmosphereParticleSize}
-                baseOpacity={devControls.atmosphereBaseOpacity}
-                breathingOpacity={devControls.atmosphereBreathingOpacity}
-                color={devControls.atmosphereColor}
-              />
-            )}
-
-            {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
-            {/* Now inside RefractionPipeline: occluded by globe/shards, has DoF effect */}
-            {showGlobe && Object.keys(countryCounts).length > 0 && (
-              <GeoMarkers countryCounts={countryCounts} showNames={false} />
-            )}
-          </RefractionPipeline>
-
-          {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
-          {DEV_MODE_ENABLED && (
-            <GizmoEntities
-              enabled={
-                devControls.showGlobeCentroid ||
-                devControls.showGlobeBounds ||
-                devControls.showCountryCentroids ||
-                devControls.showSwarmCentroid ||
-                devControls.showSwarmBounds ||
-                devControls.showShardCentroids ||
-                devControls.showShardWireframes ||
-                devControls.showShardConnections
-              }
-              maxShards={devControls.maxShardGizmos}
+          {/* Globe - conditionally use transmission material */}
+          {showGlobe && !devControls.useTransmissionGlobe && <EarthGlobe />}
+          {showGlobe && devControls.useTransmissionGlobe && (
+            <EarthGlobeTransmission
+              transmission={devControls.globeTransmission}
+              roughness={devControls.globeRoughness}
+              ior={devControls.globeIor}
+              thickness={devControls.globeThickness}
+              chromaticAberration={devControls.globeChromaticAberration}
             />
           )}
 
-          {/* Shape Gizmos - debug visualization for centroids and bounds */}
-          {/* Rendered outside RefractionPipeline to avoid distortion effects */}
-          {DEV_MODE_ENABLED && (
-            <ShapeGizmos
-              showGlobeCentroid={devControls.showGlobeCentroid}
-              showGlobeBounds={devControls.showGlobeBounds}
-              showCountryCentroids={devControls.showCountryCentroids}
-              showSwarmCentroid={devControls.showSwarmCentroid}
-              showSwarmBounds={devControls.showSwarmBounds}
-              showShardCentroids={devControls.showShardCentroids}
-              showShardWireframes={devControls.showShardWireframes}
-              showShardConnections={devControls.showShardConnections}
-              maxShardGizmos={devControls.maxShardGizmos}
-              showAxes={devControls.showGizmoAxes}
-              showLabels={devControls.showGizmoLabels}
+          {/* Ribbon System - configurable text ribbons around the globe */}
+          {/* Layers: top message, bottom message, decorative accents */}
+          {/* Features: randomized colors, parallax scroll, breath-synced opacity */}
+          {showGlobe && <RibbonSystem />}
+
+          {showParticles && (
+            <ParticleSwarm
+              users={deferredUsers}
+              currentUserId={sessionId}
+              baseRadius={orbitRadius}
+              baseShardSize={shardSize}
+              highlightCurrentUser={devControls.highlightCurrentUser}
+              highlightStyle={devControls.highlightStyle}
             />
           )}
 
-          {/* Constellation Gizmos - star markers, constellation wireframes, labels */}
-          {/* Rendered outside RefractionPipeline to avoid depth-of-field blur */}
-          {DEV_MODE_ENABLED && devControls.showConstellationGizmos && (
-            <ConstellationGizmos radius={25} />
+          {showParticles && (
+            <AtmosphericParticles
+              count={Math.round(deferredAtmosphereDensity)}
+              size={devControls.atmosphereParticleSize}
+              baseOpacity={devControls.atmosphereBaseOpacity}
+              breathingOpacity={devControls.atmosphereBreathingOpacity}
+              color={devControls.atmosphereColor}
+            />
           )}
-        </MomentumControls>
-      </Suspense>
-    </ErrorBoundary>
+
+          {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
+          {/* Now inside RefractionPipeline: occluded by globe/shards, has DoF effect */}
+          {showGlobe && Object.keys(countryCounts).length > 0 && (
+            <GeoMarkers countryCounts={countryCounts} showNames={false} />
+          )}
+        </RefractionPipeline>
+
+        {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
+        {DEV_MODE_ENABLED && (
+          <GizmoEntities
+            enabled={
+              devControls.showGlobeCentroid ||
+              devControls.showGlobeBounds ||
+              devControls.showCountryCentroids ||
+              devControls.showSwarmCentroid ||
+              devControls.showSwarmBounds ||
+              devControls.showShardCentroids ||
+              devControls.showShardWireframes ||
+              devControls.showShardConnections
+            }
+            maxShards={devControls.maxShardGizmos}
+          />
+        )}
+
+        {/* Shape Gizmos - debug visualization for centroids and bounds */}
+        {/* Rendered outside RefractionPipeline to avoid distortion effects */}
+        {DEV_MODE_ENABLED && (
+          <ShapeGizmos
+            showGlobeCentroid={devControls.showGlobeCentroid}
+            showGlobeBounds={devControls.showGlobeBounds}
+            showCountryCentroids={devControls.showCountryCentroids}
+            showSwarmCentroid={devControls.showSwarmCentroid}
+            showSwarmBounds={devControls.showSwarmBounds}
+            showShardCentroids={devControls.showShardCentroids}
+            showShardWireframes={devControls.showShardWireframes}
+            showShardConnections={devControls.showShardConnections}
+            maxShardGizmos={devControls.maxShardGizmos}
+            showAxes={devControls.showGizmoAxes}
+            showLabels={devControls.showGizmoLabels}
+          />
+        )}
+
+        {/* Constellation Gizmos - star markers, constellation wireframes, labels */}
+        {/* Rendered outside RefractionPipeline to avoid depth-of-field blur */}
+        {DEV_MODE_ENABLED && devControls.showConstellationGizmos && (
+          <ConstellationGizmos radius={25} />
+        )}
+      </MomentumControls>
+    </Suspense>
   );
 }
 

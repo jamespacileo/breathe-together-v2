@@ -70,18 +70,18 @@ function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
   return new THREE.Vector3(Math.cos(theta) * radiusAtY, y, Math.sin(theta) * radiusAtY);
 }
 
-// Cloud configurations - spherically distributed around the globe
-// LAYERS:
-// - Inner layer (radius 7-8): 6 clouds, closest to shards
-// - Middle layer (radius 9-10): 5 clouds
-// - Outer layer (radius 11-13): 4 clouds, furthest, largest
+// Cloud configurations - spherically distributed with extended depth
+// LAYERS (expanded for better spatial depth):
+// - Inner layer (radius 10-12): 6 clouds, moderate proximity
+// - Middle layer (radius 16-19): 5 clouds, midground depth
+// - Outer layer (radius 23-28): 4 clouds, near viewport boundaries
 export const CLOUD_CONFIGS: CloudConfig[] = [
-  // === INNER LAYER (radius 7-8) - 6 clouds, subtle and close ===
+  // === INNER LAYER (radius 10-12) - 6 clouds, moderate proximity ===
   {
     id: 'inner-pink-1',
     sphereIndex: 0,
     layerTotal: 6,
-    radius: 7,
+    radius: 10,
     color: '#f8b4c4', // Soft pink
     opacity: 0.35,
     orbitSpeed: 0.012,
@@ -98,7 +98,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-lavender-2',
     sphereIndex: 1,
     layerTotal: 6,
-    radius: 7.5,
+    radius: 10.8,
     color: '#d4c4e8', // Soft lavender
     opacity: 0.32,
     orbitSpeed: 0.01,
@@ -115,7 +115,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-blue-3',
     sphereIndex: 2,
     layerTotal: 6,
-    radius: 8,
+    radius: 11.5,
     color: '#a8d4e8', // Sky blue
     opacity: 0.3,
     orbitSpeed: 0.014,
@@ -132,7 +132,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-coral-4',
     sphereIndex: 3,
     layerTotal: 6,
-    radius: 7.2,
+    radius: 10.3,
     color: '#f8c8b8', // Soft coral
     opacity: 0.28,
     orbitSpeed: 0.011,
@@ -149,7 +149,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-cream-5',
     sphereIndex: 4,
     layerTotal: 6,
-    radius: 7.8,
+    radius: 11.2,
     color: '#f8f0e8', // Warm cream
     opacity: 0.25,
     orbitSpeed: 0.009,
@@ -166,7 +166,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-mint-6',
     sphereIndex: 5,
     layerTotal: 6,
-    radius: 7.3,
+    radius: 10.5,
     color: '#c8e8dc', // Soft mint
     opacity: 0.3,
     orbitSpeed: 0.013,
@@ -180,19 +180,19 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.24,
   },
 
-  // === MIDDLE LAYER (radius 9-10) - 5 clouds ===
+  // === MIDDLE LAYER (radius 16-19) - 5 clouds, larger for midground ===
   {
     id: 'mid-peach-1',
     sphereIndex: 0,
     layerTotal: 5,
-    radius: 9,
+    radius: 16,
     color: '#f8d4b8', // Warm peach
     opacity: 0.38,
     orbitSpeed: 0.008,
     segments: 24,
-    bounds: [6, 2, 4],
-    volume: 4,
-    fade: 16,
+    bounds: [8, 2.5, 5],
+    volume: 5,
+    fade: 20,
     layer: 'middle',
     bobSpeed: 0.08,
     bobAmount: 0.2,
@@ -202,14 +202,14 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'mid-mint-2',
     sphereIndex: 1,
     layerTotal: 5,
-    radius: 9.5,
+    radius: 17,
     color: '#b8e8d4', // Soft mint
     opacity: 0.35,
     orbitSpeed: 0.007,
     segments: 22,
-    bounds: [5.5, 1.8, 3.5],
-    volume: 3.5,
-    fade: 14,
+    bounds: [7.5, 2.2, 4.5],
+    volume: 4.5,
+    fade: 18,
     layer: 'middle',
     bobSpeed: 0.09,
     bobAmount: 0.18,
@@ -219,14 +219,14 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'mid-rose-3',
     sphereIndex: 2,
     layerTotal: 5,
-    radius: 10,
+    radius: 18,
     color: '#e8c4d4', // Dusty rose
     opacity: 0.32,
     orbitSpeed: 0.009,
     segments: 20,
-    bounds: [5, 1.5, 3],
-    volume: 3,
-    fade: 13,
+    bounds: [7, 2, 4],
+    volume: 4,
+    fade: 17,
     layer: 'middle',
     bobSpeed: 0.11,
     bobAmount: 0.16,
@@ -236,14 +236,14 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'mid-sage-4',
     sphereIndex: 3,
     layerTotal: 5,
-    radius: 9.2,
+    radius: 16.5,
     color: '#c8dcc8', // Soft sage
     opacity: 0.3,
     orbitSpeed: 0.006,
     segments: 18,
-    bounds: [5, 1.5, 3],
-    volume: 3,
-    fade: 14,
+    bounds: [7, 2, 4],
+    volume: 4,
+    fade: 18,
     layer: 'middle',
     bobSpeed: 0.085,
     bobAmount: 0.19,
@@ -253,33 +253,33 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'mid-blush-5',
     sphereIndex: 4,
     layerTotal: 5,
-    radius: 9.8,
+    radius: 17.5,
     color: '#f0d4d4', // Blush pink
     opacity: 0.28,
     orbitSpeed: 0.0075,
     segments: 19,
-    bounds: [5.5, 1.6, 3.5],
-    volume: 3,
-    fade: 12,
+    bounds: [7.5, 2.2, 4.5],
+    volume: 4,
+    fade: 16,
     layer: 'middle',
     bobSpeed: 0.1,
     bobAmount: 0.17,
     breathAmount: 0.26,
   },
 
-  // === OUTER LAYER (radius 11-13) - 4 clouds, largest and most ethereal ===
+  // === OUTER LAYER (radius 23-28) - 4 clouds, at viewport boundaries ===
   {
     id: 'outer-mist-1',
     sphereIndex: 0,
     layerTotal: 4,
-    radius: 11,
+    radius: 23,
     color: '#e8e4e0', // Warm mist
-    opacity: 0.4,
+    opacity: 0.35,
     orbitSpeed: 0.005,
     segments: 28,
-    bounds: [8, 2.5, 5],
-    volume: 5,
-    fade: 20,
+    bounds: [10, 3, 6],
+    volume: 6,
+    fade: 25,
     layer: 'outer',
     bobSpeed: 0.04,
     bobAmount: 0.25,
@@ -289,14 +289,14 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'outer-pink-2',
     sphereIndex: 1,
     layerTotal: 4,
-    radius: 12,
+    radius: 25,
     color: '#f8b4c4', // Soft pink
-    opacity: 0.35,
+    opacity: 0.3,
     orbitSpeed: 0.004,
     segments: 26,
-    bounds: [7, 2, 4.5],
-    volume: 4.5,
-    fade: 18,
+    bounds: [9, 2.8, 5.5],
+    volume: 5.5,
+    fade: 23,
     layer: 'outer',
     bobSpeed: 0.05,
     bobAmount: 0.22,
@@ -306,14 +306,14 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'outer-lavender-3',
     sphereIndex: 2,
     layerTotal: 4,
-    radius: 13,
+    radius: 27,
     color: '#d4c4e8', // Soft lavender
-    opacity: 0.3,
+    opacity: 0.28,
     orbitSpeed: 0.0045,
     segments: 25,
-    bounds: [7.5, 2.2, 5],
-    volume: 4,
-    fade: 19,
+    bounds: [9.5, 3, 6],
+    volume: 5.5,
+    fade: 24,
     layer: 'outer',
     bobSpeed: 0.045,
     bobAmount: 0.24,
@@ -323,14 +323,14 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'outer-peach-4',
     sphereIndex: 3,
     layerTotal: 4,
-    radius: 11.5,
+    radius: 24,
     color: '#f8d4b8', // Warm peach
-    opacity: 0.32,
+    opacity: 0.3,
     orbitSpeed: 0.0055,
     segments: 24,
-    bounds: [7, 2, 4],
-    volume: 4,
-    fade: 17,
+    bounds: [9, 2.8, 5.5],
+    volume: 5.5,
+    fade: 22,
     layer: 'outer',
     bobSpeed: 0.055,
     bobAmount: 0.2,

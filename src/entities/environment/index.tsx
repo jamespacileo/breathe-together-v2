@@ -153,7 +153,7 @@ export function Environment({
   sunSize = 8,
   sunIntensity = 1,
   showSunGizmo = false,
-  showConstellationGizmos = false,
+  _showConstellationGizmos = false,
   stageMode = false,
   showGridFloor = true,
   gridSize = 20,
@@ -182,12 +182,16 @@ export function Environment({
       const studioWhite = new THREE.Color('#f8f6f3');
       scene.background = studioWhite;
       gl.setClearColor(studioWhite, 1);
+      scene.fog = null;
     } else {
       // Normal mode: let BackgroundGradient handle it
       scene.background = null;
+
+      // Subtle fog for atmospheric perspective and depth
+      // Warm beige color matching background gradient
+      // Near: 20 (clouds start to fade), Far: 35 (fully faded at outer boundaries)
+      scene.fog = new THREE.Fog('#e8dcd0', 20, 35);
     }
-    // Disable fog - it washes out the gradient
-    scene.fog = null;
 
     return () => {
       scene.fog = null;

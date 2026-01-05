@@ -38,7 +38,7 @@ interface StylizedSunProps {
   breathSync?: boolean;
   /** Ray count @default 16 */
   rayCount?: number;
-  /** Overall intensity @default 1.2 */
+  /** Overall intensity @default 0.7 */
   intensity?: number;
   /** Show debug gizmo @default false */
   showGizmo?: boolean;
@@ -228,7 +228,7 @@ export const StylizedSun = memo(function StylizedSun({
   glowColor = '#ffb080',
   breathSync = true,
   rayCount = 16,
-  intensity = 1.2,
+  intensity = 0.7,
   showGizmo = false,
 }: StylizedSunProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -319,25 +319,25 @@ export const StylizedSun = memo(function StylizedSun({
       {/* Decorative rays */}
       <SunRays count={rayCount} size={size} color={coronaColor} breathPhase={currentBreathPhase} />
 
-      {/* Outer soft glow halo */}
+      {/* Outer soft glow halo - reduced for less overwhelming effect */}
       <mesh position={[0, 0, -0.2]}>
-        <circleGeometry args={[size * 2.5, 32]} />
+        <circleGeometry args={[size * 2, 32]} />
         <meshBasicMaterial
           color={glowColor}
           transparent
-          opacity={0.18}
+          opacity={0.08}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </mesh>
 
-      {/* Very soft ambient haze */}
+      {/* Very soft ambient haze - reduced size and opacity */}
       <mesh position={[0, 0, -0.3]}>
-        <circleGeometry args={[size * 4, 32]} />
+        <circleGeometry args={[size * 2.5, 32]} />
         <meshBasicMaterial
           color="#fff5eb"
           transparent
-          opacity={0.08}
+          opacity={0.04}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
