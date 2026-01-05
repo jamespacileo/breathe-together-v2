@@ -49,6 +49,7 @@ export const TUNING_DEFAULTS = {
   // Environment (dev-only)
   showClouds: true,
   showStars: true,
+  showDepthEffects: true,
   cloudOpacity: 0.4,
   cloudSpeed: 0.3,
 
@@ -192,6 +193,7 @@ export interface DevControlsState {
   // Environment
   showClouds: boolean;
   showStars: boolean;
+  showDepthEffects: boolean;
   cloudOpacity: number;
   cloudSpeed: number;
 
@@ -301,6 +303,7 @@ function getDefaultDevControls(): DevControlsState {
     maxBlur: TUNING_DEFAULTS.maxBlur,
     showClouds: TUNING_DEFAULTS.showClouds,
     showStars: TUNING_DEFAULTS.showStars,
+    showDepthEffects: TUNING_DEFAULTS.showDepthEffects,
     cloudOpacity: TUNING_DEFAULTS.cloudOpacity,
     cloudSpeed: TUNING_DEFAULTS.cloudSpeed,
     bgColorTop: TUNING_DEFAULTS.bgColorTop,
@@ -635,6 +638,11 @@ export function useDevControls(): DevControlsState {
               value: TUNING_DEFAULTS.showStars,
               label: 'Show Stars',
               hint: 'Toggle background star field.\n\n**Visibility:** Most noticeable with darker backgrounds (bgColorTop < #e0e0e0)',
+            },
+            showDepthEffects: {
+              value: TUNING_DEFAULTS.showDepthEffects,
+              label: 'Depth Effects',
+              hint: 'Toggle multi-layer depth enhancement system.\n\n**Includes:** Atmospheric particles, depth stars, nebula layers, silhouettes, orbital rings, ground plane, vignette, parallax backgrounds, and enhanced light rays.\n\n**Use case:** Disable to see the flat scene without depth enhancements',
             },
             cloudOpacity: {
               value: TUNING_DEFAULTS.cloudOpacity,

@@ -172,3 +172,74 @@ export const VISUAL_OPACITY = {
   /** Globe main material (fully opaque) */
   GLOBE: 1.0,
 } as const;
+
+// ========================================
+// Scene Depth Configuration
+// Multi-layer depth system for 3D spatial perception
+// ========================================
+export const SCENE_DEPTH = {
+  // Atmospheric particle layers (parallax depth)
+  ATMOSPHERE_LAYERS: {
+    NEAR: { z: -15, opacity: 0.6, size: 0.08, count: 80, speed: 1.2 },
+    MID: { z: -40, opacity: 0.35, size: 0.05, count: 120, speed: 0.7 },
+    FAR: { z: -80, opacity: 0.15, size: 0.03, count: 200, speed: 0.3 },
+  },
+
+  // Star field depth layers
+  STAR_LAYERS: {
+    NEAR: { radius: 50, count: 200, size: 0.15, opacity: 0.8 },
+    MID: { radius: 100, count: 400, size: 0.08, opacity: 0.5 },
+    FAR: { radius: 180, count: 800, size: 0.04, opacity: 0.25 },
+  },
+
+  // Fog depth settings (exponential fog with color shift)
+  FOG: {
+    NEAR_COLOR: '#f5f0e8', // Warm cream (near)
+    FAR_COLOR: '#a8c4d4', // Cool blue-gray (far)
+    DENSITY: 0.008,
+    NEAR: 10,
+    FAR: 200,
+  },
+
+  // Distant silhouette layers
+  SILHOUETTES: {
+    LAYER_1: { z: -50, opacity: 0.12, color: '#c4b5a6' },
+    LAYER_2: { z: -100, opacity: 0.08, color: '#b8a99a' },
+    LAYER_3: { z: -150, opacity: 0.05, color: '#a89888' },
+  },
+
+  // Nebula/cloud depth layers
+  NEBULA: {
+    INNER: { z: -20, opacity: 0.15, scale: 30 },
+    MID: { z: -50, opacity: 0.1, scale: 60 },
+    OUTER: { z: -100, opacity: 0.06, scale: 100 },
+  },
+
+  // Orbital rings
+  RINGS: {
+    INNER: { z: -5, radius: 4, opacity: 0.15 },
+    MID: { z: -25, radius: 12, opacity: 0.08 },
+    OUTER: { z: -60, radius: 25, opacity: 0.04 },
+  },
+
+  // Ground plane
+  GROUND: {
+    Y: -8,
+    OPACITY: 0.04,
+    SIZE: 100,
+  },
+
+  // Vignette
+  VIGNETTE: {
+    INTENSITY: 0.4,
+    RADIUS: 0.85,
+    SOFTNESS: 0.5,
+  },
+
+  // Particle Z-distribution for ParticleSwarm
+  PARTICLE_Z: {
+    MIN: -8,
+    MAX: 4,
+    VARIANCE: 0.6, // How much Z varies from base orbit
+  },
+} as const;

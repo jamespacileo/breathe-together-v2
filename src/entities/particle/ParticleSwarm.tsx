@@ -18,7 +18,7 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
+import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS, SCENE_DEPTH } from '../../constants';
 import { MONUMENT_VALLEY_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
 import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
@@ -159,6 +159,8 @@ interface InstanceState {
   rotationX: number;
   /** Accumulated rotation Y */
   rotationY: number;
+  /** Z-axis depth offset for parallax effect */
+  zOffset: number;
 }
 
 /**
@@ -236,8 +238,15 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
   const rotSeedY = (index * 2.236 + 0.7) % 1;
   const scaleSeed = (index * goldenRatio + 0.5) % 1;
   const orbitSeed = (index * Math.PI + 0.1) % 1;
+  const zSeed = (index * Math.E + 0.4) % 1; // Euler's number for Z distribution
 
   const direction = getFibonacciSpherePoint(index, 1);
+
+  // Calculate Z offset for depth variation
+  const { MIN, MAX, VARIANCE } = SCENE_DEPTH.PARTICLE_Z;
+  const zRange = MAX - MIN;
+  const baseZ = MIN + zSeed * zRange;
+  const zOffset = baseZ * VARIANCE;
 
   return {
     direction: direction.clone(),
@@ -254,6 +263,7 @@ function createInstanceState(index: number, baseRadius: number): InstanceState {
     wobbleSeed: index * Math.E,
     rotationX: 0,
     rotationY: 0,
+    zOffset,
   };
 }
 
@@ -664,13 +674,16 @@ export function ParticleSwarm({
         Math.cos(time * 0.35 + seed * 1.3) * AMBIENT_SCALE,
       );
 
-      // Calculate final position
+      // Calculate final position with Z-depth offset for parallax
       _tempPosition
         .copy(_tempOrbitedDir)
         .multiplyScalar(instanceState.currentRadius)
         .addScaledVector(_tempTangent1, wobble1)
         .addScaledVector(_tempTangent2, wobble2)
         .add(_tempAmbient);
+
+      // Apply Z-depth offset for parallax depth effect
+      _tempPosition.z += instanceState.zOffset;
 
       // Update rotation
       instanceState.rotationX += 0.002 * instanceState.rotationSpeedX;

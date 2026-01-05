@@ -69,12 +69,15 @@ interface RayConfig {
   speed: number;
 }
 
-// Ray configurations - positioned to create diagonal shafts from upper right
+// Ray configurations - multi-depth layers for enhanced depth perception
+// Near rays (Z: -30 to -40) are brighter and warmer
+// Far rays (Z: -80 to -120) are fainter and cooler
 const RAY_CONFIGS: RayConfig[] = [
+  // Near layer rays (warmest, brightest)
   {
-    id: 'ray-main',
+    id: 'ray-near-main',
     position: [15, 8, -35],
-    rotation: [0, 0, -0.4], // Tilted diagonal
+    rotation: [0, 0, -0.4],
     scale: [6, 40, 1],
     color: '#fff8f0', // Warm white
     opacityMultiplier: 1.0,
@@ -82,7 +85,7 @@ const RAY_CONFIGS: RayConfig[] = [
     speed: 0.3,
   },
   {
-    id: 'ray-secondary',
+    id: 'ray-near-secondary',
     position: [8, 5, -40],
     rotation: [0, 0, -0.35],
     scale: [4, 35, 1],
@@ -92,7 +95,7 @@ const RAY_CONFIGS: RayConfig[] = [
     speed: 0.25,
   },
   {
-    id: 'ray-tertiary',
+    id: 'ray-near-tertiary',
     position: [22, 10, -30],
     rotation: [0, 0, -0.45],
     scale: [5, 45, 1],
@@ -100,6 +103,58 @@ const RAY_CONFIGS: RayConfig[] = [
     opacityMultiplier: 0.5,
     phaseOffset: 4.0,
     speed: 0.35,
+  },
+  // Mid-distance rays (neutral)
+  {
+    id: 'ray-mid-left',
+    position: [-20, 12, -70],
+    rotation: [0, 0, 0.3],
+    scale: [8, 60, 1],
+    color: '#f8f4f0', // Neutral warm
+    opacityMultiplier: 0.4,
+    phaseOffset: 1.5,
+    speed: 0.2,
+  },
+  {
+    id: 'ray-mid-right',
+    position: [30, 15, -75],
+    rotation: [0, 0, -0.5],
+    scale: [7, 55, 1],
+    color: '#f4f0f8', // Slight cool
+    opacityMultiplier: 0.35,
+    phaseOffset: 3.0,
+    speed: 0.22,
+  },
+  // Far distance rays (coolest, faintest - suggest distant light source)
+  {
+    id: 'ray-far-main',
+    position: [0, 20, -100],
+    rotation: [0, 0, 0.1],
+    scale: [12, 80, 1],
+    color: '#e8f0f8', // Cool blue-white
+    opacityMultiplier: 0.25,
+    phaseOffset: 0.5,
+    speed: 0.15,
+  },
+  {
+    id: 'ray-far-left',
+    position: [-35, 18, -110],
+    rotation: [0, 0, 0.25],
+    scale: [10, 70, 1],
+    color: '#e4ecf4', // Cool
+    opacityMultiplier: 0.18,
+    phaseOffset: 2.5,
+    speed: 0.12,
+  },
+  {
+    id: 'ray-far-right',
+    position: [40, 22, -120],
+    rotation: [0, 0, -0.35],
+    scale: [11, 75, 1],
+    color: '#e0e8f0', // Coolest
+    opacityMultiplier: 0.15,
+    phaseOffset: 4.5,
+    speed: 0.1,
   },
 ];
 
