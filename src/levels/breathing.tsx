@@ -3,6 +3,7 @@ import { Leva } from 'leva';
 import { Perf } from 'r3f-perf';
 import { Suspense, useDeferredValue } from 'react';
 import { AudioDevControls } from '../audio';
+import { CelestialLabels } from '../components/CelestialLabels';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GizmoEntities } from '../components/GizmoEntities';
 import { MomentumControls } from '../components/MomentumControls';
@@ -272,6 +273,10 @@ export function BreathingLevel({
                 showAxialTilt={devControls.showGlobeAxialTilt}
               />
             )}
+
+          {/* Celestial Labels - minimal UI labels for Sun, Moon, constellations, cardinal directions */}
+          {/* Rendered outside RefractionPipeline to avoid depth-of-field blur */}
+          {devControls.showCelestialLabels && <CelestialLabels />}
         </MomentumControls>
       </Suspense>
     </ErrorBoundary>
