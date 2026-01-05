@@ -1,0 +1,105 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TSL Migration Color Validation > Color Snapshot for TSL Migration > GLSL color constants snapshot 1`] = `
+{
+  "background": {
+    "cloudColor": {
+      "hex": "#fffcf7",
+      "vec3": [
+        1,
+        0.99,
+        0.97,
+      ],
+    },
+    "horizon": {
+      "hex": "#fcf0e0",
+      "vec3": [
+        0.99,
+        0.94,
+        0.88,
+      ],
+    },
+    "skyMid": {
+      "hex": "#faf2e6",
+      "vec3": [
+        0.98,
+        0.95,
+        0.9,
+      ],
+    },
+    "skyTop": {
+      "hex": "#f5f0e8",
+      "vec3": [
+        0.96,
+        0.94,
+        0.91,
+      ],
+    },
+    "warmGlow": {
+      "hex": "#faebd9",
+      "vec3": [
+        0.98,
+        0.92,
+        0.85,
+      ],
+    },
+  },
+  "frostedGlass": {
+    "breathingIntensity": 0.12,
+    "fallbackColor": {
+      "hex": "#d9bfa6",
+      "vec3": [
+        0.85,
+        0.75,
+        0.65,
+      ],
+    },
+    "fresnelPower": 2.5,
+    "innerGlow": {
+      "hex": "#fffaf2",
+      "vec3": [
+        1,
+        0.98,
+        0.95,
+      ],
+    },
+    "innerGlowBase": 0.05,
+    "innerGlowBreathBoost": 0.3,
+    "rimColor": {
+      "hex": "#faf5f0",
+      "vec3": [
+        0.98,
+        0.96,
+        0.94,
+      ],
+    },
+  },
+  "globe": {
+    "atmosphereLayers": [
+      "#f8d0a8",
+      "#b8e8d4",
+      "#c4b8e8",
+    ],
+    "glowColor": "#efe5da",
+    "mistColor": "#f0ebe6",
+    "rimColor": {
+      "hex": "#f0e6db",
+      "vec3": [
+        0.94,
+        0.9,
+        0.86,
+      ],
+    },
+    "ringColor": "#e8c4b8",
+    "sparklesColor": "#f8d0a8",
+    "topLightColor": {
+      "hex": "#faf2eb",
+      "vec3": [
+        0.98,
+        0.95,
+        0.92,
+      ],
+    },
+  },
+}
+`;

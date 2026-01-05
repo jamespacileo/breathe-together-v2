@@ -18,6 +18,7 @@
  * - Same code compiles to WebGL2 and WebGPU
  * - Type-safe node composition
  * - Easier to maintain and modify
+ * - Uses shared TSL nodes for consistency across the app
  *
  * @see https://threejs.org/docs/pages/TSL.html
  */
@@ -26,28 +27,18 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo } from 'react';
 import type * as THREE from 'three';
 
 // TSL imports
-import {
-  add,
-  cameraPosition,
-  color,
-  dot,
-  float,
-  mix,
-  mul,
-  normalize,
-  normalView,
-  positionWorld,
-  pow,
-  smoothstep,
-  sub,
-  texture,
-  abs as tslAbs,
-  max as tslMax,
-  uniform,
-  uv,
-  vec3,
-} from 'three/tsl';
+import { add, color, float, mix, mul, smoothstep, texture, uniform, uv, vec3 } from 'three/tsl';
 import { MeshBasicNodeMaterial, MeshStandardNodeMaterial } from 'three/webgpu';
+
+// Shared TSL nodes - reusable shader patterns
+import {
+  BREATHING_PRESETS,
+  createAbsoluteFresnelNode,
+  createBreathingLuminosityNode,
+  createBreathingPulseNode,
+  createFresnelNode,
+  FRESNEL_PRESETS,
+} from '../../lib/tsl';
 
 /**
  * Props for the TSL globe material
@@ -72,6 +63,10 @@ export interface GlobeMaterialTSLRef {
 /**
  * GlobeMaterialTSL - Node-based material for the earth globe
  *
+ * Now uses shared TSL nodes from src/lib/tsl/ for:
+ * - Fresnel calculations (createFresnelNode)
+ * - Breathing modulation (createBreathingLuminosityNode)
+ *
  * Features:
  * - Earth texture with fresnel rim glow
  * - Breathing brightness modulation
@@ -85,31 +80,31 @@ export const GlobeMaterialTSL = forwardRef<GlobeMaterialTSLRef, GlobeMaterialTSL
 
     // Create the material with TSL nodes
     const material = useMemo(() => {
-      // View direction for fresnel
-      const viewDir = normalize(sub(cameraPosition, positionWorld));
-
       // Sample earth texture
       const texColor = texture(earthTexture, uv());
 
-      // Fresnel rim for atmospheric glow
-      // pow(1.0 - max(dot(normal, viewDir), 0.0), 4.0)
-      const fresnel = pow(
-        sub(float(1.0), tslMax(dot(normalView, viewDir), float(0.0))),
-        float(4.0),
-      );
+      // Use shared fresnel node for atmospheric rim glow
+      const fresnel = createFresnelNode(FRESNEL_PRESETS.atmosphere.power);
 
       // Rim color - muted warm cream
       const rimColor = vec3(0.94, 0.9, 0.86);
 
-      // Breathing modulation - subtle brightness shift
-      // breathMod = 1.0 + breathPhase * 0.06
-      const breathMod = add(float(1.0), mul(uBreathPhase, float(0.06)));
+      // Use shared breathing luminosity for subtle brightness shift
+      const breathMod = createBreathingLuminosityNode(
+        uBreathPhase,
+        BREATHING_PRESETS.subtle.intensity,
+      );
       const litTexColor = mul(texColor.rgb, breathMod);
 
       // Blend texture with fresnel rim - very subtle
-      const colorWithRim = mix(litTexColor, rimColor, mul(fresnel, float(0.18)));
+      const colorWithRim = mix(
+        litTexColor,
+        rimColor,
+        mul(fresnel, float(FRESNEL_PRESETS.atmosphere.intensity)),
+      );
 
-      // Subtle top-down lighting
+      // Subtle top-down lighting using normalView
+      const { normalView } = require('three/tsl');
       const topLight = mul(smoothstep(float(-0.2), float(0.8), normalView.y), float(0.05));
       const topLightColor = vec3(0.98, 0.95, 0.92);
       const finalColor = add(colorWithRim, mul(topLightColor, topLight));
@@ -167,22 +162,25 @@ export interface GlowMaterialTSLProps {
 
 /**
  * GlowMaterialTSL - Additive blended fresnel glow for atmosphere effect
+ *
+ * Uses shared TSL nodes for consistent fresnel and breathing effects.
  */
 export const GlowMaterialTSL = forwardRef<
   { setBreathPhase: (phase: number) => void; material: MeshBasicNodeMaterial | null },
   GlowMaterialTSLProps
->(function GlowMaterialTSL({ glowColor = '#efe5da', glowIntensity = 0.25, breathPhase = 0 }, ref) {
+>(function GlowMaterialTSL(
+  { glowColor = '#efe5da', glowIntensity = FRESNEL_PRESETS.mist.intensity, breathPhase = 0 },
+  ref,
+) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: Uniforms must be created once and updated via .value property, not recreated on prop changes
   const uBreathPhase = useMemo(() => uniform(float(breathPhase)), []);
 
   const material = useMemo(() => {
-    const viewDir = normalize(sub(cameraPosition, positionWorld));
+    // Use shared absolute fresnel (glows on both sides)
+    const fresnel = createAbsoluteFresnelNode(FRESNEL_PRESETS.mist.power);
 
-    // Fresnel with softer edges and tighter falloff
-    const fresnel = pow(sub(float(1.0), tslAbs(dot(normalView, viewDir))), float(3.5));
-
-    // Breathing pulse
-    const pulse = add(float(1.0), mul(uBreathPhase, float(0.2)));
+    // Use shared breathing pulse for glow animation
+    const pulse = createBreathingPulseNode(uBreathPhase, 0.2);
     const alpha = mul(mul(fresnel, float(glowIntensity)), pulse);
 
     const mat = new MeshBasicNodeMaterial();
@@ -224,20 +222,28 @@ export const GlowMaterialTSL = forwardRef<
 /**
  * Hook to create globe materials with automatic breath phase updates
  *
- * Note: Simplified version without mist layer (noise function had TSL typing issues)
+ * Uses shared TSL nodes for consistent effects.
  */
 export function useGlobeMaterialsTSL(earthTexture: THREE.Texture) {
   const uBreathPhase = useMemo(() => uniform(float(0)), []);
 
-  // Main globe material
+  // Main globe material using shared nodes
   const globeMaterial = useMemo(() => {
-    const viewDir = normalize(sub(cameraPosition, positionWorld));
     const texColor = texture(earthTexture, uv());
-    const fresnel = pow(sub(float(1.0), tslMax(dot(normalView, viewDir), float(0.0))), float(4.0));
+    const fresnel = createFresnelNode(FRESNEL_PRESETS.atmosphere.power);
     const rimColor = vec3(0.94, 0.9, 0.86);
-    const breathMod = add(float(1.0), mul(uBreathPhase, float(0.06)));
+    const breathMod = createBreathingLuminosityNode(
+      uBreathPhase,
+      BREATHING_PRESETS.subtle.intensity,
+    );
     const litTexColor = mul(texColor.rgb, breathMod);
-    const colorWithRim = mix(litTexColor, rimColor, mul(fresnel, float(0.18)));
+    const colorWithRim = mix(
+      litTexColor,
+      rimColor,
+      mul(fresnel, float(FRESNEL_PRESETS.atmosphere.intensity)),
+    );
+
+    const { normalView } = require('three/tsl');
     const topLight = mul(smoothstep(float(-0.2), float(0.8), normalView.y), float(0.05));
     const topLightColor = vec3(0.98, 0.95, 0.92);
     const finalColor = add(colorWithRim, mul(topLightColor, topLight));
@@ -249,12 +255,11 @@ export function useGlobeMaterialsTSL(earthTexture: THREE.Texture) {
     return mat;
   }, [earthTexture, uBreathPhase]);
 
-  // Glow material
+  // Glow material using shared nodes
   const glowMaterial = useMemo(() => {
-    const viewDir = normalize(sub(cameraPosition, positionWorld));
-    const fresnel = pow(sub(float(1.0), tslAbs(dot(normalView, viewDir))), float(3.5));
-    const pulse = add(float(1.0), mul(uBreathPhase, float(0.2)));
-    const alpha = mul(mul(fresnel, float(0.25)), pulse);
+    const fresnel = createAbsoluteFresnelNode(FRESNEL_PRESETS.mist.power);
+    const pulse = createBreathingPulseNode(uBreathPhase, 0.2);
+    const alpha = mul(mul(fresnel, float(FRESNEL_PRESETS.mist.intensity)), pulse);
 
     const mat = new MeshBasicNodeMaterial();
     mat.colorNode = color('#efe5da');

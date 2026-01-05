@@ -12,7 +12,6 @@ import { getMoodColor } from '../lib/colors';
 import {
   createMockPresence,
   expectColorAccessibility,
-  expectSynchronizedBreathPhase,
   expectValidBreathingCycle,
   getColorTemperature,
 } from './helpers';
@@ -21,27 +20,36 @@ describe('Behavior Tests: User Outcomes', () => {
   describe('Global Breathing Synchronization', () => {
     it('all users breathe together regardless of join time', () => {
       // OUTCOME: Two users who join 10 seconds apart see the same breath phase
-      // at the same absolute UTC time
+      // at the same absolute UTC time (because breath is based on UTC, not join time)
 
       const user1JoinTime = Date.now();
-      // user2JoinTime is declared for documentation clarity but not used in calculation
-      // because breath synchronization is based solely on absolute UTC time, not join time
-      const _user2JoinTime = user1JoinTime + 10000; // 10 seconds later
+      const user2JoinTime = user1JoinTime + 10000; // 10 seconds later
 
-      // Both users check breath phase 30 seconds after user1 joined
-      // (which is 20 seconds after user2 joined)
-      const absoluteTime = user1JoinTime + 30000;
+      // User 1 checks phase 30 seconds after their join
+      const user1CheckTime = user1JoinTime + 30000;
+      // User 2 checks phase 20 seconds after their join (same absolute UTC time)
+      const user2CheckTime = user2JoinTime + 20000;
 
-      // User 1's perspective: 30 seconds since join
-      // User 2's perspective: 20 seconds since join
-      // BOTH should see the same phase because it's based on UTC time
-      expectSynchronizedBreathPhase(absoluteTime, absoluteTime);
+      // Both times should be the same absolute UTC time
+      expect(user1CheckTime).toBe(user2CheckTime);
 
-      // Verify actual synchronization
-      const phase1 = calculateBreathState(absoluteTime).breathPhase;
-      const phase2 = calculateBreathState(absoluteTime).breathPhase;
+      // Both users should see the same breath phase at the same absolute time
+      const phase1 = calculateBreathState(user1CheckTime).breathPhase;
+      const phase2 = calculateBreathState(user2CheckTime).breathPhase;
 
       expect(phase1).toBe(phase2);
+    });
+
+    it('different absolute times produce different phases', () => {
+      // OUTCOME: Breath phase changes over time (not stuck)
+      const baseTime = Date.now();
+
+      // Check phases at different times within a cycle
+      const phase1 = calculateBreathState(baseTime).breathPhase;
+      const phase2 = calculateBreathState(baseTime + 5000).breathPhase; // 5 seconds later
+
+      // Phases should be different (breathing is progressing)
+      expect(phase1).not.toBe(phase2);
     });
 
     it('breath phase is consistent across different timezones', () => {
@@ -176,8 +184,12 @@ describe('Behavior Tests: User Outcomes', () => {
   });
 
   describe('Breathing Cycle Follows 4-7-8 Pattern', () => {
+    // TODO: Fix phase boundary detection - the easing functions cause phase types
+    // to not align exactly with expected time boundaries. Need to either:
+    // 1. Adjust test expectations to match actual easing behavior
+    // 2. Use wider boundary tolerance in breathCalc.ts
+    // Issue: Phase boundaries are soft due to easing, not hard at 4s/11s/19s
     it.skip('cycles through all phases in correct order', () => {
-      // SKIPPED: Phase boundary detection needs investigation
       // OUTCOME: User experiences inhale → hold-in → exhale → (repeat)
       // Use fixed timestamps to avoid Date.now() variability
       const _cycleStart = 0; // Start at beginning of cycle
@@ -227,8 +239,12 @@ describe('Behavior Tests: User Outcomes', () => {
       expect(exhaledState.orbitRadius).toBeLessThanOrEqual(VISUALS.PARTICLE_ORBIT_MAX);
     });
 
+    // TODO: Phase transition validation observes 2→0 direct transitions which may be
+    // intentional (4-7-8 pattern has no hold-out phase). Need to verify:
+    // 1. Whether HOLD_OUT=0 is the intended behavior
+    // 2. If 2→0 is valid, update the valid transitions list
+    // 3. Consider if phase 3 (hold-out) should exist at all in 4-7-8 pattern
     it.skip('no invalid phase transitions occur', () => {
-      // SKIPPED: Phase transition validation needs review
       // OUTCOME: Phase never jumps unexpectedly
       // Sample at 500ms intervals (fast enough to catch transitions)
       let previousPhaseType = -1;
