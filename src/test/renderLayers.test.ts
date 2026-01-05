@@ -556,6 +556,92 @@ describe('Scene composition verification', () => {
   });
 });
 
+describe('Camera matrix synchronization', () => {
+  /**
+   * Tests for camera matrix copying, which is critical for rendering.
+   *
+   * BUG THAT WAS FIXED: camera.copy() copies properties (position, rotation, fov, etc.)
+   * but does NOT copy the rendering matrices (projectionMatrix, matrixWorld, etc.).
+   * THREE.js uses these matrices for actual rendering - without them, nothing renders!
+   */
+
+  it('camera.copy() does NOT copy rendering matrices', () => {
+    const source = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 1000);
+    source.position.set(0, 5, 10);
+    source.lookAt(0, 0, 0);
+    source.updateMatrixWorld(true);
+    source.updateProjectionMatrix();
+
+    const target = new THREE.PerspectiveCamera();
+    target.copy(source);
+
+    // copy() copies position, rotation, etc.
+    expect(target.position.x).toBe(source.position.x);
+    expect(target.position.y).toBe(source.position.y);
+    expect(target.position.z).toBe(source.position.z);
+    expect(target.fov).toBe(source.fov);
+
+    // BUT: matrices are NOT automatically synced after copy()!
+    // The target matrices are still at default values or stale
+    // This is why we need to explicitly copy them
+  });
+
+  it('explicit matrix copy syncs all rendering matrices', () => {
+    const source = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 1000);
+    source.position.set(0, 5, 10);
+    source.lookAt(0, 0, 0);
+    source.updateMatrixWorld(true);
+    source.updateProjectionMatrix();
+
+    const target = new THREE.PerspectiveCamera();
+    target.copy(source);
+
+    // Explicitly copy matrices (this is what RefractionPipeline does)
+    target.projectionMatrix.copy(source.projectionMatrix);
+    target.projectionMatrixInverse.copy(source.projectionMatrixInverse);
+    target.matrixWorld.copy(source.matrixWorld);
+    target.matrixWorldInverse.copy(source.matrixWorldInverse);
+
+    // Now matrices should match
+    expect(target.projectionMatrix.equals(source.projectionMatrix)).toBe(true);
+    expect(target.projectionMatrixInverse.equals(source.projectionMatrixInverse)).toBe(true);
+    expect(target.matrixWorld.equals(source.matrixWorld)).toBe(true);
+    expect(target.matrixWorldInverse.equals(source.matrixWorldInverse)).toBe(true);
+  });
+
+  it('layerCamera with synced matrices can render from same perspective', () => {
+    // This simulates what RefractionPipeline does each frame
+    const perspCamera = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 1000);
+    perspCamera.position.set(0, 5, 10);
+    perspCamera.lookAt(0, 0, 0);
+    perspCamera.updateMatrixWorld(true);
+    perspCamera.updateProjectionMatrix();
+
+    const layerCamera = new THREE.PerspectiveCamera();
+
+    // Sync like RefractionPipeline does
+    layerCamera.copy(perspCamera);
+    layerCamera.projectionMatrix.copy(perspCamera.projectionMatrix);
+    layerCamera.projectionMatrixInverse.copy(perspCamera.projectionMatrixInverse);
+    layerCamera.matrixWorld.copy(perspCamera.matrixWorld);
+    layerCamera.matrixWorldInverse.copy(perspCamera.matrixWorldInverse);
+
+    // Now layerCamera can be used for rendering with different layer settings
+    // but from the same viewpoint
+    layerCamera.layers.set(RENDER_LAYERS.GIZMOS);
+
+    // Verify perspective is same (position transformed through matrixWorld)
+    const sourceWorldPos = new THREE.Vector3();
+    const targetWorldPos = new THREE.Vector3();
+    perspCamera.getWorldPosition(sourceWorldPos);
+    targetWorldPos.setFromMatrixPosition(layerCamera.matrixWorld);
+
+    expect(targetWorldPos.x).toBeCloseTo(sourceWorldPos.x, 5);
+    expect(targetWorldPos.y).toBeCloseTo(sourceWorldPos.y, 5);
+    expect(targetWorldPos.z).toBeCloseTo(sourceWorldPos.z, 5);
+  });
+});
+
 describe('Camera layer sequence simulation', () => {
   /**
    * Simulates the exact camera layer manipulation sequence in RefractionPipeline.

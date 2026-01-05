@@ -521,6 +521,15 @@ export function RefractionPipeline({
     dofMesh,
   ]);
 
+  // Disable r3f's auto-clear since we manage all rendering ourselves
+  // This prevents r3f from clearing our rendered frame
+  useEffect(() => {
+    gl.autoClear = false;
+    return () => {
+      gl.autoClear = true;
+    };
+  }, [gl]);
+
   // 4-pass rendering loop with performance optimizations:
   // - Layer-based mesh detection (RENDER_LAYERS.PARTICLES)
   // - Environment FBO caching (re-render every ENV_CACHE_FRAMES)
