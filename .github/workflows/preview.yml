@@ -48,8 +48,8 @@ jobs:
 
   # Deploy worker preview first
   deploy-worker-preview:
-    # Only run on pull_request or manual workflow_dispatch (not push events)
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    # Only run on pull_request events (needs PR context for naming)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     name: Deploy Worker Preview
     steps:
