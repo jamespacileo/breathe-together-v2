@@ -16,6 +16,7 @@
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { RENDER_LAYERS } from '../../constants';
 
 interface AmbientDustProps {
   /** Number of dust particles @default 80 */
@@ -81,7 +82,7 @@ const dustFragmentShader = `
 
 export const AmbientDust = memo(function AmbientDust({
   count = 80,
-  opacity = 0.15,
+  opacity = 0.225,
   size = 0.015,
   enabled = true,
 }: AmbientDustProps) {
@@ -90,6 +91,13 @@ export const AmbientDust = memo(function AmbientDust({
 
   // Store initial positions for drift calculation
   const initialPositions = useRef<Float32Array | null>(null);
+
+  // Set layers on mount to exclude from DoF
+  useEffect(() => {
+    if (pointsRef.current) {
+      pointsRef.current.layers.set(RENDER_LAYERS.EFFECTS);
+    }
+  }, []);
 
   // Create geometry and attributes
   const { geometry, positions, velocities } = useMemo(() => {

@@ -620,9 +620,10 @@ export function RefractionPipeline({
       mesh.material = refractionMaterial;
     }
 
-    // Reset camera for composite pass - renders all except gizmos
+    // Reset camera for composite pass - renders all except gizmos and effects
     perspCamera.layers.enableAll();
     perspCamera.layers.disable(RENDER_LAYERS.GIZMOS);
+    perspCamera.layers.disable(RENDER_LAYERS.EFFECTS); // Exclude stars from DoF
 
     if (enableDepthOfField) {
       // Pass 3: Render composite to compositeFBO (with depth for DoF)
@@ -648,6 +649,11 @@ export function RefractionPipeline({
       dofMaterial.uniforms.depthTexture.value = compositeFBO.depthTexture;
       gl.render(dofScene, orthoCamera);
 
+      // Pass 4b: Render EFFECTS layer (stars) directly to screen without DoF
+      gl.clearDepth(); // Don't depth-test against DoF quad
+      perspCamera.layers.set(RENDER_LAYERS.EFFECTS);
+      gl.render(scene, perspCamera);
+
       // Pass 5: Render gizmos directly to screen (no DoF blur)
       // Clear depth so gizmos aren't affected by DoF quad depth values
       gl.clearDepth();
@@ -671,6 +677,11 @@ export function RefractionPipeline({
           mesh.material = original;
         }
       }
+
+      // Render EFFECTS layer without DoF blur
+      gl.clearDepth();
+      perspCamera.layers.set(RENDER_LAYERS.EFFECTS);
+      gl.render(scene, perspCamera);
 
       // Render gizmos directly to screen (after main scene, no blur)
       perspCamera.layers.set(RENDER_LAYERS.GIZMOS);

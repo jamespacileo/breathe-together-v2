@@ -12,8 +12,9 @@
 import { Sparkles } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { memo, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import type * as THREE from 'three';
+import { RENDER_LAYERS } from '../../constants';
 import { breathPhase } from '../breath/traits';
 
 export interface AtmosphericParticlesProps {
@@ -73,14 +74,21 @@ export interface AtmosphericParticlesProps {
 export const AtmosphericParticles = memo(function AtmosphericParticlesComponent({
   count = 100,
   size = 0.08,
-  baseOpacity = 0.1,
-  breathingOpacity = 0.15,
+  baseOpacity = 0.15,
+  breathingOpacity = 0.2,
   color = '#8c7b6c',
 }: AtmosphericParticlesProps = {}) {
   const sparklesRef = useRef<THREE.Points>(null);
   // Cache material reference to avoid repeated type casting in animation loop
   const materialRef = useRef<THREE.PointsMaterial | null>(null);
   const world = useWorld();
+
+  // Set layers on mount
+  useEffect(() => {
+    if (sparklesRef.current) {
+      sparklesRef.current.layers.set(RENDER_LAYERS.EFFECTS);
+    }
+  }, []);
 
   // Update opacity based on breathing phase
   useFrame(() => {

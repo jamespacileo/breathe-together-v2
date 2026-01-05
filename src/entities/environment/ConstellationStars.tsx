@@ -18,6 +18,7 @@ import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
+import { RENDER_LAYERS } from '../../constants';
 import { calculateGMST, celestialToCartesian } from '../../lib/astronomy';
 import {
   CONSTELLATION_LINES,
@@ -76,17 +77,24 @@ export const ConstellationStars = memo(function ConstellationStars({
   showLines = true,
   radius = 25,
   starSize = 2.0,
-  starColor = '#fffaf0',
-  lineColor = '#e8d4b8',
-  lineOpacity = 0.5,
+  starColor = '#ffffff',
+  lineColor = '#f8e8d0',
+  lineOpacity = 0.7,
   lineWidth = 1.5,
   twinkle = true,
   twinkleSpeed = 1,
-  opacity = 0.9,
+  opacity = 1.0,
 }: ConstellationStarsProps) {
   const groupRef = useRef<THREE.Group>(null);
   const starsRef = useRef<THREE.Points>(null);
   const gmstRef = useRef(calculateGMST(new Date()));
+
+  // Set layers on mount to exclude from DoF
+  useEffect(() => {
+    if (starsRef.current) {
+      starsRef.current.layers.set(RENDER_LAYERS.EFFECTS);
+    }
+  }, []);
 
   // Calculate star positions and metadata
   const { lineSegments, positions, sizes, colors } = useMemo(() => {

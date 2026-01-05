@@ -138,10 +138,10 @@ export const RENDER_LAYERS = {
  * is intentional. This prevents accidental black/white screen issues.
  */
 export const VISUAL_COLORS = {
-  /** Background gradient top color - warm cream (#f5f0e8) */
-  BACKGROUND_TOP: '#f5f0e8',
-  /** Background gradient mid color - soft ivory (#faf2e6) */
-  BACKGROUND_MID: '#faf2e6',
+  /** Background gradient top color - warm gray (#d1c7b8) */
+  BACKGROUND_TOP: '#d1c7b8',
+  /** Background gradient mid color - soft taupe (#e0d6c7) */
+  BACKGROUND_MID: '#e0d6c7',
   /** Globe earthy brown tone (used for fallback/references) */
   GLOBE_BROWN: '#8b6f47',
   /** Cloud base colors - soft pink */

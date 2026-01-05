@@ -60,11 +60,11 @@ float fbm(vec2 p) {
 }
 
 void main() {
-  // Creamy neutral background - soft warm tones
-  vec3 skyTop = vec3(0.96, 0.94, 0.91);       // #f5f0e8 Warm cream
-  vec3 skyMid = vec3(0.98, 0.95, 0.90);       // #faf2e6 Soft ivory
-  vec3 horizon = vec3(0.99, 0.94, 0.88);      // #fcf0e0 Warm white
-  vec3 warmGlow = vec3(0.98, 0.92, 0.85);     // #faebb9 Subtle warm glow
+  // Darker warm background for better star contrast
+  vec3 skyTop = vec3(0.82, 0.78, 0.72);       // #d1c7b8 Warm gray
+  vec3 skyMid = vec3(0.88, 0.84, 0.78);       // #e0d6c7 Soft taupe
+  vec3 horizon = vec3(0.92, 0.88, 0.80);      // #ebe0cc Warm beige
+  vec3 warmGlow = vec3(0.90, 0.84, 0.74);     // #e5d6bc Subtle tan
 
   // Vertical position for gradient
   float y = vUv.y;
