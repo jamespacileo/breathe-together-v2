@@ -384,3 +384,30 @@ Currently, shader string changes require component remount. Consider:
 
 **Total shader-related code:** ~3,669 lines
 **Potential reduction after consolidation:** ~400-600 lines (~15%)
+
+---
+
+## 9. Implementation Status
+
+### Completed (January 2026)
+
+| Item | Status | Commit |
+|------|--------|--------|
+| Remove unused `time` uniform from FrostedGlassMaterial | ✅ Done | `443a8d0` |
+| Fix runtime require() calls in TSL files | ✅ Done | `443a8d0` |
+| Add TSL type declarations (`src/types/tsl.ts`) | ✅ Done | `443a8d0` |
+| Clarify RefractionPipeline background shader comment | ✅ Done | `443a8d0` |
+| Replace biome-ignore comments with type-safe helpers | ✅ Done | `443a8d0` |
+
+### Analysis Updates
+
+- **GeoMarkers HolographicMaterial**: Re-analyzed - NOT a memory leak. React Three Fiber's JSX `<shaderMaterial>` is declarative and handles disposal automatically.
+- **RefractionPipeline background shader**: Re-analyzed - NOT a duplicate. Intentionally simplified (no animated clouds) because env FBO is cached every 10 frames.
+
+### Remaining Items
+
+| Priority | Item | Effort |
+|----------|------|--------|
+| Low | Extract magic numbers to constants | ~10 locations |
+| Medium | Create shared GLSL snippets | ~50 lines |
+| Long-term | Complete TSL migration | See §7.3 |
