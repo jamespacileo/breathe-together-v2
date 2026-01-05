@@ -62,10 +62,44 @@ export const TUNING_DEFAULTS = {
   keyLightColor: '#ffe4c4',
   keyLightIntensity: 0.8,
 
+  // HDRI Environment (dev-only)
+  enableHDRI: true,
+  hdriIntensity: 0.3,
+  hdriBlur: 0.5,
+  useHDRIBackground: false,
+
+  // Rendering Pipeline Options (dev-only)
+  usePostprocessingDoF: false, // Use @react-three/postprocessing instead of custom DoF
+  useTransmissionGlobe: false, // Use MeshTransmissionMaterial for globe
+  useTSLMaterials: false, // Use TSL-based materials for shards
+
+  // Postprocessing settings (when usePostprocessingDoF is true)
+  ppFocalLength: 0.02,
+  ppBokehScale: 3,
+  enableBloom: true,
+  bloomIntensity: 0.3,
+  bloomThreshold: 0.9,
+  enableVignette: false,
+  vignetteDarkness: 0.3,
+
+  // Transmission Globe settings (when useTransmissionGlobe is true)
+  globeTransmission: 0.9,
+  globeRoughness: 0.2,
+  globeIor: 1.2,
+  globeThickness: 0.5,
+  globeChromaticAberration: 0.03,
+
   // Colors - Globe
   globeRingColor: '#e8c4b8',
   globeRingOpacity: 0.15,
   globeAtmosphereTint: '#f8d0a8',
+
+  // Stage Mode (dev-only) - minimal studio view
+  stageMode: false,
+  showGridFloor: true,
+  gridSize: 30,
+  gridDivisions: 6,
+  gridColor: '#e0e0e0',
 
   // Debug (dev-only)
   showOrbitBounds: false,
@@ -84,6 +118,10 @@ export const TUNING_DEFAULTS = {
   maxShardGizmos: 50,
   showGizmoAxes: true,
   showGizmoLabels: false,
+
+  // User tracking (dev-only)
+  highlightCurrentUser: false,
+  highlightStyle: 'wireframe' as 'wireframe' | 'glow' | 'scale',
 
   // Performance monitoring (dev-only)
   showPerfMonitor: false,
@@ -167,10 +205,44 @@ export interface DevControlsState {
   keyLightColor: string;
   keyLightIntensity: number;
 
+  // HDRI Environment
+  enableHDRI: boolean;
+  hdriIntensity: number;
+  hdriBlur: number;
+  useHDRIBackground: boolean;
+
+  // Rendering Pipeline Options
+  usePostprocessingDoF: boolean;
+  useTransmissionGlobe: boolean;
+  useTSLMaterials: boolean;
+
+  // Postprocessing settings
+  ppFocalLength: number;
+  ppBokehScale: number;
+  enableBloom: boolean;
+  bloomIntensity: number;
+  bloomThreshold: number;
+  enableVignette: boolean;
+  vignetteDarkness: number;
+
+  // Transmission Globe settings
+  globeTransmission: number;
+  globeRoughness: number;
+  globeIor: number;
+  globeThickness: number;
+  globeChromaticAberration: number;
+
   // Colors - Globe
   globeRingColor: string;
   globeRingOpacity: number;
   globeAtmosphereTint: string;
+
+  // Stage Mode
+  stageMode: boolean;
+  showGridFloor: boolean;
+  gridSize: number;
+  gridDivisions: number;
+  gridColor: string;
 
   // Debug
   showOrbitBounds: boolean;
@@ -189,6 +261,10 @@ export interface DevControlsState {
   maxShardGizmos: number;
   showGizmoAxes: boolean;
   showGizmoLabels: boolean;
+
+  // User tracking
+  highlightCurrentUser: boolean;
+  highlightStyle: 'wireframe' | 'glow' | 'scale';
 
   // Performance monitoring
   showPerfMonitor: boolean;
@@ -233,9 +309,33 @@ function getDefaultDevControls(): DevControlsState {
     ambientLightIntensity: TUNING_DEFAULTS.ambientLightIntensity,
     keyLightColor: TUNING_DEFAULTS.keyLightColor,
     keyLightIntensity: TUNING_DEFAULTS.keyLightIntensity,
+    enableHDRI: TUNING_DEFAULTS.enableHDRI,
+    hdriIntensity: TUNING_DEFAULTS.hdriIntensity,
+    hdriBlur: TUNING_DEFAULTS.hdriBlur,
+    useHDRIBackground: TUNING_DEFAULTS.useHDRIBackground,
+    usePostprocessingDoF: TUNING_DEFAULTS.usePostprocessingDoF,
+    useTransmissionGlobe: TUNING_DEFAULTS.useTransmissionGlobe,
+    useTSLMaterials: TUNING_DEFAULTS.useTSLMaterials,
+    ppFocalLength: TUNING_DEFAULTS.ppFocalLength,
+    ppBokehScale: TUNING_DEFAULTS.ppBokehScale,
+    enableBloom: TUNING_DEFAULTS.enableBloom,
+    bloomIntensity: TUNING_DEFAULTS.bloomIntensity,
+    bloomThreshold: TUNING_DEFAULTS.bloomThreshold,
+    enableVignette: TUNING_DEFAULTS.enableVignette,
+    vignetteDarkness: TUNING_DEFAULTS.vignetteDarkness,
+    globeTransmission: TUNING_DEFAULTS.globeTransmission,
+    globeRoughness: TUNING_DEFAULTS.globeRoughness,
+    globeIor: TUNING_DEFAULTS.globeIor,
+    globeThickness: TUNING_DEFAULTS.globeThickness,
+    globeChromaticAberration: TUNING_DEFAULTS.globeChromaticAberration,
     globeRingColor: TUNING_DEFAULTS.globeRingColor,
     globeRingOpacity: TUNING_DEFAULTS.globeRingOpacity,
     globeAtmosphereTint: TUNING_DEFAULTS.globeAtmosphereTint,
+    stageMode: TUNING_DEFAULTS.stageMode,
+    showGridFloor: TUNING_DEFAULTS.showGridFloor,
+    gridSize: TUNING_DEFAULTS.gridSize,
+    gridDivisions: TUNING_DEFAULTS.gridDivisions,
+    gridColor: TUNING_DEFAULTS.gridColor,
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
@@ -250,6 +350,8 @@ function getDefaultDevControls(): DevControlsState {
     maxShardGizmos: TUNING_DEFAULTS.maxShardGizmos,
     showGizmoAxes: TUNING_DEFAULTS.showGizmoAxes,
     showGizmoLabels: TUNING_DEFAULTS.showGizmoLabels,
+    highlightCurrentUser: TUNING_DEFAULTS.highlightCurrentUser,
+    highlightStyle: TUNING_DEFAULTS.highlightStyle,
     showPerfMonitor: TUNING_DEFAULTS.showPerfMonitor,
     perfPosition: TUNING_DEFAULTS.perfPosition,
     perfMinimal: TUNING_DEFAULTS.perfMinimal,
@@ -550,6 +652,38 @@ export function useDevControls(): DevControlsState {
               label: 'Cloud Speed',
               hint: 'Animation speed of drifting clouds. 0 = frozen, 1 = fast drift.',
             },
+            // HDRI Environment Lighting
+            HDRI: folder(
+              {
+                enableHDRI: {
+                  value: TUNING_DEFAULTS.enableHDRI,
+                  label: 'Enable HDRI',
+                  hint: 'Toggle HDRI environment lighting.\n\nUses Belfast Sunset HDRI from Poly Haven for warm, pastel reflections on PBR materials.\n\n**Performance:** Minimal impact; HDRI is only 1k resolution',
+                },
+                hdriIntensity: {
+                  value: TUNING_DEFAULTS.hdriIntensity,
+                  min: 0,
+                  max: 1,
+                  step: 0.05,
+                  label: 'HDRI Intensity',
+                  hint: 'How strongly the HDRI affects scene lighting and reflections.\n\n**Typical range:** Subtle (0.1-0.2) → Balanced (0.3) → Strong (0.5+)',
+                },
+                hdriBlur: {
+                  value: TUNING_DEFAULTS.hdriBlur,
+                  min: 0,
+                  max: 1,
+                  step: 0.1,
+                  label: 'HDRI Blur',
+                  hint: 'Blur amount for HDRI background (when used as background).\n\n0 = sharp HDRI, 1 = fully blurred.\n\n**Only applies when:** Use HDRI Background is enabled',
+                },
+                useHDRIBackground: {
+                  value: TUNING_DEFAULTS.useHDRIBackground,
+                  label: 'Use HDRI Background',
+                  hint: 'Replace gradient background with HDRI skybox.\n\n**Trade-off:** More realistic but loses custom Monument Valley gradient',
+                },
+              },
+              { collapsed: true },
+            ),
           },
           { collapsed: true },
         ),
@@ -558,7 +692,154 @@ export function useDevControls(): DevControlsState {
     ),
 
     // ==========================================
-    // 3. CAMERA
+    // 3. RENDERING PIPELINE
+    // ==========================================
+    'Rendering Pipeline': folder(
+      {
+        'Pipeline Options': folder(
+          {
+            usePostprocessingDoF: {
+              value: TUNING_DEFAULTS.usePostprocessingDoF,
+              label: 'Use Postprocessing DoF',
+              hint: 'Use @react-three/postprocessing DepthOfField instead of custom RefractionPipeline DoF.\n\n**Pros:** Better bokeh, Bloom support, easier to extend\n**Cons:** Slightly different visual style',
+            },
+            useTransmissionGlobe: {
+              value: TUNING_DEFAULTS.useTransmissionGlobe,
+              label: 'Transmission Globe',
+              hint: 'Use MeshTransmissionMaterial for globe instead of custom shader.\n\n**Pros:** Physical glass refraction, built-in roughness\n**Cons:** Heavier on GPU, may conflict with instanced rendering',
+            },
+            useTSLMaterials: {
+              value: TUNING_DEFAULTS.useTSLMaterials,
+              label: 'TSL Materials',
+              hint: 'Use TSL (Three.js Shading Language) materials for shards.\n\n**Pros:** WebGPU ready, node-based shaders\n**Cons:** Experimental, requires WebGPU for full benefits',
+            },
+          },
+          { collapsed: false },
+        ),
+        Postprocessing: folder(
+          {
+            ppFocalLength: {
+              value: TUNING_DEFAULTS.ppFocalLength,
+              min: 0.01,
+              max: 0.1,
+              step: 0.005,
+              label: 'Focal Length',
+              hint: 'Camera focal length - affects bokeh intensity.\n\nLower = more blur, higher = sharper',
+              render: (get) => get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF'),
+            },
+            ppBokehScale: {
+              value: TUNING_DEFAULTS.ppBokehScale,
+              min: 0,
+              max: 10,
+              step: 0.5,
+              label: 'Bokeh Scale',
+              hint: 'Size of out-of-focus blur circles.\n\n**Typical:** 2-4 for subtle, 5+ for dreamy',
+              render: (get) => get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF'),
+            },
+            enableBloom: {
+              value: TUNING_DEFAULTS.enableBloom,
+              label: 'Enable Bloom',
+              hint: 'Add glow to bright highlights.\n\n**Best with:** Glass materials, sparkles',
+              render: (get) => get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF'),
+            },
+            bloomIntensity: {
+              value: TUNING_DEFAULTS.bloomIntensity,
+              min: 0,
+              max: 2,
+              step: 0.1,
+              label: 'Bloom Intensity',
+              hint: 'Strength of the bloom glow effect.',
+              render: (get) =>
+                get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                get('Rendering Pipeline.Postprocessing.enableBloom'),
+            },
+            bloomThreshold: {
+              value: TUNING_DEFAULTS.bloomThreshold,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Bloom Threshold',
+              hint: 'Brightness threshold for bloom. Lower = more areas glow.',
+              render: (get) =>
+                get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                get('Rendering Pipeline.Postprocessing.enableBloom'),
+            },
+            enableVignette: {
+              value: TUNING_DEFAULTS.enableVignette,
+              label: 'Enable Vignette',
+              hint: 'Darken screen edges for cinematic look.',
+              render: (get) => get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF'),
+            },
+            vignetteDarkness: {
+              value: TUNING_DEFAULTS.vignetteDarkness,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Vignette Darkness',
+              hint: 'How dark the edges become.',
+              render: (get) =>
+                get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                get('Rendering Pipeline.Postprocessing.enableVignette'),
+            },
+          },
+          { collapsed: true },
+        ),
+        'Transmission Globe': folder(
+          {
+            globeTransmission: {
+              value: TUNING_DEFAULTS.globeTransmission,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Transmission',
+              hint: 'Glass transparency. 0 = opaque, 1 = fully transparent.',
+              render: (get) => get('Rendering Pipeline.Pipeline Options.useTransmissionGlobe'),
+            },
+            globeRoughness: {
+              value: TUNING_DEFAULTS.globeRoughness,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              label: 'Roughness',
+              hint: 'Surface roughness. 0 = mirror, 1 = frosted.',
+              render: (get) => get('Rendering Pipeline.Pipeline Options.useTransmissionGlobe'),
+            },
+            globeIor: {
+              value: TUNING_DEFAULTS.globeIor,
+              min: 1,
+              max: 2.5,
+              step: 0.1,
+              label: 'IOR',
+              hint: 'Index of refraction. 1 = air, 1.5 = glass, 2.4 = diamond.',
+              render: (get) => get('Rendering Pipeline.Pipeline Options.useTransmissionGlobe'),
+            },
+            globeThickness: {
+              value: TUNING_DEFAULTS.globeThickness,
+              min: 0,
+              max: 5,
+              step: 0.1,
+              label: 'Thickness',
+              hint: 'Simulated glass thickness for internal distortion.',
+              render: (get) => get('Rendering Pipeline.Pipeline Options.useTransmissionGlobe'),
+            },
+            globeChromaticAberration: {
+              value: TUNING_DEFAULTS.globeChromaticAberration,
+              min: 0,
+              max: 0.2,
+              step: 0.01,
+              label: 'Chromatic Aberration',
+              hint: 'Rainbow color split at edges. Subtle = 0.02, visible = 0.05+.',
+              render: (get) => get('Rendering Pipeline.Pipeline Options.useTransmissionGlobe'),
+            },
+          },
+          { collapsed: true },
+        ),
+      },
+      { collapsed: false, order: 1 },
+    ),
+
+    // ==========================================
+    // 4. CAMERA
     // ==========================================
     Camera: folder(
       {
@@ -597,11 +878,11 @@ export function useDevControls(): DevControlsState {
           { collapsed: false },
         ),
       },
-      { collapsed: true, order: 1 },
+      { collapsed: true, order: 2 },
     ),
 
     // ==========================================
-    // 4. INTERACTION
+    // 5. INTERACTION
     // ==========================================
     Interaction: folder(
       {
@@ -659,15 +940,59 @@ export function useDevControls(): DevControlsState {
           { collapsed: false },
         ),
       },
-      { collapsed: true, order: 2 },
+      { collapsed: true, order: 3 },
     ),
 
     // ==========================================
-    // 5. DEBUG (consolidates Debug + Performance Monitor)
+    // 6. STAGE MODE (minimal studio view)
+    // ==========================================
+    'Stage Mode': folder(
+      {
+        stageMode: {
+          value: TUNING_DEFAULTS.stageMode,
+          label: 'Enable Stage Mode',
+          hint: 'Toggle minimal studio view with warm white background, sparse grid, and soft radial shadow.\n\n**Use case:** Debug positioning in a clean, elegant environment',
+        },
+        showGridFloor: {
+          value: TUNING_DEFAULTS.showGridFloor,
+          label: 'Show Floor',
+          hint: 'Show studio floor with sparse grid, axis crosshair, and soft shadow.\n\n**Features:** Radial shadow + sparse reference lines + X/Z axes',
+          render: (get) => get('Stage Mode.stageMode'),
+        },
+        gridSize: {
+          value: TUNING_DEFAULTS.gridSize,
+          min: 15,
+          max: 60,
+          step: 5,
+          label: 'Floor Size',
+          hint: 'Total size of the floor in world units.',
+          render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
+        },
+        gridDivisions: {
+          value: TUNING_DEFAULTS.gridDivisions,
+          min: 4,
+          max: 12,
+          step: 2,
+          label: 'Grid Lines',
+          hint: 'Number of reference lines (sparse). 4-6 is minimal, 8-12 for more precision.',
+          render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
+        },
+        gridColor: {
+          value: TUNING_DEFAULTS.gridColor,
+          label: 'Grid Color',
+          hint: 'Color of reference lines. Very light colors (#e0e0e0) blend elegantly.',
+          render: (get) => get('Stage Mode.stageMode') && get('Stage Mode.showGridFloor'),
+        },
+      },
+      { collapsed: false, order: 4 },
+    ),
+
+    // ==========================================
+    // 7. DEBUG (consolidates Debug + Performance Monitor)
     // ==========================================
     Debug: folder(
       {
-        // 5.1 Visualization
+        // 6.1 Visualization
         Visualization: folder(
           {
             showOrbitBounds: {
@@ -782,6 +1107,24 @@ export function useDevControls(): DevControlsState {
           { collapsed: true },
         ),
 
+        // 5.4 User Tracking
+        'User Tracking': folder(
+          {
+            highlightCurrentUser: {
+              value: TUNING_DEFAULTS.highlightCurrentUser,
+              label: 'Highlight My Shard',
+              hint: "Show a visual indicator on the current user's particle shard.\n\n**Use case:** Verify your shard position is correctly tracked in the Fibonacci distribution",
+            },
+            highlightStyle: {
+              value: TUNING_DEFAULTS.highlightStyle,
+              options: ['wireframe', 'glow', 'scale'],
+              label: 'Highlight Style',
+              hint: '**wireframe** = white icosahedron outline around shard\n**glow** = pulsing white halo sphere + dim wireframe\n**scale** = 30% larger wireframe outline',
+            },
+          },
+          { collapsed: true },
+        ),
+
         // 5.3 Performance
         Performance: folder(
           {
@@ -838,7 +1181,7 @@ export function useDevControls(): DevControlsState {
           { collapsed: true },
         ),
       },
-      { collapsed: true, order: 3 },
+      { collapsed: true, order: 5 },
     ),
   }));
 
