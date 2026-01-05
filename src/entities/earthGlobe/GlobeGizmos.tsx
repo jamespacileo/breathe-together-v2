@@ -39,8 +39,10 @@ interface GlobeGizmosProps {
   equatorColor?: string;
   /** Orbit plane color @default '#4488ff' */
   orbitColor?: string;
-  /** Shadow color @default '#000033' */
+  /** Night shadow color @default '#0a0a2e' */
   shadowColor?: string;
+  /** Terminator glow color (day/night boundary) @default '#4488ff' */
+  terminatorColor?: string;
 }
 
 /**
@@ -265,16 +267,20 @@ const OrbitPlaneGizmo = memo(function OrbitPlaneGizmo({
 /**
  * Day/Night Shadow - Shader-based shadow overlay on the globe
  * Uses dot product between surface normal and sun direction
+ * Enhanced with holographic-style Fresnel edge glow at terminator
  * Based on: https://webgl2fundamentals.org/webgl/lessons/webgl-qna-show-a-night-view-vs-a-day-view-on-a-3d-earth-sphere.html
  */
 const dayNightVertexShader = `
 varying vec3 vNormal;
 varying vec3 vWorldPosition;
+varying vec3 vViewPosition;
 
 void main() {
   vNormal = normalize(normalMatrix * normal);
   vec4 worldPos = modelMatrix * vec4(position, 1.0);
   vWorldPosition = worldPos.xyz;
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vViewPosition = -mvPosition.xyz;
   gl_Position = projectionMatrix * viewMatrix * worldPos;
 }
 `;
@@ -282,46 +288,82 @@ void main() {
 const dayNightFragmentShader = `
 uniform vec3 sunDirection;
 uniform vec3 shadowColor;
+uniform vec3 terminatorColor;
 uniform float shadowOpacity;
+uniform float time;
 
 varying vec3 vNormal;
 varying vec3 vWorldPosition;
+varying vec3 vViewPosition;
 
 void main() {
+  vec3 normal = normalize(vNormal);
+  vec3 sunDir = normalize(sunDirection);
+
   // Calculate dot product between surface normal and sun direction
   // Positive = facing sun (day), Negative = facing away (night)
-  float dotProduct = dot(normalize(vNormal), normalize(sunDirection));
+  float dotProduct = dot(normal, sunDir);
 
-  // Smooth transition at terminator (twilight zone)
-  // -0.1 to 0.1 range for soft edge
-  float shadow = smoothstep(-0.1, 0.1, -dotProduct);
+  // Night shadow - smooth falloff from terminator into night side
+  float shadow = smoothstep(0.0, -0.3, dotProduct);
 
-  // Only show shadow on night side
-  gl_FragColor = vec4(shadowColor, shadow * shadowOpacity);
+  // Terminator glow - bright line at day/night boundary
+  // Creates a glowing edge effect like holographic UI
+  float terminatorWidth = 0.15;
+  float terminator = 1.0 - smoothstep(0.0, terminatorWidth, abs(dotProduct));
+
+  // Fresnel effect - edge glow based on view angle (from holographic UI)
+  vec3 viewDir = normalize(vViewPosition);
+  float fresnel = pow(1.0 - abs(dot(normal, viewDir)), 2.5);
+
+  // Subtle pulse animation at terminator
+  float pulse = 0.85 + 0.15 * sin(time * 1.5);
+
+  // Combine shadow with terminator glow
+  vec3 nightColor = shadowColor;
+  vec3 glowColor = terminatorColor * terminator * pulse;
+
+  // Add fresnel edge enhancement to make night side more visible
+  float fresnelBoost = fresnel * 0.3 * shadow;
+
+  // Final color: night shadow + terminator glow + fresnel edge
+  vec3 finalColor = mix(nightColor, glowColor, terminator * 0.8);
+  finalColor += terminatorColor * fresnelBoost;
+
+  // Alpha: shadow opacity + terminator visibility + fresnel boost
+  float alpha = shadow * shadowOpacity + terminator * 0.6 * pulse + fresnelBoost;
+  alpha = clamp(alpha, 0.0, 1.0);
+
+  gl_FragColor = vec4(finalColor, alpha);
 }
 `;
 
 const DayNightShadow = memo(function DayNightShadow({
   globeRadius,
   sunDirection,
-  shadowColor = '#000033',
-  opacity = 0.6,
+  shadowColor = '#0a0a2e',
+  terminatorColor = '#4488ff',
+  opacity = 0.7,
 }: {
   globeRadius: number;
   sunDirection: THREE.Vector3;
   shadowColor?: string;
+  terminatorColor?: string;
   opacity?: number;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
-  // Create shader material
+  // Create shader material with actual sun direction
   const material = useMemo(() => {
     const color = new THREE.Color(shadowColor);
+    const termColor = new THREE.Color(terminatorColor);
     return new THREE.ShaderMaterial({
       uniforms: {
-        sunDirection: { value: new THREE.Vector3(1, 0, 0) },
+        sunDirection: { value: sunDirection.clone() },
         shadowColor: { value: color },
+        terminatorColor: { value: termColor },
         shadowOpacity: { value: opacity },
+        time: { value: 0 },
       },
       vertexShader: dayNightVertexShader,
       fragmentShader: dayNightFragmentShader,
@@ -329,12 +371,13 @@ const DayNightShadow = memo(function DayNightShadow({
       side: THREE.FrontSide,
       depthWrite: false,
     });
-  }, [shadowColor, opacity]);
+  }, [shadowColor, terminatorColor, opacity, sunDirection]);
 
-  // Update sun direction uniform
-  useFrame(() => {
+  // Update uniforms each frame
+  useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.sunDirection.value.copy(sunDirection);
+      materialRef.current.uniforms.time.value = state.clock.elapsedTime;
     }
   });
 
@@ -348,7 +391,7 @@ const DayNightShadow = memo(function DayNightShadow({
   return (
     <mesh renderOrder={100}>
       {/* Slightly larger than globe to avoid z-fighting */}
-      <sphereGeometry args={[globeRadius * 1.002, 64, 32]} />
+      <sphereGeometry args={[globeRadius * 1.005, 64, 32]} />
       <primitive object={material} ref={materialRef} attach="material" />
     </mesh>
   );
@@ -441,7 +484,8 @@ export const GlobeGizmos = memo(function GlobeGizmos({
   southPoleColor = '#ff00ff',
   equatorColor = '#ffaa00',
   orbitColor = '#4488ff',
-  shadowColor = '#000033',
+  shadowColor = '#0a0a2e',
+  terminatorColor = '#4488ff',
 }: GlobeGizmosProps) {
   // Initialize with actual sun position (not default) to prevent sudden appearance
   const sunDirectionRef = useRef(getSunDirection());
@@ -497,6 +541,7 @@ export const GlobeGizmos = memo(function GlobeGizmos({
           globeRadius={globeRadius}
           sunDirection={sunDirectionRef.current}
           shadowColor={shadowColor}
+          terminatorColor={terminatorColor}
         />
       )}
 
