@@ -15,14 +15,12 @@ import { SubtleLightRays } from './SubtleLightRays';
 
 interface EnvironmentProps {
   enabled?: boolean;
-  /** Show volumetric clouds @default true */
-  showClouds?: boolean;
-  /** Show distant stars @default true */
-  showStars?: boolean;
-  /** Cloud opacity @default 0.4 */
-  cloudOpacity?: number;
-  /** Cloud speed multiplier @default 0.3 */
-  cloudSpeed?: number;
+  // NOTE: Cloud/Star props disabled - WebGPU incompatible (drei uses ShaderMaterial)
+  // TODO: Re-enable when TSL-based alternatives are implemented
+  // showClouds?: boolean;
+  // showStars?: boolean;
+  // cloudOpacity?: number;
+  // cloudSpeed?: number;
   /** Ambient light color @default '#fff5eb' */
   ambientLightColor?: string;
   /** Ambient light intensity @default 0.5 */
@@ -55,12 +53,6 @@ interface EnvironmentProps {
  */
 export function Environment({
   enabled = true,
-  // NOTE: These props are temporarily unused - WebGPU incompatible components disabled
-  // TODO: Re-enable when TSL-based alternatives are implemented
-  _showClouds = true,
-  _showStars = true,
-  _cloudOpacity = 0.4,
-  _cloudSpeed = 0.8,
   ambientLightColor = '#fff5eb',
   ambientLightIntensity = 0.5,
   keyLightColor = '#ffe4c4',

@@ -308,6 +308,7 @@ async function checkDreiViolations(
  * - Stars
  * - Sparkles
  * - Clouds/Cloud
+ * - Text (causes "drawIndexed Infinity" error)
  *
  * They must be disabled or replaced with TSL-based alternatives.
  */
@@ -331,5 +332,59 @@ describe('drei Component WebGPU Compatibility', () => {
     }
 
     expect(allViolations).toEqual([]);
+  });
+
+  it('should not use drei Text component (causes Infinity error)', async () => {
+    const path = await import('node:path');
+
+    // Scene files that render 3D content
+    const sceneFiles = ['src/levels/breathing.tsx', 'src/entities/earthGlobe/index.tsx'];
+
+    const allViolations: string[] = [];
+
+    for (const file of sceneFiles) {
+      const filePath = path.join(process.cwd(), file);
+      const violations = await checkDreiViolations(filePath, file, ['Text']);
+      allViolations.push(...violations);
+    }
+
+    expect(allViolations).toEqual([]);
+  });
+});
+
+/**
+ * Tests for Three.js geometry compatibility with WebGPU
+ *
+ * EdgesGeometry causes "drawIndexed Infinity" error when used with
+ * LineSegments on WebGPU backend. Must be disabled or replaced.
+ */
+describe('Three.js Geometry WebGPU Compatibility', () => {
+  it('should not use EdgesGeometry in active render paths', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const sceneFiles = ['src/entities/particle/ParticleSwarm.tsx'];
+
+    const violations: string[] = [];
+
+    for (const file of sceneFiles) {
+      const filePath = path.join(process.cwd(), file);
+      try {
+        const source = await fs.readFile(filePath, 'utf-8');
+        const lines = source.split('\n');
+
+        // Check for EdgesGeometry usage (not in comments)
+        for (const line of lines) {
+          if (!isCommentLine(line) && /new\s+(THREE\.)?EdgesGeometry\s*\(/.test(line)) {
+            violations.push(`${file} uses EdgesGeometry`);
+            break;
+          }
+        }
+      } catch {
+        // File doesn't exist, skip
+      }
+    }
+
+    expect(violations).toEqual([]);
   });
 });

@@ -353,12 +353,13 @@ export function ParticleSwarm({
   // Create shared material with instancing support
   const material = useMemo(() => createFrostedGlassMaterial(true), []);
 
-  // Create wireframe geometry and material for user highlight
+  // NOTE: Wireframe highlight disabled - EdgesGeometry causes "drawIndexed Infinity" error on WebGPU
+  // TODO: Create TSL-based wireframe effect for WebGPU compatibility
+  // Original code used: new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(shardSize * 1.15, 0))
   const wireframeGeometry = useMemo(() => {
-    // Slightly larger than shard for visible outline
-    const geo = new THREE.IcosahedronGeometry(shardSize * 1.15, 0);
-    return new THREE.EdgesGeometry(geo);
-  }, [shardSize]);
+    // Return empty BufferGeometry as placeholder (won't render anything useful)
+    return new THREE.BufferGeometry();
+  }, []);
 
   const wireframeMaterial = useMemo(() => {
     return new THREE.LineBasicMaterial({
@@ -424,6 +425,7 @@ export function ParticleSwarm({
 
   // Initialize the InstancedMesh with default matrices and colors
   // biome-ignore lint/correctness/useExhaustiveDependencies: geometry/material MUST be dependencies because r3f recreates the InstancedMesh when args change, requiring re-initialization
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: InstancedMesh initialization requires multiple matrix operations and color assignments for each instance - refactoring would reduce readability
   useEffect(() => {
     const mesh = instancedMeshRef.current;
     if (!mesh) return;

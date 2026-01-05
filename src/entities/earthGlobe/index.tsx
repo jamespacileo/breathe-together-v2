@@ -235,12 +235,12 @@ interface EarthGlobeProps {
   enableRotation?: boolean;
   /** Show atmosphere halo layers @default true */
   showAtmosphere?: boolean;
-  /** Show sparkle aura @default true */
-  showSparkles?: boolean;
+  // NOTE: Sparkle props disabled - drei Sparkles incompatible with WebGPU
+  // TODO: Re-enable when TSL-based sparkle effect is implemented
+  // showSparkles?: boolean;
+  // sparkleCount?: number;
   /** Show equator ring @default true */
   showRing?: boolean;
-  /** Sparkle count @default 60 */
-  sparkleCount?: number;
   /** Show inner glow effect @default true */
   showGlow?: boolean;
   /** Show mist/haze layer @default true */
@@ -256,11 +256,7 @@ export function EarthGlobe({
   resolution = 64,
   enableRotation = true,
   showAtmosphere = true,
-  // NOTE: Sparkle props temporarily unused - drei Sparkles incompatible with WebGPU
-  // TODO: Re-enable when TSL-based sparkle effect is implemented
-  _showSparkles = true,
   showRing = true,
-  _sparkleCount = 60,
   showGlow = true,
   showMist = true,
 }: Partial<EarthGlobeProps> = {}) {

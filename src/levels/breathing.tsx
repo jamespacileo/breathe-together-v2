@@ -10,8 +10,12 @@ import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
-import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
-import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
+// NOTE: GeoMarkers uses drei Text which causes "drawIndexed Infinity" error on WebGPU
+// TODO: Create TSL-based text/markers for WebGPU compatibility
+// import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
+// NOTE: RibbonSystem uses drei Text which causes "drawIndexed Infinity" error on WebGPU
+// TODO: Create TSL-based text ribbons for WebGPU compatibility
+// import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
@@ -53,7 +57,8 @@ export function BreathingLevel({
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users, countryCounts, sessionId } = usePresence();
+  // NOTE: countryCounts temporarily unused - GeoMarkers disabled (WebGPU incompatible)
+  const { users, sessionId } = usePresence();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -97,10 +102,6 @@ export function BreathingLevel({
             {/* Environment - clouds, lighting, fog (or grid floor in stage mode) */}
             {showEnvironment && (
               <Environment
-                showClouds={devControls.showClouds}
-                showStars={devControls.showStars}
-                cloudOpacity={devControls.cloudOpacity}
-                cloudSpeed={devControls.cloudSpeed}
                 ambientLightColor={devControls.ambientLightColor}
                 ambientLightIntensity={devControls.ambientLightIntensity}
                 keyLightColor={devControls.keyLightColor}
@@ -115,10 +116,9 @@ export function BreathingLevel({
 
             {showGlobe && <EarthGlobe />}
 
-            {/* Ribbon System - configurable text ribbons around the globe */}
-            {/* Layers: top message, bottom message, decorative accents */}
-            {/* Features: randomized colors, parallax scroll, breath-synced opacity */}
-            {showGlobe && <RibbonSystem />}
+            {/* NOTE: RibbonSystem disabled - uses drei Text which causes "drawIndexed Infinity" error on WebGPU */}
+            {/* TODO: Create TSL-based text ribbons for WebGPU compatibility */}
+            {/* {showGlobe && <RibbonSystem />} */}
 
             {showParticles && (
               <ParticleSwarm
@@ -141,10 +141,11 @@ export function BreathingLevel({
               />
             )}
 
-            {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
-            {showGlobe && Object.keys(countryCounts).length > 0 && (
+            {/* NOTE: GeoMarkers disabled - uses drei Text which causes "drawIndexed Infinity" error on WebGPU */}
+            {/* TODO: Create TSL-based markers for WebGPU compatibility */}
+            {/* {showGlobe && Object.keys(countryCounts).length > 0 && (
               <GeoMarkers countryCounts={countryCounts} showNames={false} />
-            )}
+            )} */}
           </group>
 
           {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
