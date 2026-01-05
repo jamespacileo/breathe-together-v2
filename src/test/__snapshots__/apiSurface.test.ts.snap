@@ -65,6 +65,9 @@ exports[`API Surface Snapshot Tests > Core Library Exports > presenceApi exports
 
 exports[`API Surface Snapshot Tests > Test Helper Exports > test helpers export expected utilities 1`] = `
 [
+  "allPointsOnUnitSphere",
+  "angularDistance",
+  "coefficientOfVariation",
   "countObjectsOfType",
   "createMockBreathPhase",
   "createMockPresence",
@@ -78,18 +81,25 @@ exports[`API Surface Snapshot Tests > Test Helper Exports > test helpers export 
   "expectColorInRange",
   "expectColorMatch",
   "expectDrawCallCount",
+  "expectNoGlobeCollisions",
+  "expectNoParticleCollisions",
   "expectOrbitRadiusInRange",
   "expectParticleCount",
   "expectSceneContains",
   "expectSynchronizedBreathPhase",
   "expectValidBreathingCycle",
+  "expectValidCollisionResult",
+  "findNearestNeighborDistances",
   "getColorDistance",
   "getColorTemperature",
   "getContrastRatio",
   "getRelativeLuminance",
   "getVisibleParticleCount",
   "hexToRgb",
+  "isOnUnitSphere",
   "rgbToHex",
+  "sphericalCapArea",
+  "theoreticalOptimalDistance",
 ]
 `;
 
