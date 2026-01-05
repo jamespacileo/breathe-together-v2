@@ -3,6 +3,11 @@ name: Preview Deployment
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'LICENSE'
   workflow_dispatch:
     inputs:
       pr_number:
@@ -16,16 +21,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # CI/CD validation checks (runs in parallel with preview)
+  # Fast validation: biome + typecheck in parallel, then build
   validate:
-    # Only run on pull_request or manual workflow_dispatch (not push events)
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    name: Code Validation
+    timeout-minutes: 10
+    name: Validate & Build
     steps:
       - uses: actions/checkout@v4
         with:
-          # Explicitly checkout the PR head commit (not merge commit) for consistent validation
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
@@ -37,20 +41,46 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Biome checks
-        run: npm run check:ci
+      # Run biome and typecheck in parallel
+      - name: Run validation checks (parallel)
+        run: |
+          npm run check:ci &
+          BIOME_PID=$!
+          npm run typecheck &
+          TYPECHECK_PID=$!
+
+          # Wait for both and capture exit codes independently
+          wait "$BIOME_PID"
+          BIOME_EXIT=$?
+          wait "$TYPECHECK_PID"
+          TYPECHECK_EXIT=$?
+
+          if [ "$BIOME_EXIT" -ne 0 ] || [ "$TYPECHECK_EXIT" -ne 0 ]; then
+            echo "❌ Validation failed (Biome: $BIOME_EXIT, TypeCheck: $TYPECHECK_EXIT)"
+            exit 1
+          fi
+          echo "✅ All validation checks passed"
 
       - name: Build
         run: npm run build
 
-      - name: Type check
-        run: npm run typecheck
+      - name: Job summary
+        if: success()
+        run: |
+          echo "## ✅ Validation Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Biome | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeCheck | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ✅ |" >> $GITHUB_STEP_SUMMARY
 
-  # Deploy worker preview first
+  # Deploy worker and frontend in parallel (both depend on validate)
   deploy-worker-preview:
-    # Only run on pull_request events (needs PR context for naming)
+    needs: validate
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Deploy Worker Preview
     steps:
       - uses: actions/checkout@v4
@@ -78,21 +108,20 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
           wranglerVersion: "4.54.0"
-          # Explicit --config to avoid picking up root wrangler.json (which has assets.directory for frontend)
           command: deploy --config wrangler.toml --name breathe-together-presence-pr-${{ github.event.pull_request.number }}
 
-  # Preview deployment (depends on worker preview)
   deploy-preview:
-    needs: deploy-worker-preview
+    needs: [validate, deploy-worker-preview]
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    name: Deploy Preview
+    timeout-minutes: 10
+    name: Deploy Frontend Preview
     permissions:
       contents: read
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
-          # Explicitly checkout the PR head commit (not merge commit) to ensure latest code
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup Node.js
@@ -114,7 +143,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Use stable wrangler version (4.55.0/4.56.0 have opennextjs-cloudflare delegation bug)
           wranglerVersion: "4.54.0"
           command: deploy --name breathe-together-v2-pr-${{ github.event.pull_request.number }}
 
@@ -192,98 +220,12 @@ jobs:
               });
             }
 
-      - name: Notify Slack - Preview Deployed
-        if: success()
-        uses: slackapi/slack-github-action@v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "🚀 Preview Deployed",
-                    "emoji": true
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*PR:*\n<${{ github.event.pull_request.html_url }}|#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}>"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
-                    }
-                  ]
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Branch:*\n`${{ github.head_ref }}`"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Commit:*\n`${{ github.event.pull_request.head.sha }}`"
-                    }
-                  ]
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "🔗 Open Preview",
-                        "emoji": true
-                      },
-                      "url": "https://breathe-together-v2-pr-${{ github.event.pull_request.number }}.palladio-registry.workers.dev",
-                      "style": "primary"
-                    },
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "📋 View PR",
-                        "emoji": true
-                      },
-                      "url": "${{ github.event.pull_request.html_url }}"
-                    },
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "⚙️ Workflow Run",
-                        "emoji": true
-                      },
-                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    }
-                  ]
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "Deployed via GitHub Actions • ${{ github.repository }}"
-                    }
-                  ]
-                }
-              ]
-            }
-
   # Capture screenshots after preview is deployed
   screenshots:
     needs: deploy-preview
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Capture Screenshots
     permissions:
       contents: write
@@ -351,15 +293,12 @@ jobs:
           R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # Upload screenshots to R2 with retry logic
-          # Store by commit hash to preserve history
           SHORT_SHA="${COMMIT_SHA:0:7}"
           MAX_RETRIES=3
           RETRY_DELAY=5
 
           for attempt in $(seq 1 $MAX_RETRIES); do
             echo "Upload attempt $attempt of $MAX_RETRIES..."
-            # Upload to commit-specific folder for history preservation
             if aws s3 sync ./screenshots "s3://breathe-together-screenshots/pr-${{ env.PR_NUMBER }}/${SHORT_SHA}" \
               --endpoint-url "$R2_ENDPOINT" \
               --content-type "image/png" \
@@ -405,7 +344,6 @@ jobs:
             const artifactUrl = `${repoUrl}/actions/runs/${context.runId}`;
             const commitUrl = `${repoUrl}/commit/${commitSha}`;
 
-            // Human-readable timestamp (e.g., "Jan 4, 2026 at 6:15 PM UTC")
             const now = new Date();
             const humanTimestamp = now.toLocaleDateString('en-US', {
               month: 'short', day: 'numeric', year: 'numeric',
@@ -427,7 +365,6 @@ jobs:
               ? `Captured ${screenshotFiles.length} screenshots`
               : 'Screenshot capture failed';
 
-            // Find existing comment and extract history
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -435,10 +372,8 @@ jobs:
             });
             const botComment = comments.find(c => c.body.includes('<!-- preview-screenshots-comment -->'));
 
-            // Extract previous history from existing comment
             let previousHistory = [];
             if (botComment) {
-              // Parse existing history entries from <!-- history-entry --> markers
               const historyMatch = botComment.body.match(/<!-- screenshot-history -->([\s\S]*?)<!-- \/screenshot-history -->/);
               if (historyMatch) {
                 const entryRegex = /<!-- history-entry -->([\s\S]*?)<!-- \/history-entry -->/g;
@@ -448,23 +383,16 @@ jobs:
                 }
               }
 
-              // Extract current screenshots as a new history entry (if they exist in comment)
               const currentMatch = botComment.body.match(/<!-- current-screenshots -->([\s\S]*?)<!-- \/current-screenshots -->/);
               if (currentMatch) {
-                // Extract timestamp from the current section
                 const timestampMatch = botComment.body.match(/<sub>📅 ([^<]+)<\/sub>/);
                 const prevTimestamp = timestampMatch ? timestampMatch[1] : 'Previous';
-
-                // Extract commit SHA from the current section
                 const commitMatch = botComment.body.match(/\| \[`([a-f0-9]{7})`\]/);
                 const prevCommit = commitMatch ? commitMatch[1] : '';
-
-                // Extract the R2 folder path from existing images
                 const imgUrlMatch = currentMatch[1].match(/src="([^"]+\/pr-\d+\/[a-f0-9]{7})\/desktop\.png/);
 
                 if (imgUrlMatch && prevCommit) {
                   const prevR2Folder = imgUrlMatch[1];
-                  // Create minimized history entry with smaller thumbnails pointing to commit-specific folder
                   const historyEntry = `**${prevTimestamp}** [\`${prevCommit}\`](${repoUrl}/commit/${prevCommit})
                   | Desktop | Tablet | Mobile |
                   |:---:|:---:|:---:|
@@ -474,7 +402,6 @@ jobs:
               }
             }
 
-            // Keep only last 5 history entries to prevent comment bloat
             previousHistory = previousHistory.slice(0, 5);
 
             const bodyParts = [
@@ -486,7 +413,6 @@ jobs:
             ];
 
             if (hasScreenshots && r2BaseUrl) {
-              // Screenshots are stored by commit hash for history preservation
               const r2Folder = `${r2BaseUrl}/pr-${prNumber}/${shortSha}`;
 
               bodyParts.push('<!-- current-screenshots -->');
@@ -497,7 +423,6 @@ jobs:
               for (const [name, width] of [['desktop', 280], ['tablet', 180], ['mobile', 100]]) {
                 const filename = `${name}.png`;
                 if (screenshotFiles.includes(filename)) {
-                  // Add cache-busting query param to force refresh
                   const url = `${r2Folder}/${filename}?t=${Date.now()}`;
                   row.push(`<a href="${r2Folder}/${filename}"><img src="${url}" width="${width}"/></a>`);
                 } else {
@@ -513,7 +438,6 @@ jobs:
             bodyParts.push(`<sub>📅 ${humanTimestamp}</sub>`);
             bodyParts.push('');
 
-            // Add history section if there are previous entries
             if (previousHistory.length > 0) {
               bodyParts.push('<details>');
               bodyParts.push(`<summary>📜 Previous Screenshots (${previousHistory.length})</summary>`);
@@ -550,14 +474,23 @@ jobs:
               });
             }
 
-  # Notify when validation checks pass
-  notify-validation-success:
-    needs: validate
+  # Single success notification (deployment success, screenshots optional)
+  notify-success:
+    needs: [validate, deploy-worker-preview, deploy-preview]
     if: success() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    name: Notify Validation Success
+    name: Notify Success
     steps:
-      - name: Notify Slack - Validation Passed
+      - name: Job summary
+        if: success()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "## 🚀 Preview Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Preview URL:** https://breathe-together-v2-pr-${PR_NUMBER}.palladio-registry.workers.dev" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -569,7 +502,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "✅ Code Validation Passed",
+                    "text": "🚀 Preview Ready",
                     "emoji": true
                   }
                 },
@@ -591,11 +524,35 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Branch:*\n`${{ github.head_ref }}`"
+                      "text": "*Checks:*\nBiome ✓ TypeCheck ✓ Build ✓"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Checks:*\nBiome ✓ • TypeCheck ✓ • Build ✓"
+                      "text": "*Branch:*\n`${{ github.head_ref }}`"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "🔗 Open Preview",
+                        "emoji": true
+                      },
+                      "url": "https://breathe-together-v2-pr-${{ github.event.pull_request.number }}.palladio-registry.workers.dev",
+                      "style": "primary"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "📋 View PR",
+                        "emoji": true
+                      },
+                      "url": "${{ github.event.pull_request.html_url }}"
                     }
                   ]
                 },
@@ -604,26 +561,28 @@ jobs:
                   "elements": [
                     {
                       "type": "mrkdwn",
-                      "text": "All validation checks passed • ${{ github.repository }}"
+                      "text": "Deployed via GitHub Actions • ${{ github.repository }}"
                     }
                   ]
                 }
               ]
             }
 
-  # Notify on failures (validation or deployment)
+  # Notify on any failure
   notify-failure:
     needs: [validate, deploy-worker-preview, deploy-preview, screenshots]
     if: always() && github.event_name == 'pull_request' && (needs.validate.result == 'failure' || needs.deploy-worker-preview.result == 'failure' || needs.deploy-preview.result == 'failure' || needs.screenshots.result == 'failure')
     runs-on: ubuntu-latest
-    name: Notify Failures
+    name: Notify Failure
     steps:
-      - name: Notify Slack - Failure
+      - name: Job summary
+        run: |
+          echo "## ❌ Preview Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack
         uses: slackapi/slack-github-action@v2.0.0
-        env:
-          VALIDATION_FAILED: ${{ needs.validate.result == 'failure' }}
-          DEPLOYMENT_FAILED: ${{ needs.deploy-preview.result == 'failure' }}
-          SCREENSHOTS_FAILED: ${{ needs.screenshots.result == 'failure' }}
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
@@ -656,24 +615,11 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Branch:*\n`${{ github.head_ref }}`"
+                      "text": "*Validation:*\n${{ needs.validate.result == 'success' && '✅' || needs.validate.result == 'failure' && '❌' || '⏭️' }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Commit:*\n`${{ github.event.pull_request.head.sha }}`"
-                    }
-                  ]
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Validation:*\n${{ needs.validate.result == 'success' && '✅ Passed' || needs.validate.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }}"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Deployment:*\n${{ needs.deploy-preview.result == 'success' && '✅ Deployed' || needs.deploy-preview.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }}"
+                      "text": "*Deployment:*\n${{ needs.deploy-preview.result == 'success' && '✅' || needs.deploy-preview.result == 'failure' && '❌' || '⏭️' }}"
                     }
                   ]
                 },
@@ -698,15 +644,6 @@ jobs:
                       },
                       "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
                       "style": "danger"
-                    },
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "📋 View PR",
-                        "emoji": true
-                      },
-                      "url": "${{ github.event.pull_request.html_url }}"
                     }
                   ]
                 },
@@ -715,10 +652,9 @@ jobs:
                   "elements": [
                     {
                       "type": "mrkdwn",
-                      "text": "⚠️ Check the workflow logs for details • ${{ github.repository }}"
+                      "text": "Check workflow logs for details • ${{ github.repository }}"
                     }
                   ]
                 }
               ]
             }
-# Test comment for Phase 4 history verification

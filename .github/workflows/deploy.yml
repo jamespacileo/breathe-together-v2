@@ -4,11 +4,23 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'LICENSE'
+
+# Cancel in-progress runs when a new commit is pushed
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  # Fast validation: biome + typecheck run in parallel, then build
+  validate:
     runs-on: ubuntu-latest
-    name: Build
+    timeout-minutes: 10
+    name: Validate & Build
     steps:
       - uses: actions/checkout@v4
 
@@ -21,18 +33,49 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Biome checks
-        run: npm run check:ci
+      # Run biome and typecheck in parallel using background processes
+      - name: Run validation checks (parallel)
+        run: |
+          npm run check:ci &
+          BIOME_PID=$!
+          npm run typecheck &
+          TYPECHECK_PID=$!
+
+          # Wait for both and capture exit codes independently
+          wait "$BIOME_PID"
+          BIOME_EXIT=$?
+          wait "$TYPECHECK_PID"
+          TYPECHECK_EXIT=$?
+
+          if [ "$BIOME_EXIT" -ne 0 ] || [ "$TYPECHECK_EXIT" -ne 0 ]; then
+            echo "❌ Validation failed (Biome: $BIOME_EXIT, TypeCheck: $TYPECHECK_EXIT)"
+            exit 1
+          fi
+          echo "✅ All validation checks passed"
 
       - name: Build
-        run: npm run build
+        run: |
+          START=$(date +%s)
+          npm run build
+          END=$(date +%s)
+          echo "Build completed in $((END - START))s"
 
-      - name: Type check
-        run: npm run typecheck
+      - name: Job summary
+        if: success()
+        run: |
+          echo "## ✅ Validation Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Biome | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeCheck | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ✅ |" >> $GITHUB_STEP_SUMMARY
 
+  # Deploy worker first, then frontend (sequential for atomic deployment)
   deploy-worker:
-    needs: build
+    needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Deploy Worker
     outputs:
       worker-url: ${{ steps.deploy.outputs.deployment-url }}
@@ -61,19 +104,19 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
           wranglerVersion: "4.54.0"
-          # Explicit --config to avoid picking up root wrangler.json (which has assets.directory for frontend)
           command: deploy --config wrangler.toml
 
   deploy-frontend:
-    needs: deploy-worker
+    needs: [validate, deploy-worker]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Deploy Frontend
     outputs:
       frontend-url: ${{ steps.get-urls.outputs.frontend-url }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for commit comparison
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -102,23 +145,21 @@ jobs:
           echo "frontend-url=https://breathe-together-v2.palladio-registry.workers.dev" >> $GITHUB_OUTPUT
 
   notify-deployment:
-    needs: [deploy-worker, deploy-frontend]
+    needs: [validate, deploy-worker, deploy-frontend]
     if: success()
     runs-on: ubuntu-latest
-    name: Notify Deployment Success
+    name: Notify Success
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 50  # Fetch recent history for changelog
+          fetch-depth: 50
 
       - name: Generate changelog
         id: changelog
         run: |
-          # Get the last deployment commit (previous main push)
           PREVIOUS_SHA=$(git log --skip=1 --max-count=1 --format=%H)
           CURRENT_SHA=${{ github.sha }}
 
-          # Generate compact changelog
           CHANGELOG=$(git log ${PREVIOUS_SHA}..${CURRENT_SHA} --pretty=format:"• %s (%an)" --max-count=10)
 
           # Escape for JSON
@@ -128,11 +169,19 @@ jobs:
 
           echo "changelog=${CHANGELOG}" >> $GITHUB_OUTPUT
 
-          # Count commits
           COMMIT_COUNT=$(git rev-list --count ${PREVIOUS_SHA}..${CURRENT_SHA})
           echo "commit-count=${COMMIT_COUNT}" >> $GITHUB_OUTPUT
 
-      - name: Notify Slack - Production Deployment
+      - name: Job summary
+        run: |
+          echo "## 🚀 Production Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | https://breathe-together-v2.palladio-registry.workers.dev |" >> $GITHUB_STEP_SUMMARY
+          echo "| Worker | https://breathe-together-presence.palladio-registry.workers.dev |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_CI_CD }}
@@ -227,12 +276,18 @@ jobs:
             }
 
   notify-failure:
-    needs: [build, deploy-worker, deploy-frontend]
+    needs: [validate, deploy-worker, deploy-frontend]
     if: failure()
     runs-on: ubuntu-latest
-    name: Notify Deployment Failure
+    name: Notify Failure
     steps:
-      - name: Notify Slack - Deployment Failed
+      - name: Job summary
+        run: |
+          echo "## ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_CI_CD }}
@@ -265,7 +320,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "⚠️ *Failed Jobs:*\n${{ needs.build.result == 'failure' && '• Build\n' || '' }}${{ needs.deploy-worker.result == 'failure' && '• Deploy Worker\n' || '' }}${{ needs.deploy-frontend.result == 'failure' && '• Deploy Frontend\n' || '' }}"
+                    "text": "⚠️ *Failed Jobs:*\n${{ needs.validate.result == 'failure' && '• Validate & Build\n' || '' }}${{ needs.deploy-worker.result == 'failure' && '• Deploy Worker\n' || '' }}${{ needs.deploy-frontend.result == 'failure' && '• Deploy Frontend\n' || '' }}"
                   }
                 },
                 {
