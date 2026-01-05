@@ -5,7 +5,7 @@
  * - North/South pole markers with labels
  * - Equator ring visualization
  * - Simplified orbit plane showing Earth-Sun relationship
- * - Day/night terminator line (optional)
+ * - Day/night shadow overlay (shader-based)
  * - Axial tilt indicator
  *
  * All visualizations use accurate astronomical positioning based on UTC time.
@@ -17,7 +17,6 @@ import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
-import { RENDER_LAYERS } from '../../constants';
 import { calculateGMST, calculateSunPosition, celestialToCartesian } from '../../lib/astronomy';
 
 interface GlobeGizmosProps {
@@ -29,7 +28,7 @@ interface GlobeGizmosProps {
   showEquator?: boolean;
   /** Show simplified orbit plane (Earth-Sun relationship) @default true */
   showOrbitPlane?: boolean;
-  /** Show day/night terminator line @default false */
+  /** Show day/night shadow overlay @default false */
   showTerminator?: boolean;
   /** Show axial tilt indicator @default false */
   showAxialTilt?: boolean;
@@ -40,8 +39,8 @@ interface GlobeGizmosProps {
   equatorColor?: string;
   /** Orbit plane color @default '#4488ff' */
   orbitColor?: string;
-  /** Terminator line color @default '#ff8800' */
-  terminatorColor?: string;
+  /** Shadow color @default '#000033' */
+  shadowColor?: string;
 }
 
 /**
@@ -58,29 +57,20 @@ const PoleMarker = memo(function PoleMarker({
   label: string;
   labelPosition: 'above' | 'below';
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  // Set GIZMOS layer to exclude from DoF blur
-  useEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.layers.set(RENDER_LAYERS.GIZMOS);
-    }
-  }, []);
-
   const labelY = labelPosition === 'above' ? 0.4 : -0.4;
 
   return (
     <group position={position}>
       {/* Pole sphere marker */}
-      <mesh ref={meshRef}>
+      <mesh renderOrder={999}>
         <sphereGeometry args={[0.08, 16, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />
+        <meshBasicMaterial color={color} transparent opacity={0.9} depthTest={false} />
       </mesh>
 
       {/* Pole spike - extends outward */}
-      <mesh rotation={labelPosition === 'above' ? [0, 0, 0] : [Math.PI, 0, 0]}>
+      <mesh rotation={labelPosition === 'above' ? [0, 0, 0] : [Math.PI, 0, 0]} renderOrder={999}>
         <coneGeometry args={[0.03, 0.2, 8]} />
-        <meshBasicMaterial color={color} transparent opacity={0.7} depthWrite={false} />
+        <meshBasicMaterial color={color} transparent opacity={0.7} depthTest={false} />
       </mesh>
 
       {/* Label */}
@@ -116,24 +106,15 @@ const EquatorRing = memo(function EquatorRing({
   radius: number;
   color: string;
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  // Set GIZMOS layer
-  useEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.layers.set(RENDER_LAYERS.GIZMOS);
-    }
-  }, []);
-
   return (
-    <mesh ref={meshRef} rotation={[Math.PI / 2, 0, 0]}>
+    <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={998}>
       <ringGeometry args={[radius * 0.99, radius * 1.02, 64]} />
       <meshBasicMaterial
         color={color}
         transparent
         opacity={0.5}
         side={THREE.DoubleSide}
-        depthWrite={false}
+        depthTest={false}
       />
     </mesh>
   );
@@ -152,12 +133,11 @@ const OrbitPlaneGizmo = memo(function OrbitPlaneGizmo({
   color: string;
   sunDirection: THREE.Vector3;
 }) {
-  const groupRef = useRef<THREE.Group>(null);
+  // Create orbit ellipse points - larger radius for visibility
+  const orbitRadius = globeRadius * 5;
 
-  // Create orbit ellipse points
   const orbitPoints = useMemo(() => {
     const points: THREE.Vector3[] = [];
-    const orbitRadius = globeRadius * 4; // Simplified orbit radius for visualization
     const segments = 64;
 
     for (let i = 0; i <= segments; i++) {
@@ -168,92 +148,72 @@ const OrbitPlaneGizmo = memo(function OrbitPlaneGizmo({
     }
 
     return points;
-  }, [globeRadius]);
+  }, [orbitRadius]);
 
-  // Sun position indicator on orbit (simplified - just shows direction)
+  // Sun position indicator on orbit (projected onto XZ plane)
   const simplifiedSunPos = useMemo(() => {
-    // Normalize sun direction and place on orbit plane
-    const dir = sunDirection.clone().normalize();
-    const orbitRadius = globeRadius * 4;
-    return new THREE.Vector3(dir.x * orbitRadius, 0, dir.z * orbitRadius);
-  }, [sunDirection, globeRadius]);
-
-  // Set GIZMOS layer on group children
-  useEffect(() => {
-    if (groupRef.current) {
-      groupRef.current.traverse((child) => {
-        if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
-          child.layers.set(RENDER_LAYERS.GIZMOS);
-        }
-      });
+    const dir = sunDirection.clone();
+    // Project onto XZ plane and normalize
+    dir.y = 0;
+    if (dir.length() < 0.01) {
+      // Sun is directly above/below, default to +X
+      return new THREE.Vector3(orbitRadius, 0, 0);
     }
-  }, []);
+    dir.normalize();
+    return dir.multiplyScalar(orbitRadius);
+  }, [sunDirection, orbitRadius]);
 
   return (
-    <group ref={groupRef}>
+    <group>
       {/* Orbit path - dashed ellipse */}
       <Line
         points={orbitPoints}
         color={color}
-        lineWidth={1.5}
+        lineWidth={2}
         transparent
-        opacity={0.4}
+        opacity={0.6}
         dashed
-        dashSize={0.3}
-        gapSize={0.15}
+        dashSize={0.5}
+        gapSize={0.25}
+        renderOrder={997}
       />
 
-      {/* Sun direction indicator */}
-      <mesh position={simplifiedSunPos}>
-        <sphereGeometry args={[0.15, 16, 16]} />
-        <meshBasicMaterial color="#ffdd44" transparent opacity={0.8} depthWrite={false} />
+      {/* Sun direction indicator - yellow sphere */}
+      <mesh position={simplifiedSunPos} renderOrder={999}>
+        <sphereGeometry args={[0.25, 16, 16]} />
+        <meshBasicMaterial color="#ffdd44" transparent opacity={0.9} depthTest={false} />
       </mesh>
 
       {/* Line from Earth to Sun indicator */}
       <Line
         points={[new THREE.Vector3(0, 0, 0), simplifiedSunPos]}
         color="#ffdd44"
-        lineWidth={1}
+        lineWidth={2}
         transparent
-        opacity={0.3}
+        opacity={0.5}
         dashed
-        dashSize={0.2}
-        gapSize={0.1}
+        dashSize={0.3}
+        gapSize={0.15}
+        renderOrder={996}
       />
 
-      {/* Orbit plane label */}
-      <Html position={[globeRadius * 4.5, 0.5, 0]} center>
+      {/* Sun label */}
+      <Html position={[simplifiedSunPos.x, 0.5, simplifiedSunPos.z]} center>
         <div
           style={{
-            background: 'rgba(0, 0, 0, 0.75)',
-            color: color,
-            padding: '2px 5px',
-            borderRadius: '3px',
-            fontSize: '9px',
-            fontFamily: 'monospace',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'none',
-          }}
-        >
-          Orbit Plane (simplified)
-        </div>
-      </Html>
-
-      {/* Sun direction label */}
-      <Html position={[simplifiedSunPos.x, simplifiedSunPos.y + 0.4, simplifiedSunPos.z]} center>
-        <div
-          style={{
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(50, 40, 0, 0.85)',
             color: '#ffdd44',
-            padding: '2px 5px',
-            borderRadius: '3px',
-            fontSize: '9px',
+            padding: '3px 8px',
+            borderRadius: '4px',
+            fontSize: '10px',
             fontFamily: 'monospace',
+            fontWeight: 'bold',
             whiteSpace: 'nowrap',
             pointerEvents: 'none',
+            border: '1px solid #ffdd44',
           }}
         >
-          ☀ Sun
+          ☀ Sun direction
         </div>
       </Html>
     </group>
@@ -261,115 +221,94 @@ const OrbitPlaneGizmo = memo(function OrbitPlaneGizmo({
 });
 
 /**
- * Day/Night Terminator - Shows the line between day and night
- * Based on actual sun position
+ * Day/Night Shadow - Shader-based shadow overlay on the globe
+ * Uses dot product between surface normal and sun direction
+ * Based on: https://webgl2fundamentals.org/webgl/lessons/webgl-qna-show-a-night-view-vs-a-day-view-on-a-3d-earth-sphere.html
  */
-const TerminatorLine = memo(function TerminatorLine({
+const dayNightVertexShader = `
+varying vec3 vNormal;
+varying vec3 vWorldPosition;
+
+void main() {
+  vNormal = normalize(normalMatrix * normal);
+  vec4 worldPos = modelMatrix * vec4(position, 1.0);
+  vWorldPosition = worldPos.xyz;
+  gl_Position = projectionMatrix * viewMatrix * worldPos;
+}
+`;
+
+const dayNightFragmentShader = `
+uniform vec3 sunDirection;
+uniform vec3 shadowColor;
+uniform float shadowOpacity;
+
+varying vec3 vNormal;
+varying vec3 vWorldPosition;
+
+void main() {
+  // Calculate dot product between surface normal and sun direction
+  // Positive = facing sun (day), Negative = facing away (night)
+  float dotProduct = dot(normalize(vNormal), normalize(sunDirection));
+
+  // Smooth transition at terminator (twilight zone)
+  // -0.1 to 0.1 range for soft edge
+  float shadow = smoothstep(-0.1, 0.1, -dotProduct);
+
+  // Only show shadow on night side
+  gl_FragColor = vec4(shadowColor, shadow * shadowOpacity);
+}
+`;
+
+const DayNightShadow = memo(function DayNightShadow({
   globeRadius,
-  color,
   sunDirection,
+  shadowColor = '#000033',
+  opacity = 0.6,
 }: {
   globeRadius: number;
-  color: string;
   sunDirection: THREE.Vector3;
+  shadowColor?: string;
+  opacity?: number;
 }) {
-  const groupRef = useRef<THREE.Group>(null);
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
 
-  // Calculate terminator circle points
-  // The terminator is a great circle perpendicular to the sun direction
-  const terminatorPoints = useMemo(() => {
-    const points: THREE.Vector3[] = [];
-    const segments = 64;
+  // Create shader material
+  const material = useMemo(() => {
+    const color = new THREE.Color(shadowColor);
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        sunDirection: { value: new THREE.Vector3(1, 0, 0) },
+        shadowColor: { value: color },
+        shadowOpacity: { value: opacity },
+      },
+      vertexShader: dayNightVertexShader,
+      fragmentShader: dayNightFragmentShader,
+      transparent: true,
+      side: THREE.FrontSide,
+      depthWrite: false,
+    });
+  }, [shadowColor, opacity]);
 
-    // Get perpendicular vectors to sun direction
-    const sunDir = sunDirection.clone().normalize();
-    const up = new THREE.Vector3(0, 1, 0);
-
-    // If sun is nearly vertical, use different reference
-    const perpRef = Math.abs(sunDir.dot(up)) > 0.99 ? new THREE.Vector3(1, 0, 0) : up;
-
-    const perp1 = new THREE.Vector3().crossVectors(sunDir, perpRef).normalize();
-    const perp2 = new THREE.Vector3().crossVectors(sunDir, perp1).normalize();
-
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      const point = new THREE.Vector3()
-        .addScaledVector(perp1, Math.cos(angle))
-        .addScaledVector(perp2, Math.sin(angle))
-        .multiplyScalar(globeRadius * 1.01); // Slightly larger than globe
-      points.push(point);
+  // Update sun direction uniform
+  useFrame(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.sunDirection.value.copy(sunDirection);
     }
+  });
 
-    return points;
-  }, [sunDirection, globeRadius]);
-
-  // Set GIZMOS layer
+  // Cleanup
   useEffect(() => {
-    if (groupRef.current) {
-      groupRef.current.traverse((child) => {
-        if (child instanceof THREE.Line) {
-          child.layers.set(RENDER_LAYERS.GIZMOS);
-        }
-      });
-    }
-  }, []);
+    return () => {
+      material.dispose();
+    };
+  }, [material]);
 
   return (
-    <group ref={groupRef}>
-      <Line points={terminatorPoints} color={color} lineWidth={2} transparent opacity={0.7} />
-
-      {/* Day side indicator */}
-      <Html
-        position={sunDirection
-          .clone()
-          .normalize()
-          .multiplyScalar(globeRadius * 1.3)
-          .toArray()}
-        center
-      >
-        <div
-          style={{
-            background: 'rgba(255, 220, 100, 0.9)',
-            color: '#333',
-            padding: '2px 5px',
-            borderRadius: '3px',
-            fontSize: '9px',
-            fontFamily: 'monospace',
-            fontWeight: 'bold',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'none',
-          }}
-        >
-          ☀ Day
-        </div>
-      </Html>
-
-      {/* Night side indicator */}
-      <Html
-        position={sunDirection
-          .clone()
-          .normalize()
-          .multiplyScalar(-globeRadius * 1.3)
-          .toArray()}
-        center
-      >
-        <div
-          style={{
-            background: 'rgba(40, 40, 80, 0.9)',
-            color: '#aab',
-            padding: '2px 5px',
-            borderRadius: '3px',
-            fontSize: '9px',
-            fontFamily: 'monospace',
-            fontWeight: 'bold',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'none',
-          }}
-        >
-          🌙 Night
-        </div>
-      </Html>
-    </group>
+    <mesh renderOrder={100}>
+      {/* Slightly larger than globe to avoid z-fighting */}
+      <sphereGeometry args={[globeRadius * 1.002, 64, 32]} />
+      <primitive object={material} ref={materialRef} attach="material" />
+    </mesh>
   );
 });
 
@@ -388,15 +327,15 @@ const AxialTiltIndicator = memo(function AxialTiltIndicator({
       {/* Vertical reference line (if Earth had no tilt) */}
       <Line
         points={[
-          new THREE.Vector3(0, -globeRadius * 1.3, 0),
-          new THREE.Vector3(0, globeRadius * 1.3, 0),
+          new THREE.Vector3(0, -globeRadius * 1.4, 0),
+          new THREE.Vector3(0, globeRadius * 1.4, 0),
         ]}
         color="#666666"
         lineWidth={1}
         transparent
-        opacity={0.3}
+        opacity={0.4}
         dashed
-        dashSize={0.1}
+        dashSize={0.15}
         gapSize={0.1}
       />
 
@@ -404,23 +343,23 @@ const AxialTiltIndicator = memo(function AxialTiltIndicator({
       <group rotation={[0, 0, AXIAL_TILT]}>
         <Line
           points={[
-            new THREE.Vector3(0, -globeRadius * 1.3, 0),
-            new THREE.Vector3(0, globeRadius * 1.3, 0),
+            new THREE.Vector3(0, -globeRadius * 1.4, 0),
+            new THREE.Vector3(0, globeRadius * 1.4, 0),
           ]}
           color="#00ff88"
-          lineWidth={1.5}
+          lineWidth={2}
           transparent
-          opacity={0.6}
+          opacity={0.7}
         />
       </group>
 
-      {/* Tilt angle arc */}
-      <Html position={[globeRadius * 0.3, globeRadius * 1.1, 0]} center>
+      {/* Tilt angle label */}
+      <Html position={[globeRadius * 0.4, globeRadius * 1.2, 0]} center>
         <div
           style={{
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(0, 0, 0, 0.8)',
             color: '#00ff88',
-            padding: '2px 5px',
+            padding: '3px 6px',
             borderRadius: '3px',
             fontSize: '9px',
             fontFamily: 'monospace',
@@ -449,15 +388,12 @@ export const GlobeGizmos = memo(function GlobeGizmos({
   southPoleColor = '#ff00ff',
   equatorColor = '#ffaa00',
   orbitColor = '#4488ff',
-  terminatorColor = '#ff8800',
+  shadowColor = '#000033',
 }: GlobeGizmosProps) {
-  const groupRef = useRef<THREE.Group>(null);
   const sunDirectionRef = useRef(new THREE.Vector3(1, 0, 0));
 
-  // Update sun direction periodically
+  // Update sun direction each frame for accurate positioning
   useFrame(() => {
-    // Update sun direction every frame for smooth terminator movement
-    // (The actual calculation is cheap since we're just getting direction)
     const now = new Date();
     const gmst = calculateGMST(now);
     const sunData = calculateSunPosition(now);
@@ -471,7 +407,7 @@ export const GlobeGizmos = memo(function GlobeGizmos({
   }
 
   return (
-    <group ref={groupRef} name="Globe Gizmos">
+    <group name="Globe Gizmos">
       {/* North Pole */}
       {showPoles && (
         <PoleMarker
@@ -504,12 +440,12 @@ export const GlobeGizmos = memo(function GlobeGizmos({
         />
       )}
 
-      {/* Day/Night Terminator */}
+      {/* Day/Night Shadow */}
       {showTerminator && (
-        <TerminatorLine
+        <DayNightShadow
           globeRadius={globeRadius}
-          color={terminatorColor}
           sunDirection={sunDirectionRef.current}
+          shadowColor={shadowColor}
         />
       )}
 
