@@ -24,6 +24,8 @@ describe('Behavior Tests: User Outcomes', () => {
       // at the same absolute UTC time
 
       const user1JoinTime = Date.now();
+      // user2JoinTime is declared for documentation clarity but not used in calculation
+      // because breath synchronization is based solely on absolute UTC time, not join time
       const _user2JoinTime = user1JoinTime + 10000; // 10 seconds later
 
       // Both users check breath phase 30 seconds after user1 joined

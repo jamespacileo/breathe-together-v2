@@ -121,7 +121,7 @@ export function createMockBreathPhase(phase: number): MockBreathPhase {
     phaseType:
       normalizedPhase < 0.25 ? 0 : normalizedPhase < 0.5 ? 1 : normalizedPhase < 0.75 ? 2 : 3,
     rawProgress: normalizedPhase,
-    orbitRadius: 2.5 + normalizedPhase * 3.5, // Min 2.5, max 6
+    orbitRadius: 6.0 - normalizedPhase * 3.5, // Max 6 at phase 0 (exhaled), min 2.5 at phase 1 (inhaled)
   };
 }
 

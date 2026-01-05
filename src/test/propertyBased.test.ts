@@ -24,8 +24,8 @@ describe('Property-Based Tests', () => {
       );
     });
 
-    it('phaseType is always 0, 1, or 2 for any timestamp', () => {
-      // PROPERTY: Phase type enum is always valid
+    it('phaseType is always 0, 1, 2, or 3 for any timestamp', () => {
+      // PROPERTY: Phase type enum is always valid (0=inhale, 1=hold-in, 2=exhale, 3=hold-out)
       fc.assert(
         fc.property(fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER }), (timestamp) => {
           const { phaseType } = calculateBreathState(timestamp);
@@ -166,8 +166,8 @@ describe('Property-Based Tests', () => {
       fc.assert(
         fc.property(fc.integer({ min: 1, max: 1000 }), (count) => {
           const firstPoint = getFibonacciSpherePoint(0, count);
-          // First point should be near (0, 1, 0) - north pole
-          return Math.abs(firstPoint.y - 1) < 0.1;
+          // First point should be near (0, 1, 0) - north pole (tight tolerance)
+          return Math.abs(firstPoint.y - 1) < 0.01;
         }),
         { numRuns: 100 },
       );
@@ -351,38 +351,40 @@ describe('Property-Based Tests', () => {
   describe('Symmetry Properties', () => {
     it('Fibonacci sphere has rotational symmetry', () => {
       // PROPERTY: Distribution looks similar from any angle
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Property-based test requires octant checking logic
       fc.assert(
         fc.property(fc.integer({ min: 20, max: 100 }), (count) => {
-          const points = [];
-          for (let i = 0; i < count; i++) {
-            points.push(getFibonacciSpherePoint(i, count));
-          }
-
-          // Check that points cover all octants
-          const octants = {
-            ppp: 0,
-            ppn: 0,
-            pnp: 0,
-            pnn: 0,
-            npp: 0,
-            npn: 0,
-            nnp: 0,
-            nnn: 0,
-          };
-
-          for (const p of points) {
-            const key = (p.x >= 0 ? 'p' : 'n') + (p.y >= 0 ? 'p' : 'n') + (p.z >= 0 ? 'p' : 'n');
-            // @ts-expect-error - Dynamic key access
-            octants[key]++;
-          }
-
-          // Each octant should have at least 3% of points (reduced from 5% for small counts)
-          const minPointsPerOctant = count * 0.03;
-          return Object.values(octants).every((count) => count >= minPointsPerOctant);
+          return checkFibonacciSphereSymmetry(count);
         }),
         { numRuns: 20 },
       );
     });
   });
 });
+
+/**
+ * Helper function to check Fibonacci sphere symmetry across octants
+ */
+function checkFibonacciSphereSymmetry(count: number): boolean {
+  const points = [];
+  for (let i = 0; i < count; i++) {
+    points.push(getFibonacciSpherePoint(i, count));
+  }
+
+  // Count points in each octant using a map
+  const octantCounts = new Map<string, number>();
+  const octantKeys = ['ppp', 'ppn', 'pnp', 'pnn', 'npp', 'npn', 'nnp', 'nnn'];
+  for (const key of octantKeys) {
+    octantCounts.set(key, 0);
+  }
+
+  for (const p of points) {
+    const key = (p.x >= 0 ? 'p' : 'n') + (p.y >= 0 ? 'p' : 'n') + (p.z >= 0 ? 'p' : 'n');
+    octantCounts.set(key, (octantCounts.get(key) || 0) + 1);
+  }
+
+  // Each octant should have at least 3% of points (reduced from 5% for small counts)
+  const minPointsPerOctant = count * 0.03;
+  return Array.from(octantCounts.values()).every(
+    (octantCount) => octantCount >= minPointsPerOctant,
+  );
+}

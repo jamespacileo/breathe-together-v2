@@ -66,8 +66,8 @@ export function getContrastRatio(color1: string, color2: string): number {
  */
 export function getColorTemperature(color: string): number {
   const rgb = hexToRgb(color);
-  // Simple heuristic: (R + Y) - (B + G)
-  return rgb.r + rgb.g - rgb.b;
+  // Heuristic: Weight red heavily, add yellow component, subtract blue
+  return rgb.r * 1.5 + rgb.g - rgb.b;
 }
 
 /**

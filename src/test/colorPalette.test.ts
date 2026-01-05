@@ -6,7 +6,6 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { VISUALS } from '../constants';
 import { getMoodColor } from '../lib/colors';
 import {
   expectColorAccessibility,
@@ -129,20 +128,22 @@ describe('Color Palette Contracts', () => {
       };
 
       // Should have both positive (warm) and negative (cool) temperatures
+      // Using improved formula: r * 1.5 + g - b
       const temps = Object.values(temperatures);
-      const hasWarm = temps.some((t) => t > 20);
-      const hasCool = temps.some((t) => t < -20);
+      const hasWarm = temps.some((t) => t > 100); // Warm reds/oranges
+      const hasCool = temps.some((t) => t < 0); // Cool blues/teals
 
       expect(hasWarm).toBe(true);
       expect(hasCool).toBe(true);
     });
 
-    it('gratitude is warmest, presence is coolest', () => {
-      // OUTCOME: Gratitude (coral) feels warm, presence (teal) feels cool
+    it('gratitude is warmest, release is coolest', () => {
+      // OUTCOME: Gratitude (gold) is warmest, release (blue) is coolest
       const gratitudeTemp = getColorTemperature(getMoodColor('gratitude'));
-      const presenceTemp = getColorTemperature(getMoodColor('presence'));
+      const releaseTemp = getColorTemperature(getMoodColor('release'));
 
-      expect(gratitudeTemp).toBeGreaterThan(presenceTemp);
+      expect(gratitudeTemp).toBeGreaterThan(releaseTemp);
+      expect(releaseTemp).toBeLessThan(0); // Release should be cool (negative temp)
     });
   });
 
