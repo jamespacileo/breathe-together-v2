@@ -16,6 +16,7 @@ import { EarthGlobeTransmission } from '../entities/earthGlobe/EarthGlobeTransmi
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
+import { SceneDepthEffects } from '../entities/environment/SceneDepthEffects';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
 import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
@@ -121,6 +122,27 @@ export function BreathingLevel({
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
+            {/* Scene Depth Effects - multi-layer system for 3D depth perception */}
+            {/* Includes: particles, stars, nebula, silhouettes, rings, ground, vignette, distant clouds, floating objects */}
+            {showEnvironment && (
+              <SceneDepthEffects
+                enabled={devControls.showDepthEffects}
+                enableParticles={true}
+                enableStars={true}
+                enableNebula={true}
+                enableSilhouettes={true}
+                enableRings={true}
+                enableGround={true}
+                enableVignette={true}
+                enableFog={false}
+                enableParallax={true}
+                enableLightRays={true}
+                enableDistantClouds={true}
+                enableFloatingObjects={true}
+                intensity={deferredAtmosphereDensity / 100}
+              />
+            )}
+
             {/* Environment - clouds, lighting, fog, HDRI (or grid floor in stage mode) */}
             {showEnvironment && (
               <Environment
