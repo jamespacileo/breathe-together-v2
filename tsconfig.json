@@ -16,5 +16,5 @@
     "types": ["vite/client", "@react-three/fiber"]
   },
   "include": [".", ".triplex/*"],
-  "exclude": ["node_modules", "worker", "e2e", "playwright.config.ts"]
+  "exclude": ["node_modules", "worker", "agents", "e2e", "playwright.config.ts"]
 }

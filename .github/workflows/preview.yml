@@ -46,6 +46,21 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Check if agents changed
+        id: agents-changed
+        run: |
+          # Check if any agents files changed in this PR
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- agents/ | wc -l)
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+
+      - name: Agents type check
+        if: steps.agents-changed.outputs.changed != '0'
+        run: npm run agents:typecheck
+
+      - name: Agents tests
+        if: steps.agents-changed.outputs.changed != '0'
+        run: npm run agents:test
+
   # Deploy worker preview first
   deploy-worker-preview:
     # Only run on pull_request events (needs PR context for naming)

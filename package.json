@@ -30,6 +30,10 @@
     "worker:dev": "wrangler dev --config worker/wrangler.toml",
     "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
     "worker:typecheck": "tsc --project worker/tsconfig.json",
+    "agents:dev": "wrangler dev --config agents/wrangler.toml",
+    "agents:deploy": "wrangler deploy --config agents/wrangler.toml",
+    "agents:typecheck": "tsc --project agents/tsconfig.json",
+    "agents:test": "vitest run --config agents/vitest.config.ts",
     "msw:init": "npx msw init public --save"
   },
   "dependencies": {
@@ -46,7 +50,9 @@
     "@types/react-dom": "^19.1.2",
     "@types/three": "^0.175.0",
     "@vitejs/plugin-react": "^4.4.1",
+    "bottleneck": "^2.19.5",
     "koota": "^0.4.0",
+    "ky": "^1.14.2",
     "leva": "^0.10.1",
     "lucide-react": "^0.562.0",
     "maath": "^0.10.8",

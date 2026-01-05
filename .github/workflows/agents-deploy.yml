@@ -1,0 +1,258 @@
+name: Agents Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'agents/**'
+      - '.github/workflows/agents-deploy.yml'
+  pull_request:
+    paths:
+      - 'agents/**'
+      - '.github/workflows/agents-deploy.yml'
+
+jobs:
+  # ============================================================================
+  # Test & Validate
+  # ============================================================================
+  test:
+    runs-on: ubuntu-latest
+    name: Test Agents
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run agents:typecheck
+
+      - name: Run tests
+        run: npm run agents:test
+
+  # ============================================================================
+  # Deploy to Production (on push to main)
+  # ============================================================================
+  deploy-production:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    name: Deploy Agents (Production)
+    outputs:
+      deployment-url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy Agents Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: agents
+          wranglerVersion: "4.54.0"
+          command: deploy --env production
+          secrets: |
+            GITHUB_TOKEN
+            GOOGLE_SERVICE_ACCOUNT_KEY
+        env:
+          GITHUB_TOKEN: ${{ secrets.AGENTS_GITHUB_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+
+      - name: Create GitHub Deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: 'agents-production',
+              auto_merge: false,
+              required_contexts: [],
+              description: 'Agents Worker deployment to production',
+            });
+
+            if (deployment.data.id) {
+              await github.rest.repos.createDeploymentStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                deployment_id: deployment.data.id,
+                state: 'success',
+                environment_url: 'https://breathe-together-agents.palladio-registry.workers.dev',
+                description: 'Agents Worker deployed successfully',
+              });
+            }
+
+  # ============================================================================
+  # Notify Success
+  # ============================================================================
+  notify-success:
+    needs: [test, deploy-production]
+    if: success() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    name: Notify Deployment Success
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get changes in agents/ since last deployment
+          CHANGELOG=$(git log --oneline --max-count=5 -- agents/ | head -5)
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          echo "changelog=${CHANGELOG}" >> $GITHUB_OUTPUT
+
+      - name: Notify Slack - Agents Deployed
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_CI_CD }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🤖 Agents Worker Deployed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\nProduction"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|`${{ github.sha }}`>"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Recent Changes:*\n${{ steps.changelog.outputs.changelog }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "🔗 Health Check",
+                        "emoji": true
+                      },
+                      "url": "https://breathe-together-agents.palladio-registry.workers.dev/health",
+                      "style": "primary"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "📊 Cloudflare Dashboard",
+                        "emoji": true
+                      },
+                      "url": "https://dash.cloudflare.com/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers-and-pages"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Deployed via GitHub Actions • <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow>"
+                    }
+                  ]
+                }
+              ]
+            }
+
+  # ============================================================================
+  # Notify Failure
+  # ============================================================================
+  notify-failure:
+    needs: [test, deploy-production]
+    if: failure()
+    runs-on: ubuntu-latest
+    name: Notify Deployment Failure
+    steps:
+      - name: Notify Slack - Deployment Failed
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_CI_CD }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Agents Deployment Failed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n`${{ github.ref_name }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|`${{ github.sha }}`>"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "⚠️ *Failed Jobs:*\n${{ needs.test.result == 'failure' && '• Test\n' || '' }}${{ needs.deploy-production.result == 'failure' && '• Deploy Production\n' || '' }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "🔍 View Logs",
+                        "emoji": true
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "style": "danger"
+                    }
+                  ]
+                }
+              ]
+            }
