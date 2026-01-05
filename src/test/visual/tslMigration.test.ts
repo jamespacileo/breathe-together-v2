@@ -14,8 +14,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { expectColorMatch, getColorDistance, hexToRgb, rgbToHex } from './helpers';
-import { GLSL_COLORS } from './helpers/glslColorConstants';
+import { expectColorMatch, getColorDistance, hexToRgb, rgbToHex } from '../helpers';
+import { GLSL_COLORS } from '../helpers/glslColorConstants';
 
 /**
  * Convert vec3 components (0-1 range) to hex color
@@ -195,7 +195,7 @@ describe('TSL Migration Color Validation', () => {
 
     it('atmosphere layers have distinct color temperatures', () => {
       const layers = GLSL_COLORS.globe.atmosphereLayers;
-      const temperatures = layers.map((color) => {
+      const temperatures = layers.map((color: string) => {
         const rgb = hexToRgb(color);
         return rgb.r - rgb.b; // Positive = warm, negative = cool
       });
