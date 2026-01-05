@@ -130,6 +130,13 @@ export const TUNING_DEFAULTS = {
   showGizmoAxes: true,
   showGizmoLabels: false,
 
+  // Globe Gizmos (dev-only) - astronomical positioning helpers
+  showGlobePoles: false,
+  showGlobeEquator: false,
+  showGlobeOrbitPlane: false,
+  showGlobeTerminator: false,
+  showGlobeAxialTilt: false,
+
   // User tracking (dev-only)
   highlightCurrentUser: false,
   highlightStyle: 'wireframe' as 'wireframe' | 'glow' | 'scale',
@@ -284,6 +291,13 @@ export interface DevControlsState {
   showGizmoAxes: boolean;
   showGizmoLabels: boolean;
 
+  // Globe Gizmos (astronomical positioning)
+  showGlobePoles: boolean;
+  showGlobeEquator: boolean;
+  showGlobeOrbitPlane: boolean;
+  showGlobeTerminator: boolean;
+  showGlobeAxialTilt: boolean;
+
   // User tracking
   highlightCurrentUser: boolean;
   highlightStyle: 'wireframe' | 'glow' | 'scale';
@@ -381,6 +395,11 @@ function getDefaultDevControls(): DevControlsState {
     maxShardGizmos: TUNING_DEFAULTS.maxShardGizmos,
     showGizmoAxes: TUNING_DEFAULTS.showGizmoAxes,
     showGizmoLabels: TUNING_DEFAULTS.showGizmoLabels,
+    showGlobePoles: TUNING_DEFAULTS.showGlobePoles,
+    showGlobeEquator: TUNING_DEFAULTS.showGlobeEquator,
+    showGlobeOrbitPlane: TUNING_DEFAULTS.showGlobeOrbitPlane,
+    showGlobeTerminator: TUNING_DEFAULTS.showGlobeTerminator,
+    showGlobeAxialTilt: TUNING_DEFAULTS.showGlobeAxialTilt,
     highlightCurrentUser: TUNING_DEFAULTS.highlightCurrentUser,
     highlightStyle: TUNING_DEFAULTS.highlightStyle,
     showPerfMonitor: TUNING_DEFAULTS.showPerfMonitor,
@@ -1115,6 +1134,11 @@ export function useDevControls(): DevControlsState {
                   showShardConnections: true,
                   showSunGizmo: true,
                   showConstellationGizmos: true,
+                  showGlobePoles: true,
+                  showGlobeEquator: true,
+                  showGlobeOrbitPlane: true,
+                  showGlobeTerminator: true,
+                  showGlobeAxialTilt: true,
                 });
               }
             }),
@@ -1131,6 +1155,11 @@ export function useDevControls(): DevControlsState {
                   showShardConnections: false,
                   showSunGizmo: false,
                   showConstellationGizmos: false,
+                  showGlobePoles: false,
+                  showGlobeEquator: false,
+                  showGlobeOrbitPlane: false,
+                  showGlobeTerminator: false,
+                  showGlobeAxialTilt: false,
                 });
               }
             }),
@@ -1202,6 +1231,37 @@ export function useDevControls(): DevControlsState {
               label: 'Constellation Gizmos',
               hint: 'Show debug gizmos for constellation stars.\n\n**Shows:** Celestial sphere wireframe, equatorial plane, pole markers',
             },
+            // Globe Positioning sub-folder
+            'Globe Positioning': folder(
+              {
+                showGlobePoles: {
+                  value: TUNING_DEFAULTS.showGlobePoles,
+                  label: 'North/South Poles',
+                  hint: 'Show pole markers (N/S) on the globe.\n\n**Use case:** Verify Earth orientation matches real-world positioning',
+                },
+                showGlobeEquator: {
+                  value: TUNING_DEFAULTS.showGlobeEquator,
+                  label: 'Equator Ring',
+                  hint: "Show equatorial plane ring around the globe.\n\n**Use case:** Visualize Earth's equatorial plane for geographical reference",
+                },
+                showGlobeOrbitPlane: {
+                  value: TUNING_DEFAULTS.showGlobeOrbitPlane,
+                  label: 'Orbit Plane',
+                  hint: 'Show simplified Earth-Sun orbit visualization.\n\n**Note:** This is a pedagogical simplification - shows relative sun direction, not actual orbital mechanics',
+                },
+                showGlobeTerminator: {
+                  value: TUNING_DEFAULTS.showGlobeTerminator,
+                  label: 'Day/Night Terminator',
+                  hint: 'Show the line between day and night based on real sun position.\n\n**Updates live:** Reflects actual UTC time',
+                },
+                showGlobeAxialTilt: {
+                  value: TUNING_DEFAULTS.showGlobeAxialTilt,
+                  label: 'Axial Tilt (23.4°)',
+                  hint: "Show Earth's axial tilt indicator.\n\n**Shows:** Reference vertical line vs actual tilted axis",
+                },
+              },
+              { collapsed: true },
+            ),
           },
           { collapsed: true },
         ),
