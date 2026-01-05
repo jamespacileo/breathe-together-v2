@@ -21,17 +21,16 @@ import { AdditiveBlending, BufferAttribute, BufferGeometry, type Points } from '
 import {
   add,
   attribute,
-  cameraPosition,
+  Discard,
   div,
   Fn,
-  length,
-  mix,
   modelViewMatrix,
   mul,
+  pointUV,
   positionGeometry,
   pow,
   sin,
-  smoothstep,
+  step,
   sub,
   uniform,
   vec3,
@@ -90,8 +89,17 @@ function createDustMaterial(baseSize: number, baseOpacity: number) {
 
   // Fragment shader: soft circular particle with sparkle
   const colorNode = Fn(() => {
-    // Soft circular particle using gl_PointCoord equivalent
-    // In TSL, we can use a simple circular falloff
+    // Circular particle using pointUV (gl_PointCoord equivalent)
+    // pointUV is 0-1 across the point sprite
+    const coord = sub(mul(pointUV, 2.0), 1.0); // Convert to -1 to 1
+    const distSq = add(mul(coord.x, coord.x), mul(coord.y, coord.y));
+
+    // Discard pixels outside the circle
+    Discard(step(1.0, distSq));
+
+    // Soft circular falloff (1 at center, 0 at edge)
+    const circularFalloff = sub(1.0, pow(distSq, 0.5));
+
     const vOpacity = aOpacity;
 
     // Calculate sparkle effect
@@ -101,8 +109,8 @@ function createDustMaterial(baseSize: number, baseOpacity: number) {
     );
     const sparkle = mul(pow(sparkleRaw, 8.0), 0.3); // Make sparkle rare and brief
 
-    // Base alpha from attribute and uniform
-    const baseAlpha = mul(vOpacity, opacityUniform);
+    // Base alpha from attribute and uniform, with circular falloff
+    const baseAlpha = mul(mul(vOpacity, opacityUniform), circularFalloff);
 
     // Add sparkle to alpha
     const alpha = add(baseAlpha, mul(sparkle, 0.5));
@@ -111,9 +119,9 @@ function createDustMaterial(baseSize: number, baseOpacity: number) {
     const baseColor = vec3(1.0, 0.98, 0.94);
 
     // Sparkle makes it whiter
-    const finalColor = mix(baseColor, vec3(1.0, 1.0, 1.0), sparkle);
+    const sparkleColor = add(baseColor, mul(sparkle, 0.06));
 
-    return vec4(finalColor, alpha);
+    return vec4(sparkleColor, alpha);
   })();
 
   material.colorNode = colorNode;

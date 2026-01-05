@@ -40,16 +40,23 @@ export function App() {
   const path = useCurrentPath();
   const { isMobile, isTablet } = useViewport();
 
+  // Capture initial viewport classification for renderer configuration.
+  // This keeps the WebGPU/WebGL renderer stable even if viewport crosses
+  // mobile/desktop thresholds later (e.g., on resize).
+  const isMobileInitialRef = useRef(isMobile);
+  const isTabletInitialRef = useRef(isTablet);
+
   // Create WebGPU renderer factory with TSL support
   // Falls back to WebGL backend if WebGPU is not available
+  // Uses initial viewport values to prevent renderer recreation on resize
   const glFactory = useCallback(
     () =>
       createWebGPURenderer({
-        antialias: !isMobile && !isTablet,
+        antialias: !isMobileInitialRef.current && !isTabletInitialRef.current,
         alpha: true,
-        powerPreference: isMobile ? 'low-power' : 'high-performance',
+        powerPreference: isMobileInitialRef.current ? 'low-power' : 'high-performance',
       }),
-    [isMobile, isTablet],
+    [], // Empty deps - renderer config is stable based on initial load
   );
 
   // Admin panel route

@@ -19,7 +19,7 @@
 import { Billboard, RoundedBox, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
-import { Color, DoubleSide, type Group, type Mesh, MeshBasicMaterial } from 'three';
+import { Color, DoubleSide, type Group, type Mesh } from 'three';
 import {
   abs,
   add,

@@ -41,6 +41,8 @@ import {
   cameraPosition,
   dot,
   Fn,
+  floor,
+  fract,
   max,
   mix,
   mul,
@@ -54,6 +56,7 @@ import {
   transformedNormalView,
   uniform,
   uv,
+  vec2,
   vec3,
   vec4,
 } from 'three/tsl';
@@ -171,6 +174,27 @@ function createGlowMaterial() {
 }
 
 /**
+ * Pure TSL value noise function for mist effect (WebGPU compatible)
+ * Uses hash-based approach similar to BackgroundGradient
+ */
+const mistValueNoise = Fn(([p]: [ReturnType<typeof vec2>]) => {
+  const i = floor(p);
+  const f = fract(p);
+
+  // Smooth interpolation (cubic Hermite)
+  const u = mul(mul(f, f), sub(3.0, mul(2.0, f)));
+
+  // Four corners using hash function
+  const a = fract(mul(sin(dot(i, vec2(127.1, 311.7))), 43758.5453));
+  const b = fract(mul(sin(dot(add(i, vec2(1.0, 0.0)), vec2(127.1, 311.7))), 43758.5453));
+  const c = fract(mul(sin(dot(add(i, vec2(0.0, 1.0)), vec2(127.1, 311.7))), 43758.5453));
+  const d = fract(mul(sin(dot(add(i, vec2(1.0, 1.0)), vec2(127.1, 311.7))), 43758.5453));
+
+  // Bilinear interpolation
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+});
+
+/**
  * Creates a TSL-based mist material - animated noise haze
  */
 function createMistMaterial() {
@@ -198,22 +222,21 @@ function createMistMaterial() {
     // Fresnel for edge effect
     const fresnel = pow(sub(1.0, abs(dot(normal, viewDir))), 1.5);
 
-    // Simple hash-based noise (TSL compatible)
+    // Hash-based value noise with FBM-like layering (proper TSL noise)
     // Using UV with time offset for animated noise
-    const noiseUV = add(mul(uv(), 4.0), mul(timeUniform, 0.02));
+    const noiseUV = add(mul(uv(), 4.0), vec2(mul(timeUniform, 0.02), mul(timeUniform, 0.015)));
 
-    // Simple sine-based noise approximation
-    const n1 = mul(add(sin(mul(noiseUV.x, 12.9898)), sin(mul(noiseUV.y, 78.233))), 0.5);
-    const n2 = mul(add(sin(mul(noiseUV.x, 25.9796)), sin(mul(noiseUV.y, 156.466))), 0.3);
-    const n3 = mul(add(sin(mul(noiseUV.x, 51.9592)), sin(mul(noiseUV.y, 312.932))), 0.2);
-    const noise = add(add(mul(n1, 0.5), mul(n2, 0.3)), mul(n3, 0.2));
-    const noiseClamped = add(mul(noise, 0.5), 0.5); // Normalize to 0-1
+    // Two octaves of value noise for organic cloud-like pattern
+    const n1 = mistValueNoise(noiseUV);
+    const n2 = mistValueNoise(mul(noiseUV, 2.02));
+    // Combine octaves: 0.6 * n1 + 0.4 * n2 for soft FBM effect
+    const noise = add(mul(n1, 0.6), mul(n2, 0.4));
 
     // Breathing modulation
     const breath = add(0.6, mul(breathPhaseUniform, 0.4));
 
     // Combine fresnel edge with noise
-    const alpha = mul(mul(mul(fresnel, noiseClamped), 0.15), breath);
+    const alpha = mul(mul(mul(fresnel, noise), 0.18), breath);
 
     return vec4(mistColorUniform.x, mistColorUniform.y, mistColorUniform.z, alpha);
   })();
