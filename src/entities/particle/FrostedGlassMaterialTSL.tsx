@@ -15,6 +15,7 @@
  * - Same code compiles to WebGL2 and WebGPU
  * - Type-safe node composition
  * - Easier to maintain and modify
+ * - Uses shared TSL nodes for consistency across the app
  *
  * Note: This is an experimental alternative to FrostedGlassMaterial.
  * Use FrostedGlassMaterial (GLSL) for production until TSL is fully stable.
@@ -26,25 +27,18 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo } from 'react';
 
 // TSL imports - these work with both WebGL and WebGPU renderers
-import {
-  add,
-  cameraPosition,
-  color,
-  dot,
-  float,
-  mix,
-  mul,
-  normalize,
-  normalView,
-  positionWorld,
-  pow,
-  sub,
-  max as tslMax,
-  uniform,
-  vec3,
-  vertexColor,
-} from 'three/tsl';
+import { add, color, float, mix, mul, uniform, vec3, vertexColor } from 'three/tsl';
 import { MeshStandardNodeMaterial } from 'three/webgpu';
+
+// Shared TSL nodes - reusable shader patterns
+import {
+  BREATHING_PRESETS,
+  createBreathingLuminosityNode,
+  createFresnelNode,
+  createInnerGlowBreathingNode,
+  createInvertedFresnelNode,
+  FRESNEL_PRESETS,
+} from '../../lib/tsl';
 
 /**
  * Props for the TSL frosted glass material
@@ -79,6 +73,11 @@ export interface FrostedGlassMaterialTSLRef {
 /**
  * FrostedGlassMaterialTSL - Node-based material with fresnel and breathing effects
  *
+ * Now uses shared TSL nodes from src/lib/tsl/ for:
+ * - Fresnel calculations (createFresnelNode)
+ * - Breathing luminosity (createBreathingLuminosityNode)
+ * - Inner glow effects (createInnerGlowBreathingNode)
+ *
  * Usage:
  * ```tsx
  * <instancedMesh ref={meshRef} args={[geometry, undefined, count]}>
@@ -94,10 +93,10 @@ export const FrostedGlassMaterialTSL = forwardRef<
     breathPhase = 0,
     instanced = true,
     baseColor = '#d9c4b0',
-    fresnelIntensity = 0.25,
-    fresnelPower = 2.5,
+    fresnelIntensity = FRESNEL_PRESETS.frostedGlass.intensity,
+    fresnelPower = FRESNEL_PRESETS.frostedGlass.power,
     rimColor = '#faf8f5',
-    breathIntensity = 0.12,
+    breathIntensity = BREATHING_PRESETS.standard.intensity,
   },
   ref,
 ) {
@@ -106,45 +105,37 @@ export const FrostedGlassMaterialTSL = forwardRef<
   const uniforms = useMemo(
     () => ({
       uBreathPhase: uniform(float(breathPhase)),
-      uFresnelIntensity: uniform(float(fresnelIntensity)),
-      uFresnelPower: uniform(float(fresnelPower)),
-      uBreathIntensity: uniform(float(breathIntensity)),
     }),
     [],
   );
 
   // Create the material with TSL nodes
   const material = useMemo(() => {
-    // View direction for fresnel calculation
-    const viewDir = normalize(sub(cameraPosition, positionWorld));
-
-    // Fresnel rim effect - soft edge glow
-    // fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), power)
-    const fresnel = pow(
-      sub(float(1.0), tslMax(dot(normalView, viewDir), float(0.0))),
-      uniforms.uFresnelPower,
-    );
+    // Use shared fresnel node instead of inline calculation
+    const fresnel = createFresnelNode(fresnelPower);
 
     // Base color - use instance color if available, otherwise fallback
     // vertexColor() returns the per-instance color from InstancedMesh
     const instanceCol = instanced ? vertexColor() : color(baseColor);
 
-    // Breathing luminosity pulse
-    // luminosity = 1.0 + breathPhase * breathIntensity
-    const breathLuminosity = add(float(1.0), mul(uniforms.uBreathPhase, uniforms.uBreathIntensity));
+    // Use shared breathing luminosity node
+    const breathLuminosity = createBreathingLuminosityNode(uniforms.uBreathPhase, breathIntensity);
 
     // Apply luminosity to base color
     const litColor = mul(instanceCol, breathLuminosity);
 
-    // Mix in rim glow
+    // Mix in rim glow using fresnel
     const rimCol = color(rimColor);
-    const colorWithRim = mix(litColor, rimCol, mul(fresnel, uniforms.uFresnelIntensity));
+    const colorWithRim = mix(litColor, rimCol, mul(fresnel, float(fresnelIntensity)));
 
-    // Subtle inner glow - very gentle glow from within
-    // innerGlow = (1.0 - fresnel) * 0.05 * (1.0 + breathPhase * 0.3)
-    const innerGlowBase = mul(sub(float(1.0), fresnel), float(0.05));
-    const innerGlowBreath = add(float(1.0), mul(uniforms.uBreathPhase, float(0.3)));
-    const innerGlow = mul(innerGlowBase, innerGlowBreath);
+    // Subtle inner glow using shared node
+    const invertedFresnel = createInvertedFresnelNode(fresnelPower);
+    const innerGlowIntensity = createInnerGlowBreathingNode(
+      uniforms.uBreathPhase,
+      BREATHING_PRESETS.innerGlow.baseIntensity,
+      BREATHING_PRESETS.innerGlow.breathBoost,
+    );
+    const innerGlow = mul(invertedFresnel, innerGlowIntensity);
     const innerGlowColor = vec3(1.0, 0.98, 0.95);
 
     // Final color with inner glow
@@ -157,7 +148,7 @@ export const FrostedGlassMaterialTSL = forwardRef<
     mat.metalnessNode = float(0.1);
 
     return mat;
-  }, [instanced, baseColor, rimColor, uniforms]);
+  }, [instanced, baseColor, rimColor, fresnelIntensity, fresnelPower, breathIntensity, uniforms]);
 
   // Expose ref handle
   useImperativeHandle(
@@ -192,6 +183,8 @@ export const FrostedGlassMaterialTSL = forwardRef<
 /**
  * Hook for using TSL material with useFrame updates
  *
+ * Now uses shared TSL nodes for consistent effects across the app.
+ *
  * Usage:
  * ```tsx
  * const { material, updateBreathPhase } = useFrostedGlassTSL();
@@ -210,41 +203,39 @@ export function useFrostedGlassTSL(
   const {
     instanced = true,
     baseColor = '#d9c4b0',
-    fresnelIntensity = 0.25,
-    fresnelPower = 2.5,
+    fresnelIntensity = FRESNEL_PRESETS.frostedGlass.intensity,
+    fresnelPower = FRESNEL_PRESETS.frostedGlass.power,
     rimColor = '#faf8f5',
-    breathIntensity = 0.12,
+    breathIntensity = BREATHING_PRESETS.standard.intensity,
   } = options;
 
   // Uniform for breath phase
   const uBreathPhase = useMemo(() => uniform(float(0)), []);
 
-  // Create the material
+  // Create the material using shared nodes
   const material = useMemo(() => {
-    // View direction for fresnel calculation
-    const viewDir = normalize(sub(cameraPosition, positionWorld));
-
-    // Fresnel rim effect
-    const fresnel = pow(
-      sub(float(1.0), tslMax(dot(normalView, viewDir), float(0.0))),
-      float(fresnelPower),
-    );
+    // Use shared fresnel node
+    const fresnel = createFresnelNode(fresnelPower);
 
     // Base color
     const instanceCol = instanced ? vertexColor() : color(baseColor);
 
-    // Breathing luminosity
-    const breathLuminosity = add(float(1.0), mul(uBreathPhase, float(breathIntensity)));
+    // Use shared breathing luminosity
+    const breathLuminosity = createBreathingLuminosityNode(uBreathPhase, breathIntensity);
     const litColor = mul(instanceCol, breathLuminosity);
 
     // Rim glow
     const rimCol = color(rimColor);
     const colorWithRim = mix(litColor, rimCol, mul(fresnel, float(fresnelIntensity)));
 
-    // Inner glow
-    const innerGlowBase = mul(sub(float(1.0), fresnel), float(0.05));
-    const innerGlowBreath = add(float(1.0), mul(uBreathPhase, float(0.3)));
-    const innerGlow = mul(innerGlowBase, innerGlowBreath);
+    // Inner glow using shared nodes
+    const invertedFresnel = createInvertedFresnelNode(fresnelPower);
+    const innerGlowIntensity = createInnerGlowBreathingNode(
+      uBreathPhase,
+      BREATHING_PRESETS.innerGlow.baseIntensity,
+      BREATHING_PRESETS.innerGlow.breathBoost,
+    );
+    const innerGlow = mul(invertedFresnel, innerGlowIntensity);
     const innerGlowColor = vec3(1.0, 0.98, 0.95);
     const finalColor = add(colorWithRim, mul(innerGlowColor, innerGlow));
 
