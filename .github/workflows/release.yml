@@ -64,7 +64,7 @@ jobs:
           echo "| TypeCheck | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ✅ |" >> $GITHUB_STEP_SUMMARY
 
-  # Deploy worker and frontend in parallel
+  # Deploy worker first, then frontend (sequential for atomic deployment)
   deploy-worker:
     needs: validate
     runs-on: ubuntu-latest
@@ -100,7 +100,7 @@ jobs:
           command: deploy --config wrangler.toml
 
   deploy-frontend:
-    needs: validate
+    needs: [validate, deploy-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     name: Deploy Frontend

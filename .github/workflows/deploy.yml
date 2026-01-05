@@ -21,8 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     name: Validate & Build
-    outputs:
-      build-time: ${{ steps.build.outputs.duration }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,12 +54,11 @@ jobs:
           echo "✅ All validation checks passed"
 
       - name: Build
-        id: build
         run: |
           START=$(date +%s)
           npm run build
           END=$(date +%s)
-          echo "duration=$((END - START))s" >> $GITHUB_OUTPUT
+          echo "Build completed in $((END - START))s"
 
       - name: Job summary
         if: success()
@@ -72,9 +69,9 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Biome | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| TypeCheck | ✅ |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | ✅ (${{ steps.build.outputs.duration }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ✅ |" >> $GITHUB_STEP_SUMMARY
 
-  # Deploy worker and frontend in parallel (both depend on validate)
+  # Deploy worker first, then frontend (sequential for atomic deployment)
   deploy-worker:
     needs: validate
     runs-on: ubuntu-latest
@@ -110,7 +107,7 @@ jobs:
           command: deploy --config wrangler.toml
 
   deploy-frontend:
-    needs: validate
+    needs: [validate, deploy-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     name: Deploy Frontend

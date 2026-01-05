@@ -111,7 +111,7 @@ jobs:
           command: deploy --config wrangler.toml --name breathe-together-presence-pr-${{ github.event.pull_request.number }}
 
   deploy-preview:
-    needs: validate
+    needs: [validate, deploy-worker-preview]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -474,9 +474,9 @@ jobs:
               });
             }
 
-  # Single success notification (combines validation + deployment)
+  # Single success notification (deployment success, screenshots optional)
   notify-success:
-    needs: [validate, deploy-worker-preview, deploy-preview, screenshots]
+    needs: [validate, deploy-worker-preview, deploy-preview]
     if: success() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     name: Notify Success

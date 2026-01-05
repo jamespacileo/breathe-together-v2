@@ -4,10 +4,10 @@ on:
   pull_request:
     types: [closed]
 
-# Prevent concurrent cleanup for same PR
+# Prevent concurrent cleanup for same PR (cancel previous, cleanup is idempotent)
 concurrency:
   group: cleanup-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   cleanup:
