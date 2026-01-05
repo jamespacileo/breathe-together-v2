@@ -91,8 +91,8 @@ describe('Fibonacci Distribution Evenness', () => {
         console.log(`Pure Fibonacci (${count} particles):`, {
           cv: metrics.cv.toFixed(4),
           minMaxRatio: metrics.minMaxRatio.toFixed(4),
-          meanDist: (metrics.meanDistance * (180 / Math.PI)).toFixed(2) + '°',
-          theoreticalOpt: (metrics.theoreticalOptimal * (180 / Math.PI)).toFixed(2) + '°',
+          meanDist: `${(metrics.meanDistance * (180 / Math.PI)).toFixed(2)}°`,
+          theoreticalOpt: `${(metrics.theoreticalOptimal * (180 / Math.PI)).toFixed(2)}°`,
         });
       }
     });

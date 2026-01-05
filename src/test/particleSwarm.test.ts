@@ -470,7 +470,7 @@ describe('Current user tracking', () => {
 
     // The slot index determines the Fibonacci sphere position
     // index 0 maps to getFibonacciSpherePoint(0, stableCount)
-    const slotIndex = userSlot!.index;
+    const slotIndex = userSlot?.index;
     expect(slotIndex).toBeGreaterThanOrEqual(0);
     expect(slotIndex).toBeLessThan(slotManager.slots.length);
   });
@@ -559,10 +559,10 @@ describe('Shard separation (no overlap)', () => {
       expect(slot).toBeDefined();
 
       // No duplicate slot assignments
-      expect(slotUsers.has(slot!.index)).toBe(false);
+      expect(slotUsers.has(slot?.index)).toBe(false);
 
-      userSlots.set(user.id, slot!.index);
-      slotUsers.set(slot!.index, user.id);
+      userSlots.set(user.id, slot?.index);
+      slotUsers.set(slot?.index, user.id);
     }
 
     // Verify bijection

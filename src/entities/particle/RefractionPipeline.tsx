@@ -22,7 +22,9 @@ import { RENDER_LAYERS } from '../../constants';
 // Backface vertex shader - renders normals from back faces
 // Supports both regular meshes and InstancedMesh via THREE.js instancing defines
 const backfaceVertexShader = `
+#include <common>
 varying vec3 vNormal;
+
 void main() {
   // Apply instance transform if using InstancedMesh
   #ifdef USE_INSTANCING
@@ -49,6 +51,7 @@ void main() {
 // Refraction vertex shader - passes color and calculates eye/normal vectors
 // Supports both regular meshes and InstancedMesh via THREE.js instancing defines
 const refractionVertexShader = `
+#include <common>
 varying vec3 vColor;
 varying vec3 eyeVector;
 varying vec3 worldNormal;
@@ -422,6 +425,9 @@ export function RefractionPipeline({
       vertexShader: backfaceVertexShader,
       fragmentShader: backfaceFragmentShader,
       side: THREE.BackSide,
+      defines: {
+        USE_INSTANCING: '',
+      },
     });
 
     const refractionMaterial = new THREE.ShaderMaterial({
@@ -435,6 +441,10 @@ export function RefractionPipeline({
       vertexShader: refractionVertexShader,
       fragmentShader: refractionFragmentShader,
       side: THREE.DoubleSide, // Render both faces so shapes don't appear flat from certain angles
+      defines: {
+        USE_INSTANCING: '',
+        USE_INSTANCING_COLOR: '',
+      },
     });
 
     return { backfaceMaterial, refractionMaterial };
@@ -485,7 +495,7 @@ export function RefractionPipeline({
 
   // Frame counter for throttled operations
   const frameCountRef = useRef(0);
-  const MESH_CHECK_INTERVAL = 30;
+  const MESH_CHECK_INTERVAL = 1; // Check every frame for responsive screenshot capture
 
   // Environment FBO cache - track when we last rendered it
   const envCacheFrameRef = useRef(0);
