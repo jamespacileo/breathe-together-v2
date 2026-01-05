@@ -5,11 +5,13 @@ import { AudioDevControls } from '../audio';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { GizmoEntities } from '../components/GizmoEntities';
 import { MomentumControls } from '../components/MomentumControls';
+import { PostProcessingEffects } from '../components/PostProcessingEffects';
 import { ShapeGizmos } from '../components/ShapeGizmos';
 import { SimpleGaiaUI } from '../components/SimpleGaiaUI';
 import { TopRightControls } from '../components/TopRightControls';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
+import { EarthGlobeTransmission } from '../entities/earthGlobe/EarthGlobeTransmission';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
@@ -50,7 +52,7 @@ export function BreathingLevel({
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users, countryCounts } = usePresence();
+  const { users, countryCounts, sessionId } = usePresence();
 
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
@@ -89,16 +91,32 @@ export function BreathingLevel({
           polar={[-Math.PI * 0.3, Math.PI * 0.3]}
           azimuth={[-Infinity, Infinity]}
         >
+          {/* Postprocessing Effects - optional replacement for custom DoF */}
+          {devControls.usePostprocessingDoF && (
+            <PostProcessingEffects
+              enableDoF={devControls.enableDepthOfField}
+              focusDistance={devControls.focusDistance}
+              focalLength={devControls.ppFocalLength}
+              bokehScale={devControls.ppBokehScale}
+              enableBloom={devControls.enableBloom}
+              bloomIntensity={devControls.bloomIntensity}
+              bloomThreshold={devControls.bloomThreshold}
+              enableVignette={devControls.enableVignette}
+              vignetteDarkness={devControls.vignetteDarkness}
+            />
+          )}
+
           {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
+          {/* When usePostprocessingDoF is true, disable custom DoF but keep refraction */}
           <RefractionPipeline
             ior={devControls.ior}
             backfaceIntensity={devControls.glassDepth}
-            enableDepthOfField={devControls.enableDepthOfField}
+            enableDepthOfField={!devControls.usePostprocessingDoF && devControls.enableDepthOfField}
             focusDistance={devControls.focusDistance}
             focalRange={devControls.focalRange}
             maxBlur={devControls.maxBlur}
           >
-            {/* Environment - clouds, lighting, fog */}
+            {/* Environment - clouds, lighting, fog, HDRI (or grid floor in stage mode) */}
             {showEnvironment && (
               <Environment
                 showClouds={devControls.showClouds}
@@ -109,10 +127,29 @@ export function BreathingLevel({
                 ambientLightIntensity={devControls.ambientLightIntensity}
                 keyLightColor={devControls.keyLightColor}
                 keyLightIntensity={devControls.keyLightIntensity}
+                stageMode={devControls.stageMode}
+                showGridFloor={devControls.showGridFloor}
+                gridSize={devControls.gridSize}
+                gridDivisions={devControls.gridDivisions}
+                gridColor={devControls.gridColor}
+                enableHDRI={devControls.enableHDRI}
+                hdriIntensity={devControls.hdriIntensity}
+                hdriBlur={devControls.hdriBlur}
+                useHDRIBackground={devControls.useHDRIBackground}
               />
             )}
 
-            {showGlobe && <EarthGlobe />}
+            {/* Globe - conditionally use transmission material */}
+            {showGlobe && !devControls.useTransmissionGlobe && <EarthGlobe />}
+            {showGlobe && devControls.useTransmissionGlobe && (
+              <EarthGlobeTransmission
+                transmission={devControls.globeTransmission}
+                roughness={devControls.globeRoughness}
+                ior={devControls.globeIor}
+                thickness={devControls.globeThickness}
+                chromaticAberration={devControls.globeChromaticAberration}
+              />
+            )}
 
             {/* Ribbon System - configurable text ribbons around the globe */}
             {/* Layers: top message, bottom message, decorative accents */}
@@ -122,8 +159,11 @@ export function BreathingLevel({
             {showParticles && (
               <ParticleSwarm
                 users={deferredUsers}
+                currentUserId={sessionId}
                 baseRadius={orbitRadius}
-                maxShardSize={shardSize}
+                baseShardSize={shardSize}
+                highlightCurrentUser={devControls.highlightCurrentUser}
+                highlightStyle={devControls.highlightStyle}
               />
             )}
 

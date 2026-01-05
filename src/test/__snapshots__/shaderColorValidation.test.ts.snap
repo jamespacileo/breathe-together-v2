@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Shader Color Validation > Regression Guards > color palette snapshot matches expected values 1`] = `
+{
+  "environment": {
+    "background": "#f5f0e8",
+    "globe": "#8b6f47",
+  },
+  "moods": {
+    "connection": "#ef476f",
+    "gratitude": "#ffbe0b",
+    "presence": "#06d6a0",
+    "release": "#118ab2",
+  },
+}
+`;

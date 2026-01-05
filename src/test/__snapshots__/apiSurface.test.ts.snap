@@ -1,0 +1,106 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`API Surface Snapshot Tests > Constants Exports > MOOD_METADATA constants structure remains stable 1`] = `
+[
+  "connection",
+  "gratitude",
+  "presence",
+  "release",
+]
+`;
+
+exports[`API Surface Snapshot Tests > Constants Exports > VISUALS constants structure remains stable 1`] = `
+[
+  "PARTICLE_ORBIT_MAX",
+  "PARTICLE_ORBIT_MIN",
+]
+`;
+
+exports[`API Surface Snapshot Tests > Core Library Exports > breathCalc exports expected functions 1`] = `
+[
+  "calculateBreathState",
+]
+`;
+
+exports[`API Surface Snapshot Tests > Core Library Exports > collisionGeometry exports expected functions 1`] = `
+[
+  "DEFAULT_CONFIG",
+  "calculateAllParticlePositions",
+  "calculateDynamicMinOrbitRadius",
+  "calculateOrbitRadius",
+  "calculateParticlePosition",
+  "calculateShardSize",
+  "checkGlobeCollisions",
+  "checkParticleCollisions",
+  "findMinParticleDistance",
+  "getFibonacciSpherePoint",
+  "runComprehensiveCollisionTest",
+  "runTimeVaryingCollisionTest",
+]
+`;
+
+exports[`API Surface Snapshot Tests > Core Library Exports > colors module exports expected functions 1`] = `
+[
+  "MONUMENT_VALLEY_PALETTE",
+  "MOOD_COLORS",
+  "getMonumentValleyMoodColor",
+  "getMoodColor",
+]
+`;
+
+exports[`API Surface Snapshot Tests > Core Library Exports > presenceApi exports expected types and functions 1`] = `
+[
+  "HeartbeatRequestSchema",
+  "MoodCountsSchema",
+  "MoodIdSchema",
+  "PresenceApiClient",
+  "PresenceStateSchema",
+  "ServerConfigSchema",
+  "UserSchema",
+  "WsPresenceMessageSchema",
+  "presenceApi",
+  "validateMood",
+]
+`;
+
+exports[`API Surface Snapshot Tests > Test Helper Exports > test helpers export expected utilities 1`] = `
+[
+  "allPointsOnUnitSphere",
+  "angularDistance",
+  "coefficientOfVariation",
+  "countObjectsOfType",
+  "createMockBreathPhase",
+  "createMockPresence",
+  "createMockSessionId",
+  "createMockUsers",
+  "createMockUsersWithMoods",
+  "expectBreathPhase",
+  "expectColorAccessibility",
+  "expectColorDiversity",
+  "expectColorGradient",
+  "expectColorInRange",
+  "expectColorMatch",
+  "expectDrawCallCount",
+  "expectNoGlobeCollisions",
+  "expectNoParticleCollisions",
+  "expectOrbitRadiusInRange",
+  "expectParticleCount",
+  "expectSceneContains",
+  "expectSynchronizedBreathPhase",
+  "expectValidBreathingCycle",
+  "expectValidCollisionResult",
+  "findNearestNeighborDistances",
+  "getColorDistance",
+  "getColorTemperature",
+  "getContrastRatio",
+  "getRelativeLuminance",
+  "getVisibleParticleCount",
+  "hexToRgb",
+  "isOnUnitSphere",
+  "rgbToHex",
+  "sphericalCapArea",
+  "theoreticalOptimalDistance",
+]
+`;
+
+exports[`API Surface Snapshot Tests > Type Exports > shared types module exports expected types 1`] = `[]`;

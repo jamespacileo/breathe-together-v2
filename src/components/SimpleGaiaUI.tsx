@@ -738,10 +738,10 @@ export function SimpleGaiaUI({
                 label="Shard Size"
                 value={shardSize}
                 onValueChange={setShardSize}
-                min={0.1}
-                max={1.2}
-                step={0.02}
-                displayValue={shardSize.toFixed(2)}
+                min={0.5}
+                max={6.0}
+                step={0.1}
+                displayValue={shardSize.toFixed(1)}
               />
 
               <Slider
