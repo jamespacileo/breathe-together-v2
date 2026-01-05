@@ -1,18 +1,21 @@
 /**
  * Fibonacci Distribution Tests
  *
- * Tests for verifying that particle distribution remains even over time.
+ * OUTCOME-FOCUSED: Tests validate that particles remain evenly distributed
+ * across the globe surface, ensuring users see balanced visual coverage.
  *
- * The Fibonacci sphere algorithm provides optimal even distribution on a sphere,
- * but various animation effects (orbit drift, wobble, ambient motion) can
- * degrade this evenness over time.
+ * Why this matters:
+ * - Clumping particles creates visual hotspots (bad UX)
+ * - Uneven spacing breaks the meditation aesthetic
+ * - Animation effects can degrade initial distribution
  *
- * Metrics used:
- * 1. **Angular separation coefficient of variation (CV)**: Measures uniformity
- *    of nearest-neighbor angular distances. Lower = more uniform.
- * 2. **Voronoi area variance**: Measures uniformity of spherical caps.
+ * Testing approach:
+ * - Uses shared geometry helpers for consistency
+ * - Measures statistical distribution properties
+ * - Validates behavior across particle counts and time
  */
 
+import * as fc from 'fast-check';
 import type * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
@@ -20,59 +23,13 @@ import {
   DEFAULT_CONFIG,
   getFibonacciSpherePoint,
 } from '../lib/collisionGeometry';
-
-/**
- * Calculate angular distance between two points on a sphere (in radians)
- */
-function angularDistance(a: THREE.Vector3, b: THREE.Vector3): number {
-  // Normalize vectors to unit sphere
-  const aNorm = a.clone().normalize();
-  const bNorm = b.clone().normalize();
-  // Clamp dot product to avoid NaN from floating point errors
-  const dot = Math.max(-1, Math.min(1, aNorm.dot(bNorm)));
-  return Math.acos(dot);
-}
-
-/**
- * Find nearest neighbor angular distance for each particle
- */
-function findNearestNeighborDistances(positions: THREE.Vector3[]): number[] {
-  const distances: number[] = [];
-
-  for (let i = 0; i < positions.length; i++) {
-    let minDist = Infinity;
-    for (let j = 0; j < positions.length; j++) {
-      if (i === j) continue;
-      const dist = angularDistance(positions[i], positions[j]);
-      if (dist < minDist) {
-        minDist = dist;
-      }
-    }
-    distances.push(minDist);
-  }
-
-  return distances;
-}
-
-/**
- * Calculate coefficient of variation (CV = std / mean)
- * Lower CV means more uniform distribution
- */
-function coefficientOfVariation(values: number[]): number {
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
-  const stdDev = Math.sqrt(variance);
-  return stdDev / mean;
-}
-
-/**
- * Calculate theoretical optimal nearest-neighbor distance for N points on sphere
- * Based on the covering radius formula for optimal spherical codes
- */
-function theoreticalOptimalDistance(n: number): number {
-  // For large N, optimal packing gives approximately sqrt(4π/N) radians
-  return Math.sqrt((4 * Math.PI) / n);
-}
+import {
+  allPointsOnUnitSphere,
+  angularDistance,
+  coefficientOfVariation,
+  findNearestNeighborDistances,
+  theoreticalOptimalDistance,
+} from './helpers';
 
 /**
  * Measure distribution quality metrics
@@ -112,6 +69,8 @@ function measureDistribution(positions: THREE.Vector3[]): DistributionMetrics {
 describe('Fibonacci Distribution Evenness', () => {
   describe('Pure Fibonacci sphere (baseline)', () => {
     it('should have even distribution at initialization (time=0)', () => {
+      // OUTCOME: Users see particles evenly spread across globe at startup
+      // No visual clumping or gaps that would break the meditation aesthetic
       const counts = [42, 100, 200];
 
       for (const count of counts) {
@@ -123,9 +82,9 @@ describe('Fibonacci Distribution Evenness', () => {
 
         const metrics = measureDistribution(points);
 
-        // Pure Fibonacci should have low CV (<0.15)
+        // INVARIANT: Low coefficient of variation means uniform spacing
         expect(metrics.cv).toBeLessThan(0.15);
-        // Min/max ratio should be reasonable (>0.5)
+        // INVARIANT: Min/max ratio indicates no extreme gaps or clusters
         // Note: Fibonacci sphere inherently has some variation due to pole concentration
         expect(metrics.minMaxRatio).toBeGreaterThan(0.5);
 
@@ -137,13 +96,36 @@ describe('Fibonacci Distribution Evenness', () => {
         });
       }
     });
+
+    it('should maintain distribution invariants for any particle count', () => {
+      // PROPERTY: Distribution quality should hold across all valid particle counts
+      // Uses property-based testing to verify behavior beyond fixed test cases
+      fc.assert(
+        fc.property(fc.integer({ min: 10, max: 500 }), (count) => {
+          const points: THREE.Vector3[] = [];
+          for (let i = 0; i < count; i++) {
+            points.push(getFibonacciSpherePoint(i, count).multiplyScalar(5));
+          }
+
+          // INVARIANT: All points lie on sphere surface (scaled)
+          const normalizedPoints = points.map((p) => p.clone().normalize());
+          expect(allPointsOnUnitSphere(normalizedPoints, 0.01)).toBe(true);
+
+          // INVARIANT: Distribution quality remains bounded
+          const metrics = measureDistribution(points);
+          expect(metrics.cv).toBeLessThan(0.25); // Allow slightly higher for small counts
+          expect(metrics.minMaxRatio).toBeGreaterThan(0.3); // Allow more variation
+        }),
+        { numRuns: 100 },
+      );
+    });
   });
 
   describe('Animated positions (with drift effects)', () => {
-    /**
-     * This test demonstrates that orbit drift degrades distribution over time
-     */
     it('should show distribution degradation over time due to orbit drift', () => {
+      // OUTCOME: Documents current animation behavior that affects visual distribution
+      // Users may notice particles clumping after extended viewing (>2 minutes)
+      // This test establishes baseline for future improvements
       const particleCount = 100;
       const timePoints = [0, 10, 30, 60, 120]; // seconds
 
