@@ -539,6 +539,11 @@ export function RefractionPipeline({
     frameCountRef.current++;
 
     // Sync layer camera with main camera each frame
+    // IMPORTANT: Since we run at priority 1 (before r3f's default render), the main
+    // camera's matrices may not be updated yet. We must manually update them first.
+    perspCamera.updateMatrixWorld(true);
+    perspCamera.updateProjectionMatrix();
+
     // copy() copies properties (position, rotation, fov, etc.) but NOT the matrices
     // We must explicitly copy the matrices that THREE.js uses for actual rendering
     layerCamera.copy(perspCamera);
@@ -645,6 +650,8 @@ export function RefractionPipeline({
       gl.render(dofScene, orthoCamera);
 
       // Pass 5: Render gizmos directly to screen (no DoF blur)
+      // Clear depth so gizmos aren't affected by DoF quad depth values
+      gl.clearDepth();
       // Configure layerCamera to render ONLY gizmos layer
       layerCamera.layers.set(RENDER_LAYERS.GIZMOS);
       gl.render(scene, layerCamera);
