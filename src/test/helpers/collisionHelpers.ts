@@ -5,19 +5,18 @@
  */
 
 import { expect } from 'vitest';
-import type { CollisionResult } from '../../lib/collisionGeometry';
-import {
-  type Config,
-  checkGlobeCollisions,
-  checkParticleCollisions,
-} from '../../lib/collisionGeometry';
+import type { CollisionResult, CollisionTestConfig } from '../../lib/collisionGeometry';
+import { checkGlobeCollisions, checkParticleCollisions } from '../../lib/collisionGeometry';
 
 /**
  * Assert that no particle-particle collisions occur at given breath phase
  *
  * OUTCOME: Validates that particles maintain proper spacing for clean visuals
  */
-export function expectNoParticleCollisions(breathPhase: number, config?: Partial<Config>): void {
+export function expectNoParticleCollisions(
+  breathPhase: number,
+  config?: Partial<CollisionTestConfig>,
+): void {
   const result = checkParticleCollisions(breathPhase, config);
 
   expect(result.hasCollision).toBe(false);
@@ -41,7 +40,10 @@ export function expectNoParticleCollisions(breathPhase: number, config?: Partial
  *
  * OUTCOME: Validates that particles don't intersect with central globe
  */
-export function expectNoGlobeCollisions(breathPhase: number, config?: Partial<Config>): void {
+export function expectNoGlobeCollisions(
+  breathPhase: number,
+  config?: Partial<CollisionTestConfig>,
+): void {
   const result = checkGlobeCollisions(breathPhase, config);
 
   expect(result.hasCollision).toBe(false);
@@ -50,8 +52,9 @@ export function expectNoGlobeCollisions(breathPhase: number, config?: Partial<Co
   if (result.hasCollision) {
     const msg = [
       `Globe collision detected at breathPhase=${breathPhase}:`,
-      `  Colliding particles: ${result.collidingParticles?.join(', ')}`,
-      `  Min distance from globe: ${result.minGlobeDistance?.toFixed(4)}`,
+      `  Closest particle index: ${result.closestParticleIndex}`,
+      `  Min surface distance: ${result.minSurfaceDistance.toFixed(4)}`,
+      `  Overlap: ${result.overlapAmount.toFixed(4)}`,
     ].join('\n');
     throw new Error(msg);
   }
