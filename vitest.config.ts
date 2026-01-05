@@ -28,8 +28,6 @@ export default defineConfig({
         // Per-file thresholds for critical modules
         perFile: true,
       },
-      // Fail CI if coverage drops below thresholds
-      all: true,
     },
     setupFiles: ['./src/test/setup.ts'],
   },

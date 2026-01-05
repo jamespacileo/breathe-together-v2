@@ -277,10 +277,11 @@ describe('Property-Based Tests', () => {
   describe('State Transition Properties', () => {
     it('consecutive timestamps have similar breath phases', () => {
       // PROPERTY: No sudden jumps (except at phase boundaries)
+      // Note: calculateBreathState expects time in SECONDS
       fc.assert(
         fc.property(fc.integer({ min: 0, max: 100000000 }), (baseTime) => {
           const state1 = calculateBreathState(baseTime);
-          const state2 = calculateBreathState(baseTime + 10); // 10ms later
+          const state2 = calculateBreathState(baseTime + 0.01); // 10ms later (0.01s)
 
           const phaseDiff = Math.abs(state1.breathPhase - state2.breathPhase);
 
@@ -300,10 +301,11 @@ describe('Property-Based Tests', () => {
     it('orbit radius changes smoothly (accounting for hold oscillations)', () => {
       // PROPERTY: Continuous radius changes (except at cycle boundaries)
       // Note: Hold phases use underdamped harmonic oscillator, so higher tolerance needed
+      // Note: calculateBreathState expects time in SECONDS
       fc.assert(
         fc.property(fc.integer({ min: 500, max: 100000000 }), (baseTime) => {
           const state1 = calculateBreathState(baseTime);
-          const state2 = calculateBreathState(baseTime + 16); // ~1 frame at 60fps
+          const state2 = calculateBreathState(baseTime + 0.016); // ~1 frame at 60fps (16ms = 0.016s)
 
           const radiusDiff = Math.abs(state1.orbitRadius - state2.orbitRadius);
 
@@ -326,24 +328,26 @@ describe('Property-Based Tests', () => {
     it('phase transitions occur at expected times (4-7-8 pattern)', () => {
       // PROPERTY: Phase boundaries are consistent
       // 4s inhale + 7s hold-in + 8s exhale + 0s hold-out = 19s total
+      // Note: calculateBreathState expects time in SECONDS
       fc.assert(
         fc.property(fc.integer({ min: 500, max: 18500 }), (offsetMs) => {
-          const state = calculateBreathState(offsetMs);
+          const offsetSeconds = offsetMs / 1000; // Convert ms to seconds
+          const state = calculateBreathState(offsetSeconds);
 
-          // Test core of each phase (avoiding ±500ms boundaries)
-          // Inhale: 500-3500ms (phase 0)
-          if (offsetMs >= 500 && offsetMs < 3500) {
+          // Test core of each phase (avoiding ±0.5s boundaries)
+          // Inhale: 0.5-3.5s (phase 0)
+          if (offsetSeconds >= 0.5 && offsetSeconds < 3.5) {
             return state.phaseType === 0;
           }
-          // Hold-in: 4500-10500ms (phase 1)
-          if (offsetMs >= 4500 && offsetMs < 10500) {
+          // Hold-in: 4.5-10.5s (phase 1)
+          if (offsetSeconds >= 4.5 && offsetSeconds < 10.5) {
             return state.phaseType === 1;
           }
-          // Exhale: 11500-18500ms (phase 2)
-          if (offsetMs >= 11500 && offsetMs < 18500) {
+          // Exhale: 11.5-18.5s (phase 2)
+          if (offsetSeconds >= 11.5 && offsetSeconds < 18.5) {
             return state.phaseType === 2;
           }
-          // In boundary zones (±500ms), allow adjacent phases
+          // In boundary zones (±0.5s), allow adjacent phases
           return true;
         }),
         { numRuns: 1000 },

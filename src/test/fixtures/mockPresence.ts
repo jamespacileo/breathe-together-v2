@@ -3,7 +3,7 @@
  * Simulates diverse users with different moods and countries
  */
 
-import type { MoodId } from '../constants';
+import type { MoodId } from '../../constants';
 
 export interface MockUser {
   id: string;

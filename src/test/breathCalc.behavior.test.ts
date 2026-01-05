@@ -187,15 +187,16 @@ describe('Behavior Tests: User Outcomes', () => {
     it('cycles through all phases in correct order', () => {
       // OUTCOME: User experiences inhale → hold-in → exhale → (repeat)
       // Note: 4-7-8 pattern has no hold-out phase (HOLD_OUT=0s)
+      // Note: calculateBreathState expects time in SECONDS
 
       // Test mid-phase timing to avoid boundary issues
       const phases = [
-        { time: 2000, expectedType: 0, name: 'mid-inhale' }, // 2s into inhale (0-4s)
-        { time: 7500, expectedType: 1, name: 'mid-hold-in' }, // 3.5s into hold (4-11s)
-        { time: 15000, expectedType: 2, name: 'mid-exhale' }, // 4s into exhale (11-19s)
+        { time: 2, expectedType: 0, name: 'mid-inhale' }, // 2s into inhale (0-4s)
+        { time: 7.5, expectedType: 1, name: 'mid-hold-in' }, // 3.5s into hold (4-11s)
+        { time: 15, expectedType: 2, name: 'mid-exhale' }, // 4s into exhale (11-19s)
       ];
 
-      for (const { time, expectedType, name } of phases) {
+      for (const { time, expectedType } of phases) {
         const state = calculateBreathState(time);
         expect(state.phaseType).toBe(expectedType);
         expectValidBreathingCycle(time);
@@ -204,7 +205,8 @@ describe('Behavior Tests: User Outcomes', () => {
 
     it('breath phase is always between 0 and 1', () => {
       // OUTCOME: breathPhase value never exceeds valid range
-      const timestamps = Array.from({ length: 100 }, (_, i) => i * 1000);
+      // Note: calculateBreathState expects time in SECONDS
+      const timestamps = Array.from({ length: 100 }, (_, i) => i); // 0-100 seconds
 
       for (const timestamp of timestamps) {
         const { breathPhase } = calculateBreathState(timestamp);
@@ -216,9 +218,10 @@ describe('Behavior Tests: User Outcomes', () => {
     it('orbit radius expands and contracts with breathing', () => {
       // OUTCOME: Particles move farther (exhale) and closer (inhale) from globe
       // breathPhase: 0 = exhaled (max radius), 1 = inhaled (min radius)
+      // Note: calculateBreathState expects time in SECONDS
       const timestamps = {
-        fullyInhaled: 3900, // End of inhale (breathPhase ~1, min radius)
-        fullyExhaled: 18900, // End of exhale (breathPhase ~0, max radius)
+        fullyInhaled: 3.9, // End of inhale (breathPhase ~1, min radius)
+        fullyExhaled: 18.9, // End of exhale (breathPhase ~0, max radius)
       };
 
       const exhaledState = calculateBreathState(timestamps.fullyExhaled);
@@ -235,13 +238,14 @@ describe('Behavior Tests: User Outcomes', () => {
     it('no invalid phase transitions occur', () => {
       // OUTCOME: Phase never jumps unexpectedly
       // Note: 4-7-8 pattern has HOLD_OUT=0, so exhale goes directly to inhale (2→0)
+      // Note: calculateBreathState expects time in SECONDS
 
       let previousPhaseType = -1;
       const transitionsSeen: string[] = [];
 
-      // Sample at 100ms intervals to catch all transitions
-      for (let ms = 0; ms < 20000; ms += 100) {
-        const { phaseType } = calculateBreathState(ms);
+      // Sample at 0.1s intervals to catch all transitions
+      for (let seconds = 0; seconds < 20; seconds += 0.1) {
+        const { phaseType } = calculateBreathState(seconds);
 
         if (previousPhaseType !== -1 && phaseType !== previousPhaseType) {
           const transition = `${previousPhaseType}→${phaseType}`;
