@@ -63,14 +63,14 @@ export function createInitialState(now: number = Date.now()): AggregateState {
 }
 
 /**
- * Hash session ID to a short slot key
- * Reduces storage by grouping similar sessions
+ * Normalize session ID for storage and slot assignment
+ * Returns full session ID to align with WebSocket presence
  */
 export function hashSession(sessionId: string): string {
   if (!sessionId || sessionId.length < 8) {
     throw new Error('Session ID must be at least 8 characters');
   }
-  return sessionId.slice(0, 8);
+  return sessionId;
 }
 
 /**

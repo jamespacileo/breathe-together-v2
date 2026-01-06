@@ -8,7 +8,7 @@
  * 2. Smooth transitions: Scale animations for enter/exit
  * 3. Arrival order: First available slot assigned to new users
  * 4. Minimal disruption: Diff-based reconciliation
- * 5. Cycle-aware updates: Only reconcile during hold phase, once per cycle
+ * 5. Consumer-driven updates: Reconcile when presence changes, not tied to breath phase
  *
  * Architecture:
  * - Slots are pre-allocated and reused (Object Pool)
@@ -145,9 +145,6 @@ export class SlotManager {
   /** Current time (updated via updateAnimations) */
   private currentTime = 0;
 
-  /** Last breathing cycle index when reconciliation occurred */
-  private lastReconcileCycle = -1;
-
   constructor(config: Partial<AnimationConfig> = {}) {
     this.animConfig = { ...DEFAULT_ANIMATION_CONFIG, ...config };
   }
@@ -181,25 +178,6 @@ export class SlotManager {
    */
   get stableCount(): number {
     return this._slots.filter((s) => s.state === 'entering' || s.state === 'active').length;
-  }
-
-  /**
-   * Check if we should reconcile this cycle
-   *
-   * @param cycleIndex - Current breathing cycle index (derived from UTC time)
-   * @returns true if we haven't reconciled this cycle yet
-   */
-  shouldReconcile(cycleIndex: number): boolean {
-    return cycleIndex !== this.lastReconcileCycle;
-  }
-
-  /**
-   * Mark that we've reconciled this cycle
-   *
-   * @param cycleIndex - Current breathing cycle index
-   */
-  markReconciled(cycleIndex: number): void {
-    this.lastReconcileCycle = cycleIndex;
   }
 
   /**
@@ -308,7 +286,6 @@ export class SlotManager {
   reset(): void {
     this._slots = [];
     this.userToSlot.clear();
-    this.lastReconcileCycle = -1;
     this.currentTime = 0;
   }
 
@@ -425,31 +402,6 @@ export class SlotManager {
       slot.mood = null;
     }
   }
-}
-
-/**
- * Calculate breathing cycle index from elapsed time
- * Used to ensure we only reconcile once per cycle
- *
- * @param elapsedSeconds - Elapsed time in seconds (from Date.now() / 1000)
- * @param cycleDuration - Duration of one breathing cycle in seconds
- * @returns Integer cycle index
- */
-export function getBreathingCycleIndex(elapsedSeconds: number, cycleDuration: number): number {
-  return Math.floor(elapsedSeconds / cycleDuration);
-}
-
-/**
- * Determine if current phase is a "hold" phase suitable for reconciliation
- *
- * Hold phases provide visual stability - no breathing motion happening,
- * so adding/removing particles is less jarring.
- *
- * @param phaseType - Current phase type (0=inhale, 1=hold-in, 2=exhale, 3=hold-out)
- * @returns true if we're in a hold phase
- */
-export function isHoldPhase(phaseType: number): boolean {
-  return phaseType === 1 || phaseType === 3;
 }
 
 /**

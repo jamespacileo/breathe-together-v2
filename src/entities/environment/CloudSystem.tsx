@@ -368,13 +368,13 @@ const AnimatedCloud = memo(function AnimatedCloud({
   const orbitAngleRef = useRef(0);
 
   // Animate position each frame (local-space, works with parent rotation)
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!cloudRef.current) return;
 
     const time = state.clock.elapsedTime + timeOffset.current;
 
     // Slow orbital drift around the Y axis
-    orbitAngleRef.current += config.orbitSpeed * baseSpeed * 0.016;
+    orbitAngleRef.current += config.orbitSpeed * baseSpeed * delta;
 
     // Apply orbit to direction
     _tempDirection.copy(initialDirection);
@@ -413,14 +413,14 @@ const AnimatedCloud = memo(function AnimatedCloud({
         color={config.color}
         fade={config.fade}
       />
-      {/* Subtle golden sparkles around cloud for magical night sky atmosphere */}
+      {/* Soft cloud flecks - subtle, slow-moving haze around the cloud volume */}
       <Sparkles
-        count={5}
-        scale={config.bounds[0] * 1.2}
-        size={2}
-        speed={0.3}
-        opacity={0.4}
-        color="#ffdb6b"
+        count={3}
+        scale={config.bounds[0] * 1.25}
+        size={6}
+        speed={0.08}
+        opacity={0.15}
+        color={config.color}
       />
     </group>
   );

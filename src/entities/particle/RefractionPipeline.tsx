@@ -55,6 +55,7 @@ const refractionVertexShader = `
 varying vec3 vColor;
 varying vec3 eyeVector;
 varying vec3 worldNormal;
+varying float vDistance;
 
 void main() {
   // Use instanceColor if available (InstancedMesh), otherwise fallback to white
@@ -75,6 +76,7 @@ void main() {
 
   eyeVector = normalize(worldPosition.xyz - cameraPosition);
   worldNormal = normalize(transformedNormal);
+  vDistance = length(worldPosition.xyz - cameraPosition);
 
   #ifdef USE_INSTANCING
     gl_Position = projectionMatrix * viewMatrix * worldPosition;
@@ -86,6 +88,7 @@ void main() {
 
 // Refraction fragment shader - creates gem-like frosted crystal look
 // Improved Dec 2024: Bright luminous gem pastels with faceted shading (Monument Valley style)
+// Enhanced Jan 2026: Faceted contrast, edge separation, close shard boost, sharper glint
 const refractionFragmentShader = `
 uniform sampler2D envMap;
 uniform sampler2D backfaceMap;
@@ -96,6 +99,7 @@ uniform float backfaceIntensity;
 varying vec3 vColor;
 varying vec3 worldNormal;
 varying vec3 eyeVector;
+varying float vDistance;
 
 // Key light from upper-right-front
 const vec3 keyLightDir = normalize(vec3(0.5, 0.7, 0.4));
@@ -124,8 +128,8 @@ void main() {
   float diffuse = max(dot(normal, keyLightDir), 0.0);
   // Wrap lighting - higher base for brighter shadows
   float wrapped = diffuse * 0.5 + 0.5;
-  // Shading range: lit faces very bright, shadow faces still bright (0.65 - 1.0)
-  float shading = wrapped * 0.35 + 0.65;
+  // Shading range: DRAMATICALLY WIDENED (0.40 - 1.0) - 60% contrast for facets
+  float shading = wrapped * 0.60 + 0.40;
 
   // === GEM BODY WITH INNER GLOW ===
   vec3 shadedGem = gemColor * shading;
@@ -142,17 +146,26 @@ void main() {
 
   // === FRESNEL RIM (crystalline edge glow) ===
   float fresnel = pow(1.0 - clamp(dot(normal, -eyeVector), 0.0, 1.0), 2.5);
+
+  // === EDGE DARKENING (shard separation) - strengthened for visibility ===
+  float edgeDark = mix(1.0, 0.82, pow(fresnel, 1.5));
+  bodyColor *= edgeDark;
   vec3 rimColor = vec3(1.0, 0.99, 0.97);
   vec3 colorWithRim = mix(bodyColor, rimColor, fresnel * 0.3);
 
-  // === SPECULAR HIGHLIGHT (gem sparkle) ===
+  // === SPECULAR HIGHLIGHT (pinpoint glint) ===
   vec3 halfVec = normalize(keyLightDir - eyeVector);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
-  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.3;
+  float spec = pow(max(dot(normal, halfVec), 0.0), 96.0);  // Sharpened from 32 to 96
+  colorWithRim += vec3(1.0, 0.99, 0.97) * spec * 0.4;
 
   // === TOP AMBIENT ===
   float topLight = max(normal.y, 0.0) * 0.12;
   colorWithRim += vec3(1.0, 0.99, 0.97) * topLight;
+
+  // === CLOSE SHARD VIBRANCY BOOST ===
+  // Shards closer than 8 units get up to +8% brightness
+  float proximityBoost = smoothstep(18.0, 8.0, vDistance);
+  colorWithRim *= (1.0 + proximityBoost * 0.08);
 
   gl_FragColor = vec4(min(colorWithRim, vec3(1.0)), 1.0);
 }
@@ -625,6 +638,22 @@ export function RefractionPipeline({
     perspCamera.layers.disable(RENDER_LAYERS.GIZMOS);
     perspCamera.layers.disable(RENDER_LAYERS.EFFECTS); // Exclude stars from DoF
 
+    const renderOverlayLayer = (layer: number) => {
+      const originalBackground = scene.background;
+      if (originalBackground !== null) {
+        scene.background = null;
+      }
+
+      try {
+        perspCamera.layers.set(layer);
+        gl.render(scene, perspCamera);
+      } finally {
+        if (originalBackground !== null) {
+          scene.background = originalBackground;
+        }
+      }
+    };
+
     if (enableDepthOfField) {
       // Pass 3: Render composite to compositeFBO (with depth for DoF)
       // Uses perspCamera which excludes GIZMOS layer
@@ -651,15 +680,13 @@ export function RefractionPipeline({
 
       // Pass 4b: Render EFFECTS layer (stars) directly to screen without DoF
       gl.clearDepth(); // Don't depth-test against DoF quad
-      perspCamera.layers.set(RENDER_LAYERS.EFFECTS);
-      gl.render(scene, perspCamera);
+      renderOverlayLayer(RENDER_LAYERS.EFFECTS);
 
       // Pass 5: Render gizmos directly to screen (no DoF blur)
       // Clear depth so gizmos aren't affected by DoF quad depth values
       gl.clearDepth();
       // Configure camera to render ONLY gizmos layer
-      perspCamera.layers.set(RENDER_LAYERS.GIZMOS);
-      gl.render(scene, perspCamera);
+      renderOverlayLayer(RENDER_LAYERS.GIZMOS);
       // Restore camera layers to original state for r3f's render
       perspCamera.layers.mask = originalLayersMaskRef.current;
     } else {
@@ -680,12 +707,10 @@ export function RefractionPipeline({
 
       // Render EFFECTS layer without DoF blur
       gl.clearDepth();
-      perspCamera.layers.set(RENDER_LAYERS.EFFECTS);
-      gl.render(scene, perspCamera);
+      renderOverlayLayer(RENDER_LAYERS.EFFECTS);
 
       // Render gizmos directly to screen (after main scene, no blur)
-      perspCamera.layers.set(RENDER_LAYERS.GIZMOS);
-      gl.render(scene, perspCamera);
+      renderOverlayLayer(RENDER_LAYERS.GIZMOS);
       // Restore camera layers to original state for r3f's render
       perspCamera.layers.mask = originalLayersMaskRef.current;
     }

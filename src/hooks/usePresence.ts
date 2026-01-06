@@ -112,6 +112,7 @@ export function usePresence(): UsePresenceResult {
   const wsRef = useRef<WebSocket | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAllowedRef = useRef(true);
 
   // Keep moodRef in sync with state
   moodRef.current = mood;
@@ -143,7 +144,12 @@ export function usePresence(): UsePresenceResult {
    * Uses moodRef to avoid recreating callback on mood changes
    */
   const connectWebSocket = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (!reconnectAllowedRef.current) return;
+    if (
+      wsRef.current?.readyState === WebSocket.OPEN ||
+      wsRef.current?.readyState === WebSocket.CONNECTING
+    )
+      return;
 
     try {
       const wsUrl = presenceApi.getWsUrl(sessionIdRef.current, moodRef.current);
@@ -152,6 +158,10 @@ export function usePresence(): UsePresenceResult {
       ws.onopen = () => {
         setIsConnected(true);
         setConnectionType('websocket');
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
       };
 
       ws.onmessage = (event) => {
@@ -164,7 +174,11 @@ export function usePresence(): UsePresenceResult {
       ws.onclose = () => {
         setIsConnected(false);
         wsRef.current = null;
+        if (!reconnectAllowedRef.current) return;
         // Attempt reconnect after delay
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
         reconnectTimeoutRef.current = setTimeout(() => {
           connectWebSocket();
         }, CONFIG.WS_RECONNECT_DELAY_MS);
@@ -241,14 +255,14 @@ export function usePresence(): UsePresenceResult {
   const startPolling = useCallback(() => {
     if (pollingIntervalRef.current) return;
 
-    maybeSendHeartbeat(mood, true);
+    maybeSendHeartbeat(moodRef.current, true);
 
     pollingIntervalRef.current = setInterval(() => {
-      maybeSendHeartbeat(mood);
+      maybeSendHeartbeat(moodRef.current);
     }, configRef.current.heartbeatIntervalMs);
 
     setConnectionType('polling');
-  }, [mood, maybeSendHeartbeat]);
+  }, [maybeSendHeartbeat]);
 
   /**
    * Update mood
@@ -273,6 +287,7 @@ export function usePresence(): UsePresenceResult {
    */
   useEffect(() => {
     let mounted = true;
+    reconnectAllowedRef.current = true;
 
     const init = async () => {
       // Fetch config with Zod validation
@@ -303,6 +318,7 @@ export function usePresence(): UsePresenceResult {
 
     return () => {
       mounted = false;
+      reconnectAllowedRef.current = false;
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;

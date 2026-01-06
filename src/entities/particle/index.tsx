@@ -9,4 +9,4 @@ export { ParticleSwarm } from './ParticleSwarm';
 
 // Slot-based user ordering system
 export type { AnimationConfig, ReconciliationResult, Slot, SlotState, User } from './SlotManager';
-export { getBreathingCycleIndex, isHoldPhase, moodCountsToUsers, SlotManager } from './SlotManager';
+export { moodCountsToUsers, SlotManager } from './SlotManager';

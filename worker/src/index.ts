@@ -172,6 +172,12 @@ async function handleCreateTextOverride(request: Request, env: Env): Promise<Res
         headers: { 'Content-Type': 'application/json' },
       });
     }
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      return new Response(JSON.stringify({ error: 'Invalid durationMinutes' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     // Create override
     const override: UserTextOverride = {

@@ -3,6 +3,14 @@ import { useGesture } from '@use-gesture/react';
 import { easing } from 'maath';
 import * as React from 'react';
 import { type Group, MathUtils } from 'three';
+import {
+  calculateMomentumDelta,
+  calculateTargetZoom,
+  getDomEventTarget,
+  isUiEventTarget,
+  normalizeWheelDeltaY,
+  shouldHandleSceneWheel,
+} from '../lib/sceneInput';
 
 /**
  * iOS-style momentum scrolling defaults
@@ -71,7 +79,7 @@ interface MomentumControlsProps {
  * Event handling:
  * - Uses R3F's pointer events on the group element (not global DOM events)
  * - Works with eventSource pattern on Canvas for proper HTML overlay support
- * - Cursor is managed via canvas style when enabled
+ * - Cursor is managed via the eventSource element style when enabled
  */
 export function MomentumControls({
   enabled = true,
@@ -99,6 +107,8 @@ export function MomentumControls({
   // Get the actual event source element (container div) since canvas has pointer-events: none
   // when using the eventSource pattern
   const eventSourceElement = (events.connected || domElement) as HTMLElement;
+  const cursorTarget = eventSourceElement || domElement;
+  const touchActionRef = React.useRef<string | null>(null);
 
   // Calculate rotation limits
   const rPolar = React.useMemo(
@@ -138,13 +148,33 @@ export function MomentumControls({
 
   // Cursor management - simple approach via canvas style
   React.useEffect(() => {
-    if (!cursor || !enabled) return;
+    if (!cursorTarget) return;
 
-    domElement.style.cursor = 'grab';
+    if (!cursor || !enabled) {
+      cursorTarget.style.cursor = 'default';
+      return;
+    }
+
     return () => {
-      domElement.style.cursor = 'default';
+      cursorTarget.style.cursor = 'default';
     };
-  }, [cursor, enabled, domElement]);
+  }, [cursor, enabled, cursorTarget]);
+
+  React.useEffect(() => {
+    return () => {
+      if (touchActionRef.current !== null && cursorTarget) {
+        cursorTarget.style.touchAction = touchActionRef.current;
+        touchActionRef.current = null;
+      }
+    };
+  }, [cursorTarget]);
+
+  React.useEffect(() => {
+    if (!enabled && touchActionRef.current !== null && cursorTarget) {
+      cursorTarget.style.touchAction = touchActionRef.current;
+      touchActionRef.current = null;
+    }
+  }, [enabled, cursorTarget]);
 
   // Smooth animation loop
   useFrame((_state, delta) => {
@@ -167,21 +197,57 @@ export function MomentumControls({
   });
 
   // Gesture handling with velocity tracking
-  const bind = useGesture(
+  useGesture(
     {
-      onHover: ({ last }) => {
-        if (cursor && enabled) {
-          domElement.style.cursor = last ? 'grab' : 'grab';
+      onHover: ({ hovering, event }) => {
+        if (!cursor || !enabled || !cursorTarget) return;
+        const target = getDomEventTarget(event);
+        if (isUiEventTarget(target)) {
+          cursorTarget.style.cursor = 'default';
+          return;
         }
+        cursorTarget.style.cursor = hovering ? 'grab' : 'default';
       },
-      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo }) => {
+      onMove: ({ event }) => {
+        if (!cursor || !enabled || !cursorTarget) return;
+        const target = getDomEventTarget(event);
+        cursorTarget.style.cursor = isUiEventTarget(target) ? 'default' : 'grab';
+      },
+      onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo, event, last }) => {
         if (!enabled) return memo;
+        let dragState = memo as { oldY: number; oldX: number; isUi: boolean } | undefined;
+        if (!dragState) {
+          const target = getDomEventTarget(event);
+          const isUi = isUiEventTarget(target);
+          const [oldY, oldX] = animation.current.target;
+          dragState = { oldY, oldX, isUi };
+        }
+
+        if (dragState.isUi) {
+          if (last && touchActionRef.current !== null && cursorTarget) {
+            cursorTarget.style.touchAction = touchActionRef.current;
+            touchActionRef.current = null;
+          }
+          return dragState;
+        }
 
         // Initialize memo with current rotation on drag start
-        const [oldY, oldX] = memo || animation.current.target;
+        const { oldY, oldX } = dragState;
 
-        if (cursor) {
-          domElement.style.cursor = down ? 'grabbing' : 'grab';
+        if (cursor && cursorTarget) {
+          cursorTarget.style.cursor = down ? 'grabbing' : 'grab';
+        }
+
+        if (cursorTarget) {
+          if (down) {
+            if (touchActionRef.current === null) {
+              touchActionRef.current = cursorTarget.style.touchAction;
+            }
+            cursorTarget.style.touchAction = 'none';
+          } else if (touchActionRef.current !== null) {
+            cursorTarget.style.touchAction = touchActionRef.current;
+            touchActionRef.current = null;
+          }
         }
 
         // Calculate new rotation from drag delta
@@ -194,32 +260,26 @@ export function MomentumControls({
           animation.current.damping = damping;
         } else {
           // On release: apply iOS-style momentum based on velocity
-          const momentumScale = momentum * velocityMultiplier;
+          const { deltaX, deltaY, hasMomentumX, hasMomentumY } = calculateMomentumDelta({
+            velocity: [vx, vy],
+            size,
+            speed,
+            momentum,
+            velocityMultiplier,
+            timeConstant,
+            minVelocityThreshold,
+            maxMomentum: IOS_DEFAULTS.maxMomentum,
+          });
 
-          // Only apply momentum if velocity exceeds threshold
-          const hasHorizontalMomentum = Math.abs(vx) > minVelocityThreshold;
-          const hasVerticalMomentum = Math.abs(vy) > minVelocityThreshold;
-
-          // Project target position based on velocity
           let targetX = newX;
           let targetY = newY;
 
-          if (hasHorizontalMomentum) {
-            const momentumX = MathUtils.clamp(
-              vx * momentumScale * timeConstant,
-              -IOS_DEFAULTS.maxMomentum,
-              IOS_DEFAULTS.maxMomentum,
-            );
-            targetX = MathUtils.clamp(newX + momentumX, ...rAzimuth);
+          if (hasMomentumX) {
+            targetX = MathUtils.clamp(newX + deltaX, ...rAzimuth);
           }
 
-          if (hasVerticalMomentum) {
-            const momentumY = MathUtils.clamp(
-              vy * momentumScale * timeConstant,
-              -IOS_DEFAULTS.maxMomentum,
-              IOS_DEFAULTS.maxMomentum,
-            );
-            targetY = MathUtils.clamp(newY + momentumY, ...rPolar);
+          if (hasMomentumY) {
+            targetY = MathUtils.clamp(newY + deltaY, ...rPolar);
           }
 
           animation.current.target = [targetY, targetX, 0];
@@ -227,12 +287,15 @@ export function MomentumControls({
           animation.current.damping = damping * 1.5;
         }
 
-        return [newY, newX];
+        dragState.oldX = newX;
+        dragState.oldY = newY;
+
+        return dragState;
       },
     },
     {
-      // No target means useGesture returns bind handlers for the element
-      // These are spread onto the group and work with R3F's pointer event system
+      target: eventSourceElement,
+      enabled,
     },
   );
 
@@ -242,16 +305,19 @@ export function MomentumControls({
     if (!enabled || !enableZoom || !eventSourceElement) return;
 
     const handleWheel = (event: WheelEvent) => {
+      if (!shouldHandleSceneWheel(event, eventSourceElement)) return;
       // Prevent page scroll when zooming
       event.preventDefault();
 
       // Calculate new zoom level based on scroll delta
       // Negative delta = scroll up = zoom in (increase zoom)
       // Positive delta = scroll down = zoom out (decrease zoom)
-      const zoomDelta = -event.deltaY * zoomSpeed;
-      const newZoom = MathUtils.clamp(animation.current.targetZoom + zoomDelta, minZoom, maxZoom);
-
-      animation.current.targetZoom = newZoom;
+      const wheelDelta = normalizeWheelDeltaY(event);
+      animation.current.targetZoom = calculateTargetZoom(animation.current.targetZoom, wheelDelta, {
+        min: minZoom,
+        max: maxZoom,
+        speed: zoomSpeed,
+      });
     };
 
     // Attach to eventSource element (the container div that receives events)
@@ -262,9 +328,5 @@ export function MomentumControls({
     };
   }, [enabled, enableZoom, zoomSpeed, minZoom, maxZoom, eventSourceElement]);
 
-  return (
-    <group ref={ref} {...(bind() || {})}>
-      {children}
-    </group>
-  );
+  return <group ref={ref}>{children}</group>;
 }

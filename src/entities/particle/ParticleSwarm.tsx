@@ -7,28 +7,25 @@
  * - Smooth scale animations (0→1 on enter, 1→0 on exit)
  * - Smooth position animations when distribution changes
  * - Diff-based reconciliation for minimal disruption
- * - Updates only during hold phase, once per breathing cycle
+ * - Reconciles immediately when presence changes (no phase gating)
  *
- * Performance: Uses InstancedMesh for single draw call (1 draw call for all particles)
+ * Performance: Uses InstancedMesh for batched rendering (2 draw calls: shards + cores)
  * Previously used separate Mesh objects (300 draw calls for 300 particles)
  */
 
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { BREATH_TOTAL_CYCLE, type MoodId, RENDER_LAYERS } from '../../constants';
+import { type MoodId, RENDER_LAYERS } from '../../constants';
+import { getFibonacciSpherePoint } from '../../lib/collisionGeometry';
 import { MONUMENT_VALLEY_PALETTE, NEON_MOOD_PALETTE } from '../../lib/colors';
-import { breathPhase, orbitRadius, phaseType } from '../breath/traits';
-import { createFrostedGlassMaterial } from './FrostedGlassMaterial';
-import {
-  getBreathingCycleIndex,
-  isHoldPhase,
-  moodCountsToUsers,
-  SlotManager,
-  type User,
-} from './SlotManager';
+import { breathPhase, orbitRadius } from '../breath/traits';
+import { createShardMaterial, type ShardMaterialType } from './materials';
+import { moodCountsToUsers, type Slot, SlotManager, type User } from './SlotManager';
+import { computeSlotTargetDirections } from './swarmDistribution';
+import { createUsersSignature } from './swarmUsers';
 
 // Direct 1:1 mapping - each mood has exactly one neon color for vibrant edges
 const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
@@ -40,37 +37,6 @@ const MOOD_TO_COLOR: Record<MoodId, THREE.Color> = {
 
 // Default color for empty slots (won't be visible due to scale=0)
 const DEFAULT_COLOR = new THREE.Color(MONUMENT_VALLEY_PALETTE.presence);
-
-/**
- * Calculate Fibonacci sphere point for even distribution
- *
- * Uses golden angle distribution for uniform coverage regardless of count.
- * Each point is evenly spaced on the sphere surface.
- *
- * @param index - Point index (0 to total-1)
- * @param total - Total number of points to distribute
- * @returns Normalized direction vector on unit sphere
- */
-function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
-  if (total <= 1) {
-    // Single point goes to top of sphere
-    return new THREE.Vector3(0, 1, 0);
-  }
-
-  // Golden angle in radians (137.5077... degrees)
-  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-
-  // Y goes from 1 to -1 (top to bottom of sphere)
-  const y = 1 - (index / (total - 1)) * 2;
-  const radiusAtY = Math.sqrt(1 - y * y);
-
-  const theta = goldenAngle * index;
-
-  const x = Math.cos(theta) * radiusAtY;
-  const z = Math.sin(theta) * radiusAtY;
-
-  return new THREE.Vector3(x, y, z);
-}
 
 export interface ParticleSwarmProps {
   /**
@@ -108,6 +74,8 @@ export interface ParticleSwarmProps {
   /**
    * Performance safety cap - maximum shards to render
    * Only kicks in at very high user counts to prevent GPU overload.
+   * When capped, the first N users are shown (server order), ensuring the current
+   * user is included when possible by replacing the last slot.
    * @default 1000
    */
   performanceCap?: number;
@@ -125,6 +93,14 @@ export interface ParticleSwarmProps {
    * @default 'wireframe'
    */
   highlightStyle?: 'wireframe' | 'glow' | 'scale';
+  /**
+   * Material type for shards.
+   * - 'frosted': Custom shader with refraction (vibrant, best visual quality)
+   * - 'simple': MeshPhysicalMaterial (transparent, good performance)
+   * - 'transmission': drei MeshTransmissionMaterial (realistic glass)
+   * @default 'frosted'
+   */
+  materialType?: ShardMaterialType;
 }
 
 /**
@@ -197,6 +173,11 @@ const PERPENDICULAR_FREQUENCY = 0.35;
 const MAX_PHASE_OFFSET = 0.04;
 
 /**
+ * Inner glow core sizing (relative to shard scale)
+ */
+const CORE_SCALE_FACTOR = 0.55;
+
+/**
  * Reusable objects for animation loop (pre-allocated to avoid GC pressure)
  */
 const _tempMatrix = new THREE.Matrix4();
@@ -229,15 +210,17 @@ function normalizeUsers(users: User[] | Partial<Record<MoodId, number>> | undefi
 
 /**
  * Initialize instance state with physics parameters
+ * Initial direction uses a large total for even distribution across all potential slots
  */
-function createInstanceState(index: number, baseRadius: number): InstanceState {
+function createInstanceState(index: number, baseRadius: number, totalSlots: number): InstanceState {
   const goldenRatio = (1 + Math.sqrt(5)) / 2;
   const rotSeedX = (index * 1.618 + 0.3) % 1;
   const rotSeedY = (index * 2.236 + 0.7) % 1;
   const scaleSeed = (index * goldenRatio + 0.5) % 1;
   const orbitSeed = (index * Math.PI + 0.1) % 1;
 
-  const direction = getFibonacciSpherePoint(index, 1);
+  // Initialize with even distribution across all slots to prevent clustering
+  const direction = getFibonacciSpherePoint(index, totalSlots);
 
   return {
     direction: direction.clone(),
@@ -268,18 +251,18 @@ export function ParticleSwarm({
   performanceCap = 1000,
   highlightCurrentUser = false,
   highlightStyle = 'wireframe',
+  materialType = 'frosted',
 }: ParticleSwarmProps) {
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
+  const coreMeshRef = useRef<THREE.InstancedMesh>(null);
   const wireframeRef = useRef<THREE.LineSegments>(null);
   const glowMeshRef = useRef<THREE.Mesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
+  const labelGroupRef = useRef<THREE.Group>(null);
 
   // Track current user's slot index (-1 if not found)
   const currentUserSlotIndexRef = useRef<number>(-1);
-
-  // Track user shard position for the label (updated in useFrame)
-  const [userLabelPosition, setUserLabelPosition] = useState<[number, number, number] | null>(null);
 
   // Slot manager for stable user ordering
   const slotManagerRef = useRef<SlotManager | null>(null);
@@ -287,32 +270,49 @@ export function ParticleSwarm({
     slotManagerRef.current = new SlotManager();
   }
 
-  // Pending users buffer (updated on prop change, reconciled during hold)
-  const pendingUsersRef = useRef<User[]>([]);
+  // Latest users buffer (read inside useFrame without effect lag)
+  const latestUsersRef = useRef<User[]>([]);
+  const latestUsersSignatureRef = useRef<string>('');
 
-  // Track previous hold phase to detect transitions
-  const wasInHoldRef = useRef(false);
-
-  // Track previous active count for position redistribution
-  const prevActiveCountRef = useRef(0);
+  // Track last users signature applied to slot manager
+  const lastSyncedSignatureRef = useRef<string>('');
 
   // Normalize users input
   const normalizedUsers = useMemo(() => normalizeUsers(users), [users]);
 
-  // Update pending users when props change
-  useEffect(() => {
-    pendingUsersRef.current = normalizedUsers;
-  }, [normalizedUsers]);
+  // Cap displayed users for performance while keeping current user visible when possible
+  const displayUsers = useMemo(() => {
+    if (!normalizedUsers.length) return [];
+    const cap = Math.max(0, performanceCap);
+    if (cap === 0 || normalizedUsers.length <= cap) return normalizedUsers;
+
+    const capped = normalizedUsers.slice(0, cap);
+    if (!currentUserId) return capped;
+
+    const currentIndex = normalizedUsers.findIndex((user) => user.id === currentUserId);
+    if (currentIndex === -1) return capped;
+    if (capped.some((user) => user.id === currentUserId)) return capped;
+
+    // Ensure local user is represented by replacing the last slot
+    capped[capped.length - 1] = normalizedUsers[currentIndex];
+    return capped;
+  }, [normalizedUsers, performanceCap, currentUserId]);
+
+  const displayUsersSignature = createUsersSignature(displayUsers);
+
+  // Keep latest users snapshot/signature in refs (synchronous assignment to avoid stale frames)
+  latestUsersRef.current = displayUsers;
+  latestUsersSignatureRef.current = displayUsersSignature;
 
   // Auto-derive maxShardSize from baseShardSize (maintains 1/5 ratio)
   const maxShardSize = baseShardSize / 5;
 
   // Calculate shard size based on current user count
   const shardSize = useMemo(() => {
-    const count = normalizedUsers.length || 1;
+    const count = displayUsers.length || 1;
     const calculated = baseShardSize / Math.sqrt(count);
     return Math.min(Math.max(calculated, minShardSize), maxShardSize);
-  }, [normalizedUsers.length, baseShardSize, minShardSize, maxShardSize]);
+  }, [displayUsers.length, baseShardSize, minShardSize, maxShardSize]);
 
   /**
    * Calculate minimum orbit radius - ONLY the hard globe collision constraint.
@@ -334,22 +334,40 @@ export function ParticleSwarm({
    * The wobbleMargin accounts for PERPENDICULAR_AMPLITUDE and AMBIENT_SCALE motion.
    */
   const idealSpacingRadius = useMemo(() => {
-    const count = normalizedUsers.length || 1;
+    const count = displayUsers.length || 1;
     // Fibonacci spacing factor: worst-case minimum is ~1.95 / sqrt(N) of radius
     // Wobble margin: 2 × (PERPENDICULAR_AMPLITUDE + AMBIENT_SCALE) ≈ 0.22
     const wobbleMargin = 0.22;
     const fibonacciSpacingFactor = 1.95;
     const requiredSpacing = 2 * shardSize + wobbleMargin;
     return (requiredSpacing * Math.sqrt(count)) / fibonacciSpacingFactor;
-  }, [normalizedUsers.length, shardSize]);
+  }, [displayUsers.length, shardSize]);
 
   // Create shared geometry (single geometry for all instances)
   const geometry = useMemo(() => {
     return new THREE.IcosahedronGeometry(shardSize, 0);
   }, [shardSize]);
 
+  const coreGeometry = useMemo(() => {
+    return new THREE.SphereGeometry(shardSize, 16, 16);
+  }, [shardSize]);
+
   // Create shared material with instancing support
-  const material = useMemo(() => createFrostedGlassMaterial(true), []);
+  const materialVariant = useMemo(() => createShardMaterial(materialType), [materialType]);
+  const material = materialVariant.material;
+  const usesRefractionPipeline = materialVariant.usesRefractionPipeline;
+
+  const coreMaterial = useMemo(() => {
+    return new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      vertexColors: true,
+      toneMapped: false,
+    });
+  }, []);
 
   // Create wireframe geometry and material for user highlight
   const wireframeGeometry = useMemo(() => {
@@ -386,123 +404,238 @@ export function ParticleSwarm({
    * Redistribute Fibonacci positions for stable slots (entering + active)
    * Memoized to avoid useEffect re-runs - only depends on refs
    */
-  const redistributePositions = useCallback((stableCount: number) => {
+  const redistributePositions = useCallback(() => {
     const states = instanceStatesRef.current;
     const slotManager = slotManagerRef.current;
-    if (!slotManager || stableCount === 0) return;
+    if (!slotManager) return;
 
-    let stableIndex = 0;
     const slots = slotManager.slots;
+    if (slots.length === 0) return;
+    const fallbackDirections = states.map((state) => state.direction);
+    const targets = computeSlotTargetDirections(slots, fallbackDirections);
 
     for (let i = 0; i < slots.length && i < states.length; i++) {
-      const slot = slots[i];
-      const state = states[i];
-
-      if (slot.state === 'entering' || slot.state === 'active') {
-        const newDirection = getFibonacciSpherePoint(stableIndex, stableCount);
-        state.targetDirection.copy(newDirection);
-        stableIndex++;
-      } else if (slot.state === 'exiting') {
-        // Exiting slot - keep current position while fading out
-      } else {
-        // Empty slots keep their current direction
-        state.targetDirection.copy(state.direction);
+      const target = targets[i];
+      if (target) {
+        states[i].targetDirection.copy(target);
       }
     }
   }, []);
 
-  // Initialize instance states
-  useEffect(() => {
-    const states: InstanceState[] = [];
-    for (let i = 0; i < performanceCap; i++) {
-      states.push(createInstanceState(i, baseRadius));
-    }
-    instanceStatesRef.current = states;
-  }, [performanceCap, baseRadius]);
+  const updateCurrentUserSlot = useCallback(
+    (slotManager: SlotManager) => {
+      if (!currentUserId) return;
+      const userSlot = slotManager.getSlotByUserId(currentUserId);
+      currentUserSlotIndexRef.current = userSlot ? userSlot.index : -1;
+    },
+    [currentUserId],
+  );
 
-  // Initialize the InstancedMesh with default matrices and colors
-  // biome-ignore lint/correctness/useExhaustiveDependencies: geometry/material MUST be dependencies because r3f recreates the InstancedMesh when args change, requiring re-initialization
-  useEffect(() => {
-    const mesh = instancedMeshRef.current;
-    if (!mesh) return;
-
-    // Initialize all instances to scale 0 (invisible)
-    _tempScale.setScalar(0);
-    _tempQuaternion.identity();
-
-    for (let i = 0; i < performanceCap; i++) {
-      const state = instanceStatesRef.current[i];
-      if (state) {
-        _tempPosition.copy(state.direction).multiplyScalar(baseRadius);
-        _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
-        mesh.setMatrixAt(i, _tempMatrix);
-        mesh.setColorAt(i, DEFAULT_COLOR);
-      }
-    }
-
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) {
-      mesh.instanceColor.needsUpdate = true;
-    }
-
-    // Initial reconciliation
-    // NOTE: Use normalizedUsers directly here, NOT pendingUsersRef.current
-    // pendingUsersRef is updated in a separate useEffect that may not have run yet
-    // This ensures the initial render has the correct number of particles
-    const slotManager = slotManagerRef.current;
-    const usersForInit =
-      pendingUsersRef.current.length > 0 ? pendingUsersRef.current : normalizedUsers;
-
-    if (slotManager) {
-      slotManager.reconcile(usersForInit);
-      const stableCount = slotManager.stableCount;
-      prevActiveCountRef.current = stableCount;
-
-      if (stableCount > 0) {
-        redistributePositions(stableCount);
-        // Snap to target positions immediately on init
-        for (const state of instanceStatesRef.current) {
-          state.direction.copy(state.targetDirection);
-        }
-      }
-
-      // Track current user's slot index on initial render
-      if (currentUserId) {
-        const userSlot = slotManager.getSlotByUserId(currentUserId);
-        currentUserSlotIndexRef.current = userSlot ? userSlot.index : -1;
-      }
-
-      // Apply correct colors from slot moods immediately (not waiting for hold phase)
-      // This fixes the "all shards start green" issue where DEFAULT_COLOR was shown
-      // until the first hold phase triggered color reconciliation
-      const slots = slotManager.slots;
-      const states = instanceStatesRef.current;
+  const applySlotColors = useCallback(
+    (
+      mesh: THREE.InstancedMesh,
+      slots: readonly Slot[],
+      states: InstanceState[],
+      coreMesh?: THREE.InstancedMesh | null,
+    ) => {
       for (let i = 0; i < slots.length && i < states.length; i++) {
         const slot = slots[i];
         const instanceState = states[i];
-        if (slot.mood) {
+        if (slot.mood && slot.mood !== instanceState.currentMood) {
           const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
           mesh.setColorAt(i, color);
+          if (coreMesh) {
+            coreMesh.setColorAt(i, color);
+          }
           instanceState.currentMood = slot.mood;
         }
       }
       if (mesh.instanceColor) {
         mesh.instanceColor.needsUpdate = true;
       }
+      if (coreMesh?.instanceColor) {
+        coreMesh.instanceColor.needsUpdate = true;
+      }
+    },
+    [],
+  );
+
+  const syncUsers = useCallback(
+    (
+      mesh: THREE.InstancedMesh,
+      usersToSync: User[],
+      options: {
+        snapDirections?: boolean;
+        forceRedistribute?: boolean;
+        applyColors?: boolean;
+      } = {},
+    ) => {
+      const slotManager = slotManagerRef.current;
+      if (!slotManager) return 0;
+
+      const reconciliation = slotManager.reconcile(usersToSync);
+      const stableCount = slotManager.stableCount;
+      const shouldRedistribute =
+        options.forceRedistribute || reconciliation.added > 0 || reconciliation.removed > 0;
+
+      if (stableCount > 0 && shouldRedistribute) {
+        redistributePositions();
+        if (options.snapDirections) {
+          for (const state of instanceStatesRef.current) {
+            state.direction.copy(state.targetDirection);
+          }
+        }
+      }
+      updateCurrentUserSlot(slotManager);
+      if (options.applyColors !== false) {
+        applySlotColors(mesh, slotManager.slots, instanceStatesRef.current, coreMeshRef.current);
+      }
+
+      return stableCount;
+    },
+    [applySlotColors, redistributePositions, updateCurrentUserSlot],
+  );
+
+  // Track if this is the first initialization
+  const isInitializedRef = useRef(false);
+
+  // Initialize instance states (only when instance count changes)
+  useEffect(() => {
+    const states: InstanceState[] = [];
+    for (let i = 0; i < performanceCap; i++) {
+      states.push(createInstanceState(i, baseRadius, performanceCap));
     }
-  }, [performanceCap, baseRadius, redistributePositions, geometry, material, currentUserId]);
+    instanceStatesRef.current = states;
+    isInitializedRef.current = false;
+  }, [performanceCap, baseRadius]);
+
+  // Initialize the InstancedMesh with current animation state
+  // biome-ignore lint/correctness/useExhaustiveDependencies: geometry/material MUST be dependencies because r3f recreates the InstancedMesh when args change
+  useEffect(() => {
+    const mesh = instancedMeshRef.current;
+    const coreMesh = coreMeshRef.current;
+    if (!mesh) return;
+
+    const slotManager = slotManagerRef.current;
+    if (!slotManager) return;
+
+    // Determine if this is initial setup or a mesh rebuild
+    const isInitialSetup = !isInitializedRef.current;
+    isInitializedRef.current = true;
+
+    if (isInitialSetup) {
+      // INITIAL SETUP: Start with a fresh slot reconciliation
+      const usersForInit = latestUsersRef.current;
+      syncUsers(mesh, usersForInit, {
+        snapDirections: true,
+        forceRedistribute: true,
+        applyColors: false,
+      });
+
+      lastSyncedSignatureRef.current = createUsersSignature(usersForInit);
+
+      // Initialize instance matrices after snapping to target positions
+      _tempQuaternion.identity();
+      const slots = slotManager.slots;
+      const states = instanceStatesRef.current;
+
+      for (let i = 0; i < performanceCap; i++) {
+        const state = states[i];
+        const slot = i < slots.length ? slots[i] : null;
+        const slotScale = slot && slot.state !== 'empty' ? slot.scale : 0;
+
+        if (state) {
+          _tempPosition.copy(state.direction).multiplyScalar(state.currentRadius);
+          _tempScale.setScalar(slotScale * state.baseScaleOffset);
+          _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
+          mesh.setMatrixAt(i, _tempMatrix);
+          mesh.setColorAt(i, DEFAULT_COLOR);
+          if (coreMesh) {
+            _tempScale.setScalar(slotScale * state.baseScaleOffset * CORE_SCALE_FACTOR);
+            _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
+            coreMesh.setMatrixAt(i, _tempMatrix);
+            coreMesh.setColorAt(i, DEFAULT_COLOR);
+          }
+        }
+      }
+    } else {
+      // REBUILD: Preserve current animation state for mesh recreation
+      // Use currentRadius and current slot states instead of resetting
+      const usersForRebuild = latestUsersRef.current;
+      syncUsers(mesh, usersForRebuild, {
+        snapDirections: false,
+        forceRedistribute: true,
+        applyColors: false,
+      });
+      lastSyncedSignatureRef.current = createUsersSignature(usersForRebuild);
+
+      const slots = slotManager.slots;
+      const states = instanceStatesRef.current;
+
+      for (let i = 0; i < performanceCap; i++) {
+        const state = states[i];
+        const slot = i < slots.length ? slots[i] : null;
+        const slotScale = slot && slot.state !== 'empty' ? slot.scale : 0;
+
+        if (state) {
+          // Use currentRadius (preserves breathing animation state)
+          _tempPosition.copy(state.direction).multiplyScalar(state.currentRadius);
+          _tempEuler.set(state.rotationX, state.rotationY, 0);
+          _tempQuaternion.setFromEuler(_tempEuler);
+          _tempScale.setScalar(slotScale * state.baseScaleOffset);
+          _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
+          mesh.setMatrixAt(i, _tempMatrix);
+          if (coreMesh) {
+            _tempScale.setScalar(slotScale * state.baseScaleOffset * CORE_SCALE_FACTOR);
+            _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
+            coreMesh.setMatrixAt(i, _tempMatrix);
+          }
+        }
+      }
+    }
+
+    applySlotColors(mesh, slotManager.slots, instanceStatesRef.current, coreMesh);
+
+    mesh.instanceMatrix.needsUpdate = true;
+    if (coreMesh) {
+      coreMesh.instanceMatrix.needsUpdate = true;
+      if (coreMesh.instanceColor) {
+        coreMesh.instanceColor.needsUpdate = true;
+      }
+    }
+  }, [
+    performanceCap,
+    baseRadius,
+    geometry,
+    coreGeometry,
+    material,
+    coreMaterial,
+    applySlotColors,
+    syncUsers,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       geometry.dispose();
+      coreGeometry.dispose();
       material.dispose();
+      coreMaterial.dispose();
       wireframeGeometry.dispose();
       wireframeMaterial.dispose();
       glowGeometry.dispose();
       glowMaterial.dispose();
     };
-  }, [geometry, material, wireframeGeometry, wireframeMaterial, glowGeometry, glowMaterial]);
+  }, [
+    geometry,
+    coreGeometry,
+    material,
+    coreMaterial,
+    wireframeGeometry,
+    wireframeMaterial,
+    glowGeometry,
+    glowMaterial,
+  ]);
 
   // Track if we've already signaled for screenshots
   const hasSignaledRef = useRef(false);
@@ -512,6 +645,7 @@ export function ParticleSwarm({
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation requires multiple force calculations and slot lifecycle management
   useFrame((state, delta) => {
     const mesh = instancedMeshRef.current;
+    const coreMesh = coreMeshRef.current;
     const states = instanceStatesRef.current;
     const slotManager = slotManagerRef.current;
     if (!mesh || !slotManager || states.length === 0) return;
@@ -522,25 +656,29 @@ export function ParticleSwarm({
     // Get breathing state from ECS
     let targetRadius = baseRadius;
     let currentBreathPhase = 0;
-    let currentPhaseType = 0;
-    const breathEntity = world.queryFirst(orbitRadius, breathPhase, phaseType);
+    const breathEntity = world.queryFirst(orbitRadius, breathPhase);
     if (breathEntity) {
       targetRadius = breathEntity.get(orbitRadius)?.value ?? baseRadius;
       currentBreathPhase = breathEntity.get(breathPhase)?.value ?? 0;
-      currentPhaseType = breathEntity.get(phaseType)?.value ?? 0;
     }
 
-    // Check if we should reconcile (during hold phase transition)
-    const isInHold = isHoldPhase(currentPhaseType);
-    const elapsedSeconds = Date.now() / 1000;
-    const cycleIndex = getBreathingCycleIndex(elapsedSeconds, BREATH_TOTAL_CYCLE);
+    // Reconcile whenever the users snapshot changes
+    const usersSnapshot = latestUsersRef.current;
+    const usersSignature = latestUsersSignatureRef.current;
+    if (usersSignature !== lastSyncedSignatureRef.current) {
+      const isFirstSync = lastSyncedSignatureRef.current.length === 0;
+      syncUsers(mesh, usersSnapshot, {
+        snapDirections: isFirstSync,
+      });
+      lastSyncedSignatureRef.current = usersSignature;
+    }
 
     // Signal for E2E screenshot tests - fires once when shards become fully visible
     // Wait for 1.0s of full visibility to ensure RefractionPipeline has initialized and rendered
     if (
       !hasSignaledRef.current &&
       slotManager.fullyActiveCount > 0 &&
-      slotManager.fullyActiveCount === normalizedUsers.length
+      slotManager.fullyActiveCount === displayUsers.length
     ) {
       signalDelayRef.current += clampedDelta;
       if (signalDelayRef.current > 1.0) {
@@ -551,49 +689,18 @@ export function ParticleSwarm({
       signalDelayRef.current = 0;
     }
 
-    // Reconcile only on transition INTO hold phase, once per cycle
-    if (isInHold && !wasInHoldRef.current && slotManager.shouldReconcile(cycleIndex)) {
-      slotManager.reconcile(pendingUsersRef.current);
-      slotManager.markReconciled(cycleIndex);
-
-      const newStableCount = slotManager.stableCount;
-
-      if (newStableCount !== prevActiveCountRef.current) {
-        redistributePositions(newStableCount);
-        prevActiveCountRef.current = newStableCount;
-      }
-
-      // Track current user's slot index
-      if (currentUserId) {
-        const userSlot = slotManager.getSlotByUserId(currentUserId);
-        currentUserSlotIndexRef.current = userSlot ? userSlot.index : -1;
-      }
-
-      // Update instance colors based on slot moods
-      const slots = slotManager.slots;
-      for (let i = 0; i < slots.length && i < states.length; i++) {
-        const slot = slots[i];
-        const instanceState = states[i];
-
-        if (slot.mood && slot.mood !== instanceState.currentMood) {
-          const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
-          mesh.setColorAt(i, color);
-          instanceState.currentMood = slot.mood;
-        }
-      }
-      if (mesh.instanceColor) {
-        mesh.instanceColor.needsUpdate = true;
-      }
-    }
-    wasInHoldRef.current = isInHold;
-
     // Update slot animations
     slotManager.updateAnimations(clampedDelta);
 
-    // Update shader uniforms
-    if (material.uniforms) {
-      material.uniforms.breathPhase.value = currentBreathPhase;
-      material.uniforms.time.value = time;
+    // Update shader uniforms (only if material needs them)
+    if ('uniforms' in material && material.uniforms) {
+      const uniforms = material.uniforms as Record<string, { value: unknown }>;
+      if (materialVariant.needsBreathPhaseUpdate && 'breathPhase' in uniforms) {
+        uniforms.breathPhase.value = currentBreathPhase;
+      }
+      if (materialVariant.needsTimeUpdate && 'time' in uniforms) {
+        uniforms.time.value = time;
+      }
     }
 
     // Position lerp factor for smooth redistribution
@@ -624,6 +731,9 @@ export function ParticleSwarm({
         _tempScale.setScalar(0);
         _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
         mesh.setMatrixAt(i, _tempMatrix);
+        if (coreMesh) {
+          coreMesh.setMatrixAt(i, _tempMatrix);
+        }
         continue;
       }
 
@@ -694,15 +804,25 @@ export function ParticleSwarm({
       // Compose and set matrix
       _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
       mesh.setMatrixAt(i, _tempMatrix);
+      if (coreMesh) {
+        _tempScale.setScalar(finalScale * CORE_SCALE_FACTOR);
+        _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
+        coreMesh.setMatrixAt(i, _tempMatrix);
+      }
     }
 
     // Update instance count for rendering optimization
     mesh.count = Math.max(1, visibleCount);
     mesh.instanceMatrix.needsUpdate = true;
+    if (coreMesh) {
+      coreMesh.count = mesh.count;
+      coreMesh.instanceMatrix.needsUpdate = true;
+    }
 
     // Update highlight position for current user
     const wireframe = wireframeRef.current;
     const glowMesh = glowMeshRef.current;
+    const labelGroup = labelGroupRef.current;
     const userSlotIndex = currentUserSlotIndexRef.current;
 
     if (highlightCurrentUser && userSlotIndex >= 0 && userSlotIndex < states.length) {
@@ -716,7 +836,10 @@ export function ParticleSwarm({
 
         // Update label position (above the shard)
         const labelOffset = shardSize * 3;
-        setUserLabelPosition([_tempPosition.x, _tempPosition.y + labelOffset, _tempPosition.z]);
+        if (labelGroup) {
+          labelGroup.position.set(_tempPosition.x, _tempPosition.y + labelOffset, _tempPosition.z);
+          labelGroup.visible = true;
+        }
 
         // Style-specific rendering
         if (highlightStyle === 'wireframe') {
@@ -761,32 +884,71 @@ export function ParticleSwarm({
         // Shard not visible
         if (wireframe) wireframe.visible = false;
         if (glowMesh) glowMesh.visible = false;
-        setUserLabelPosition(null);
+        if (labelGroup) labelGroup.visible = false;
       }
     } else {
       // Highlight disabled or user not found
       if (wireframe) wireframe.visible = false;
       if (glowMesh) glowMesh.visible = false;
-      setUserLabelPosition(null);
+      if (labelGroup) labelGroup.visible = false;
     }
   });
 
-  // Set the PARTICLES layer on the instanced mesh for RefractionPipeline detection
+  const applyRefractionLayer = useCallback(
+    (mesh?: THREE.InstancedMesh | null) => {
+      const target = mesh ?? instancedMeshRef.current;
+      if (!target) return;
+
+      target.renderOrder = 1;
+      if (usesRefractionPipeline) {
+        target.layers.enable(RENDER_LAYERS.PARTICLES);
+      } else {
+        target.layers.disable(RENDER_LAYERS.PARTICLES);
+      }
+      target.userData.useRefraction = usesRefractionPipeline;
+    },
+    [usesRefractionPipeline],
+  );
+
   useEffect(() => {
-    const mesh = instancedMeshRef.current;
-    if (mesh) {
-      // Enable PARTICLES layer (layer 2) for refraction pipeline
-      mesh.layers.enable(RENDER_LAYERS.PARTICLES);
-    }
+    applyRefractionLayer();
+  }, [applyRefractionLayer]);
+
+  const applyCoreRenderState = useCallback((mesh?: THREE.InstancedMesh | null) => {
+    const target = mesh ?? coreMeshRef.current;
+    if (!target) return;
+
+    target.renderOrder = 0;
+    target.layers.disable(RENDER_LAYERS.PARTICLES);
   }, []);
+
+  useEffect(() => {
+    applyCoreRenderState();
+    const wireframe = wireframeRef.current;
+    const glowMesh = glowMeshRef.current;
+    if (wireframe) {
+      wireframe.renderOrder = 2;
+    }
+    if (glowMesh) {
+      glowMesh.renderOrder = 2;
+    }
+  }, [applyCoreRenderState]);
 
   return (
     <>
+      <instancedMesh
+        ref={coreMeshRef}
+        args={[coreGeometry, coreMaterial, performanceCap]}
+        frustumCulled={false}
+        name="Particle Swarm Core"
+        onUpdate={(mesh) => applyCoreRenderState(mesh)}
+      />
       <instancedMesh
         ref={instancedMeshRef}
         args={[geometry, material, performanceCap]}
         frustumCulled={false}
         name="Particle Swarm"
+        onUpdate={(mesh) => applyRefractionLayer(mesh)}
       />
       {/* Highlight elements for current user's shard */}
       {highlightCurrentUser && (
@@ -808,8 +970,8 @@ export function ParticleSwarm({
             name="User Shard Glow"
           />
           {/* "You" label above the shard */}
-          {userLabelPosition && (
-            <Html position={userLabelPosition} center>
+          <group ref={labelGroupRef} visible={false} name="User Shard Label">
+            <Html center>
               <div
                 style={{
                   background: 'rgba(0, 0, 0, 0.75)',
@@ -826,7 +988,7 @@ export function ParticleSwarm({
                 You
               </div>
             </Html>
-          )}
+          </group>
         </>
       )}
     </>

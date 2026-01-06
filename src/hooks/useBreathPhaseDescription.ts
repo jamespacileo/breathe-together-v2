@@ -1,5 +1,5 @@
 import { useWorld } from 'koota/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   breathPhase as breathPhaseTrait,
   phaseType as phaseTypeTrait,
@@ -14,23 +14,25 @@ export function useBreathPhaseDescription() {
   const world = useWorld();
   const [phaseLabel, setPhaseLabel] = useState<string>('breathe');
   const [phaseType, setPhaseType] = useState<number>(0);
+  const phaseTypeRef = useRef(phaseType);
 
   useEffect(() => {
-    // Find breath entity (there's only one)
-    const breathEntities = world.query(breathPhaseTrait, phaseTypeTrait);
+    phaseTypeRef.current = phaseType;
+  }, [phaseType]);
 
-    if (breathEntities.length === 0) {
-      return;
-    }
-
-    const breathEntity = breathEntities[0];
-
+  useEffect(() => {
     const updatePhase = () => {
       try {
+        // Find breath entity (there's only one)
+        const breathEntities = world.query(breathPhaseTrait, phaseTypeTrait);
+        if (breathEntities.length === 0) return;
+
+        const breathEntity = breathEntities[0];
         const currentPhaseType = breathEntity.get(phaseTypeTrait)?.value ?? 0;
 
         // Update state if phase changed
-        if (currentPhaseType !== phaseType) {
+        if (currentPhaseType !== phaseTypeRef.current) {
+          phaseTypeRef.current = currentPhaseType;
           setPhaseType(currentPhaseType);
 
           // Map phase type to human-readable label
@@ -50,7 +52,7 @@ export function useBreathPhaseDescription() {
     const interval = setInterval(updatePhase, 500);
 
     return () => clearInterval(interval);
-  }, [world, phaseType]);
+  }, [world]);
 
   return { phaseLabel, phaseType };
 }

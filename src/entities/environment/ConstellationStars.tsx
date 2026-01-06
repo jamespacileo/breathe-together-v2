@@ -14,7 +14,7 @@
  */
 
 import { Line } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
@@ -26,6 +26,7 @@ import {
   magnitudeToSize,
   STARS,
 } from '../../lib/constellationData';
+import { isUiEventTarget } from '../../lib/sceneInput';
 
 interface ConstellationStarsProps {
   /** Enable constellation rendering @default true */
@@ -36,11 +37,11 @@ interface ConstellationStarsProps {
   radius?: number;
   /** Star base size multiplier @default 2.0 */
   starSize?: number;
-  /** Star color - warm off-white for contrast @default '#fffaf0' */
+  /** Star color - warm gold for contrast @default '#ffd27a' */
   starColor?: string;
-  /** Constellation line color - warm cream @default '#e8d4b8' */
+  /** Constellation line color - warm gold @default '#f1c46b' */
   lineColor?: string;
-  /** Line opacity @default 0.5 */
+  /** Line opacity @default 0.75 */
   lineOpacity?: number;
   /** Line width @default 1.5 */
   lineWidth?: number;
@@ -77,10 +78,10 @@ export const ConstellationStars = memo(function ConstellationStars({
   showLines = true,
   radius = 25,
   starSize = 2.0,
-  starColor = '#ffdb6b',
-  lineColor = '#e5c95f',
-  lineOpacity = 0.8,
-  lineWidth = 3.0,
+  starColor = '#ffefc2',
+  lineColor = '#f9e2a4',
+  lineOpacity = 0.95,
+  lineWidth = 2.4,
   twinkle = true,
   twinkleSpeed = 1,
   opacity = 1.0,
@@ -88,6 +89,9 @@ export const ConstellationStars = memo(function ConstellationStars({
   const groupRef = useRef<THREE.Group>(null);
   const starsRef = useRef<THREE.Points>(null);
   const gmstRef = useRef(calculateGMST(new Date()));
+  const mouseRef = useRef(new THREE.Vector2(999, 999));
+  const { gl, events } = useThree();
+  const eventSource = (events.connected || gl.domElement) as HTMLElement;
 
   // Set layers on mount to exclude from DoF
   useEffect(() => {
@@ -95,6 +99,36 @@ export const ConstellationStars = memo(function ConstellationStars({
       starsRef.current.layers.set(RENDER_LAYERS.EFFECTS);
     }
   }, []);
+
+  useEffect(() => {
+    if (!eventSource) return;
+
+    const updateMouse = (event: PointerEvent) => {
+      if (isUiEventTarget(event.target)) {
+        mouseRef.current.set(999, 999);
+        return;
+      }
+
+      const rect = eventSource.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      mouseRef.current.set(x, y);
+    };
+
+    const clearMouse = () => {
+      mouseRef.current.set(999, 999);
+    };
+
+    eventSource.addEventListener('pointermove', updateMouse);
+    eventSource.addEventListener('pointerdown', updateMouse);
+    eventSource.addEventListener('pointerleave', clearMouse);
+
+    return () => {
+      eventSource.removeEventListener('pointermove', updateMouse);
+      eventSource.removeEventListener('pointerdown', updateMouse);
+      eventSource.removeEventListener('pointerleave', clearMouse);
+    };
+  }, [eventSource]);
 
   // Calculate star positions and metadata
   const { lineSegments, positions, sizes, colors } = useMemo(() => {
@@ -155,10 +189,10 @@ export const ConstellationStars = memo(function ConstellationStars({
       sizeArr[i] = sp.size;
 
       // Slightly warm tint for brighter stars
-      const warmth = sp.brightness * 0.15;
-      colorArr[i3] = Math.min(1, baseColor.r + warmth);
-      colorArr[i3 + 1] = baseColor.g;
-      colorArr[i3 + 2] = Math.max(0, baseColor.b - warmth * 0.5);
+      const warmth = sp.brightness * 0.25;
+      colorArr[i3] = Math.min(1, baseColor.r + warmth * 0.2);
+      colorArr[i3 + 1] = Math.min(1, baseColor.g + warmth * 0.12);
+      colorArr[i3 + 2] = Math.min(1, baseColor.b + warmth * 0.05);
     }
 
     return {
@@ -186,30 +220,44 @@ export const ConstellationStars = memo(function ConstellationStars({
         time: { value: 0 },
         opacity: { value: opacity },
         twinkleEnabled: { value: twinkle ? 1.0 : 0.0 },
+        mouse: { value: new THREE.Vector2(999, 999) },
+        hoverStrength: { value: 1.8 },
+        hoverRadius: { value: 0.7 },
+        edgeGlowStrength: { value: 0.9 },
+        edgeStart: { value: 0.5 },
       },
       vertexShader: `
         attribute float size;
         attribute vec3 color;
         varying vec3 vColor;
         varying float vSize;
+        varying vec2 vScreenPos;
 
         void main() {
           vColor = color;
           vSize = size;
 
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vec4 clipPosition = projectionMatrix * mvPosition;
           // Scale point size for closer viewing distance
-          gl_PointSize = size * (150.0 / -mvPosition.z);
-          gl_PointSize = max(gl_PointSize, 3.0); // Minimum 3px for visibility
-          gl_Position = projectionMatrix * mvPosition;
+          gl_PointSize = size * (220.0 / -mvPosition.z);
+          gl_PointSize = max(gl_PointSize, 3.5); // Minimum size for visibility
+          vScreenPos = clipPosition.xy / clipPosition.w;
+          gl_Position = clipPosition;
         }
       `,
       fragmentShader: `
         uniform float time;
         uniform float opacity;
         uniform float twinkleEnabled;
+        uniform vec2 mouse;
+        uniform float hoverStrength;
+        uniform float hoverRadius;
+        uniform float edgeGlowStrength;
+        uniform float edgeStart;
         varying vec3 vColor;
         varying float vSize;
+        varying vec2 vScreenPos;
 
         void main() {
           // Soft circular falloff for star glow
@@ -217,9 +265,9 @@ export const ConstellationStars = memo(function ConstellationStars({
           float dist = length(center);
 
           // Sharp core with soft glow
-          float core = smoothstep(0.5, 0.1, dist);
-          float glow = smoothstep(0.5, 0.0, dist) * 0.5;
-          float alpha = (core + glow) * opacity;
+          float core = smoothstep(0.5, 0.06, dist);
+          float glow = smoothstep(0.7, 0.0, dist);
+          float alpha = (core * 1.6 + glow * 1.2) * opacity;
 
           // Subtle twinkle based on position hash
           if (twinkleEnabled > 0.5) {
@@ -227,8 +275,18 @@ export const ConstellationStars = memo(function ConstellationStars({
             alpha *= twinkle;
           }
 
+          float edge = max(abs(vScreenPos.x), abs(vScreenPos.y));
+          float edgeGlow = smoothstep(edgeStart, 1.0, edge);
+
+          float hoverDist = distance(vScreenPos, mouse);
+          float hoverGlow = smoothstep(hoverRadius, 0.0, hoverDist);
+
+          float glowBoost = edgeGlow * edgeGlowStrength + hoverGlow * hoverStrength;
+          alpha *= 1.0 + glowBoost;
+
           // Warm glow color
-          vec3 finalColor = vColor + vec3(0.1, 0.05, 0.0) * glow;
+          vec3 warmGlow = vec3(1.0, 0.92, 0.6);
+          vec3 finalColor = vColor * (1.15 + glowBoost * 0.4) + warmGlow * (glow * 1.1 + glowBoost * 1.6);
 
           gl_FragColor = vec4(finalColor, alpha);
         }
@@ -236,6 +294,7 @@ export const ConstellationStars = memo(function ConstellationStars({
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
+      toneMapped: false,
     });
   }, [opacity, twinkle]);
 
@@ -246,6 +305,9 @@ export const ConstellationStars = memo(function ConstellationStars({
     // Update time uniform for twinkle
     if (material.uniforms.time) {
       material.uniforms.time.value = state.clock.elapsedTime * twinkleSpeed;
+    }
+    if (material.uniforms.mouse) {
+      material.uniforms.mouse.value.copy(mouseRef.current);
     }
 
     // Update celestial rotation based on real time
@@ -280,14 +342,22 @@ export const ConstellationStars = memo(function ConstellationStars({
       {/* Constellation lines */}
       {showLines &&
         lineSegments.map((seg, idx) => (
-          <Line
-            key={`${seg.constellation}-${idx}`}
-            points={[seg.start, seg.end]}
-            color={lineColor}
-            lineWidth={lineWidth}
-            transparent
-            opacity={lineOpacity}
-          />
+          <group key={`${seg.constellation}-${idx}`}>
+            <Line
+              points={[seg.start, seg.end]}
+              color={lineColor}
+              lineWidth={lineWidth * 1.8}
+              transparent
+              opacity={lineOpacity * 0.35}
+            />
+            <Line
+              points={[seg.start, seg.end]}
+              color={lineColor}
+              lineWidth={lineWidth}
+              transparent
+              opacity={lineOpacity}
+            />
+          </group>
         ))}
     </group>
   );

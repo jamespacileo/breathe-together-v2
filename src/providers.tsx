@@ -22,7 +22,7 @@ export function KootaSystems({
 }) {
   const isNested = use(NestedCheck);
   const world = useWorld();
-  const { invalidate } = useThree();
+  const { invalidate, frameloop } = useThree();
 
   useFrame((_state, delta) => {
     if (isNested) {
@@ -41,10 +41,10 @@ export function KootaSystems({
       logger.warn('[breathSystem] ECS error (expected during Triplex hot-reload):', error);
     }
 
-    // Trigger re-render for on-demand frameloop
-    // Always invalidate regardless of breath system state to ensure all scene
-    // updates (camera, user interactions, state changes) are rendered
-    invalidate();
+    // Trigger re-render only for on-demand frameloop
+    if (frameloop === 'demand') {
+      invalidate();
+    }
   });
 
   return <NestedCheck.Provider value={true}>{children}</NestedCheck.Provider>;

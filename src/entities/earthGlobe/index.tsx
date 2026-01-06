@@ -9,14 +9,14 @@
  * - Layered atmosphere halo (3 pastel-colored translucent spheres)
  * - Inner glow (additive blended fresnel for warm light bloom)
  * - Animated mist layer (noise-based haze that breathes)
- * - Sparkle aura (visible floating dust particles)
+ * - Cloudlet aura (soft orbital haze)
  * - Equator ring (subtle rose gold accent ring)
  *
  * Visual style: Monument Valley pastel aesthetic with soft, ethereal glow.
- * Uses drei's <Sphere>, <Ring>, and <Sparkles> components.
+ * Uses drei's <Sphere> and <Ring> components.
  */
 
-import { Ring, Sparkles, Sphere, useTexture } from '@react-three/drei';
+import { Ring, Sphere, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useEffect, useMemo, useRef } from 'react';
@@ -24,6 +24,7 @@ import * as THREE from 'three';
 
 import { useDisposeGeometries, useDisposeMaterials } from '../../hooks/useDisposeMaterials';
 import { breathPhase } from '../breath/traits';
+import { AtmosphericParticles } from '../particle/AtmosphericParticles';
 
 // Vertex shader for textured globe with fresnel
 const globeVertexShader = `
@@ -191,11 +192,11 @@ interface EarthGlobeProps {
   enableRotation?: boolean;
   /** Show atmosphere halo layers @default true */
   showAtmosphere?: boolean;
-  /** Show sparkle aura @default true */
+  /** Show cloudlet aura @default true */
   showSparkles?: boolean;
   /** Show equator ring @default true */
   showRing?: boolean;
-  /** Sparkle count @default 60 */
+  /** Cloudlet count @default 60 */
   sparkleCount?: number;
   /** Show inner glow effect @default true */
   showGlow?: boolean;
@@ -397,15 +398,22 @@ export function EarthGlobe({
       {/* Mist layer - animated noise haze */}
       {showMist && <Sphere args={[radius * 1.15, 32, 32]} material={mistMaterial} />}
 
-      {/* Soft sparkle aura - floating dust particles (more visible) */}
+      {/* Cloudlet aura - soft orbital haze */}
       {showSparkles && (
-        <Sparkles
-          count={sparkleCount}
-          size={5}
-          scale={[radius * 3.5, radius * 3.5, radius * 3.5]}
-          speed={0.25}
-          opacity={0.6}
-          color="#f8d0a8"
+        <AtmosphericParticles
+          count={Math.max(12, Math.round(sparkleCount * 0.35))}
+          size={0.14}
+          baseOpacity={0.08}
+          breathingOpacity={0.08}
+          color="#d6dde3"
+          minRadius={radius * 3.2}
+          maxRadius={radius * 4.6}
+          minSpeed={0.01}
+          maxSpeed={0.03}
+          maxInclination={0.35}
+          heightRange={0.9}
+          sizeRange={[0.8, 1.8]}
+          opacityRange={[0.4, 0.9]}
         />
       )}
 

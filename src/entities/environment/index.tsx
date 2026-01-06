@@ -9,6 +9,7 @@ import { BreathSparkles } from './BreathSparkles';
 import { CloudSystem } from './CloudSystem';
 import { ConstellationStars } from './ConstellationStars';
 import { EditorGrid } from './EditorGrid';
+import { NebulaBackdrop } from './NebulaBackdrop';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { StylizedSun } from './StylizedSun';
 import { SubtleLightRays } from './SubtleLightRays';
@@ -32,6 +33,8 @@ interface EnvironmentProps {
   showConstellations?: boolean;
   /** Show constellation connecting lines @default true */
   showConstellationLines?: boolean;
+  /** Show distant nebula backdrop near constellations @default true */
+  showNebulae?: boolean;
   /** Show stylized sun @default true */
   showSun?: boolean;
   /** Cloud opacity @default 0.4 */
@@ -141,6 +144,7 @@ export function Environment({
   showStars = false,
   showConstellations = true,
   showConstellationLines = true,
+  showNebulae = true,
   showSun = true,
   cloudOpacity = 0.4,
   cloudSpeed = 0.8,
@@ -153,7 +157,7 @@ export function Environment({
   sunSize = 8,
   sunIntensity = 1,
   showSunGizmo = false,
-  _showConstellationGizmos = false,
+  showConstellationGizmos = false,
   stageMode = false,
   showGridFloor = true,
   gridSize = 20,
@@ -295,6 +299,9 @@ export function Environment({
         />
       )}
 
+      {/* Soft nebula backdrop - subtle galaxy haze behind constellations */}
+      {showNebulae && <NebulaBackdrop />}
+
       {/* Stylized sun - positioned based on real astronomical calculations */}
       {/* Warm gradient with rays, breathing-synchronized pulsing */}
       {showSun && <StylizedSun size={sunSize} intensity={sunIntensity} showGizmo={showSunGizmo} />}
@@ -315,6 +322,9 @@ export function Environment({
 
       {/* Rim light - subtle backlight for depth */}
       <directionalLight position={[0, 5, -10]} intensity={0.2} color="#ffd9c4" />
+
+      {/* Edge light - very dim side light to help define transmission glass edges */}
+      <directionalLight position={[12, 6, 0]} intensity={0.15} color="#fff8f0" />
 
       {/* Subtle hemisphere light for natural sky/ground color blending */}
       <hemisphereLight args={['#ffe8d6', '#f5e6d3', 0.4]} />

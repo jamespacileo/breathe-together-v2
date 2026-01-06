@@ -52,9 +52,9 @@ describe('presence', () => {
   });
 
   describe('hashSession', () => {
-    it('returns first 8 characters of session ID', () => {
-      expect(hashSession('12345678-abcd-efgh')).toBe('12345678');
-      expect(hashSession('abcdefghijklmnop')).toBe('abcdefgh');
+    it('returns full session ID', () => {
+      expect(hashSession('12345678-abcd-efgh')).toBe('12345678-abcd-efgh');
+      expect(hashSession('abcdefghijklmnop')).toBe('abcdefghijklmnop');
     });
 
     it('throws for short session IDs', () => {

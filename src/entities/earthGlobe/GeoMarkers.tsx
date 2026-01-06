@@ -89,7 +89,7 @@ function HolographicMaterial({
       uniforms={uniforms}
       transparent
       depthTest={true}
-      depthWrite={true}
+      depthWrite={false}
       side={THREE.DoubleSide}
       vertexShader={`
         varying vec3 vNormal;
@@ -160,7 +160,7 @@ function CountBadge({ count, offsetX }: { count: number; offsetX: number }) {
           transparent
           opacity={0.95}
           depthTest={true}
-          depthWrite={true}
+          depthWrite={false}
         />
       </RoundedBox>
       {/* Count number */}

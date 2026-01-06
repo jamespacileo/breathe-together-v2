@@ -51,6 +51,7 @@ export const TUNING_DEFAULTS = {
   showStars: false,
   showConstellations: true,
   showConstellationLines: true,
+  showNebulae: true,
   showSun: true,
   cloudOpacity: 0.4,
   cloudSpeed: 0.3,
@@ -111,6 +112,16 @@ export const TUNING_DEFAULTS = {
   gridSize: 30,
   gridDivisions: 6,
   gridColor: '#e0e0e0',
+
+  // Shard Swarm (dev-only) - material selection
+  shardMaterialType: 'polished' as
+    | 'frosted'
+    | 'simple'
+    | 'transmission'
+    | 'polished'
+    | 'cel'
+    | 'bubble'
+    | 'chromatic',
 
   // Debug (dev-only)
   showOrbitBounds: false,
@@ -205,6 +216,7 @@ export interface DevControlsState {
   showStars: boolean;
   showConstellations: boolean;
   showConstellationLines: boolean;
+  showNebulae: boolean;
   showSun: boolean;
   cloudOpacity: number;
   cloudSpeed: number;
@@ -266,6 +278,16 @@ export interface DevControlsState {
   gridDivisions: number;
   gridColor: string;
 
+  // Shard Swarm
+  shardMaterialType:
+    | 'frosted'
+    | 'simple'
+    | 'transmission'
+    | 'polished'
+    | 'cel'
+    | 'bubble'
+    | 'chromatic';
+
   // Debug
   showOrbitBounds: boolean;
   showPhaseMarkers: boolean;
@@ -325,6 +347,7 @@ function getDefaultDevControls(): DevControlsState {
     showStars: TUNING_DEFAULTS.showStars,
     showConstellations: TUNING_DEFAULTS.showConstellations,
     showConstellationLines: TUNING_DEFAULTS.showConstellationLines,
+    showNebulae: TUNING_DEFAULTS.showNebulae,
     showSun: TUNING_DEFAULTS.showSun,
     cloudOpacity: TUNING_DEFAULTS.cloudOpacity,
     cloudSpeed: TUNING_DEFAULTS.cloudSpeed,
@@ -367,6 +390,7 @@ function getDefaultDevControls(): DevControlsState {
     gridSize: TUNING_DEFAULTS.gridSize,
     gridDivisions: TUNING_DEFAULTS.gridDivisions,
     gridColor: TUNING_DEFAULTS.gridColor,
+    shardMaterialType: TUNING_DEFAULTS.shardMaterialType,
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
@@ -732,6 +756,11 @@ export function useDevControls(): DevControlsState {
               label: 'Show Lines',
               hint: 'Toggle constellation connecting lines between stars.\n\n**Style:** Soft dashed lines in warm gold color.',
             },
+            showNebulae: {
+              value: TUNING_DEFAULTS.showNebulae,
+              label: 'Nebulae',
+              hint: 'Toggle subtle distant galaxy haze behind constellations (drei Clouds + Stars).\n\n**Style:** Soft pastel nebula clusters + compressed star band',
+            },
             constellationStarSize: {
               value: TUNING_DEFAULTS.constellationStarSize,
               min: 0.1,
@@ -1070,6 +1099,21 @@ export function useDevControls(): DevControlsState {
         },
       },
       { collapsed: false, order: 4 },
+    ),
+
+    // ==========================================
+    // 6.5. SHARD SWARM (material selection)
+    // ==========================================
+    'Shard Swarm': folder(
+      {
+        shardMaterialType: {
+          value: TUNING_DEFAULTS.shardMaterialType,
+          options: ['polished', 'frosted', 'simple', 'transmission', 'cel', 'bubble', 'chromatic'],
+          label: 'Material Type',
+          hint: '**polished** = Refined glass with Schlick Fresnel (default, realistic)\n**frosted** = Soft glow shader (vibrant, colorful)\n**simple** = Basic transparency (good performance)\n**transmission** = Subtle glass shader\n**cel** = Toon-banded (3 distinct layers, stylized)\n**bubble** = Candy glass (high saturation, playful)\n**chromatic** = Prism effect (rainbow edges, premium)\n\n**When to adjust:** Test materials to find best aesthetic for scene',
+        },
+      },
+      { collapsed: false, order: 4.5 },
     ),
 
     // ==========================================

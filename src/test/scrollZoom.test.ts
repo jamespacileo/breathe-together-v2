@@ -5,8 +5,8 @@
  * These tests verify the zoom calculation logic and boundary enforcement.
  */
 
-import { MathUtils } from 'three';
 import { describe, expect, it } from 'vitest';
+import { calculateTargetZoom } from '../lib/sceneInput';
 
 /**
  * Zoom calculation constants (mirroring MomentumControls defaults)
@@ -17,28 +17,6 @@ const ZOOM_DEFAULTS = {
   speed: 0.001,
   damping: 0.15,
 };
-
-/**
- * Simulates the zoom calculation logic from MomentumControls
- * @param currentZoom Current zoom level
- * @param wheelDelta Wheel delta from scroll event (positive = scroll down = zoom out)
- * @param config Zoom configuration
- * @returns New target zoom level
- */
-function calculateTargetZoom(
-  currentZoom: number,
-  wheelDelta: number,
-  config: {
-    min: number;
-    max: number;
-    speed: number;
-  } = ZOOM_DEFAULTS,
-): number {
-  // Negative delta = scroll up = zoom in (increase zoom)
-  // Positive delta = scroll down = zoom out (decrease zoom)
-  const zoomDelta = -wheelDelta * config.speed;
-  return MathUtils.clamp(currentZoom + zoomDelta, config.min, config.max);
-}
 
 describe('Scroll Zoom Calculation', () => {
   describe('Basic zoom behavior', () => {

@@ -181,6 +181,13 @@ export function RibbonSystem({
     });
   }, [instances, showInspiration, showWelcome, showDecorative, customMessages.length]);
 
+  const maxInstances = config.maxInstances ?? Number.POSITIVE_INFINITY;
+  const renderedInstances = useMemo(() => {
+    if (!Number.isFinite(maxInstances) || maxInstances <= 0) return [];
+    if (visibleInstances.length <= maxInstances) return visibleInstances;
+    return visibleInstances.slice(0, maxInstances);
+  }, [visibleInstances, maxInstances]);
+
   // Get inspiration with breath sync
   const inspiration = useInspirationRibbon({
     enabled: showInspiration,
@@ -228,7 +235,7 @@ export function RibbonSystem({
     groupRef.current.rotation.y -= config.globeSyncSpeed;
 
     // Per-zone scroll
-    for (const inst of visibleInstances) {
+    for (const inst of renderedInstances) {
       const scrollGroup = scrollRefs.current.get(inst.zone.id);
       if (scrollGroup) {
         const speed =
@@ -241,13 +248,13 @@ export function RibbonSystem({
   // Group by zone
   const byZone = useMemo(() => {
     const map = new Map<string, ResolvedInstance[]>();
-    for (const inst of visibleInstances) {
+    for (const inst of renderedInstances) {
       const arr = map.get(inst.zone.id) || [];
       arr.push(inst);
       map.set(inst.zone.id, arr);
     }
     return map;
-  }, [visibleInstances]);
+  }, [renderedInstances]);
 
   const getScrollRef = (zoneId: string) => (el: Group | null) => {
     if (el) scrollRefs.current.set(zoneId, el);

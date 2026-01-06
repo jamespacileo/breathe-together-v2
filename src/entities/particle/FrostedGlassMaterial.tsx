@@ -20,12 +20,21 @@ import * as THREE from 'three';
 // Vertex shader - passes normals and instance colors to fragment
 // Uses THREE.js built-in instanceColor attribute for per-instance colors
 const shardVertexShader = `
+#include <common>
 varying vec3 vNormal;
 varying vec3 vViewPosition;
 varying vec3 vColor;
 
 void main() {
-  vNormal = normalize(normalMatrix * normal);
+  #ifdef USE_INSTANCING
+    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = mat3(normalMatrix) * mat3(instanceMatrix) * normal;
+  #else
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = normalMatrix * normal;
+  #endif
+
+  vNormal = normalize(transformedNormal);
 
   // Use instance color from InstancedMesh (set via setColorAt)
   #ifdef USE_INSTANCING_COLOR
@@ -34,7 +43,6 @@ void main() {
     vColor = vec3(0.85, 0.75, 0.65); // Fallback warm neutral
   #endif
 
-  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   vViewPosition = -mvPosition.xyz;
   gl_Position = projectionMatrix * mvPosition;
 }
@@ -58,9 +66,9 @@ void main() {
   // Breathing luminosity pulse - subtle brightness shift
   float breathLuminosity = 1.0 + breathPhase * 0.15;
 
-  // Gem-like transparency: much more transparent for gem appearance
-  // Base alpha varies from 0.15 (center) to 0.45 (edges) via fresnel
-  float baseAlpha = mix(0.15, 0.45, fresnel);
+  // Gem-like transparency: very transparent for atmospheric integration
+  // Base alpha varies from 0.20 (center) to 0.55 (edges) via fresnel
+  float baseAlpha = mix(0.20, 0.55, fresnel);
 
   // Apply mood color as tint (heavily reduced for gem transparency)
   vec3 gemTint = vColor * 0.4; // Reduced from 0.7 to 0.4 for lighter tint
@@ -82,14 +90,14 @@ void main() {
 
   // Atmospheric integration - very slight desaturation for cohesion
   vec3 desaturated = vec3(dot(colorWithRim, vec3(0.299, 0.587, 0.114)));
-  vec3 finalColor = mix(desaturated, colorWithRim, 0.90);
+  vec3 finalColor = mix(desaturated, colorWithRim, 0.95);
 
-  // Environmental darkening - match dark night sky lighting (not bright studio)
-  // Shards should appear lit by environment (15-25% luminosity), not self-illuminated
-  vec3 envDarkened = finalColor * 0.4; // Scale to match atmospheric lighting
+  // Vibrant glass - balanced brightness for scene integration
+  // Moderate brightness to blend with atmospheric scene
+  vec3 finalColorBrightened = finalColor * 0.75; // Balanced (was 0.92 too bright, 0.4 too dark)
 
   // Output with transparency for gem-like appearance
-  gl_FragColor = vec4(envDarkened, baseAlpha * breathLuminosity);
+  gl_FragColor = vec4(finalColorBrightened, baseAlpha * breathLuminosity);
 }
 `;
 
