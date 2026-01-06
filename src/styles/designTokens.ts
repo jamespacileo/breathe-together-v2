@@ -25,53 +25,64 @@ export { MOOD_COLORS } from '../lib/colors';
  * This makes it clear what each color is for and prevents misuse.
  */
 export const UI_COLORS = {
-  // Text hierarchy (dark to light)
+  // Text hierarchy (cosmic blue-gray scale)
+  // For use on LIGHT backgrounds (glass panels, modals)
   text: {
-    primary: '#3d3229', // Darkest - headings, important text
-    secondary: '#5a4d42', // Medium - body text, labels
-    tertiary: '#7a6b5e', // Light - icons, secondary labels
-    muted: '#8b7a6a', // Lightest - hints, placeholders
-    dim: '#a89888', // Very light - disabled states
+    primary: '#1a2f4d', // Deep blue-gray - headings, important text
+    secondary: '#2d4a66', // Medium blue-gray - body text, labels
+    tertiary: '#4a6b8a', // Light blue-gray - icons, secondary labels
+    muted: '#6b88a3', // Muted blue - hints, placeholders
+    dim: '#8fa3b8', // Very light blue - disabled states
   },
 
-  // Accent colors
+  // Text for DARK backgrounds (direct on scene, overlays)
+  // High contrast white/light text for readability on cosmic blue gradient
+  textOnDark: {
+    primary: '#ffffff', // Pure white - main text, titles
+    secondary: '#e6f2ff', // Very light blue - body text, labels (4.5:1 on dark blue)
+    tertiary: '#b8d4e8', // Light blue - secondary text (3:1 on dark blue)
+    muted: '#8fb8d1', // Muted light blue - hints (still legible)
+    accent: '#4de6de', // Neon teal - accent text (very high contrast)
+  },
+
+  // Accent colors (dynamic - updated by useMoodAccentInjection hook)
   accent: {
-    gold: '#c9a06c', // Primary accent - buttons, highlights
-    goldLight: '#d4a574', // Lighter gold - progress bars, indicators
-    goldGlow: 'rgba(201, 160, 108, 0.5)', // Glow effect for gold elements
-    textGlow: '#c4a882', // Text glow/shadow color
+    default: '#4de6de', // Presence teal (default)
+    defaultGlow: 'rgba(77, 230, 222, 0.5)', // Default glow
+    textGlow: 'rgba(77, 230, 222, 0.8)', // Text glow/shadow
   },
 
-  // Backgrounds & surfaces
+  // Backgrounds & surfaces (cosmic alice blue)
   surface: {
-    glass: 'rgba(252, 250, 246, 0.72)', // Glass-morphism background
-    glassLight: 'rgba(252, 250, 246, 0.6)', // Lighter glass (buttons)
-    glassHover: 'rgba(252, 250, 246, 0.9)', // Hover state
-    backdrop: 'rgba(253, 251, 247, 0.5)', // Soft backdrop
-    backdropTransparent: 'rgba(253, 251, 247, 0)', // Gradient endpoint
-    overlay: 'rgba(0, 0, 0, 0.3)', // Modal overlay
+    glass: 'rgba(240, 248, 255, 0.85)', // Alice blue glass - INCREASED opacity for better text contrast
+    glassLight: 'rgba(240, 248, 255, 0.72)', // Lighter glass (buttons) - swapped values
+    glassHover: 'rgba(240, 248, 255, 0.92)', // Hover state - INCREASED for clarity
+    backdrop: 'rgba(240, 248, 255, 0.4)', // Soft backdrop
+    backdropTransparent: 'rgba(240, 248, 255, 0)', // Gradient endpoint
+    overlay: 'rgba(21, 43, 77, 0.5)', // Navy overlay - INCREASED opacity
   },
 
-  // Borders & dividers
+  // Borders & dividers (cosmic teal/navy)
   border: {
-    default: 'rgba(160, 140, 120, 0.12)', // Standard border
-    light: 'rgba(160, 140, 120, 0.15)', // Lighter border (icons)
-    dark: 'rgba(140, 123, 108, 0.1)', // Darker border (HUD)
+    default: 'rgba(58, 150, 174, 0.4)', // Teal border - INCREASED visibility
+    light: 'rgba(58, 150, 174, 0.25)', // Light teal (subtle)
+    dark: 'rgba(21, 43, 77, 0.5)', // Navy border (HUD) - INCREASED
+    onDark: 'rgba(240, 248, 255, 0.3)', // White/light border for dark backgrounds
   },
 
-  // Shadows
+  // Shadows (cosmic tones)
   shadow: {
-    soft: '0 2px 12px rgba(0, 0, 0, 0.06)', // Default shadow
-    medium: '0 6px 20px rgba(0, 0, 0, 0.1)', // Hover shadow
-    strong: '0 20px 50px rgba(138, 131, 124, 0.08)', // Panel shadow
-    glow: '0 0 8px rgba(201, 160, 108, 0.4)', // Accent glow
-    glowStrong: '0 4px 16px rgba(201, 160, 108, 0.6)', // Strong accent glow
+    soft: '0 2px 12px rgba(21, 43, 77, 0.08)', // Navy shadow
+    medium: '0 6px 20px rgba(21, 43, 77, 0.12)', // Deeper navy
+    strong: '0 20px 50px rgba(58, 150, 174, 0.15)', // Teal shadow
+    glow: '0 0 8px var(--color-accent-glow)', // Dynamic glow (uses CSS variable)
+    glowStrong: '0 4px 16px var(--color-accent-glow)', // Strong dynamic glow
   },
 
   // Utility colors
   utility: {
     white: '#ffffff',
-    subtleGlow: 'rgba(255, 252, 245, 1)', // Text glow on dark
+    subtleGlow: 'rgba(240, 248, 255, 1)', // Alice blue glow
   },
 } as const;
 
@@ -234,7 +245,7 @@ export const STYLES = {
 
   // Primary accent button
   accentButton: {
-    background: UI_COLORS.accent.gold,
+    background: UI_COLORS.accent.default,
     color: UI_COLORS.utility.white,
     border: 'none',
     borderRadius: BORDER_RADIUS.lg,

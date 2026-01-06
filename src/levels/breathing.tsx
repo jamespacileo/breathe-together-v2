@@ -21,6 +21,7 @@ import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
 import { useBreathPhaseDescription } from '../hooks/useBreathPhaseDescription';
 import { useDevControls } from '../hooks/useDevControls';
 import { useInspirationInit } from '../hooks/useInspirationInit';
+import { useMoodAccentInjection } from '../hooks/useMoodAccentInjection';
 import { usePresence } from '../hooks/usePresence';
 import { useBreathingLevelStore } from '../stores/breathingLevelStore';
 import type { BreathingLevelProps } from '../types/sceneProps';
@@ -53,7 +54,10 @@ export function BreathingLevel({
   // Presence API (synchronized user positions)
   // Users array is sorted by ID on server, ensuring identical particle positions
   // across all connected clients for a shared visual experience
-  const { users, countryCounts, sessionId } = usePresence();
+  const { users, countryCounts, sessionId, mood } = usePresence();
+
+  // Inject mood-based accent colors into CSS variables for dynamic UI theming
+  useMoodAccentInjection(mood);
 
   // Accessibility - breath phase description for screen readers
   // Note: phaseLabel available via useBreathPhaseDescription() for future A11y integration
@@ -127,6 +131,7 @@ export function BreathingLevel({
               showStars={devControls.showStars}
               showConstellations={devControls.showConstellations}
               showConstellationLines={devControls.showConstellationLines}
+              showNebulae={devControls.showNebulae}
               showSun={devControls.showSun}
               cloudOpacity={devControls.cloudOpacity}
               cloudSpeed={devControls.cloudSpeed}
@@ -177,6 +182,7 @@ export function BreathingLevel({
               baseShardSize={shardSize}
               highlightCurrentUser={devControls.highlightCurrentUser}
               highlightStyle={devControls.highlightStyle}
+              materialType={devControls.shardMaterialType}
             />
           )}
 

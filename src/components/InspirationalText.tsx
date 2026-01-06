@@ -98,10 +98,13 @@ function InspirationalTextComponent() {
   // Format message for display
   const quote = message ? { top: message.top, bottom: message.bottom } : { top: '', bottom: '' };
 
-  // Design tokens - using centralized values
+  // Design tokens - using centralized values and CSS variables for dynamic mood colors
   const colors = {
     text: UI_COLORS.text.primary,
-    textGlow: UI_COLORS.accent.goldGlow,
+    textGlow:
+      typeof document !== 'undefined'
+        ? getComputedStyle(document.documentElement).getPropertyValue('--color-accent-glow').trim()
+        : UI_COLORS.accent.defaultGlow,
     subtleGlow: UI_COLORS.utility.subtleGlow,
     backdropInner: UI_COLORS.surface.backdrop,
     backdropOuter: UI_COLORS.surface.backdropTransparent,

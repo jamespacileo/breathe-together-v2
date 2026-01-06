@@ -31,10 +31,16 @@ function BreathCycleIndicatorComponent() {
   const dot2Ref = useRef<HTMLSpanElement>(null);
   const prevPhaseRef = useRef(-1);
 
-  // Design tokens
-  const activeColor = UI_COLORS.accent.gold;
+  // Design tokens - read from CSS variables for dynamic mood-based colors
+  const activeColor =
+    typeof document !== 'undefined'
+      ? getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim()
+      : UI_COLORS.accent.default;
   const inactiveColor = UI_COLORS.text.dim;
-  const glowColor = UI_COLORS.accent.goldGlow;
+  const glowColor =
+    typeof document !== 'undefined'
+      ? getComputedStyle(document.documentElement).getPropertyValue('--color-accent-glow').trim()
+      : UI_COLORS.accent.defaultGlow;
 
   // Memoize helper functions to prevent recreation on each render
   const updateNumber = useCallback(

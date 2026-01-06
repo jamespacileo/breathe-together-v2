@@ -11,18 +11,16 @@ import type { MoodId } from '../constants';
  */
 
 /**
- * Monument Valley Palette - extremely muted atmospheric colors for transparent gem shards
- * Desaturated by 65-70% in HSL space for misty, atmospheric night sky integration
- * Colors act as subtle tints through transparent glass (alpha 0.15-0.45)
+ * Monument Valley Palette - vibrant gem colors that read clearly in UI + scene
+ * Tuned for distinct mood recognition while staying cohesive with the sky gradient.
  *
- * HSL desaturation approach ensures proper color grading vs RGB multiplication
  * Each color maps directly to one mood category (1:1 mapping)
  */
 export const MONUMENT_VALLEY_PALETTE = {
-  gratitude: '#c7c5ad', // Misty beige-gold - appreciation (HSL: 55°, 20%, 73%)
-  presence: '#a3bab8', // Pale aqua-gray - being here (HSL: 175°, 15%, 68%)
-  release: '#9badb5', // Soft blue-gray - letting go (HSL: 200°, 18%, 66%)
-  connection: '#c0abb4', // Dusty mauve-gray - connection (HSL: 330°, 18%, 71%)
+  gratitude: '#ffbe0b', // Warm gold
+  presence: '#06d6a0', // Teal/mint
+  release: '#118ab2', // Deep blue
+  connection: '#ef476f', // Rose
 } as const;
 
 /**
@@ -35,15 +33,14 @@ export function getMonumentValleyMoodColor(moodId: MoodId | '' | undefined): str
 }
 
 /**
- * Neon-saturated mood colors for vibrant shard rim glow
- * Higher saturation (55-60%) for neon effect while maintaining hue identity
- * Used in ParticleSwarm for vibrant mood-colored edges on transparent glass shards
+ * Neon-saturated mood colors for vibrant shard inner glow
+ * Used in RefractionPipeline for vivid mood-colored accents on glass shards
  */
 export const NEON_MOOD_PALETTE = {
-  gratitude: '#f0d98a', // Neon warm gold - HSL: 55°, 55%, 74%
-  presence: '#6dd9d2', // Neon teal - HSL: 175°, 60%, 64%
-  release: '#6eb8d9', // Neon sky blue - HSL: 200°, 60%, 64%
-  connection: '#e89dc4', // Neon rose-pink - HSL: 330°, 60%, 76%
+  gratitude: '#ffbe0b', // Warm gold
+  presence: '#06d6a0', // Teal/mint
+  release: '#118ab2', // Deep blue
+  connection: '#ef476f', // Rose
 } as const;
 
 /**
@@ -56,3 +53,31 @@ export const MOOD_COLORS = MONUMENT_VALLEY_PALETTE;
  * Alias for test compatibility
  */
 export const getMoodColor = getMonumentValleyMoodColor;
+
+/**
+ * Get accent color for current mood (for UI elements)
+ * Uses neon palette for vibrant UI accents
+ *
+ * @param mood - Current mood selection (null defaults to presence teal)
+ * @returns Hex color string for the mood's accent color
+ */
+export function getMoodAccentColor(mood: MoodId | null): string {
+  if (!mood) return NEON_MOOD_PALETTE.presence; // Default to teal
+  return NEON_MOOD_PALETTE[mood];
+}
+
+/**
+ * Get accent glow color (50% opacity) for current mood
+ * Used for shadows, highlights, and glow effects
+ *
+ * @param mood - Current mood selection (null defaults to presence teal)
+ * @returns RGBA color string with 0.5 opacity
+ */
+export function getMoodAccentGlow(mood: MoodId | null): string {
+  const accent = getMoodAccentColor(mood);
+  // Convert hex to rgba with 0.5 opacity
+  const r = Number.parseInt(accent.slice(1, 3), 16);
+  const g = Number.parseInt(accent.slice(3, 5), 16);
+  const b = Number.parseInt(accent.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, 0.5)`;
+}

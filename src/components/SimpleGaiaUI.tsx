@@ -229,7 +229,16 @@ export function SimpleGaiaUI({
         // Intensity peaks during inhale (phase 0) and hold-in (phase 1)
         const glowIntensity =
           phaseIndex === 0 || phaseIndex === 1 ? 0.4 + phaseProgress * 0.3 : 0.2;
-        progressContainerRef.current.style.boxShadow = `0 0 ${8 + glowIntensity * 12}px rgba(201, 160, 108, ${glowIntensity})`;
+        // Use CSS variable for dynamic mood-based accent color
+        const accentColor = getComputedStyle(document.documentElement)
+          .getPropertyValue('--color-accent')
+          .trim();
+        // Extract RGB from hex color
+        const hex = accentColor.replace('#', '');
+        const r = Number.parseInt(hex.slice(0, 2), 16);
+        const g = Number.parseInt(hex.slice(2, 4), 16);
+        const b = Number.parseInt(hex.slice(4, 6), 16);
+        progressContainerRef.current.style.boxShadow = `0 0 ${8 + glowIntensity * 12}px rgba(${r}, ${g}, ${b}, ${glowIntensity})`;
       }
 
       animationId = requestAnimationFrame(updatePhase);
@@ -262,6 +271,7 @@ export function SimpleGaiaUI({
   // Focus Mode: Fade out UI after inactivity
   useEffect(() => {
     let timeout: NodeJS.Timeout;
+    const capture = true;
 
     const resetInactivity = () => {
       setIsVisible(true);
@@ -272,15 +282,21 @@ export function SimpleGaiaUI({
       }
     };
 
-    window.addEventListener('mousemove', resetInactivity);
-    window.addEventListener('mousedown', resetInactivity);
+    window.addEventListener('mousemove', resetInactivity, capture);
+    window.addEventListener('mousedown', resetInactivity, capture);
+    window.addEventListener('pointermove', resetInactivity, capture);
+    window.addEventListener('pointerdown', resetInactivity, capture);
+    window.addEventListener('touchstart', resetInactivity, capture);
     window.addEventListener('keydown', resetInactivity);
 
     resetInactivity();
 
     return () => {
-      window.removeEventListener('mousemove', resetInactivity);
-      window.removeEventListener('mousedown', resetInactivity);
+      window.removeEventListener('mousemove', resetInactivity, capture);
+      window.removeEventListener('mousedown', resetInactivity, capture);
+      window.removeEventListener('pointermove', resetInactivity, capture);
+      window.removeEventListener('pointerdown', resetInactivity, capture);
+      window.removeEventListener('touchstart', resetInactivity, capture);
       window.removeEventListener('keydown', resetInactivity);
       clearTimeout(timeout);
     };
