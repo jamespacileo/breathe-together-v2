@@ -50,7 +50,7 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
     () =>
       `flex items-center justify-center rounded-full cursor-pointer shrink-0
        bg-glass-light backdrop-blur-[20px] border border-border-light
-       shadow-soft text-warm-gray
+       shadow-soft
        transition-all duration-250 ease-smooth
        hover:bg-glass-hover hover:shadow-medium hover:-translate-y-0.5
        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold/50`,
@@ -89,7 +89,8 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
                 height: `${buttonSize}px`,
                 minWidth: `${buttonSize}px`,
                 minHeight: `${buttonSize}px`,
-                color: enabled && !isDisabled ? 'var(--color-accent-gold)' : undefined,
+                color:
+                  enabled && !isDisabled ? 'var(--color-accent-gold)' : 'var(--color-warm-brown)',
                 opacity: isDisabled ? 0.4 : 1,
                 cursor: isLoading ? 'wait' : isDisabled ? 'not-allowed' : 'pointer',
               }}
@@ -129,6 +130,7 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
           height: `${buttonSize}px`,
           minWidth: `${buttonSize}px`,
           minHeight: `${buttonSize}px`,
+          color: 'var(--color-warm-brown)', // High contrast dark blue-gray for better visibility
         }}
       >
         <SlidersHorizontal size={iconSize} strokeWidth={1.5} aria-label="Tune animation controls" />
@@ -146,6 +148,7 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
           height: `${buttonSize}px`,
           minWidth: `${buttonSize}px`,
           minHeight: `${buttonSize}px`,
+          color: 'var(--color-warm-brown)', // High contrast dark blue-gray for better visibility
         }}
       >
         <Settings size={iconSize} strokeWidth={1.5} aria-label="Settings" />
