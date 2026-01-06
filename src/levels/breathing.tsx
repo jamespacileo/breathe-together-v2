@@ -28,7 +28,7 @@ import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
  * BreathingLevel - Core 3D meditation environment.
- * Uses 3-pass FBO refraction pipeline for Monument Valley frosted glass effect.
+ * Supports optional legacy FBO refraction pipeline for frosted shards.
  *
  * This component handles ONLY the 3D scene content.
  * HTML UI is rendered separately via BreathingLevelUI (outside Canvas).
@@ -68,6 +68,93 @@ export function BreathingLevel({
   const deferredAtmosphereDensity = useDeferredValue(atmosphereDensity);
   const deferredUsers = useDeferredValue(users);
 
+  const useLegacyRefractionPipeline =
+    devControls.useLegacyRefractionPipeline && devControls.shardMaterialType === 'frosted';
+  const usePostprocessing = devControls.usePostprocessingDoF && !useLegacyRefractionPipeline;
+
+  const sceneContent = (
+    <>
+      {/* Environment - clouds, lighting, fog, constellations, sun, HDRI (or grid floor in stage mode) */}
+      {showEnvironment && (
+        <Environment
+          showClouds={devControls.showClouds}
+          showStars={devControls.showStars}
+          showConstellations={devControls.showConstellations}
+          showConstellationLines={devControls.showConstellationLines}
+          showNebulae={devControls.showNebulae}
+          showSun={devControls.showSun}
+          cloudOpacity={devControls.cloudOpacity}
+          cloudSpeed={devControls.cloudSpeed}
+          ambientLightColor={devControls.ambientLightColor}
+          ambientLightIntensity={devControls.ambientLightIntensity}
+          keyLightColor={devControls.keyLightColor}
+          keyLightIntensity={devControls.keyLightIntensity}
+          constellationStarSize={devControls.constellationStarSize}
+          constellationLineOpacity={devControls.constellationLineOpacity}
+          sunSize={devControls.sunSize}
+          sunIntensity={devControls.sunIntensity}
+          showSunGizmo={devControls.showSunGizmo}
+          showConstellationGizmos={devControls.showConstellationGizmos}
+          stageMode={devControls.stageMode}
+          showGridFloor={devControls.showGridFloor}
+          gridSize={devControls.gridSize}
+          gridDivisions={devControls.gridDivisions}
+          gridColor={devControls.gridColor}
+          enableHDRI={devControls.enableHDRI}
+          hdriIntensity={devControls.hdriIntensity}
+          hdriBlur={devControls.hdriBlur}
+          useHDRIBackground={devControls.useHDRIBackground}
+        />
+      )}
+
+      {/* Globe - conditionally use transmission material */}
+      {showGlobe && !devControls.useTransmissionGlobe && <EarthGlobe />}
+      {showGlobe && devControls.useTransmissionGlobe && (
+        <EarthGlobeTransmission
+          transmission={devControls.globeTransmission}
+          roughness={devControls.globeRoughness}
+          ior={devControls.globeIor}
+          thickness={devControls.globeThickness}
+          chromaticAberration={devControls.globeChromaticAberration}
+        />
+      )}
+
+      {/* Ribbon System - configurable text ribbons around the globe */}
+      {/* Layers: top message, bottom message, decorative accents */}
+      {/* Features: randomized colors, parallax scroll, breath-synced opacity */}
+      {showGlobe && <RibbonSystem />}
+
+      {showParticles && (
+        <ParticleSwarm
+          users={deferredUsers}
+          currentUserId={sessionId}
+          baseRadius={orbitRadius}
+          baseShardSize={shardSize}
+          highlightCurrentUser={devControls.highlightCurrentUser}
+          highlightStyle={devControls.highlightStyle}
+          materialType={devControls.shardMaterialType}
+          refractionPipelineEnabled={useLegacyRefractionPipeline}
+          showShardShells={devControls.showShardShells}
+        />
+      )}
+
+      {showParticles && (
+        <AtmosphericParticles
+          count={Math.round(deferredAtmosphereDensity)}
+          size={devControls.atmosphereParticleSize}
+          baseOpacity={devControls.atmosphereBaseOpacity}
+          breathingOpacity={devControls.atmosphereBreathingOpacity}
+          color={devControls.atmosphereColor}
+        />
+      )}
+
+      {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
+      {showGlobe && Object.keys(countryCounts).length > 0 && (
+        <GeoMarkers countryCounts={countryCounts} showNames={false} />
+      )}
+    </>
+  );
+
   return (
     <Suspense fallback={null}>
       {/* Performance monitor (dev only) */}
@@ -100,7 +187,7 @@ export function BreathingLevel({
         azimuth={[-Infinity, Infinity]}
       >
         {/* Postprocessing Effects - optional replacement for custom DoF */}
-        {devControls.usePostprocessingDoF && (
+        {usePostprocessing && (
           <PostProcessingEffects
             enableDoF={devControls.enableDepthOfField}
             focusDistance={devControls.focusDistance}
@@ -114,94 +201,21 @@ export function BreathingLevel({
           />
         )}
 
-        {/* 4-Pass FBO Refraction Pipeline - applies DoF to 3D content */}
-        {/* When usePostprocessingDoF is true, disable custom DoF but keep refraction */}
-        <RefractionPipeline
-          ior={devControls.ior}
-          backfaceIntensity={devControls.glassDepth}
-          enableDepthOfField={!devControls.usePostprocessingDoF && devControls.enableDepthOfField}
-          focusDistance={devControls.focusDistance}
-          focalRange={devControls.focalRange}
-          maxBlur={devControls.maxBlur}
-        >
-          {/* Environment - clouds, lighting, fog, constellations, sun, HDRI (or grid floor in stage mode) */}
-          {showEnvironment && (
-            <Environment
-              showClouds={devControls.showClouds}
-              showStars={devControls.showStars}
-              showConstellations={devControls.showConstellations}
-              showConstellationLines={devControls.showConstellationLines}
-              showNebulae={devControls.showNebulae}
-              showSun={devControls.showSun}
-              cloudOpacity={devControls.cloudOpacity}
-              cloudSpeed={devControls.cloudSpeed}
-              ambientLightColor={devControls.ambientLightColor}
-              ambientLightIntensity={devControls.ambientLightIntensity}
-              keyLightColor={devControls.keyLightColor}
-              keyLightIntensity={devControls.keyLightIntensity}
-              constellationStarSize={devControls.constellationStarSize}
-              constellationLineOpacity={devControls.constellationLineOpacity}
-              sunSize={devControls.sunSize}
-              sunIntensity={devControls.sunIntensity}
-              showSunGizmo={devControls.showSunGizmo}
-              showConstellationGizmos={devControls.showConstellationGizmos}
-              stageMode={devControls.stageMode}
-              showGridFloor={devControls.showGridFloor}
-              gridSize={devControls.gridSize}
-              gridDivisions={devControls.gridDivisions}
-              gridColor={devControls.gridColor}
-              enableHDRI={devControls.enableHDRI}
-              hdriIntensity={devControls.hdriIntensity}
-              hdriBlur={devControls.hdriBlur}
-              useHDRIBackground={devControls.useHDRIBackground}
-            />
-          )}
-
-          {/* Globe - conditionally use transmission material */}
-          {showGlobe && !devControls.useTransmissionGlobe && <EarthGlobe />}
-          {showGlobe && devControls.useTransmissionGlobe && (
-            <EarthGlobeTransmission
-              transmission={devControls.globeTransmission}
-              roughness={devControls.globeRoughness}
-              ior={devControls.globeIor}
-              thickness={devControls.globeThickness}
-              chromaticAberration={devControls.globeChromaticAberration}
-            />
-          )}
-
-          {/* Ribbon System - configurable text ribbons around the globe */}
-          {/* Layers: top message, bottom message, decorative accents */}
-          {/* Features: randomized colors, parallax scroll, breath-synced opacity */}
-          {showGlobe && <RibbonSystem />}
-
-          {showParticles && (
-            <ParticleSwarm
-              users={deferredUsers}
-              currentUserId={sessionId}
-              baseRadius={orbitRadius}
-              baseShardSize={shardSize}
-              highlightCurrentUser={devControls.highlightCurrentUser}
-              highlightStyle={devControls.highlightStyle}
-              materialType={devControls.shardMaterialType}
-            />
-          )}
-
-          {showParticles && (
-            <AtmosphericParticles
-              count={Math.round(deferredAtmosphereDensity)}
-              size={devControls.atmosphereParticleSize}
-              baseOpacity={devControls.atmosphereBaseOpacity}
-              breathingOpacity={devControls.atmosphereBreathingOpacity}
-              color={devControls.atmosphereColor}
-            />
-          )}
-
-          {/* GeoMarkers - 3D meshes with depth testing for proper occlusion */}
-          {/* Now inside RefractionPipeline: occluded by globe/shards, has DoF effect */}
-          {showGlobe && Object.keys(countryCounts).length > 0 && (
-            <GeoMarkers countryCounts={countryCounts} showNames={false} />
-          )}
-        </RefractionPipeline>
+        {/* Legacy Refraction Pipeline - optional A/B comparison */}
+        {useLegacyRefractionPipeline ? (
+          <RefractionPipeline
+            ior={devControls.ior}
+            backfaceIntensity={devControls.glassDepth}
+            enableDepthOfField={devControls.enableDepthOfField}
+            focusDistance={devControls.focusDistance}
+            focalRange={devControls.focalRange}
+            maxBlur={devControls.maxBlur}
+          >
+            {sceneContent}
+          </RefractionPipeline>
+        ) : (
+          sceneContent
+        )}
 
         {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
         {DEV_MODE_ENABLED && (

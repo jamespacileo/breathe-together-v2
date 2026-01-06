@@ -58,7 +58,7 @@ export const TUNING_DEFAULTS = {
   constellationStarSize: 0.4,
   constellationLineOpacity: 0.25,
   sunSize: 8,
-  sunIntensity: 1,
+  sunIntensity: 0.85,
 
   // Celestial Gizmos (dev-only)
   showSunGizmo: false,
@@ -70,9 +70,9 @@ export const TUNING_DEFAULTS = {
 
   // Colors - Lighting
   ambientLightColor: '#fff5eb',
-  ambientLightIntensity: 0.5,
+  ambientLightIntensity: 0.4,
   keyLightColor: '#ffe4c4',
-  keyLightIntensity: 0.8,
+  keyLightIntensity: 0.95,
 
   // HDRI Environment (dev-only)
   enableHDRI: true,
@@ -84,13 +84,14 @@ export const TUNING_DEFAULTS = {
   usePostprocessingDoF: false, // Use @react-three/postprocessing instead of custom DoF
   useTransmissionGlobe: false, // Use MeshTransmissionMaterial for globe
   useTSLMaterials: false, // Use TSL-based materials for shards
+  useLegacyRefractionPipeline: false, // Use legacy multi-pass refraction pipeline
 
   // Postprocessing settings (when usePostprocessingDoF is true)
   ppFocalLength: 0.02,
   ppBokehScale: 3,
   enableBloom: true,
-  bloomIntensity: 0.3,
-  bloomThreshold: 0.9,
+  bloomIntensity: 0.25,
+  bloomThreshold: 0.94,
   enableVignette: false,
   vignetteDarkness: 0.3,
 
@@ -116,12 +117,14 @@ export const TUNING_DEFAULTS = {
   // Shard Swarm (dev-only) - material selection
   shardMaterialType: 'polished' as
     | 'frosted'
+    | 'frostedPhysical'
     | 'simple'
     | 'transmission'
     | 'polished'
     | 'cel'
     | 'bubble'
     | 'chromatic',
+  showShardShells: true,
 
   // Debug (dev-only)
   showOrbitBounds: false,
@@ -249,6 +252,7 @@ export interface DevControlsState {
   usePostprocessingDoF: boolean;
   useTransmissionGlobe: boolean;
   useTSLMaterials: boolean;
+  useLegacyRefractionPipeline: boolean;
 
   // Postprocessing settings
   ppFocalLength: number;
@@ -281,12 +285,14 @@ export interface DevControlsState {
   // Shard Swarm
   shardMaterialType:
     | 'frosted'
+    | 'frostedPhysical'
     | 'simple'
     | 'transmission'
     | 'polished'
     | 'cel'
     | 'bubble'
     | 'chromatic';
+  showShardShells: boolean;
 
   // Debug
   showOrbitBounds: boolean;
@@ -370,6 +376,7 @@ function getDefaultDevControls(): DevControlsState {
     usePostprocessingDoF: TUNING_DEFAULTS.usePostprocessingDoF,
     useTransmissionGlobe: TUNING_DEFAULTS.useTransmissionGlobe,
     useTSLMaterials: TUNING_DEFAULTS.useTSLMaterials,
+    useLegacyRefractionPipeline: TUNING_DEFAULTS.useLegacyRefractionPipeline,
     ppFocalLength: TUNING_DEFAULTS.ppFocalLength,
     ppBokehScale: TUNING_DEFAULTS.ppBokehScale,
     enableBloom: TUNING_DEFAULTS.enableBloom,
@@ -391,6 +398,7 @@ function getDefaultDevControls(): DevControlsState {
     gridDivisions: TUNING_DEFAULTS.gridDivisions,
     gridColor: TUNING_DEFAULTS.gridColor,
     shardMaterialType: TUNING_DEFAULTS.shardMaterialType,
+    showShardShells: TUNING_DEFAULTS.showShardShells,
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
@@ -815,7 +823,7 @@ export function useDevControls(): DevControlsState {
             usePostprocessingDoF: {
               value: TUNING_DEFAULTS.usePostprocessingDoF,
               label: 'Use Postprocessing DoF',
-              hint: 'Use @react-three/postprocessing DepthOfField instead of custom RefractionPipeline DoF.\n\n**Pros:** Better bokeh, Bloom support, easier to extend\n**Cons:** Slightly different visual style',
+              hint: 'Use @react-three/postprocessing DepthOfField instead of the legacy RefractionPipeline DoF.\n\n**Pros:** Better bokeh, Bloom support, easier to extend\n**Cons:** Slightly different visual style\n\n**Note:** Disabled when Legacy Refraction Pipeline is enabled.',
             },
             useTransmissionGlobe: {
               value: TUNING_DEFAULTS.useTransmissionGlobe,
@@ -826,6 +834,12 @@ export function useDevControls(): DevControlsState {
               value: TUNING_DEFAULTS.useTSLMaterials,
               label: 'TSL Materials',
               hint: 'Use TSL (Three.js Shading Language) materials for shards.\n\n**Pros:** WebGPU ready, node-based shaders\n**Cons:** Experimental, requires WebGPU for full benefits',
+            },
+            useLegacyRefractionPipeline: {
+              value: TUNING_DEFAULTS.useLegacyRefractionPipeline,
+              label: 'Legacy Refraction Pipeline',
+              hint: 'Enable the legacy multi-pass refraction pipeline (FBO-based).\n\n**Only applies:** Material Type = frosted\n**Note:** Disables Postprocessing DoF while enabled.',
+              render: (get) => get('Shard Swarm.shardMaterialType') === 'frosted',
             },
           },
           { collapsed: false },
@@ -839,7 +853,9 @@ export function useDevControls(): DevControlsState {
               step: 0.005,
               label: 'Focal Length',
               hint: 'Camera focal length - affects bokeh intensity.\n\nLower = more blur, higher = sharper',
-              render: (get) => get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF'),
+              render: (get) =>
+                get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                !get('Rendering Pipeline.Pipeline Options.useLegacyRefractionPipeline'),
             },
             ppBokehScale: {
               value: TUNING_DEFAULTS.ppBokehScale,
@@ -848,13 +864,17 @@ export function useDevControls(): DevControlsState {
               step: 0.5,
               label: 'Bokeh Scale',
               hint: 'Size of out-of-focus blur circles.\n\n**Typical:** 2-4 for subtle, 5+ for dreamy',
-              render: (get) => get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF'),
+              render: (get) =>
+                get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                !get('Rendering Pipeline.Pipeline Options.useLegacyRefractionPipeline'),
             },
             enableBloom: {
               value: TUNING_DEFAULTS.enableBloom,
               label: 'Enable Bloom',
               hint: 'Add glow to bright highlights.\n\n**Best with:** Glass materials, sparkles',
-              render: (get) => get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF'),
+              render: (get) =>
+                get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                !get('Rendering Pipeline.Pipeline Options.useLegacyRefractionPipeline'),
             },
             bloomIntensity: {
               value: TUNING_DEFAULTS.bloomIntensity,
@@ -865,6 +885,7 @@ export function useDevControls(): DevControlsState {
               hint: 'Strength of the bloom glow effect.',
               render: (get) =>
                 get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                !get('Rendering Pipeline.Pipeline Options.useLegacyRefractionPipeline') &&
                 get('Rendering Pipeline.Postprocessing.enableBloom'),
             },
             bloomThreshold: {
@@ -876,13 +897,16 @@ export function useDevControls(): DevControlsState {
               hint: 'Brightness threshold for bloom. Lower = more areas glow.',
               render: (get) =>
                 get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                !get('Rendering Pipeline.Pipeline Options.useLegacyRefractionPipeline') &&
                 get('Rendering Pipeline.Postprocessing.enableBloom'),
             },
             enableVignette: {
               value: TUNING_DEFAULTS.enableVignette,
               label: 'Enable Vignette',
               hint: 'Darken screen edges for cinematic look.',
-              render: (get) => get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF'),
+              render: (get) =>
+                get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                !get('Rendering Pipeline.Pipeline Options.useLegacyRefractionPipeline'),
             },
             vignetteDarkness: {
               value: TUNING_DEFAULTS.vignetteDarkness,
@@ -893,6 +917,7 @@ export function useDevControls(): DevControlsState {
               hint: 'How dark the edges become.',
               render: (get) =>
                 get('Rendering Pipeline.Pipeline Options.usePostprocessingDoF') &&
+                !get('Rendering Pipeline.Pipeline Options.useLegacyRefractionPipeline') &&
                 get('Rendering Pipeline.Postprocessing.enableVignette'),
             },
           },
@@ -1108,9 +1133,23 @@ export function useDevControls(): DevControlsState {
       {
         shardMaterialType: {
           value: TUNING_DEFAULTS.shardMaterialType,
-          options: ['polished', 'frosted', 'simple', 'transmission', 'cel', 'bubble', 'chromatic'],
+          options: [
+            'polished',
+            'frosted',
+            'frostedPhysical',
+            'simple',
+            'transmission',
+            'cel',
+            'bubble',
+            'chromatic',
+          ],
           label: 'Material Type',
-          hint: '**polished** = Refined glass with Schlick Fresnel (default, realistic)\n**frosted** = Soft glow shader (vibrant, colorful)\n**simple** = Basic transparency (good performance)\n**transmission** = Subtle glass shader\n**cel** = Toon-banded (3 distinct layers, stylized)\n**bubble** = Candy glass (high saturation, playful)\n**chromatic** = Prism effect (rainbow edges, premium)\n\n**When to adjust:** Test materials to find best aesthetic for scene',
+          hint: '**polished** = Refined glass with Schlick Fresnel (default, realistic)\n**frosted** = Legacy refraction shader (use Legacy Refraction Pipeline)\n**frostedPhysical** = Physical frosted glass (pipeline-free)\n**simple** = Basic transparency (good performance)\n**transmission** = Subtle glass shader\n**cel** = Toon-banded (3 distinct layers, stylized)\n**bubble** = Candy glass (high saturation, playful)\n**chromatic** = Prism effect (rainbow edges, premium)\n\n**When to adjust:** Test materials to find best aesthetic for scene',
+        },
+        showShardShells: {
+          value: TUNING_DEFAULTS.showShardShells,
+          label: 'Show Shard Shells',
+          hint: 'Toggle outer shard shells on/off to verify inner core visibility.\n\n**Use case:** If cores are missing, turn shells off to confirm cores render at all.',
         },
       },
       { collapsed: false, order: 4.5 },
@@ -1371,6 +1410,25 @@ export function useDevControls(): DevControlsState {
     const timeout = setTimeout(saveLastSettings, 500);
     return () => clearTimeout(timeout);
   }, [controls, saveLastSettings]);
+
+  // Expose Leva controls to window for Playwright automation
+  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Expose set function for external control injection (e.g., Playwright tests)
+      (window as unknown as { __LEVA_SET__: typeof set }).__LEVA_SET__ = set;
+      // Expose getter for reading current values
+      (window as unknown as { __LEVA_GET__: () => DevControlsState }).__LEVA_GET__ = () =>
+        controls as unknown as DevControlsState;
+    }
+    return () => {
+      // Cleanup on unmount
+      if (typeof window !== 'undefined') {
+        delete (window as unknown as { __LEVA_SET__?: unknown }).__LEVA_SET__;
+        delete (window as unknown as { __LEVA_GET__?: unknown }).__LEVA_GET__;
+      }
+    };
+  }, [set, controls]);
 
   // Cast needed because Leva's options return string, but we know it's one of our union values
   return controls as unknown as DevControlsState;

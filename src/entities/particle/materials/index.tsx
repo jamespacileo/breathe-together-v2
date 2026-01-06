@@ -3,6 +3,7 @@
  *
  * Provides multiple material implementations for particle shards:
  * - frosted: Original FrostedGlassMaterial with custom refraction shader
+ * - frostedPhysical: MeshPhysicalMaterial-based frosted glass (no pipeline)
  * - transmission: drei MeshTransmissionMaterial for realistic glass
  * - simple: Simple transparent MeshPhysicalMaterial fallback
  */
@@ -12,11 +13,13 @@ import { createFrostedGlassMaterial } from '../FrostedGlassMaterial';
 import { createBubbleGlassMaterial } from './BubbleGlassMaterial';
 import { createCelShadedGlassMaterial } from './CelShadedGlassMaterial';
 import { createChromaticGlassMaterial } from './ChromaticGlassMaterial';
+import { createFrostedPhysicalMaterial } from './FrostedPhysicalMaterial';
 import { createPolishedGlassMaterial } from './PolishedGlassMaterial';
 import { createTransmissionMaterial } from './TransmissionMaterial';
 
 export type ShardMaterialType =
   | 'frosted'
+  | 'frostedPhysical'
   | 'transmission'
   | 'simple'
   | 'polished'
@@ -44,6 +47,18 @@ export function createFrostedMaterial(): MaterialVariant {
 }
 
 /**
+ * Create frosted physical glass material (pipeline-free)
+ */
+export function createFrostedPhysicalVariant(): MaterialVariant {
+  return {
+    material: createFrostedPhysicalMaterial(true),
+    needsBreathPhaseUpdate: false,
+    needsTimeUpdate: false,
+    usesRefractionPipeline: false,
+  };
+}
+
+/**
  * Create simple transparent material (MeshPhysicalMaterial)
  * Vibrant colored glass with excellent facet visibility
  */
@@ -58,7 +73,7 @@ export function createSimpleMaterial(): MaterialVariant {
     clearcoatRoughness: 0.1, // Subtle roughness on coat
     reflectivity: 0.3, // Lower to emphasize color over reflections
     side: THREE.FrontSide,
-    depthWrite: true,
+    depthWrite: false,
     vertexColors: true,
     // Emissive boost for self-illumination (helps colors pop in dark scenes)
     emissiveIntensity: 0.2,
@@ -148,6 +163,8 @@ export function createShardMaterial(type: ShardMaterialType): MaterialVariant {
   switch (type) {
     case 'frosted':
       return createFrostedMaterial();
+    case 'frostedPhysical':
+      return createFrostedPhysicalVariant();
     case 'simple':
       return createSimpleMaterial();
     case 'transmission':

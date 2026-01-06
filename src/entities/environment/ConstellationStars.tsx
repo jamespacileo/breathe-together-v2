@@ -41,7 +41,7 @@ interface ConstellationStarsProps {
   starColor?: string;
   /** Constellation line color - warm gold @default '#f1c46b' */
   lineColor?: string;
-  /** Line opacity @default 0.75 */
+  /** Line opacity @default 0.3 */
   lineOpacity?: number;
   /** Line width @default 1.5 */
   lineWidth?: number;
@@ -78,9 +78,9 @@ export const ConstellationStars = memo(function ConstellationStars({
   showLines = true,
   radius = 25,
   starSize = 2.0,
-  starColor = '#ffefc2',
-  lineColor = '#f9e2a4',
-  lineOpacity = 0.95,
+  starColor = '#ffc940',
+  lineColor = '#ffb830',
+  lineOpacity = 0.3,
   lineWidth = 2.4,
   twinkle = true,
   twinkleSpeed = 1,
@@ -232,6 +232,8 @@ export const ConstellationStars = memo(function ConstellationStars({
         varying vec3 vColor;
         varying float vSize;
         varying vec2 vScreenPos;
+        varying vec3 vViewPosition;
+        varying vec3 vWorldPosition;
 
         void main() {
           vColor = color;
@@ -239,6 +241,10 @@ export const ConstellationStars = memo(function ConstellationStars({
 
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           vec4 clipPosition = projectionMatrix * mvPosition;
+
+          vViewPosition = -mvPosition.xyz;
+          vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+
           // Scale point size for closer viewing distance
           gl_PointSize = size * (220.0 / -mvPosition.z);
           gl_PointSize = max(gl_PointSize, 3.5); // Minimum size for visibility
@@ -258,21 +264,47 @@ export const ConstellationStars = memo(function ConstellationStars({
         varying vec3 vColor;
         varying float vSize;
         varying vec2 vScreenPos;
+        varying vec3 vViewPosition;
+        varying vec3 vWorldPosition;
 
         void main() {
-          // Soft circular falloff for star glow
+          // Star shape with subtle cross flare pattern
           vec2 center = gl_PointCoord - vec2(0.5);
           float dist = length(center);
 
-          // Sharp core with soft glow
-          float core = smoothstep(0.5, 0.06, dist);
-          float glow = smoothstep(0.7, 0.0, dist);
-          float alpha = (core * 1.6 + glow * 1.2) * opacity;
+          // Softer 4-point flare for stylized appearance
+          float angle = atan(center.y, center.x);
+          float spike = abs(sin(angle * 2.0)) * 0.35 + abs(cos(angle * 2.0)) * 0.35;
+          float starFlare = pow(spike, 2.5) * (1.0 - smoothstep(0.0, 0.5, dist));
 
-          // Subtle twinkle based on position hash
+          // Soft core with gentle falloff
+          float core = smoothstep(0.6, 0.0, dist);
+
+          // Multi-layer soft glow for stylized look
+          float innerGlow = smoothstep(0.7, 0.0, dist);
+          float outerGlow = smoothstep(0.9, 0.0, dist);
+          float softHalo = smoothstep(1.0, 0.0, dist);
+
+          // Balanced brightness for stylized stars
+          float brightness = core * 1.8 + starFlare * 1.2 + innerGlow * 1.0 + outerGlow * 0.6 + softHalo * 0.3;
+          float alpha = brightness * opacity;
+
+          // Camera-based twinkling using view direction
+          vec3 viewDir = normalize(vViewPosition);
+          vec3 starDir = normalize(vWorldPosition);
+          float viewAngle = dot(viewDir, starDir);
+
+          // Subtle sparkle based on view angle and time
           if (twinkleEnabled > 0.5) {
-            float twinkle = sin(time * 2.0 + vSize * 100.0) * 0.15 + 0.85;
-            alpha *= twinkle;
+            // Time-based shimmer
+            float timeTwinkle = sin(time * 1.5 + vSize * 100.0) * 0.08 + 0.92;
+
+            // View-angle dependent sparkle (changes as camera moves)
+            float viewHash = fract(sin(dot(vWorldPosition.xy, vec2(12.9898, 78.233))) * 43758.5453);
+            float viewTwinkle = sin(viewAngle * 6.28 + time * 0.5 + viewHash * 6.28) * 0.15 + 0.85;
+
+            alpha *= timeTwinkle * viewTwinkle;
+            brightness *= timeTwinkle * viewTwinkle;
           }
 
           float edge = max(abs(vScreenPos.x), abs(vScreenPos.y));
@@ -282,11 +314,16 @@ export const ConstellationStars = memo(function ConstellationStars({
           float hoverGlow = smoothstep(hoverRadius, 0.0, hoverDist);
 
           float glowBoost = edgeGlow * edgeGlowStrength + hoverGlow * hoverStrength;
-          alpha *= 1.0 + glowBoost;
+          alpha *= 1.0 + glowBoost * 0.6;
 
-          // Warm glow color
-          vec3 warmGlow = vec3(1.0, 0.92, 0.6);
-          vec3 finalColor = vColor * (1.15 + glowBoost * 0.4) + warmGlow * (glow * 1.1 + glowBoost * 1.6);
+          // Warm golden color palette for stylized stars
+          vec3 warmGlow = vec3(1.0, 0.78, 0.3);
+          vec3 coreColor = vec3(1.0, 0.96, 0.75);
+
+          // Soft color gradient for stylized appearance
+          vec3 finalColor = mix(coreColor, warmGlow, smoothstep(0.0, 0.7, dist));
+          finalColor *= (1.15 + brightness * 0.4);
+          finalColor += warmGlow * (softHalo * 1.0 + glowBoost * 1.5);
 
           gl_FragColor = vec4(finalColor, alpha);
         }
@@ -348,6 +385,8 @@ export const ConstellationStars = memo(function ConstellationStars({
               color={lineColor}
               lineWidth={lineWidth * 1.8}
               transparent
+              toneMapped={false}
+              blending={THREE.AdditiveBlending}
               opacity={lineOpacity * 0.35}
             />
             <Line
@@ -355,6 +394,8 @@ export const ConstellationStars = memo(function ConstellationStars({
               color={lineColor}
               lineWidth={lineWidth}
               transparent
+              toneMapped={false}
+              blending={THREE.AdditiveBlending}
               opacity={lineOpacity}
             />
           </group>

@@ -132,7 +132,7 @@ interface EnvironmentProps {
  * Environment - Monument Valley inspired atmosphere
  *
  * Features:
- * - Gradient background via RefractionPipeline (shader-based clouds)
+ * - Gradient background via BackgroundGradient (shader-based clouds)
  * - Volumetric 3D clouds using drei Cloud component
  * - Warm three-point lighting for soft shadows
  * - Subtle fog for depth
@@ -192,9 +192,9 @@ export function Environment({
       scene.background = null;
 
       // Night sky fog for atmospheric depth
-      // Deep navy blue matching night sky background
-      // Near: 20 (clouds start to fade), Far: 35 (fully faded at outer boundaries)
-      scene.fog = new THREE.Fog('#1a3352', 20, 35);
+      // Slightly deeper navy with a longer falloff to reduce haze washout
+      // Near: 24 (clouds start to fade), Far: 45 (fully faded at outer boundaries)
+      scene.fog = new THREE.Fog('#142a45', 24, 45);
     }
 
     return () => {
@@ -265,7 +265,7 @@ export function Environment({
 
       {/* Subtle atmospheric details - users feel these more than see them */}
       {/* Floating dust motes with gentle sparkle */}
-      <AmbientDust count={isMobile ? 40 : 80} opacity={0.12} size={0.012} enabled={true} />
+      <AmbientDust count={isMobile ? 40 : 80} opacity={0.08} size={0.012} enabled={true} />
 
       {/* Breath-synchronized sparkles during exhale phase */}
       {/* Visual feedback for "releasing breath" moment */}

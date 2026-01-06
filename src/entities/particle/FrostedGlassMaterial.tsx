@@ -122,7 +122,7 @@ export function createFrostedGlassMaterial(instanced = true): THREE.ShaderMateri
     defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
     side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible. Saves 50% fragment processing
     transparent: true, // Enable alpha blending for gem transparency
-    depthWrite: true, // CRITICAL FIX: Enable depth writes to fix 1 FPS performance (safe for convex front-face-only objects)
+    depthWrite: false, // Transparent shells should not occlude inner glow cores
     depthTest: true, // Enable depth testing to cull occluded fragments
     blending: THREE.NormalBlending, // Standard transparency blending
   });

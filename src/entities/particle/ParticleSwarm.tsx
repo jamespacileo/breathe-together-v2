@@ -16,7 +16,7 @@
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { type MoodId, RENDER_LAYERS } from '../../constants';
 import { getFibonacciSpherePoint } from '../../lib/collisionGeometry';
@@ -95,12 +95,24 @@ export interface ParticleSwarmProps {
   highlightStyle?: 'wireframe' | 'glow' | 'scale';
   /**
    * Material type for shards.
-   * - 'frosted': Custom shader with refraction (vibrant, best visual quality)
+   * - 'frosted': Legacy refraction shader (requires RefractionPipeline)
+   * - 'frostedPhysical': Physical glass (pipeline-free replacement)
    * - 'simple': MeshPhysicalMaterial (transparent, good performance)
    * - 'transmission': drei MeshTransmissionMaterial (realistic glass)
-   * @default 'frosted'
+   * @default 'polished'
    */
   materialType?: ShardMaterialType;
+  /**
+   * Enable legacy refraction pipeline behavior for frosted shards.
+   * When false, refraction-specific layers are disabled.
+   * @default false
+   */
+  refractionPipelineEnabled?: boolean;
+  /**
+   * Toggle outer shard shells (useful for core visibility debugging)
+   * @default true
+   */
+  showShardShells?: boolean;
 }
 
 /**
@@ -192,6 +204,74 @@ const _tempAmbient = new THREE.Vector3();
 const _yAxis = new THREE.Vector3(0, 1, 0);
 const _tempLerpDir = new THREE.Vector3();
 
+const coreVertexShader = /* glsl */ `
+#include <common>
+varying vec3 vColor;
+varying float vSeed;
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+attribute float instanceSeed;
+
+void main() {
+  #ifdef USE_INSTANCING
+    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = mat3(normalMatrix) * mat3(instanceMatrix) * normal;
+  #else
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vec3 transformedNormal = normalMatrix * normal;
+  #endif
+
+  #ifdef USE_INSTANCING_COLOR
+    vColor = instanceColor;
+  #else
+    vColor = vec3(1.0);
+  #endif
+
+  vSeed = instanceSeed;
+  vNormal = normalize(transformedNormal);
+  vViewPosition = -mvPosition.xyz;
+
+  gl_Position = projectionMatrix * mvPosition;
+}
+`;
+
+const coreFragmentShader = /* glsl */ `
+uniform float time;
+uniform float breathPhase;
+uniform float coreFocus;
+uniform float intensity;
+uniform float debugSolid;
+uniform vec3 debugColor;
+
+varying vec3 vColor;
+varying float vSeed;
+varying vec3 vNormal;
+varying vec3 vViewPosition;
+
+void main() {
+  if (debugSolid > 0.5) {
+    gl_FragColor = vec4(debugColor, 1.0);
+    return;
+  }
+
+  vec3 viewDir = normalize(vViewPosition);
+  float facing = clamp(dot(normalize(vNormal), viewDir), 0.0, 1.0);
+  float core = smoothstep(coreFocus, 1.0, facing);
+  core = pow(core, 1.35);
+  float pulse = 0.65 + 0.35 * sin(time * 1.25 + vSeed * 6.283185);
+  float breath = 1.0 + breathPhase * 0.25;
+  float shimmer = 0.85 + 0.15 * sin(time * 2.2 + vSeed * 3.1 + facing * 4.0);
+
+  vec3 glowColor = mix(vColor, vec3(1.0), 0.28);
+  float glow = core * pulse * breath * shimmer;
+  vec3 color = glowColor * intensity * glow;
+  float alpha = glow * 0.85;
+
+  gl_FragColor = vec4(color, alpha);
+}
+`;
+
 /**
  * Normalize users input to User[] format
  * Handles both new format (User[]) and legacy format (mood counts)
@@ -251,7 +331,9 @@ export function ParticleSwarm({
   performanceCap = 1000,
   highlightCurrentUser = false,
   highlightStyle = 'wireframe',
-  materialType = 'frosted',
+  materialType = 'polished',
+  refractionPipelineEnabled = false,
+  showShardShells = true,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
@@ -356,18 +438,48 @@ export function ParticleSwarm({
   const materialVariant = useMemo(() => createShardMaterial(materialType), [materialType]);
   const material = materialVariant.material;
   const usesRefractionPipeline = materialVariant.usesRefractionPipeline;
+  const refractionEnabled = usesRefractionPipeline && refractionPipelineEnabled;
 
   const coreMaterial = useMemo(() => {
-    return new THREE.MeshBasicMaterial({
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        breathPhase: { value: 0 },
+        coreFocus: { value: 0.22 },
+        intensity: { value: 1.8 },
+        debugSolid: { value: 0 },
+        debugColor: { value: new THREE.Color(0xff00ff) },
+      },
+      vertexShader: coreVertexShader,
+      fragmentShader: coreFragmentShader,
       transparent: true,
-      opacity: 0.7,
-      blending: THREE.AdditiveBlending,
       depthWrite: false,
       depthTest: true,
-      vertexColors: true,
+      blending: THREE.AdditiveBlending,
       toneMapped: false,
+      defines: { USE_INSTANCING_COLOR: '' },
     });
   }, []);
+
+  useEffect(() => {
+    if (!('uniforms' in coreMaterial)) return;
+    const uniforms = coreMaterial.uniforms as Record<string, { value: unknown }>;
+    if (showShardShells) {
+      coreMaterial.transparent = true;
+      coreMaterial.blending = THREE.AdditiveBlending;
+      coreMaterial.depthWrite = false;
+      coreMaterial.depthTest = true;
+      if ('debugSolid' in uniforms) uniforms.debugSolid.value = 0;
+    } else {
+      // Debug mode: make cores obvious even without bloom or shells
+      coreMaterial.transparent = false;
+      coreMaterial.blending = THREE.NormalBlending;
+      coreMaterial.depthWrite = false;
+      coreMaterial.depthTest = false;
+      if ('debugSolid' in uniforms) uniforms.debugSolid.value = 1;
+    }
+    coreMaterial.needsUpdate = true;
+  }, [showShardShells, coreMaterial]);
 
   // Create wireframe geometry and material for user highlight
   const wireframeGeometry = useMemo(() => {
@@ -502,12 +614,16 @@ export function ParticleSwarm({
   // Initialize instance states (only when instance count changes)
   useEffect(() => {
     const states: InstanceState[] = [];
+    const seeds = new Float32Array(performanceCap);
     for (let i = 0; i < performanceCap; i++) {
-      states.push(createInstanceState(i, baseRadius, performanceCap));
+      const state = createInstanceState(i, baseRadius, performanceCap);
+      states.push(state);
+      seeds[i] = (state.ambientSeed * 0.001) % 1;
     }
     instanceStatesRef.current = states;
+    coreGeometry.setAttribute('instanceSeed', new THREE.InstancedBufferAttribute(seeds, 1));
     isInitializedRef.current = false;
-  }, [performanceCap, baseRadius]);
+  }, [performanceCap, baseRadius, coreGeometry]);
 
   // Initialize the InstancedMesh with current animation state
   // biome-ignore lint/correctness/useExhaustiveDependencies: geometry/material MUST be dependencies because r3f recreates the InstancedMesh when args change
@@ -700,6 +816,15 @@ export function ParticleSwarm({
       }
       if (materialVariant.needsTimeUpdate && 'time' in uniforms) {
         uniforms.time.value = time;
+      }
+    }
+    if ('uniforms' in coreMaterial && coreMaterial.uniforms) {
+      const coreUniforms = coreMaterial.uniforms as Record<string, { value: unknown }>;
+      if ('time' in coreUniforms) {
+        coreUniforms.time.value = time;
+      }
+      if ('breathPhase' in coreUniforms) {
+        coreUniforms.breathPhase.value = currentBreathPhase;
       }
     }
 
@@ -900,25 +1025,35 @@ export function ParticleSwarm({
       if (!target) return;
 
       target.renderOrder = 1;
-      if (usesRefractionPipeline) {
+      if (refractionEnabled) {
         target.layers.enable(RENDER_LAYERS.PARTICLES);
       } else {
         target.layers.disable(RENDER_LAYERS.PARTICLES);
       }
-      target.userData.useRefraction = usesRefractionPipeline;
+      target.userData.useRefraction = refractionEnabled;
     },
-    [usesRefractionPipeline],
+    [refractionEnabled],
   );
 
   useEffect(() => {
     applyRefractionLayer();
   }, [applyRefractionLayer]);
 
+  useLayoutEffect(() => {
+    const coreMesh = coreMeshRef.current;
+    if (!coreMesh || coreMesh.instanceColor) return;
+    coreMesh.setColorAt(0, DEFAULT_COLOR);
+    if (coreMesh.instanceColor) {
+      coreMesh.instanceColor.needsUpdate = true;
+    }
+    coreMaterial.needsUpdate = true;
+  }, [coreMaterial]);
+
   const applyCoreRenderState = useCallback((mesh?: THREE.InstancedMesh | null) => {
     const target = mesh ?? coreMeshRef.current;
     if (!target) return;
 
-    target.renderOrder = 0;
+    target.renderOrder = 2;
     target.layers.disable(RENDER_LAYERS.PARTICLES);
   }, []);
 
@@ -927,10 +1062,10 @@ export function ParticleSwarm({
     const wireframe = wireframeRef.current;
     const glowMesh = glowMeshRef.current;
     if (wireframe) {
-      wireframe.renderOrder = 2;
+      wireframe.renderOrder = 3;
     }
     if (glowMesh) {
-      glowMesh.renderOrder = 2;
+      glowMesh.renderOrder = 3;
     }
   }, [applyCoreRenderState]);
 
@@ -948,6 +1083,7 @@ export function ParticleSwarm({
         args={[geometry, material, performanceCap]}
         frustumCulled={false}
         name="Particle Swarm"
+        visible={showShardShells}
         onUpdate={(mesh) => applyRefractionLayer(mesh)}
       />
       {/* Highlight elements for current user's shard */}

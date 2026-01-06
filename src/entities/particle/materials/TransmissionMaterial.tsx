@@ -8,7 +8,7 @@
  * - Per-instance colors via vertex colors
  *
  * Note: This is a simplified glass shader, not true transmission.
- * For true refraction, use the polished or frosted materials.
+ * For refraction-style looks, use frosted (legacy pipeline) or frostedPhysical (pipeline-free).
  */
 
 import * as THREE from 'three';
@@ -106,7 +106,7 @@ export function createTransmissionMaterial(
     },
     transparent: true,
     side: THREE.FrontSide,
-    depthWrite: true,
+    depthWrite: false,
     depthTest: true,
     blending: THREE.NormalBlending,
   });

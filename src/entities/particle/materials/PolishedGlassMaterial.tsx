@@ -150,7 +150,7 @@ export function createPolishedGlassMaterial(instanced = true, ior = 1.5): THREE.
     defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
     side: THREE.FrontSide, // Icosahedra are convex - backfaces never visible
     transparent: true, // Enable alpha blending for glass transparency
-    depthWrite: true, // Enable depth writes (safe for convex front-face-only objects)
+    depthWrite: false, // Avoid occluding inner glow cores
     depthTest: true, // Enable depth testing to cull occluded fragments
     blending: THREE.NormalBlending, // Standard transparency blending
   });

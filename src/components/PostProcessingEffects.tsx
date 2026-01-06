@@ -11,8 +11,14 @@
  * - Reduced custom shader code (~100 lines vs 650 in RefractionPipeline)
  */
 
-import { Bloom, DepthOfField, EffectComposer, Vignette } from '@react-three/postprocessing';
-import { BlendFunction, KernelSize } from 'postprocessing';
+import {
+  Bloom,
+  DepthOfField,
+  EffectComposer,
+  ToneMapping,
+  Vignette,
+} from '@react-three/postprocessing';
+import { BlendFunction, KernelSize, ToneMappingMode } from 'postprocessing';
 import type { ReactElement } from 'react';
 
 export interface PostProcessingEffectsProps {
@@ -152,6 +158,15 @@ export function PostProcessingEffects({
       />,
     );
   }
+
+  // Tone mapping should be applied last to map HDR values to display space.
+  effects.push(
+    <ToneMapping
+      key="tone-mapping"
+      mode={ToneMappingMode.ACES_FILMIC}
+      blendFunction={BlendFunction.SRC}
+    />,
+  );
 
   // Type assertion needed because EffectComposer expects Element | Element[]
   return <EffectComposer multisampling={0}>{effects}</EffectComposer>;

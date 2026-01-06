@@ -121,7 +121,7 @@ export function createChromaticGlassMaterial(
     defines: instanced ? { USE_INSTANCING_COLOR: '' } : {},
     side: THREE.FrontSide,
     transparent: true,
-    depthWrite: true,
+    depthWrite: false,
     depthTest: true,
     blending: THREE.NormalBlending,
   });
