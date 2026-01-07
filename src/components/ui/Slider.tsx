@@ -22,7 +22,7 @@ export const Slider = forwardRef<HTMLDivElement, SliderProps>(
     return (
       <div ref={ref} className={`block mb-3.5 ${className}`}>
         {/* Label row */}
-        <div className="flex justify-between text-[0.72rem] font-medium tracking-[0.08em] text-warm-gray mb-2">
+        <div className="flex justify-between text-[0.72rem] font-medium tracking-[0.08em] text-warm-brown mb-2">
           <span className="font-[small-caps]">{label}</span>
           <span className="font-normal tabular-nums">{displayValue}</span>
         </div>

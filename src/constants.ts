@@ -105,13 +105,11 @@ export const HOLD_OSCILLATION = {
 /**
  * THREE.js Render Layers for Selective Rendering
  *
- * Used by RefractionPipeline to render specific object groups per pass:
+ * Used to isolate environment, effects, and debug overlays when needed:
  * - ENVIRONMENT (0): Default layer for all scene objects
  * - GLOBE (1): Central EarthGlobe (reserved for future selective rendering)
- * - PARTICLES (2): ParticleSwarm shards - used for backface pass layer filtering
+ * - PARTICLES (2): ParticleSwarm shards (optional layer filtering)
  * - EFFECTS (3): AtmosphericParticles, sparkles (reserved for future use)
- *
- * Note: Background gradient is cached separately via envFBO caching, not layer-based.
  *
  * @see https://threejs.org/docs/#api/en/core/Layers
  */
@@ -138,16 +136,18 @@ export const RENDER_LAYERS = {
  * is intentional. This prevents accidental black/white screen issues.
  */
 export const VISUAL_COLORS = {
-  /** Background gradient top color - warm cream (#f5f0e8) */
-  BACKGROUND_TOP: '#f5f0e8',
-  /** Background gradient mid color - soft ivory (#faf2e6) */
-  BACKGROUND_MID: '#faf2e6',
+  /** Background gradient top color - deep navy night sky (#152b4d) */
+  BACKGROUND_TOP: '#152b4d',
+  /** Background gradient mid color - teal cyan (#3a96ae) */
+  BACKGROUND_MID: '#3a96ae',
   /** Globe earthy brown tone (used for fallback/references) */
   GLOBE_BROWN: '#8b6f47',
-  /** Cloud base colors - soft pink */
-  CLOUD_PINK: '#f8b4c4',
-  /** Cloud base colors - soft lavender */
-  CLOUD_LAVENDER: '#d4c4e8',
+  /** Cloud base colors - light teal */
+  CLOUD_TEAL_LIGHT: '#7acade',
+  /** Cloud base colors - mid teal */
+  CLOUD_TEAL_MID: '#3a96ae',
+  /** Cloud base colors - dark navy */
+  CLOUD_NAVY: '#152b4d',
 } as const;
 
 /**
@@ -169,8 +169,8 @@ export const VISUAL_OPACITY = {
   CLOUD_MAX: 0.5,
   /** Atmosphere overlay opacity (very subtle) */
   ATMOSPHERE: 0.08,
-  /** Frosted glass opacity (highly visible) */
-  FROSTED_GLASS: 0.9,
+  /** Shard glass body opacity (subtle, edges provide definition) */
+  SHARD_GLASS: 0.2,
   /** Globe main material (fully opaque) */
   GLOBE: 1.0,
 } as const;

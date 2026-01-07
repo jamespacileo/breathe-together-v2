@@ -229,7 +229,16 @@ export function SimpleGaiaUI({
         // Intensity peaks during inhale (phase 0) and hold-in (phase 1)
         const glowIntensity =
           phaseIndex === 0 || phaseIndex === 1 ? 0.4 + phaseProgress * 0.3 : 0.2;
-        progressContainerRef.current.style.boxShadow = `0 0 ${8 + glowIntensity * 12}px rgba(201, 160, 108, ${glowIntensity})`;
+        // Use CSS variable for dynamic mood-based accent color
+        const accentColor = getComputedStyle(document.documentElement)
+          .getPropertyValue('--color-accent')
+          .trim();
+        // Extract RGB from hex color
+        const hex = accentColor.replace('#', '');
+        const r = Number.parseInt(hex.slice(0, 2), 16);
+        const g = Number.parseInt(hex.slice(2, 4), 16);
+        const b = Number.parseInt(hex.slice(4, 6), 16);
+        progressContainerRef.current.style.boxShadow = `0 0 ${8 + glowIntensity * 12}px rgba(${r}, ${g}, ${b}, ${glowIntensity})`;
       }
 
       animationId = requestAnimationFrame(updatePhase);
@@ -260,31 +269,39 @@ export function SimpleGaiaUI({
   }, [setIsControlsOpen]);
 
   // Focus Mode: Fade out UI after inactivity
+  // Uses isControlsOpenRef to avoid re-registering listeners when controls toggle
   useEffect(() => {
     let timeout: NodeJS.Timeout;
+    const capture = true;
 
     const resetInactivity = () => {
       setIsVisible(true);
       clearTimeout(timeout);
-      // Only fade out if controls are closed
-      if (!isControlsOpen) {
+      // Only fade out if controls are closed (read from ref to avoid stale closure)
+      if (!isControlsOpenRef.current) {
         timeout = setTimeout(() => setIsVisible(false), 10000); // 10s for first-timers
       }
     };
 
-    window.addEventListener('mousemove', resetInactivity);
-    window.addEventListener('mousedown', resetInactivity);
+    window.addEventListener('mousemove', resetInactivity, capture);
+    window.addEventListener('mousedown', resetInactivity, capture);
+    window.addEventListener('pointermove', resetInactivity, capture);
+    window.addEventListener('pointerdown', resetInactivity, capture);
+    window.addEventListener('touchstart', resetInactivity, capture);
     window.addEventListener('keydown', resetInactivity);
 
     resetInactivity();
 
     return () => {
-      window.removeEventListener('mousemove', resetInactivity);
-      window.removeEventListener('mousedown', resetInactivity);
+      window.removeEventListener('mousemove', resetInactivity, capture);
+      window.removeEventListener('mousedown', resetInactivity, capture);
+      window.removeEventListener('pointermove', resetInactivity, capture);
+      window.removeEventListener('pointerdown', resetInactivity, capture);
+      window.removeEventListener('touchstart', resetInactivity, capture);
       window.removeEventListener('keydown', resetInactivity);
       clearTimeout(timeout);
     };
-  }, [isControlsOpen]);
+  }, []);
 
   // Stop pointer/touch events from propagating to PresentationControls
   // Memoized to maintain stable reference
@@ -814,18 +831,22 @@ export function SimpleGaiaUI({
         <div className="flex items-baseline" style={{ gap: isMobile ? '10px' : '12px' }}>
           <span
             ref={phaseNameRef}
-            className={`font-serif font-light uppercase text-warm-gray
+            className={`font-serif font-light uppercase
               ${isMobile ? 'text-[1.75rem] tracking-[0.12em]' : isTablet ? 'text-[1.5rem] tracking-[0.18em]' : 'text-[1.5rem] tracking-[0.18em]'}`}
             style={{
-              textShadow: '0 2px 20px var(--color-accent-gold-glow), 0 1px 6px rgba(0, 0, 0, 0.15)',
+              color: 'var(--color-text-on-dark-primary)', // High contrast white for cosmic scene
+              textShadow: '0 2px 20px var(--color-accent-gold-glow), 0 1px 6px rgba(0, 0, 0, 0.3)',
             }}
           >
             Inhale
           </span>
           <span
             ref={timerRef}
-            className={`font-sans font-normal text-warm-gray min-w-[1.2em] text-center
+            className={`font-sans font-normal min-w-[1.2em] text-center
               ${isMobile ? 'text-[1.1rem]' : 'text-[0.95rem]'}`}
+            style={{
+              color: 'var(--color-text-on-dark-secondary)', // High contrast light blue for timer
+            }}
           >
             4
           </span>

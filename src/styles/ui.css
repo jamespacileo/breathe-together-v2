@@ -21,32 +21,57 @@
   --font-serif: "Cormorant Garamond", Georgia, serif;
   --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
 
-  /* Custom colors - matching designTokens.ts */
-  --color-warm-cream: #fffef7;
-  --color-warm-cream-dim: #f8f5ed;
-  --color-warm-white: #fdfbf7;
-  --color-warm-gray: #9a8a7a;
-  --color-warm-brown: #4a3f35;
-  --color-warm-brown-light: #5a4d42;
-  --color-warm-tan: #8b7a6a;
+  /* Cosmic Blue Theme - matching designTokens.ts */
+  --color-warm-cream: #f0f8ff; /* Alice blue */
+  --color-warm-cream-dim: #e6f2ff; /* Lighter blue */
+  --color-warm-white: #ffffff;
+  --color-warm-gray: #6b88a3; /* Muted blue */
+  --color-warm-brown: #1a2f4d; /* Deep blue-gray */
+  --color-warm-brown-light: #2d4a66; /* Medium blue-gray */
+  --color-warm-tan: #4a6b8a; /* Light blue-gray */
 
-  /* Accent colors */
-  --color-accent-gold: #c9a06c;
-  --color-accent-gold-light: #d4a76f;
-  --color-accent-gold-glow: rgba(201, 160, 108, 0.4);
-  --color-text-glow: rgba(255, 252, 245, 0.95);
+  /* Text on dark backgrounds (NEW - high contrast for cosmic scene) */
+  --color-text-on-dark-primary: #ffffff; /* Pure white - titles, main text */
+  --color-text-on-dark-secondary: #e6f2ff; /* Very light blue - body text */
+  --color-text-on-dark-tertiary: #b8d4e8; /* Light blue - secondary text */
+  --color-text-on-dark-muted: #8fb8d1; /* Muted light blue - hints */
+  --color-text-on-dark-accent: #4de6de; /* Neon teal - accents */
 
-  /* Glass/Surface colors */
-  --color-glass: rgba(253, 251, 247, 0.75);
-  --color-glass-light: rgba(255, 254, 250, 0.6);
-  --color-glass-hover: rgba(255, 254, 250, 0.8);
-  --color-border: rgba(160, 140, 120, 0.15);
-  --color-border-light: rgba(180, 165, 145, 0.12);
+  /* Tailwind-compatible class names for text-on-dark colors */
+  --color-on-dark-primary: var(--color-text-on-dark-primary);
+  --color-on-dark-secondary: var(--color-text-on-dark-secondary);
+  --color-on-dark-tertiary: var(--color-text-on-dark-tertiary);
+  --color-on-dark-muted: var(--color-text-on-dark-muted);
+  --color-on-dark-accent: var(--color-text-on-dark-accent);
 
-  /* Shadows */
-  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.06);
-  --shadow-medium: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --shadow-modal: 0 25px 60px rgba(0, 0, 0, 0.12);
+  /* Dynamic Accent Colors (updated by useMoodAccentInjection hook) */
+  --color-accent: #06d6a0; /* Presence teal (default) */
+  --color-accent-light: #28dca9; /* Lighter teal */
+  --color-accent-glow: rgba(6, 214, 160, 0.5);
+  --color-text-glow: rgba(240, 248, 255, 0.95);
+
+  /* Legacy gold accent names (now point to dynamic accent) */
+  --color-accent-gold: var(--color-accent);
+  --color-accent-gold-light: var(--color-accent-light);
+  --color-accent-gold-glow: var(--color-accent-glow);
+
+  /* Glass & Surface colors (alice blue) - INCREASED opacity for better text contrast */
+  --color-glass: rgba(240, 248, 255, 0.85);
+  --color-glass-light: rgba(240, 248, 255, 0.72);
+  --color-glass-hover: rgba(240, 248, 255, 0.92);
+
+  /* Borders (cosmic teal/navy) - INCREASED visibility */
+  --color-border: rgba(58, 150, 174, 0.4);
+  --color-border-light: rgba(58, 150, 174, 0.25);
+  --color-border-dark: rgba(21, 43, 77, 0.5);
+  --color-border-on-dark: rgba(240, 248, 255, 0.3);
+
+  /* Shadows (cosmic tones) */
+  --shadow-soft: 0 2px 12px rgba(21, 43, 77, 0.08);
+  --shadow-medium: 0 6px 20px rgba(21, 43, 77, 0.12);
+  --shadow-modal: 0 20px 50px rgba(58, 150, 174, 0.15);
+  --shadow-glow: 0 0 8px var(--color-accent-glow);
+  --shadow-glow-strong: 0 4px 16px var(--color-accent-glow);
 
   /* Custom animations */
   --animate-fade-in-out: fadeInOut 4s ease-in-out forwards;
@@ -58,6 +83,39 @@
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-entrance: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* =============================================================================
+   SMOOTH TRANSITIONS FOR MOOD CHANGES
+   ============================================================================= */
+
+/**
+ * Targeted transitions for mood-based accent color changes
+ * Only transitions color properties to avoid layout shifts and performance issues
+ * Applies to elements that use CSS variables for dynamic mood colors
+ */
+.mood-transition {
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease,
+    color 300ms ease,
+    box-shadow 300ms ease,
+    fill 300ms ease;
+}
+
+/**
+ * Apply to common UI elements that use accent colors
+ * More performant than universal * selector
+ */
+button,
+.slider-thumb,
+.progress-bar,
+.accent-element {
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease,
+    color 300ms ease,
+    box-shadow 300ms ease;
 }
 
 /* =============================================================================

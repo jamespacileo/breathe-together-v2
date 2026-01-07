@@ -23,6 +23,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { VISUALS } from '../constants';
 import { breathPhase, orbitRadius } from '../entities/breath/traits';
+import { useDisposeOnUnmount } from '../hooks/useDisposeOnUnmount';
 import { COUNTRY_CENTROIDS, latLngToPosition } from '../lib/countryCentroids';
 import { findKNearestNeighbors } from '../shared/gizmoTraits';
 
@@ -645,13 +646,7 @@ function InstancedCountrySpheres({
     mesh.count = countries.length;
   });
 
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      geometry.dispose();
-      material.dispose();
-    };
-  }, [geometry, material]);
+  useDisposeOnUnmount(geometry, material);
 
   if (countries.length === 0) return null;
 
@@ -708,13 +703,7 @@ function InstancedCountryRings({
     mesh.count = countries.length;
   });
 
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      geometry.dispose();
-      material.dispose();
-    };
-  }, [geometry, material]);
+  useDisposeOnUnmount(geometry, material);
 
   if (countries.length === 0) return null;
 

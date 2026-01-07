@@ -1,13 +1,16 @@
 # Breathe Together - Presence API Worker
 
-A minimal Cloudflare Worker backend for real-time presence tracking.
+Cloudflare Worker backend for presence + inspirational text (KV + Durable Objects).
 
 ## Features
 
 - **Anonymous sessions**: UUID-based session tracking (no PII)
-- **Mood tracking**: Users can set their current mood (gratitude, presence, release, connection)
-- **Auto-expiry**: Sessions expire after 30 seconds without heartbeat
-- **Low cost**: Simple KV storage, no WebSockets or Durable Objects needed
+- **Mood tracking**: gratitude / presence / release / connection
+- **Hybrid presence**:
+  - KV sampling for low-traffic / cheap polling
+  - Durable Object WebSocket room for realtime presence at scale
+- **Inspirational text**: globally-synchronized rotation + optional admin overrides
+- **Admin protection**: set `ADMIN_TOKEN` to protect `/admin/*` endpoints (recommended for any non-local deploy)
 
 ## API Endpoints
 
@@ -40,15 +43,22 @@ Response:
 
 Get current presence state (read-only).
 
-### `POST /api/leave`
+### `GET /api/inspirational`
 
-Signal that a user is leaving (explicit cleanup).
+Get the current inspirational message. Optional query params:
 
-```json
-{
-  "sessionId": "uuid-string"
-}
-```
+- `sessionId=<id>`: returns a per-user override if one exists
+- `skipCache=true`: disables caching for debugging
+
+### Admin Endpoints (`/admin/*`)
+
+Admin endpoints require `ADMIN_TOKEN` (or will only work on `localhost` when unset):
+
+- `GET /admin/users`, `GET /admin/events`, `GET /admin/stats`
+- `GET /admin/inspirational`
+- `POST /admin/inspirational/override`
+- `POST /admin/inspirational/generate`
+- `POST /admin/inspirational/message`
 
 ## Setup
 

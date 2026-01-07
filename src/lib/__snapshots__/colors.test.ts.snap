@@ -1,0 +1,28 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Color System (colors) > API Surface & Contract > exports expected functions and constants 1`] = `
+[
+  "MONUMENT_VALLEY_PALETTE",
+  "MOOD_COLORS",
+  "NEON_MOOD_PALETTE",
+  "getMonumentValleyMoodColor",
+  "getMoodAccentColor",
+  "getMoodAccentGlow",
+  "getMoodColor",
+]
+`;
+
+exports[`Color System (colors) > Color Palette Contracts > Visual Regression Guards > documents color palette snapshot for regression detection 1`] = `
+{
+  "environment": {
+    "background": "#f5f0e8",
+    "globe": "#8b6f47",
+  },
+  "moods": {
+    "connection": "#ef476f",
+    "gratitude": "#ffbe0b",
+    "presence": "#06d6a0",
+    "release": "#118ab2",
+  },
+}
+`;

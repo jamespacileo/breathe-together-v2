@@ -166,6 +166,11 @@ export function useInspirationRibbon(
   // Track previous phase for cycle detection
   const prevPhaseRef = useRef(-1);
   const animationFrameRef = useRef<number | null>(null);
+  const opacityRef = useRef(opacity);
+  const phaseInfoRef = useRef(phaseInfo);
+
+  const OPACITY_EPSILON = 0.02;
+  const PHASE_PROGRESS_EPSILON = 0.05;
 
   // Format current text (combined and separate parts)
   const text = enabled ? formatMessageForRibbon(currentMessage, format) : fallbackText;
@@ -185,7 +190,19 @@ export function useInspirationRibbon(
     // Calculate breath-synchronized opacity
     const breathOpacity = calculateBreathOpacity(phaseIndex, phaseProgress);
     const scaledOpacity = minOpacity + breathOpacity * (baseOpacity - minOpacity);
-    setOpacity(scaledOpacity);
+    if (Math.abs(scaledOpacity - opacityRef.current) >= OPACITY_EPSILON) {
+      opacityRef.current = scaledOpacity;
+      setOpacity(scaledOpacity);
+    }
+
+    if (
+      phaseIndex !== phaseInfoRef.current.phaseIndex ||
+      Math.abs(phaseProgress - phaseInfoRef.current.phaseProgress) >= PHASE_PROGRESS_EPSILON
+    ) {
+      const nextPhase = { phaseIndex, phaseProgress };
+      phaseInfoRef.current = nextPhase;
+      setPhaseInfo(nextPhase);
+    }
 
     // Detect phase transitions for message changes
     if (prevPhaseRef.current !== phaseIndex) {

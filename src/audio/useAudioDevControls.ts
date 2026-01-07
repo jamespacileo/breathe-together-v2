@@ -13,7 +13,7 @@
  */
 
 import { button, folder, useControls } from 'leva';
-import { useCallback, useEffect, useRef } from 'react';
+import { createElement, type ReactElement, useCallback, useEffect, useRef } from 'react';
 import { DEV_MODE_ENABLED } from '../config/devMode';
 import { useAudio, useAudioAvailable } from './AudioProvider';
 import { getNatureSoundIds } from './registry';
@@ -58,20 +58,10 @@ export const AUDIO_DEV_DEFAULTS: AudioDevControlsState = {
  * Integrates with the AudioProvider to control audio parameters.
  * Only renders when DEV_MODE_ENABLED is true.
  */
-export function useAudioDevControls(): void {
-  // Skip if dev mode is disabled or audio is not available
-  const isAudioAvailable = useAudioAvailable();
-
-  if (!DEV_MODE_ENABLED || !isAudioAvailable) {
-    return;
-  }
-
-  // Get audio context - this will work since we checked availability
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional - only runs in dev mode
+function useAudioDevControlsEnabled(): void {
   const audio = useAudio();
 
   // Track set function for programmatic updates
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   // biome-ignore lint/suspicious/noExplicitAny: Leva's set function type is complex and varies based on schema
   const setRef = useRef<((values: Record<string, any>) => void) | null>(null);
 
@@ -79,7 +69,6 @@ export function useAudioDevControls(): void {
   const natureSoundOptions = ['none', ...getNatureSoundIds()];
 
   // Leva controls
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   const [, set] = useControls(() => ({
     Audio: folder(
       {
@@ -266,13 +255,11 @@ export function useAudioDevControls(): void {
   }));
 
   // Store set function in ref
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   useEffect(() => {
     setRef.current = set;
   }, [set]);
 
   // Sync Leva controls when audio state changes externally
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   const syncControls = useCallback(() => {
     if (setRef.current) {
       setRef.current({
@@ -292,14 +279,24 @@ export function useAudioDevControls(): void {
   }, [audio.state]);
 
   // Sync on mount and when audio state changes
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   useEffect(() => {
     syncControls();
   }, [syncControls]);
 }
 
 /**
- * Standalone component that activates audio dev controls
+ * Hook for audio dev controls via Leva panel.
+ *
+ * Note: this is only safe to call from a component that is mounted
+ * conditionally (see `AudioDevControls` below). Do not add early returns
+ * above hook calls in this function.
+ */
+export function useAudioDevControls(): void {
+  useAudioDevControlsEnabled();
+}
+
+/**
+ * Standalone component that activates audio dev controls.
  *
  * Use this in your scene to enable audio Leva controls:
  *
@@ -310,7 +307,13 @@ export function useAudioDevControls(): void {
  * </AudioProvider>
  * ```
  */
-export function AudioDevControls(): null {
-  useAudioDevControls();
+export function AudioDevControls(): ReactElement | null {
+  const isAudioAvailable = useAudioAvailable();
+  if (!DEV_MODE_ENABLED || !isAudioAvailable) return null;
+  return createElement(AudioDevControlsInner);
+}
+
+function AudioDevControlsInner(): null {
+  useAudioDevControlsEnabled();
   return null;
 }

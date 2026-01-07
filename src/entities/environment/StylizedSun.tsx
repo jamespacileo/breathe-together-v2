@@ -20,6 +20,7 @@ import * as THREE from 'three';
 
 import { calculateGMST, calculateSunPosition, celestialToCartesian } from '../../lib/astronomy';
 import { breathPhase } from '../breath/traits';
+import StylizedSunMaterialTSL from './StylizedSunTSL';
 
 interface StylizedSunProps {
   /** Enable sun rendering @default true */
@@ -38,97 +39,11 @@ interface StylizedSunProps {
   breathSync?: boolean;
   /** Ray count @default 16 */
   rayCount?: number;
-  /** Overall intensity @default 1.2 */
+  /** Overall intensity @default 0.7 */
   intensity?: number;
   /** Show debug gizmo @default false */
   showGizmo?: boolean;
 }
-
-/**
- * Custom shader for multi-layered sun glow
- */
-const sunVertexShader = `
-  varying vec2 vUv;
-  varying vec3 vPosition;
-
-  void main() {
-    vUv = uv;
-    vPosition = position;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const sunFragmentShader = `
-  uniform float time;
-  uniform float breathPhase;
-  uniform vec3 coreColor;
-  uniform vec3 coronaColor;
-  uniform vec3 glowColor;
-  uniform float intensity;
-
-  varying vec2 vUv;
-
-  // Soft noise for corona variation
-  float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-  }
-
-  float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-
-    float a = hash(i);
-    float b = hash(i + vec2(1.0, 0.0));
-    float c = hash(i + vec2(0.0, 1.0));
-    float d = hash(i + vec2(1.0, 1.0));
-
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-  }
-
-  void main() {
-    vec2 center = vUv - vec2(0.5);
-    float dist = length(center);
-    float angle = atan(center.y, center.x);
-
-    // Breathing pulse - subtle expansion/contraction
-    float breathPulse = 1.0 + breathPhase * 0.08;
-
-    // Core disc - sharp bright center
-    float core = smoothstep(0.15 * breathPulse, 0.05, dist);
-
-    // Inner corona - soft warm glow
-    float corona = smoothstep(0.35 * breathPulse, 0.1, dist) * 0.7;
-
-    // Animated corona texture
-    float coronaNoise = noise(vec2(angle * 3.0 + time * 0.5, dist * 10.0 - time * 0.3));
-    corona *= (0.7 + coronaNoise * 0.3);
-
-    // Outer glow - very soft falloff
-    float outerGlow = smoothstep(0.5, 0.15, dist) * 0.4;
-
-    // Ray effect - subtle radial streaks
-    float rayAngle = mod(angle + time * 0.1, 3.14159 / 6.0);
-    float rays = smoothstep(0.1, 0.0, abs(rayAngle - 3.14159 / 12.0)) * 0.15;
-    rays *= smoothstep(0.5, 0.2, dist) * smoothstep(0.1, 0.2, dist);
-
-    // Combine layers with colors
-    vec3 color = coreColor * core;
-    color += coronaColor * corona;
-    color += glowColor * outerGlow;
-    color += vec3(1.0, 0.95, 0.85) * rays;
-
-    // Final alpha - soft circular falloff
-    float alpha = core + corona * 0.8 + outerGlow * 0.5 + rays;
-    alpha = clamp(alpha * intensity, 0.0, 1.0);
-
-    // Subtle edge shimmer
-    float shimmer = sin(time * 3.0 + angle * 8.0) * 0.05 + 0.95;
-    alpha *= shimmer;
-
-    gl_FragColor = vec4(color, alpha * smoothstep(0.5, 0.3, dist));
-  }
-`;
 
 /**
  * Sun rays component - INSTANCED for performance (1 draw call vs 16)
@@ -219,170 +134,103 @@ function SunRays({
   );
 }
 
-export const StylizedSun = memo(function StylizedSun({
-  enabled = true,
-  radius = 28,
-  size = 12,
-  coreColor = '#fffcf0',
-  coronaColor = '#ffd9a8',
-  glowColor = '#ffb080',
-  breathSync = true,
-  rayCount = 16,
-  intensity = 1.2,
-  showGizmo = false,
-}: StylizedSunProps) {
-  const groupRef = useRef<THREE.Group>(null);
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
-  const world = useWorld();
+/**
+ * StylizedSun - Monument Valley inspired celestial sun (TSL)
+ */
+export const StylizedSun = memo(function StylizedSun(props: StylizedSunProps) {
+  const {
+    enabled = true,
+    radius = 28,
+    size = 12,
+    coreColor = '#fffcf0',
+    coronaColor = '#ffd9a8',
+    glowColor = '#ffb080',
+    breathSync = true,
+    rayCount = 16,
+    intensity = 0.7,
+    showGizmo = false,
+  } = props;
 
-  // Calculate initial sun position - will be updated each frame in useFrame
-  const sunPosition = useMemo(() => {
-    const now = new Date();
-    const gmst = calculateGMST(now);
-    const sunData = calculateSunPosition(now);
-    const [x, y, z] = celestialToCartesian(sunData.ra, sunData.dec, radius, gmst);
-    return new THREE.Vector3(x, y, z);
+  const world = useWorld();
+  const groupRef = useRef<THREE.Group>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  const [breathPhaseValue, setBreathPhaseValue] = useState(0.5);
+  const lastSunUpdateRef = useRef(-Infinity);
+
+  const geometry = useMemo(() => new THREE.CircleGeometry(size, 64), [size]);
+
+  // Keep the sun position in sync with current UTC time.
+  // This uses astronomy-engine, so we only recompute occasionally.
+  const updateSunPosition = useMemo(() => {
+    const position = new THREE.Vector3();
+    return (nowSeconds: number) => {
+      if (nowSeconds - lastSunUpdateRef.current < 60) return position;
+      lastSunUpdateRef.current = nowSeconds;
+
+      const date = new Date();
+      const gmst = calculateGMST(date);
+      const sunPos = calculateSunPosition(date);
+      const [x, y, z] = celestialToCartesian(sunPos.ra, sunPos.dec, radius, gmst);
+      position.set(x, y, z);
+      return position;
+    };
   }, [radius]);
 
-  // Shader material with uniforms
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        time: { value: 0 },
-        breathPhase: { value: 0.5 },
-        coreColor: { value: new THREE.Color(coreColor) },
-        coronaColor: { value: new THREE.Color(coronaColor) },
-        glowColor: { value: new THREE.Color(glowColor) },
-        intensity: { value: intensity },
-      },
-      vertexShader: sunVertexShader,
-      fragmentShader: sunFragmentShader,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-  }, [coreColor, coronaColor, glowColor, intensity]);
-
-  // Get breath phase value
-  const [currentBreathPhase, setCurrentBreathPhase] = useState(0.5);
-
-  // Track last position update time to throttle astronomical calculations
-  const lastPositionUpdateRef = useRef(0);
-  const UPDATE_INTERVAL = 10; // Update position every 10 seconds (sun moves ~0.04°)
-
-  // Animate sun
   useFrame((state) => {
-    if (!enabled || !materialRef.current) return;
+    if (!enabled) return;
 
-    // Update time
-    materialRef.current.uniforms.time.value = state.clock.elapsedTime;
-
-    // Update sun position periodically (astronomical calculations are expensive)
-    const currentTime = state.clock.elapsedTime;
-    if (currentTime - lastPositionUpdateRef.current > UPDATE_INTERVAL) {
-      lastPositionUpdateRef.current = currentTime;
-
-      // Recalculate sun position based on current time
-      const now = new Date();
-      const gmst = calculateGMST(now);
-      const sunData = calculateSunPosition(now);
-      const [x, y, z] = celestialToCartesian(sunData.ra, sunData.dec, radius, gmst);
-
-      // Update group position
-      if (groupRef.current) {
-        groupRef.current.position.set(x, y, z);
-      }
-    }
-
-    // Update breath phase from ECS
-    if (breathSync) {
-      try {
-        const breathEntity = world.queryFirst(breathPhase);
-        if (breathEntity) {
-          const phase = breathEntity.get(breathPhase)?.value ?? 0.5;
-          materialRef.current.uniforms.breathPhase.value = phase;
-          setCurrentBreathPhase(phase);
-        }
-      } catch (_e) {
-        // Silently catch ECS errors during unmount/remount in Triplex
-      }
-    }
-
-    // Make sun always face camera (billboard effect)
+    const nowSeconds = state.clock.elapsedTime;
+    const pos = updateSunPosition(nowSeconds);
     if (groupRef.current) {
-      groupRef.current.lookAt(state.camera.position);
+      groupRef.current.position.copy(pos);
+    }
+
+    // Billboard the sun disc for consistent appearance.
+    if (meshRef.current) {
+      meshRef.current.lookAt(state.camera.position);
+    }
+
+    if (!breathSync) return;
+
+    try {
+      const breathEntity = world.queryFirst(breathPhase);
+      const next = breathEntity?.get(breathPhase)?.value ?? 0.5;
+      setBreathPhaseValue((prev) => (Math.abs(prev - next) > 0.002 ? next : prev));
+    } catch (_e) {
+      // ECS world can become stale during hot-reload; ignore transient errors.
     }
   });
 
-  // Cleanup
   useEffect(() => {
     return () => {
-      material.dispose();
+      geometry.dispose();
     };
-  }, [material]);
-
-  // Store material ref
-  useEffect(() => {
-    materialRef.current = material;
-  }, [material]);
+  }, [geometry]);
 
   if (!enabled) return null;
 
   return (
-    <group ref={groupRef} position={sunPosition}>
-      {/* Main sun disc with shader */}
-      <mesh>
-        <planeGeometry args={[size * 2, size * 2]} />
-        <primitive object={material} attach="material" />
-      </mesh>
-
-      {/* Decorative rays */}
-      <SunRays count={rayCount} size={size} color={coronaColor} breathPhase={currentBreathPhase} />
-
-      {/* Outer soft glow halo */}
-      <mesh position={[0, 0, -0.2]}>
-        <circleGeometry args={[size * 2.5, 32]} />
-        <meshBasicMaterial
-          color={glowColor}
-          transparent
-          opacity={0.18}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
+    <group ref={groupRef}>
+      <mesh ref={meshRef} geometry={geometry} frustumCulled={false}>
+        <StylizedSunMaterialTSL
+          coreColor={coreColor}
+          coronaColor={coronaColor}
+          glowColor={glowColor}
+          intensity={intensity}
+          breathPhase={breathPhaseValue}
         />
       </mesh>
 
-      {/* Very soft ambient haze */}
-      <mesh position={[0, 0, -0.3]}>
-        <circleGeometry args={[size * 4, 32]} />
-        <meshBasicMaterial
-          color="#fff5eb"
-          transparent
-          opacity={0.08}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
+      <SunRays count={rayCount} size={size} color={glowColor} breathPhase={breathPhaseValue} />
 
-      {/* Debug gizmo - wireframe sphere and axes */}
       {showGizmo && (
-        <>
-          {/* Wireframe sphere showing sun bounds */}
-          <mesh>
-            <sphereGeometry args={[size, 16, 16]} />
-            <meshBasicMaterial color="#ff6600" wireframe transparent opacity={0.6} />
-          </mesh>
-
-          {/* Axes helper for orientation */}
-          <axesHelper args={[size * 1.5]} />
-
-          {/* Distance indicator ring */}
-          <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[size * 0.9, size * 1.1, 32]} />
-            <meshBasicMaterial color="#ff6600" transparent opacity={0.3} side={THREE.DoubleSide} />
-          </mesh>
-        </>
+        <mesh>
+          <sphereGeometry args={[0.2, 8, 8]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.6} />
+        </mesh>
       )}
     </group>
   );
 });
+
+export default StylizedSun;

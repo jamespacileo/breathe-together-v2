@@ -10,6 +10,7 @@
  * - 10k users × 15min avg session = ~$8/month
  */
 
+import { configureWorkerFromEnv } from './config';
 import { getEventStats, getRecentEvents, logJoin, logLeave, logMoodChange } from './events';
 import {
   getSimulatedMoodCounts,
@@ -23,7 +24,7 @@ import type { MoodId, User } from './types';
 interface Session {
   id: string;
   mood: MoodId;
-  webSocket: WebSocket;
+  sockets: Set<WebSocket>;
   connectedAt: number;
 }
 
@@ -54,15 +55,36 @@ declare const WebSocketPair: {
 export class BreathingRoom {
   private sessions: Map<string, Session> = new Map();
   private state: DurableObjectState;
+  private wsToSessionId: Map<WebSocket, string> = new Map();
+  private broadcastInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(state: DurableObjectState) {
+  constructor(state: DurableObjectState, env: Record<string, unknown>) {
     this.state = state;
+    configureWorkerFromEnv(env);
+  }
 
-    // Broadcast presence every 5 seconds
-    // Note: Durable Objects manage their own lifecycle, so we don't need to clear the interval
-    setInterval(() => {
+  /**
+   * Start periodic presence broadcasts (only while sessions exist)
+   */
+  private startBroadcastLoop(): void {
+    if (this.broadcastInterval) return;
+    this.broadcastInterval = setInterval(() => {
+      if (this.sessions.size === 0) {
+        this.stopBroadcastLoop();
+        return;
+      }
       this.broadcastPresence();
     }, 5000);
+  }
+
+  /**
+   * Stop periodic presence broadcasts
+   */
+  private stopBroadcastLoop(): void {
+    if (this.broadcastInterval) {
+      clearInterval(this.broadcastInterval);
+      this.broadcastInterval = null;
+    }
   }
 
   /**
@@ -106,8 +128,12 @@ export class BreathingRoom {
     if (!sessionId) {
       return new Response('Missing sessionId', { status: 400 });
     }
+    if (sessionId.length > 128) {
+      return new Response('Invalid sessionId', { status: 400 });
+    }
 
     const validMood = validateMood(moodParam);
+    let shouldBroadcast = false;
 
     // Create WebSocket pair
     const pair = new WebSocketPair();
@@ -116,20 +142,37 @@ export class BreathingRoom {
     // Accept the WebSocket
     this.state.acceptWebSocket(server);
 
-    // Store session
-    const session: Session = {
-      id: sessionId,
-      mood: validMood,
-      webSocket: server,
-      connectedAt: Date.now(),
-    };
-    this.sessions.set(sessionId, session);
+    const existingSession = this.sessions.get(sessionId);
+    if (existingSession) {
+      if (existingSession.mood !== validMood) {
+        logMoodChange(sessionId, existingSession.mood, validMood);
+        existingSession.mood = validMood;
+        shouldBroadcast = true;
+      }
+      existingSession.sockets.add(server);
+    } else {
+      // Store session
+      const session: Session = {
+        id: sessionId,
+        mood: validMood,
+        sockets: new Set([server]),
+        connectedAt: Date.now(),
+      };
+      this.sessions.set(sessionId, session);
 
-    // Log join event
-    logJoin(sessionId, validMood);
+      // Log join event
+      logJoin(sessionId, validMood);
+      shouldBroadcast = true;
+    }
+
+    this.wsToSessionId.set(server, sessionId);
+    this.startBroadcastLoop();
 
     // Send initial presence
     this.sendPresenceTo(server);
+    if (shouldBroadcast) {
+      this.broadcastPresence();
+    }
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -147,8 +190,9 @@ export class BreathingRoom {
     }
 
     try {
-      if (data.type === 'mood' && data.sessionId) {
-        const session = this.sessions.get(data.sessionId);
+      const sessionId = this.wsToSessionId.get(ws);
+      if (data.type === 'mood' && sessionId) {
+        const session = this.sessions.get(sessionId);
         const validMood = validateMood(data.mood);
         if (session) {
           const previousMood = session.mood;
@@ -171,14 +215,25 @@ export class BreathingRoom {
    * Handle WebSocket close
    */
   async webSocketClose(ws: WebSocket): Promise<void> {
-    // Find and remove session
-    for (const [id, session] of this.sessions) {
-      if (session.webSocket === ws) {
-        logLeave(id, session.mood);
-        this.sessions.delete(id);
-        break;
-      }
+    const sessionId = this.wsToSessionId.get(ws);
+    if (!sessionId) return;
+
+    this.wsToSessionId.delete(ws);
+
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    session.sockets.delete(ws);
+
+    if (session.sockets.size === 0) {
+      logLeave(sessionId, session.mood);
+      this.sessions.delete(sessionId);
     }
+
+    if (this.sessions.size === 0) {
+      this.stopBroadcastLoop();
+    }
+
     // Broadcast updated presence
     this.broadcastPresence();
   }
@@ -253,10 +308,12 @@ export class BreathingRoom {
     const message = JSON.stringify(presence);
 
     for (const session of this.sessions.values()) {
-      try {
-        session.webSocket.send(message);
-      } catch {
-        // Will be cleaned up on close event
+      for (const socket of session.sockets) {
+        try {
+          socket.send(message);
+        } catch {
+          // Will be cleaned up on close event
+        }
       }
     }
   }
@@ -285,6 +342,7 @@ export class BreathingRoom {
         mood: session.mood,
         connectedAt: session.connectedAt,
         durationMs: Date.now() - session.connectedAt,
+        connectionCount: session.sockets.size,
       }))
       .sort((a, b) => a.id.localeCompare(b.id));
 

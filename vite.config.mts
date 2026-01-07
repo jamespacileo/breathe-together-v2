@@ -9,6 +9,13 @@ export default defineConfig({
    */
   base: "/",
   plugins: [tailwindcss(), react()],
+  server: {
+    proxy: {
+      // Route API traffic through Vite in dev so the app can use same-origin URLs (no CORS).
+      "/api": { target: "http://localhost:8787", changeOrigin: true, ws: true },
+      "/admin": { target: "http://localhost:8787", changeOrigin: true, ws: true },
+    },
+  },
 
   build: {
     target: "esnext",

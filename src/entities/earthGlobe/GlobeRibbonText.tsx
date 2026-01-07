@@ -257,9 +257,9 @@ export function GlobeRibbonText({
   globeRadius = 1.5,
   heightOffset = 0,
   tiltAngle = 0.15,
-  color = '#5eb3b2',
+  color = '#ffffff', // White for high contrast on dark cosmic scene (was #5eb3b2)
   fontSize = 0.12,
-  opacity = 0.8,
+  opacity = 0.9, // Increased from 0.8 for better visibility
   syncRotation = true,
   breathSync = true,
   rotationDirection = 1,

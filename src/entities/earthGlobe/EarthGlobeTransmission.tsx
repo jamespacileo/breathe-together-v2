@@ -12,14 +12,15 @@
  * Does NOT work with InstancedMesh (use for single globe only).
  */
 
-import { MeshTransmissionMaterial, Ring, Sparkles, Sphere } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { MeshTransmissionMaterial, Ring, Sphere } from '@react-three/drei';
+import { type ThreeElements, useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
 import { useDisposeGeometries, useDisposeMaterials } from '../../hooks/useDisposeMaterials';
 import { breathPhase } from '../breath/traits';
+import { AtmosphericParticles } from '../particle/AtmosphericParticles';
 
 /**
  * Atmosphere halo configuration - pastel layers around the globe
@@ -42,11 +43,11 @@ interface EarthGlobeTransmissionProps {
   enableRotation?: boolean;
   /** Show atmosphere halo layers @default true */
   showAtmosphere?: boolean;
-  /** Show sparkle aura @default true */
+  /** Show cloudlet aura @default true */
   showSparkles?: boolean;
   /** Show equator ring @default true */
   showRing?: boolean;
-  /** Sparkle count @default 60 */
+  /** Cloudlet count @default 60 */
   sparkleCount?: number;
   /**
    * Transmission amount (0 = opaque, 1 = fully transparent)
@@ -134,8 +135,7 @@ export function EarthGlobeTransmission({
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const atmosphereRefs = useRef<(THREE.Mesh | null)[]>([]);
-  // biome-ignore lint/suspicious/noExplicitAny: MeshTransmissionMaterial doesn't export instance type in @react-three/drei
-  const transmissionRef = useRef<any>(null);
+  const transmissionRef = useRef<ThreeElements['meshTransmissionMaterial'] | null>(null);
   const world = useWorld();
 
   // Create memoized atmosphere geometries and materials
@@ -258,15 +258,22 @@ export function EarthGlobeTransmission({
           />
         ))}
 
-      {/* Soft sparkle aura */}
+      {/* Cloudlet aura */}
       {showSparkles && (
-        <Sparkles
-          count={sparkleCount}
-          size={4}
-          scale={[radius * 3.5, radius * 3.5, radius * 3.5]}
-          speed={0.25}
-          opacity={0.45}
-          color="#f8d0a8"
+        <AtmosphericParticles
+          count={Math.max(12, Math.round(sparkleCount * 0.35))}
+          size={0.13}
+          baseOpacity={0.07}
+          breathingOpacity={0.07}
+          color="#d6dde3"
+          minRadius={radius * 3.2}
+          maxRadius={radius * 4.6}
+          minSpeed={0.01}
+          maxSpeed={0.03}
+          maxInclination={0.35}
+          heightRange={0.9}
+          sizeRange={[0.8, 1.7]}
+          opacityRange={[0.4, 0.85]}
         />
       )}
 

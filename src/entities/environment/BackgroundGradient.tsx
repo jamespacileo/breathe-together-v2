@@ -1,143 +1,171 @@
 /**
  * BackgroundGradient - Monument Valley inspired animated gradient background
  *
- * Renders as a fullscreen quad behind all other content with:
- * - Multi-stop pastel gradient (sky blue → dusty rose → apricot → coral)
- * - Animated procedural clouds using FBM noise
+ * Uses TSL (Three.js Shading Language) nodes for renderer-agnostic code.
+ * Compiles to both WebGL (GLSL) and WebGPU (WGSL).
+ *
+ * Features:
+ * - Multi-stop pastel gradient
+ * - Animated FBM cloud layers (2 layers with different speeds)
+ * - Subtle paper texture noise
  * - Subtle vignette effect
  */
 
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import type * as THREE from 'three';
-import { DoubleSide, PlaneGeometry, ShaderMaterial } from 'three';
+import * as THREE from 'three';
+import {
+  add,
+  dot,
+  float,
+  fract,
+  mix,
+  mul,
+  sin,
+  smoothstep,
+  sub,
+  uniform,
+  uv,
+  vec2,
+  vec3,
+} from 'three/tsl';
+import { MeshBasicNodeMaterial } from 'three/webgpu';
+import { getMaterialUserData, setMaterialUserData } from '../../lib/three/materialUserData';
+// Import existing TSL noise utility
+import { createFBMNode } from '../../lib/tsl/noise';
 
-const vertexShader = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = vec4(position.xy, 0.9999, 1.0);
-}
-`;
-
-const fragmentShader = `
-uniform float time;
-varying vec2 vUv;
-
-// Simplex noise functions for cloud-like patterns
-vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
-
-float snoise(vec2 v) {
-  const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
-  vec2 i = floor(v + dot(v, C.yy));
-  vec2 x0 = v - i + dot(i, C.xx);
-  vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-  vec4 x12 = x0.xyxy + C.xxzz;
-  x12.xy -= i1;
-  i = mod289(i);
-  vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
-  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-  m = m*m; m = m*m;
-  vec3 x = 2.0 * fract(p * C.www) - 1.0;
-  vec3 h = abs(x) - 0.5;
-  vec3 ox = floor(x + 0.5);
-  vec3 a0 = x - ox;
-  m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
-  vec3 g;
-  g.x = a0.x * x0.x + h.x * x0.y;
-  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-  return 130.0 * dot(m, g);
+interface BackgroundGradientProps {
+  /** Enable vignette effect (default: true) */
+  enableVignette?: boolean;
+  /** Enable animated cloud layers (default: true) */
+  enableClouds?: boolean;
 }
 
-// Optimized FBM with 2 octaves (was 4) - 50% cheaper, nearly identical visual
-float fbm(vec2 p) {
-  float f = 0.0;
-  f += 0.5000 * snoise(p); p *= 2.02;
-  f += 0.2500 * snoise(p);
-  return f / 0.75;
-}
+/**
+ * BackgroundGradient Component
+ *
+ * Renders a fullscreen gradient background.
+ * Uses TSL for renderer-agnostic shader code.
+ */
+export function BackgroundGradient({
+  enableVignette = true,
+  enableClouds = true,
+}: BackgroundGradientProps = {}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<MeshBasicNodeMaterial>(null);
 
-void main() {
-  // Creamy neutral background - soft warm tones
-  vec3 skyTop = vec3(0.96, 0.94, 0.91);       // #f5f0e8 Warm cream
-  vec3 skyMid = vec3(0.98, 0.95, 0.90);       // #faf2e6 Soft ivory
-  vec3 horizon = vec3(0.99, 0.94, 0.88);      // #fcf0e0 Warm white
-  vec3 warmGlow = vec3(0.98, 0.92, 0.85);     // #faebb9 Subtle warm glow
-
-  // Vertical position for gradient
-  float y = vUv.y;
-
-  // Smooth multi-stop gradient using smoothstep blending
-  vec3 skyColor;
-  float t1 = smoothstep(0.5, 0.9, y);   // Top transition
-  float t2 = smoothstep(0.25, 0.6, y);  // Middle transition
-  float t3 = smoothstep(0.0, 0.35, y);  // Bottom transition
-
-  // Layer the colors smoothly
-  skyColor = mix(warmGlow, horizon, t3);
-  skyColor = mix(skyColor, skyMid, t2);
-  skyColor = mix(skyColor, skyTop, t1);
-
-  // Animated cloud-like wisps using FBM noise
-  vec2 cloudUv = vUv * vec2(2.0, 1.0) + vec2(time * 0.015, 0.0);
-  float clouds = fbm(cloudUv * 2.5);
-
-  // Second layer of clouds moving slightly differently
-  vec2 cloudUv2 = vUv * vec2(1.5, 0.8) + vec2(time * 0.01 + 50.0, time * 0.003);
-  float clouds2 = fbm(cloudUv2 * 2.0);
-
-  // Combine cloud layers - fade at top and bottom
-  float cloudMask = smoothstep(0.2, 0.55, clouds * 0.5 + clouds2 * 0.5);
-  cloudMask *= smoothstep(0.1, 0.4, y) * smoothstep(0.95, 0.6, y);
-
-  // Cloud color - pure warm white
-  vec3 cloudColor = vec3(1.0, 0.99, 0.97);
-
-  // Blend clouds very subtly into sky
-  vec3 color = mix(skyColor, cloudColor, cloudMask * 0.15);
-
-  // Very subtle vignette - just darkens corners slightly
-  vec2 vignetteUv = vUv * 2.0 - 1.0;
-  float vignette = 1.0 - dot(vignetteUv * 0.15, vignetteUv * 0.15);
-  color *= mix(0.97, 1.0, vignette);
-
-  // Paper texture noise (very subtle)
-  float noise = (fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.008;
-  color += noise;
-
-  gl_FragColor = vec4(color, 1.0);
-}
-`;
-
-export function BackgroundGradient() {
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
-
-  // Create geometry with useMemo for proper disposal
-  const geometry = useMemo(() => new PlaneGeometry(2, 2), []);
-
+  // Create the material with TSL nodes
   const material = useMemo(() => {
-    return new ShaderMaterial({
-      uniforms: {
-        time: { value: 0 },
-      },
-      vertexShader,
-      fragmentShader,
-      depthTest: false,
-      depthWrite: false,
-      side: DoubleSide,
-    });
-  }, []);
+    // Time uniform for cloud animation
+    const uTime = uniform(float(0));
 
-  // Animate time uniform
+    // Store uniform for animation
+    const userData = { uTime };
+    // Get UV coordinates
+    const uvCoord = uv();
+    const y = uvCoord.y;
+
+    // Monument Valley color palette - warm creamy tones
+    const skyTop = vec3(0.96, 0.94, 0.91); // #f5f0e8 Warm cream
+    const skyMid = vec3(0.98, 0.95, 0.9); // #faf2e6 Soft ivory
+    const horizon = vec3(0.99, 0.94, 0.88); // #fcf0e0 Warm white
+    const warmGlow = vec3(0.98, 0.92, 0.85); // #faebb9 Subtle warm glow
+
+    // Smooth multi-stop gradient using smoothstep blending
+    const t1 = smoothstep(float(0.5), float(0.9), y); // Top transition
+    const t2 = smoothstep(float(0.25), float(0.6), y); // Middle transition
+    const t3 = smoothstep(float(0.0), float(0.35), y); // Bottom transition
+
+    // Layer the colors smoothly (functional composition)
+    const layer1 = mix(warmGlow, horizon, t3);
+    const layer2 = mix(layer1, skyMid, t2);
+    const skyColor = mix(layer2, skyTop, t1);
+
+    // ═══════════════════════════════════════════════════════════════
+    // Animated cloud-like wisps using FBM noise (if enabled)
+    // GLSL equivalent (lines 84-99 in BackgroundGradient.tsx):
+    // vec2 cloudUv = vUv * vec2(2.0, 1.0) + vec2(time * 0.015, 0.0);
+    // float clouds = fbm(cloudUv * 2.5);
+    // vec2 cloudUv2 = vUv * vec2(1.5, 0.8) + vec2(time * 0.01 + 50.0, time * 0.003);
+    // float clouds2 = fbm(cloudUv2 * 2.0);
+    // ═══════════════════════════════════════════════════════════════
+    const colorWithClouds = enableClouds
+      ? (() => {
+          // Cloud layer 1 - main drifting clouds
+          const cloudUv1 = add(
+            mul(uvCoord, vec2(2.0, 1.0)),
+            vec2(mul(uTime, float(0.015)), float(0.0)),
+          );
+          const clouds1 = createFBMNode(mul(cloudUv1, float(2.5)), 2, 2.0, 0.5);
+
+          // Cloud layer 2 - secondary slower clouds
+          const cloudUv2 = add(
+            mul(uvCoord, vec2(1.5, 0.8)),
+            vec2(add(mul(uTime, float(0.01)), float(50.0)), mul(uTime, float(0.003))),
+          );
+          const clouds2 = createFBMNode(mul(cloudUv2, float(2.0)), 2, 2.0, 0.5);
+
+          // Combine cloud layers - fade at top and bottom
+          const cloudCombined = add(mul(clouds1, float(0.5)), mul(clouds2, float(0.5)));
+          const cloudMask = mul(
+            smoothstep(float(0.2), float(0.55), cloudCombined),
+            mul(smoothstep(float(0.1), float(0.4), y), smoothstep(float(0.95), float(0.6), y)),
+          );
+
+          // Cloud color - pure warm white
+          const cloudColor = vec3(1.0, 0.99, 0.97);
+
+          // Blend clouds very subtly into sky (15% opacity)
+          return mix(skyColor, cloudColor, mul(cloudMask, float(0.15)));
+        })()
+      : skyColor;
+
+    // Paper texture noise (very subtle dithering)
+    const noiseSeed = dot(uvCoord, vec2(12.9898, 78.233));
+    const noise = mul(sub(fract(mul(sin(noiseSeed), float(43758.5453))), float(0.5)), float(0.008));
+
+    // Build final color with noise
+    const colorWithNoise = add(colorWithClouds, noise);
+
+    // Apply vignette if enabled, otherwise use color with noise
+    const finalColorNode = enableVignette
+      ? (() => {
+          // Vignette - darken corners slightly
+          const vignetteUv = sub(mul(uvCoord, float(2.0)), float(1.0));
+          const vignetteDist = dot(mul(vignetteUv, float(0.15)), mul(vignetteUv, float(0.15)));
+          const vignette = sub(float(1.0), vignetteDist);
+          const vignetteMult = mix(float(0.97), float(1.0), vignette);
+          return mul(colorWithNoise, vignetteMult);
+        })()
+      : colorWithNoise;
+
+    // Create material
+    const mat = new MeshBasicNodeMaterial();
+    mat.colorNode = finalColorNode;
+    mat.depthTest = false;
+    mat.depthWrite = false;
+    mat.side = THREE.DoubleSide;
+
+    // Store userData for animation
+    setMaterialUserData(mat, userData);
+
+    return mat;
+  }, [enableVignette, enableClouds]);
+
+  // Animate time uniform for cloud animation
   useFrame((state) => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.time.value = state.clock.elapsedTime;
+    if (!materialRef.current) return;
+
+    const userData = getMaterialUserData<{ uTime?: { value: number } }>(materialRef.current);
+    if (userData?.uTime) {
+      userData.uTime.value = state.clock.elapsedTime;
     }
   });
 
-  // Cleanup geometry and material on unmount
+  // Create geometry
+  const geometry = useMemo(() => new THREE.PlaneGeometry(2, 2), []);
+
+  // Cleanup
   useEffect(() => {
     return () => {
       geometry.dispose();
@@ -146,7 +174,7 @@ export function BackgroundGradient() {
   }, [geometry, material]);
 
   return (
-    <mesh renderOrder={-1000} frustumCulled={false} geometry={geometry}>
+    <mesh ref={meshRef} renderOrder={-1000} frustumCulled={false} geometry={geometry}>
       <primitive object={material} ref={materialRef} attach="material" />
     </mesh>
   );

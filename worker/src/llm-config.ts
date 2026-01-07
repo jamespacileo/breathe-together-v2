@@ -40,7 +40,7 @@ export interface StoryGenerationRequest extends GenerationRequest {
  * Load LLM config from environment variables
  * Returns config with enabled=false if not properly configured
  */
-export function loadLLMConfig(env: Record<string, string | undefined>): LLMConfig {
+export function loadLLMConfig(env: Record<string, unknown>): LLMConfig {
   const enabled = env.LLM_ENABLED === 'true';
 
   if (!enabled) {
@@ -54,10 +54,13 @@ export function loadLLMConfig(env: Record<string, string | undefined>): LLMConfi
     };
   }
 
-  const provider = (env.LLM_PROVIDER as 'openai' | 'anthropic' | 'gemini') || 'gemini';
-  const apiKey = env.LLM_API_KEY || '';
+  const provider =
+    (typeof env.LLM_PROVIDER === 'string'
+      ? (env.LLM_PROVIDER as 'openai' | 'anthropic' | 'gemini')
+      : undefined) || 'gemini';
+  const apiKey = typeof env.LLM_API_KEY === 'string' ? env.LLM_API_KEY : '';
   const model =
-    env.LLM_MODEL ||
+    (typeof env.LLM_MODEL === 'string' ? env.LLM_MODEL : undefined) ||
     (provider === 'openai'
       ? 'gpt-3.5-turbo'
       : provider === 'anthropic'
@@ -81,8 +84,8 @@ export function loadLLMConfig(env: Record<string, string | undefined>): LLMConfi
     provider,
     apiKey,
     model,
-    maxTokens: parseInt(env.LLM_MAX_TOKENS || '2000', 10),
-    temperature: parseFloat(env.LLM_TEMPERATURE || '0.7'),
+    maxTokens: parseInt(typeof env.LLM_MAX_TOKENS === 'string' ? env.LLM_MAX_TOKENS : '2000', 10),
+    temperature: parseFloat(typeof env.LLM_TEMPERATURE === 'string' ? env.LLM_TEMPERATURE : '0.7'),
   };
 }
 

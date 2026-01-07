@@ -7,6 +7,10 @@
 
 import { z } from 'zod';
 
+export { getPresenceApiBaseUrl } from '../config/api';
+
+import { getPresenceApiBaseUrl as getPresenceApiBaseUrlImpl } from '../config/api';
+
 // =============================================================================
 // Zod Schemas
 // =============================================================================
@@ -147,9 +151,7 @@ export class PresenceApiClient {
 // Default Client Instance
 // =============================================================================
 
-const DEFAULT_BASE_URL = import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787';
-
-export const presenceApi = new PresenceApiClient(DEFAULT_BASE_URL);
+export const presenceApi = new PresenceApiClient(getPresenceApiBaseUrlImpl());
 
 // =============================================================================
 // Validation Helper

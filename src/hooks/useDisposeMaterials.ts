@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type * as THREE from 'three';
 
 /**
@@ -22,13 +22,30 @@ import type * as THREE from 'three';
  * ```
  */
 export function useDisposeMaterials(materials: (THREE.Material | null | undefined)[]): void {
+  const materialsRef = useRef<Set<THREE.Material>>(new Set());
+
+  useEffect(() => {
+    const nextMaterials = new Set(
+      materials.filter((material): material is THREE.Material => Boolean(material)),
+    );
+
+    // Dispose materials that were removed from the list
+    for (const material of materialsRef.current) {
+      if (!nextMaterials.has(material)) {
+        material.dispose();
+      }
+    }
+
+    materialsRef.current = nextMaterials;
+  }, [materials]);
+
   useEffect(() => {
     return () => {
-      for (const material of materials) {
+      for (const material of materialsRef.current) {
         material?.dispose();
       }
     };
-  }, [materials]);
+  }, []);
 }
 
 /**
@@ -51,11 +68,28 @@ export function useDisposeMaterials(materials: (THREE.Material | null | undefine
 export function useDisposeGeometries(
   geometries: (THREE.BufferGeometry | null | undefined)[],
 ): void {
+  const geometriesRef = useRef<Set<THREE.BufferGeometry>>(new Set());
+
+  useEffect(() => {
+    const nextGeometries = new Set(
+      geometries.filter((geometry): geometry is THREE.BufferGeometry => Boolean(geometry)),
+    );
+
+    // Dispose geometries that were removed from the list
+    for (const geometry of geometriesRef.current) {
+      if (!nextGeometries.has(geometry)) {
+        geometry.dispose();
+      }
+    }
+
+    geometriesRef.current = nextGeometries;
+  }, [geometries]);
+
   useEffect(() => {
     return () => {
-      for (const geometry of geometries) {
+      for (const geometry of geometriesRef.current) {
         geometry?.dispose();
       }
     };
-  }, [geometries]);
+  }, []);
 }

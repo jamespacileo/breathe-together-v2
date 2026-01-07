@@ -24,14 +24,98 @@ interface TopRightControlsProps {
   onOpenSettings: () => void;
 }
 
-export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRightControlsProps) {
-  // Use Zustand store for cross-Canvas audio state
+function getAudioTooltipLabel({
+  isDisabled,
+  isLoading,
+  isUnavailable,
+  unavailableReason,
+  providerReady,
+}: {
+  isDisabled: boolean;
+  isLoading: boolean;
+  isUnavailable: boolean;
+  unavailableReason: string | null;
+  providerReady: boolean;
+}): string | null {
+  if (!isDisabled) return null;
+  if (isLoading) return 'Loading audio...';
+  if (isUnavailable) return unavailableReason || 'Audio is not available';
+  if (!providerReady) return 'Audio system initializing...';
+  return 'Audio is not available';
+}
+
+function getAudioTitle({ isDisabled, enabled }: { isDisabled: boolean; enabled: boolean }) {
+  if (isDisabled) return undefined;
+  return enabled ? 'Audio On (click to disable)' : 'Audio Off (click to enable)';
+}
+
+function AudioToggleControl({
+  buttonClasses,
+  buttonSize,
+  iconSize,
+  stopPropagation,
+}: {
+  buttonClasses: string;
+  buttonSize: number;
+  iconSize: number;
+  stopPropagation: (e: React.PointerEvent) => void;
+}) {
   const { enabled, isLoading, providerReady, isUnavailable, unavailableReason, requestToggle } =
     useAudioStore();
-  const { deviceType, isMobile } = useViewport();
 
-  // Determine if button should be disabled
   const isDisabled = isLoading || isUnavailable || !providerReady;
+
+  const tooltipLabel = getAudioTooltipLabel({
+    isDisabled,
+    isLoading,
+    isUnavailable,
+    unavailableReason: unavailableReason ?? null,
+    providerReady,
+  });
+
+  const title = getAudioTitle({ isDisabled, enabled });
+
+  const Icon = enabled && !isUnavailable ? Volume2 : VolumeX;
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            title={title}
+            onClick={isDisabled ? undefined : requestToggle}
+            onPointerDown={stopPropagation}
+            disabled={isDisabled}
+            className={buttonClasses}
+            style={{
+              width: `${buttonSize}px`,
+              height: `${buttonSize}px`,
+              minWidth: `${buttonSize}px`,
+              minHeight: `${buttonSize}px`,
+              color:
+                enabled && !isDisabled ? 'var(--color-accent-gold)' : 'var(--color-warm-brown)',
+              opacity: isDisabled ? 0.4 : 1,
+              cursor: isLoading ? 'wait' : isDisabled ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <Icon size={iconSize} strokeWidth={1.5} aria-label="Audio toggle" />
+          </button>
+        </TooltipTrigger>
+        {tooltipLabel && (
+          <TooltipContent side="bottom" align="end">
+            <div className="max-w-[200px]">
+              <span>{tooltipLabel}</span>
+            </div>
+          </TooltipContent>
+        )}
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRightControlsProps) {
+  const { deviceType, isMobile } = useViewport();
 
   // Match SimpleGaiaUI's edge padding for vertical alignment
   const edgePadding = getResponsiveSpacing(deviceType, 16, 24, 32);
@@ -50,7 +134,7 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
     () =>
       `flex items-center justify-center rounded-full cursor-pointer shrink-0
        bg-glass-light backdrop-blur-[20px] border border-border-light
-       shadow-soft text-warm-gray
+       shadow-soft
        transition-all duration-250 ease-smooth
        hover:bg-glass-hover hover:shadow-medium hover:-translate-y-0.5
        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-gold/50`,
@@ -67,55 +151,12 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
         gap: `${buttonGap}px`,
       }}
     >
-      {/* Audio Toggle Icon - always visible, disabled with tooltip when unavailable */}
-      <TooltipProvider delayDuration={300}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              title={
-                isDisabled
-                  ? undefined // Let tooltip handle it
-                  : enabled
-                    ? 'Audio On (click to disable)'
-                    : 'Audio Off (click to enable)'
-              }
-              onClick={isDisabled ? undefined : requestToggle}
-              onPointerDown={stopPropagation}
-              disabled={isDisabled}
-              className={buttonClasses}
-              style={{
-                width: `${buttonSize}px`,
-                height: `${buttonSize}px`,
-                minWidth: `${buttonSize}px`,
-                minHeight: `${buttonSize}px`,
-                color: enabled && !isDisabled ? 'var(--color-accent-gold)' : undefined,
-                opacity: isDisabled ? 0.4 : 1,
-                cursor: isLoading ? 'wait' : isDisabled ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {enabled && !isUnavailable ? (
-                <Volume2 size={iconSize} strokeWidth={1.5} aria-label="Audio enabled" />
-              ) : (
-                <VolumeX size={iconSize} strokeWidth={1.5} aria-label="Audio disabled" />
-              )}
-            </button>
-          </TooltipTrigger>
-          {isDisabled && (
-            <TooltipContent side="bottom" align="end">
-              <div className="max-w-[200px]">
-                {isLoading ? (
-                  <span>Loading audio...</span>
-                ) : isUnavailable ? (
-                  <span>{unavailableReason || 'Audio is not available'}</span>
-                ) : !providerReady ? (
-                  <span>Audio system initializing...</span>
-                ) : null}
-              </div>
-            </TooltipContent>
-          )}
-        </Tooltip>
-      </TooltipProvider>
+      <AudioToggleControl
+        buttonClasses={buttonClasses}
+        buttonSize={buttonSize}
+        iconSize={iconSize}
+        stopPropagation={stopPropagation}
+      />
 
       {/* Tune/Animation Controls Icon */}
       <button
@@ -129,6 +170,7 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
           height: `${buttonSize}px`,
           minWidth: `${buttonSize}px`,
           minHeight: `${buttonSize}px`,
+          color: 'var(--color-warm-brown)', // High contrast dark blue-gray for better visibility
         }}
       >
         <SlidersHorizontal size={iconSize} strokeWidth={1.5} aria-label="Tune animation controls" />
@@ -146,6 +188,7 @@ export function TopRightControls({ onOpenTuneControls, onOpenSettings }: TopRigh
           height: `${buttonSize}px`,
           minWidth: `${buttonSize}px`,
           minHeight: `${buttonSize}px`,
+          color: 'var(--color-warm-brown)', // High contrast dark blue-gray for better visibility
         }}
       >
         <Settings size={iconSize} strokeWidth={1.5} aria-label="Settings" />

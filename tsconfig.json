@@ -13,8 +13,18 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
-    "types": ["vite/client", "@react-three/fiber"]
+    "target": "ES2022",
+    "types": ["vite/client", "node", "@react-three/fiber"]
   },
-  "include": [".", ".triplex/*"],
-  "exclude": ["node_modules", "worker", "e2e", "playwright.config.ts"]
+  "include": ["src", "shared", ".triplex/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "worker",
+    "e2e",
+    "src/**/*.test.*",
+    "src/test/**",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
 }

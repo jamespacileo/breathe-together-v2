@@ -2,13 +2,16 @@ import { Environment as DreiEnvironment, Stars } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import * as THREE from 'three';
+import { useSunDirection } from '../../hooks/useSunDirection';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
 import { BreathSparkles } from './BreathSparkles';
 import { CloudSystem } from './CloudSystem';
+import { ConstellationGizmos } from './ConstellationGizmos';
 import { ConstellationStars } from './ConstellationStars';
 import { EditorGrid } from './EditorGrid';
+import { NebulaBackdrop } from './NebulaBackdrop';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { StylizedMoon } from './StylizedMoon';
 import { StylizedSun } from './StylizedSun';
@@ -33,6 +36,8 @@ interface EnvironmentProps {
   showConstellations?: boolean;
   /** Show constellation connecting lines @default true */
   showConstellationLines?: boolean;
+  /** Show distant nebula backdrop near constellations @default true */
+  showNebulae?: boolean;
   /** Show stylized sun @default true */
   showSun?: boolean;
   /** Cloud opacity @default 0.4 */
@@ -138,7 +143,7 @@ interface EnvironmentProps {
  * Environment - Monument Valley inspired atmosphere
  *
  * Features:
- * - Gradient background via RefractionPipeline (shader-based clouds)
+ * - Gradient background via BackgroundGradient (shader-based clouds)
  * - Volumetric 3D clouds using drei Cloud component
  * - Warm three-point lighting for soft shadows
  * - Subtle fog for depth
@@ -150,6 +155,7 @@ export function Environment({
   showStars = false,
   showConstellations = true,
   showConstellationLines = true,
+  showNebulae = true,
   showSun = true,
   cloudOpacity = 0.4,
   cloudSpeed = 0.8,
@@ -184,6 +190,7 @@ export function Environment({
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
+  const sunDir = useSunDirection(15); // Distance doesn't matter for directional light as long as we use position or normal
 
   // Reduce star count on mobile/tablet for better performance
   const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
@@ -195,12 +202,16 @@ export function Environment({
       const studioWhite = new THREE.Color('#f8f6f3');
       scene.background = studioWhite;
       gl.setClearColor(studioWhite, 1);
+      scene.fog = null;
     } else {
       // Normal mode: let BackgroundGradient handle it
       scene.background = null;
+
+      // Night sky fog for atmospheric depth
+      // Slightly deeper navy with a longer falloff to reduce haze washout
+      // Near: 24 (clouds start to fade), Far: 45 (fully faded at outer boundaries)
+      scene.fog = new THREE.Fog('#142a45', 24, 45);
     }
-    // Disable fog - it washes out the gradient
-    scene.fog = null;
 
     return () => {
       scene.fog = null;
@@ -270,7 +281,7 @@ export function Environment({
 
       {/* Subtle atmospheric details - users feel these more than see them */}
       {/* Floating dust motes with gentle sparkle */}
-      <AmbientDust count={isMobile ? 40 : 80} opacity={0.12} size={0.012} enabled={true} />
+      <AmbientDust count={isMobile ? 40 : 80} opacity={0.08} size={0.012} enabled={true} />
 
       {/* Breath-synchronized sparkles during exhale phase */}
       {/* Visual feedback for "releasing breath" moment */}
@@ -304,6 +315,11 @@ export function Environment({
         />
       )}
 
+      {showConstellationGizmos && <ConstellationGizmos />}
+
+      {/* Soft nebula backdrop - subtle galaxy haze behind constellations */}
+      {showNebulae && <NebulaBackdrop />}
+
       {/* Stylized sun - positioned based on real astronomical calculations */}
       {/* Warm gradient with rays, breathing-synchronized pulsing */}
       {showSun && <StylizedSun size={sunSize} intensity={sunIntensity} showGizmo={showSunGizmo} />}
@@ -317,9 +333,9 @@ export function Environment({
       {/* Warm ambient light - fills shadows softly */}
       <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />
 
-      {/* Key light - warm golden from upper right (sunrise/sunset feel) */}
+      {/* Key light - synchronized with stylized sun (sunrise/sunset feel) */}
       <directionalLight
-        position={[10, 15, 5]}
+        position={[sunDir.x, sunDir.y, sunDir.z]}
         intensity={keyLightIntensity}
         color={keyLightColor}
         castShadow={false}
@@ -330,6 +346,9 @@ export function Environment({
 
       {/* Rim light - subtle backlight for depth */}
       <directionalLight position={[0, 5, -10]} intensity={0.2} color="#ffd9c4" />
+
+      {/* Edge light - very dim side light to help define transmission glass edges */}
+      <directionalLight position={[12, 6, 0]} intensity={0.15} color="#fff8f0" />
 
       {/* Subtle hemisphere light for natural sky/ground color blending */}
       <hemisphereLight args={['#ffe8d6', '#f5e6d3', 0.4]} />

@@ -5,6 +5,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { ensureAdminToken } from '../lib/adminAuth';
+import { adminFetch } from '../lib/adminFetch';
+import { getPresenceApiBaseUrl } from '../lib/presenceApi';
 import type {
   InspirationMessage,
   MessageBatch,
@@ -32,7 +35,7 @@ interface GenerationState {
 }
 
 // Module-level constant (build-time value)
-const API_BASE_URL = import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787';
+const API_BASE_URL = getPresenceApiBaseUrl();
 
 // Helper function to format ISO timestamps to HH:MM:SS
 function formatISO(iso?: string): string {
@@ -585,6 +588,11 @@ function GeneratorTabContent({
 }
 
 export function InspirationAdmin() {
+  // Prompt once; polling will reuse stored token.
+  useEffect(() => {
+    ensureAdminToken();
+  }, []);
+
   const [activeTab, setActiveTab] = useState<AdminTab>('current');
   const [batchState, setBatchState] = useState<BatchState | null>(null);
   const [editingMessage, setEditingMessage] = useState<{
@@ -605,7 +613,7 @@ export function InspirationAdmin() {
   // Fetch current batch state
   const fetchBatchState = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/inspirational`);
+      const response = await adminFetch(`${API_BASE_URL}/admin/inspirational`);
       if (!response.ok) throw new Error('Failed to fetch batch state');
       const data = (await response.json()) as BatchState;
       setBatchState(data);
@@ -630,7 +638,7 @@ export function InspirationAdmin() {
     if (!editingMessage || !batchState?.currentBatch) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/inspirational/message`, {
+      const response = await adminFetch(`${API_BASE_URL}/admin/inspirational/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -668,7 +676,7 @@ export function InspirationAdmin() {
         recentMessageIds: batchState?.recentHistory?.map((h) => h.entityId) || [],
       };
 
-      const response = await fetch(`${API_BASE_URL}/admin/inspirational/generate`, {
+      const response = await adminFetch(`${API_BASE_URL}/admin/inspirational/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

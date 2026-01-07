@@ -12,6 +12,8 @@
  * The frontend auto-detects WebSocket support and upgrades.
  */
 
+import { isAdminAuthorized, unauthorizedResponse } from './auth';
+import { configureWorkerFromEnv } from './config';
 import {
   getAdminBatchState,
   getCurrentInspirationMessage,
@@ -19,6 +21,7 @@ import {
   rotateInspirationalOnSchedule,
   setUserOverride,
 } from './inspirational';
+import { configureInspirationalFromEnv, INSPIRATIONAL_CONFIG } from './inspirationalConfig';
 import { generateInspirationalMessages } from './llm';
 import type { GenerationRequest } from './llm-config';
 import { loadLLMConfig } from './llm-config';
@@ -122,6 +125,13 @@ async function handlePresence(env: Env): Promise<Response> {
 
 async function handleInspirationText(request: Request, env: Env): Promise<Response> {
   try {
+    if (!INSPIRATIONAL_CONFIG.enabled) {
+      return new Response(JSON.stringify({ error: 'Inspirational text disabled' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const url = new URL(request.url);
     const sessionId = url.searchParams.get('sessionId') ?? undefined;
     const skipCache = url.searchParams.get('skipCache') === 'true';
@@ -168,6 +178,12 @@ async function handleCreateTextOverride(request: Request, env: Env): Promise<Res
     // Validate request
     if (!sessionId || !Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: 'Invalid request' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      return new Response(JSON.stringify({ error: 'Invalid durationMinutes' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -223,7 +239,10 @@ async function handleGenerateInspirationalMessages(request: Request, env: Env): 
         });
       }
 
-      if (!['complete-arc', 'beginning', 'middle', 'end'].includes(storyType)) {
+      if (
+        typeof storyType !== 'string' ||
+        !['complete-arc', 'beginning', 'middle', 'end'].includes(storyType)
+      ) {
         return new Response(JSON.stringify({ error: 'Invalid storyType' }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' },
@@ -250,7 +269,7 @@ async function handleGenerateInspirationalMessages(request: Request, env: Env): 
     }
 
     // Load LLM config
-    const llmConfig = loadLLMConfig(env);
+    const llmConfig = loadLLMConfig(env as unknown as Record<string, unknown>);
 
     // Build generation request with context
     const generationRequest: GenerationRequest = {
@@ -275,7 +294,9 @@ async function handleGenerateInspirationalMessages(request: Request, env: Env): 
 
     // Store batch in KV for future use
     const batchKey = `inspiration:batch:${batch.id}`;
-    await env.PRESENCE_KV.put(batchKey, JSON.stringify(batch));
+    await env.PRESENCE_KV.put(batchKey, JSON.stringify(batch), {
+      expirationTtl: INSPIRATIONAL_CONFIG.batchTtlSeconds,
+    });
 
     return new Response(JSON.stringify({ success: true, batch }), {
       headers: { 'Content-Type': 'application/json' },
@@ -425,7 +446,7 @@ function corsHeaders(): HeadersInit {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Upgrade',
+    'Access-Control-Allow-Headers': 'Content-Type, Upgrade, Authorization, X-Admin-Token',
   };
 }
 
@@ -438,13 +459,20 @@ function addCorsHeaders(response: Response): Response {
 }
 
 export default {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Main router function handles multiple routes and authentication paths
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Apply env-driven configuration (safe defaults + local overrides)
+    configureWorkerFromEnv(env as unknown as Record<string, unknown>);
+    configureInspirationalFromEnv(env as unknown as Record<string, unknown>);
+
     // Initialize inspirational text system on first request
     try {
-      await initializeInspirational(env.PRESENCE_KV);
+      if (INSPIRATIONAL_CONFIG.enabled) {
+        await initializeInspirational(env.PRESENCE_KV);
+      }
     } catch (e) {
       console.error('Failed to initialize inspirational text:', e);
     }
@@ -498,18 +526,34 @@ export default {
 
       // Admin inspirational text endpoints
       case path === '/admin/inspirational' && request.method === 'GET':
+        if (!isAdminAuthorized(request, env as unknown as Record<string, unknown>)) {
+          response = unauthorizedResponse();
+          break;
+        }
         response = await handleGetInspirationBatches(env);
         break;
 
       case path === '/admin/inspirational/override' && request.method === 'POST':
+        if (!isAdminAuthorized(request, env as unknown as Record<string, unknown>)) {
+          response = unauthorizedResponse();
+          break;
+        }
         response = await handleCreateTextOverride(request, env);
         break;
 
       case path === '/admin/inspirational/generate' && request.method === 'POST':
+        if (!isAdminAuthorized(request, env as unknown as Record<string, unknown>)) {
+          response = unauthorizedResponse();
+          break;
+        }
         response = await handleGenerateInspirationalMessages(request, env);
         break;
 
       case path === '/admin/inspirational/message' && request.method === 'POST':
+        if (!isAdminAuthorized(request, env as unknown as Record<string, unknown>)) {
+          response = unauthorizedResponse();
+          break;
+        }
         response = await handleEditMessage(request, env);
         break;
 
@@ -517,6 +561,10 @@ export default {
       case path === '/admin/users' && request.method === 'GET':
       case path === '/admin/events' && request.method === 'GET':
       case path === '/admin/stats' && request.method === 'GET':
+        if (!isAdminAuthorized(request, env as unknown as Record<string, unknown>)) {
+          response = unauthorizedResponse();
+          break;
+        }
         response = await handleAdminRequest(request, env, path);
         break;
 
@@ -532,6 +580,9 @@ export default {
 
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
     try {
+      configureWorkerFromEnv(env as unknown as Record<string, unknown>);
+      configureInspirationalFromEnv(env as unknown as Record<string, unknown>);
+
       const state = await getAggregate(env.PRESENCE_KV);
       const updated = recalculate(state, Date.now());
 
@@ -541,7 +592,9 @@ export default {
       }
 
       // Rotate inspirational messages if needed
-      await rotateInspirationalOnSchedule(env.PRESENCE_KV);
+      if (INSPIRATIONAL_CONFIG.enabled) {
+        await rotateInspirationalOnSchedule(env.PRESENCE_KV);
+      }
     } catch (e) {
       console.error('Scheduled cleanup error:', e);
     }

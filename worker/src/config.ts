@@ -5,6 +5,7 @@
  * Modify this file to adjust behavior without changing implementation code.
  */
 
+import { readBool, readInt } from './config/env';
 import type { MoodId } from './types';
 
 // =============================================================================
@@ -32,14 +33,14 @@ export interface SimulationConfig {
 }
 
 export const SIMULATION_CONFIG: SimulationConfig = {
-  // Set to true to enable simulated users for testing
-  enabled: true,
+  // Disabled by default (safe for production). Enable via env for local/dev.
+  enabled: false,
 
-  // Base number of NPCs always present (set to 0 for production)
-  baseUserCount: 42,
+  // Base number of NPCs always present
+  baseUserCount: 0,
 
   // Enable random arrivals/departures for realistic testing
-  dynamicUsers: true,
+  dynamicUsers: false,
 
   // Users can fluctuate by -5 to +5 from base
   fluctuationRange: [-5, 5],
@@ -56,48 +57,35 @@ export const SIMULATION_CONFIG: SimulationConfig = {
   },
 };
 
-// =============================================================================
-// Presence Configuration
-// =============================================================================
+/**
+ * Apply environment-driven overrides to module-level config.
+ *
+ * Supported vars:
+ * - `SIMULATION_ENABLED=true|false`
+ * - `SIMULATION_BASE_USER_COUNT=<int>`
+ * - `SIMULATION_DYNAMIC_USERS=true|false`
+ * - `SIMULATION_FLUCTUATION_MIN=<int>`
+ * - `SIMULATION_FLUCTUATION_MAX=<int>`
+ * - `SIMULATION_FLUCTUATION_INTERVAL_MS=<int>`
+ */
+export function configureWorkerFromEnv(env: Record<string, unknown>): void {
+  const enabled = readBool(env.SIMULATION_ENABLED);
+  if (enabled !== undefined) SIMULATION_CONFIG.enabled = enabled;
 
-export interface PresenceConfig {
-  /** Session TTL in milliseconds (default: 90 seconds) */
-  sessionTtlMs: number;
+  const base = readInt(env.SIMULATION_BASE_USER_COUNT);
+  if (base !== undefined) SIMULATION_CONFIG.baseUserCount = Math.max(0, base);
 
-  /** Probabilistic sample rate for KV mode (0.0 to 1.0) */
-  sampleRate: number;
+  const dynamicUsers = readBool(env.SIMULATION_DYNAMIC_USERS);
+  if (dynamicUsers !== undefined) SIMULATION_CONFIG.dynamicUsers = dynamicUsers;
 
-  /** Valid mood identifiers */
-  validMoods: readonly MoodId[];
+  const minDelta = readInt(env.SIMULATION_FLUCTUATION_MIN);
+  const maxDelta = readInt(env.SIMULATION_FLUCTUATION_MAX);
+  if (minDelta !== undefined && maxDelta !== undefined) {
+    SIMULATION_CONFIG.fluctuationRange = [minDelta, maxDelta];
+  }
+
+  const intervalMs = readInt(env.SIMULATION_FLUCTUATION_INTERVAL_MS);
+  if (intervalMs !== undefined && intervalMs > 0) {
+    SIMULATION_CONFIG.fluctuationIntervalMs = intervalMs;
+  }
 }
-
-export const PRESENCE_CONFIG: PresenceConfig = {
-  sessionTtlMs: 90_000,
-  sampleRate: 0.03,
-  validMoods: ['gratitude', 'presence', 'release', 'connection'] as const,
-};
-
-// =============================================================================
-// API Configuration
-// =============================================================================
-
-export interface ApiConfig {
-  /** Cache TTL for presence endpoint (seconds) */
-  presenceCacheTtlSeconds: number;
-
-  /** Cache TTL for config endpoint (seconds) */
-  configCacheTtlSeconds: number;
-
-  /** Heartbeat interval sent to clients (milliseconds) */
-  heartbeatIntervalMs: number;
-
-  /** API version number */
-  version: number;
-}
-
-export const API_CONFIG: ApiConfig = {
-  presenceCacheTtlSeconds: 10,
-  configCacheTtlSeconds: 300,
-  heartbeatIntervalMs: 30_000,
-  version: 2,
-};

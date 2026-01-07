@@ -1,3 +1,4 @@
+// @refresh reset
 /**
  * Developer Controls Hook
  *
@@ -29,10 +30,6 @@ export const TUNING_DEFAULTS = {
   shardSize: 12.5, // Was 2.5 (multiplied by 5 to bake in baseShardSize scaling)
   orbitRadius: 4.5,
 
-  // Glass effect (dev-only)
-  ior: 1.3,
-  glassDepth: 0.3,
-
   // Atmosphere (user-facing density, dev-only appearance)
   atmosphereDensity: 100,
   atmosphereParticleSize: 0.08,
@@ -41,23 +38,24 @@ export const TUNING_DEFAULTS = {
   atmosphereColor: '#8c7b6c',
 
   // Depth of Field (dev-only)
-  enableDepthOfField: true,
-  focusDistance: 15,
-  focalRange: 8,
-  maxBlur: 3,
+  enableDepthOfField: false,
+  focusDistance: 9.5, // Slightly closer focus
+  focalRange: 2.5, // Thinner focus plane for better 3D depth
+  maxBlur: 4.5, // Creamier bokeh
 
   // Environment (dev-only)
   showClouds: true,
   showStars: false,
   showConstellations: true,
   showConstellationLines: true,
+  showNebulae: true,
   showSun: true,
   cloudOpacity: 0.4,
   cloudSpeed: 0.3,
   constellationStarSize: 0.4,
   constellationLineOpacity: 0.25,
   sunSize: 8,
-  sunIntensity: 1,
+  sunIntensity: 0.85,
 
   // Moon (dev-only)
   showMoon: true,
@@ -78,9 +76,9 @@ export const TUNING_DEFAULTS = {
 
   // Colors - Lighting
   ambientLightColor: '#fff5eb',
-  ambientLightIntensity: 0.5,
+  ambientLightIntensity: 0.4,
   keyLightColor: '#ffe4c4',
-  keyLightIntensity: 0.8,
+  keyLightIntensity: 0.95,
 
   // HDRI Environment (dev-only)
   enableHDRI: true,
@@ -89,16 +87,15 @@ export const TUNING_DEFAULTS = {
   useHDRIBackground: false,
 
   // Rendering Pipeline Options (dev-only)
-  usePostprocessingDoF: false, // Use @react-three/postprocessing instead of custom DoF
+  usePostprocessingDoF: true, // Use @react-three/postprocessing instead of custom DoF
   useTransmissionGlobe: false, // Use MeshTransmissionMaterial for globe
-  useTSLMaterials: false, // Use TSL-based materials for shards
 
   // Postprocessing settings (when usePostprocessingDoF is true)
-  ppFocalLength: 0.02,
-  ppBokehScale: 3,
+  ppFocalLength: 0.04,
+  ppBokehScale: 4,
   enableBloom: true,
-  bloomIntensity: 0.3,
-  bloomThreshold: 0.9,
+  bloomIntensity: 0.8, // Dreamy glow for neon edges
+  bloomThreshold: 0.75, // Limit bloom to bright edges
   enableVignette: false,
   vignetteDarkness: 0.3,
 
@@ -120,6 +117,9 @@ export const TUNING_DEFAULTS = {
   gridSize: 30,
   gridDivisions: 6,
   gridColor: '#e0e0e0',
+
+  // Shard Swarm (dev-only)
+  showShardShells: true,
 
   // Debug (dev-only)
   showOrbitBounds: false,
@@ -200,10 +200,6 @@ export type PresetName = keyof typeof PRESETS;
  * Dev controls state shape
  */
 export interface DevControlsState {
-  // Glass effect
-  ior: number;
-  glassDepth: number;
-
   // Atmosphere appearance
   atmosphereParticleSize: number;
   atmosphereBaseOpacity: number;
@@ -221,6 +217,7 @@ export interface DevControlsState {
   showStars: boolean;
   showConstellations: boolean;
   showConstellationLines: boolean;
+  showNebulae: boolean;
   showSun: boolean;
   cloudOpacity: number;
   cloudSpeed: number;
@@ -261,7 +258,6 @@ export interface DevControlsState {
   // Rendering Pipeline Options
   usePostprocessingDoF: boolean;
   useTransmissionGlobe: boolean;
-  useTSLMaterials: boolean;
 
   // Postprocessing settings
   ppFocalLength: number;
@@ -290,6 +286,9 @@ export interface DevControlsState {
   gridSize: number;
   gridDivisions: number;
   gridColor: string;
+
+  // Shard Swarm
+  showShardShells: boolean;
 
   // Debug
   showOrbitBounds: boolean;
@@ -340,11 +339,18 @@ export interface DevControlsState {
   dragMinVelocity: number;
 }
 
+declare global {
+  interface Window {
+    /** Playwright automation hook: programmatically set Leva values */
+    __LEVA_SET__?: (values: Partial<DevControlsState>) => void;
+    /** Playwright automation hook: read current Leva values */
+    __LEVA_GET__?: () => DevControlsState;
+  }
+}
+
 /** Get default values for all dev controls */
 function getDefaultDevControls(): DevControlsState {
   return {
-    ior: TUNING_DEFAULTS.ior,
-    glassDepth: TUNING_DEFAULTS.glassDepth,
     atmosphereParticleSize: TUNING_DEFAULTS.atmosphereParticleSize,
     atmosphereBaseOpacity: TUNING_DEFAULTS.atmosphereBaseOpacity,
     atmosphereBreathingOpacity: TUNING_DEFAULTS.atmosphereBreathingOpacity,
@@ -357,6 +363,7 @@ function getDefaultDevControls(): DevControlsState {
     showStars: TUNING_DEFAULTS.showStars,
     showConstellations: TUNING_DEFAULTS.showConstellations,
     showConstellationLines: TUNING_DEFAULTS.showConstellationLines,
+    showNebulae: TUNING_DEFAULTS.showNebulae,
     showSun: TUNING_DEFAULTS.showSun,
     cloudOpacity: TUNING_DEFAULTS.cloudOpacity,
     cloudSpeed: TUNING_DEFAULTS.cloudSpeed,
@@ -383,7 +390,6 @@ function getDefaultDevControls(): DevControlsState {
     useHDRIBackground: TUNING_DEFAULTS.useHDRIBackground,
     usePostprocessingDoF: TUNING_DEFAULTS.usePostprocessingDoF,
     useTransmissionGlobe: TUNING_DEFAULTS.useTransmissionGlobe,
-    useTSLMaterials: TUNING_DEFAULTS.useTSLMaterials,
     ppFocalLength: TUNING_DEFAULTS.ppFocalLength,
     ppBokehScale: TUNING_DEFAULTS.ppBokehScale,
     enableBloom: TUNING_DEFAULTS.enableBloom,
@@ -404,6 +410,7 @@ function getDefaultDevControls(): DevControlsState {
     gridSize: TUNING_DEFAULTS.gridSize,
     gridDivisions: TUNING_DEFAULTS.gridDivisions,
     gridColor: TUNING_DEFAULTS.gridColor,
+    showShardShells: TUNING_DEFAULTS.showShardShells,
     showOrbitBounds: TUNING_DEFAULTS.showOrbitBounds,
     showPhaseMarkers: TUNING_DEFAULTS.showPhaseMarkers,
     showTraitValues: TUNING_DEFAULTS.showTraitValues,
@@ -443,11 +450,22 @@ function getDefaultDevControls(): DevControlsState {
   };
 }
 
+const CONTROL_KEYS = new Set(Object.keys(getDefaultDevControls()));
+
+function sanitizePreset(values: Partial<DevControlsState>): Partial<DevControlsState> {
+  return Object.fromEntries(
+    Object.entries(values).filter(([key]) => CONTROL_KEYS.has(key)),
+  ) as Partial<DevControlsState>;
+}
+
 /** Load saved presets from localStorage */
 function loadSavedPresets(): Record<string, Partial<DevControlsState>> {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
+    const parsed = saved ? (JSON.parse(saved) as Record<string, Partial<DevControlsState>>) : {};
+    return Object.fromEntries(
+      Object.entries(parsed).map(([name, preset]) => [name, sanitizePreset(preset || {})]),
+    );
   } catch {
     return {};
   }
@@ -462,24 +480,14 @@ function savePresetsToStorage(presets: Record<string, Partial<DevControlsState>>
   }
 }
 
-/**
- * Hook for developer controls via Leva panel
- *
- * Returns dev control values that can be passed to entities.
- * When DEV_MODE_ENABLED is false, returns static defaults.
- */
-export function useDevControls(): DevControlsState {
-  // When dev mode is disabled, return static defaults
-  if (!DEV_MODE_ENABLED) {
-    return getDefaultDevControls();
-  }
+function useDevControlsDisabled(): DevControlsState {
+  return getDefaultDevControls();
+}
 
+function useDevControlsEnabled(): DevControlsState {
   // Track the set function for preset management
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional - Leva should only run in dev mode
   const setRef = useRef<((values: Partial<DevControlsState>) => void) | null>(null);
 
-  // Leva controls - only created when dev mode is enabled
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional - Leva should only run in dev mode
   const [controls, set] = useControls(() => ({
     // ==========================================
     // 1. PRESETS (unchanged)
@@ -556,30 +564,7 @@ export function useDevControls(): DevControlsState {
     // ==========================================
     Visual: folder(
       {
-        // 2.1 Materials
-        Materials: folder(
-          {
-            ior: {
-              value: TUNING_DEFAULTS.ior,
-              min: 1.0,
-              max: 2.5,
-              step: 0.01,
-              label: 'Refraction (IOR)',
-              hint: 'Index of Refraction. Controls how much light bends through glass shards. 1.0 = air, 1.5 = glass, 2.4 = diamond.\n\n**When to adjust:** Increase for stronger distortion (2.0+), decrease for subtle frosting (1.1-1.3)',
-            },
-            glassDepth: {
-              value: TUNING_DEFAULTS.glassDepth,
-              min: 0.0,
-              max: 1.0,
-              step: 0.01,
-              label: 'Glass Depth',
-              hint: 'Simulates glass thickness. **0.0** = paper-thin (minimal distortion), **0.5** = medium glass (balanced), **1.0** = thick crystal (strong backface effects)',
-            },
-          },
-          { collapsed: false },
-        ),
-
-        // 2.2 Colors
+        // 2.1 Colors
         Colors: folder(
           {
             // Background
@@ -774,6 +759,11 @@ export function useDevControls(): DevControlsState {
               label: 'Show Lines',
               hint: 'Toggle constellation connecting lines between stars.\n\n**Style:** Soft dashed lines in warm gold color.',
             },
+            showNebulae: {
+              value: TUNING_DEFAULTS.showNebulae,
+              label: 'Nebulae',
+              hint: 'Toggle subtle distant galaxy haze behind constellations (drei Clouds + Stars).\n\n**Style:** Soft pastel nebula clusters + compressed star band',
+            },
             constellationStarSize: {
               value: TUNING_DEFAULTS.constellationStarSize,
               min: 0.1,
@@ -854,17 +844,12 @@ export function useDevControls(): DevControlsState {
             usePostprocessingDoF: {
               value: TUNING_DEFAULTS.usePostprocessingDoF,
               label: 'Use Postprocessing DoF',
-              hint: 'Use @react-three/postprocessing DepthOfField instead of custom RefractionPipeline DoF.\n\n**Pros:** Better bokeh, Bloom support, easier to extend\n**Cons:** Slightly different visual style',
+              hint: 'Use @react-three/postprocessing DepthOfField for cinematic bokeh and bloom support.\n\n**Pros:** Better bokeh, easier to extend\n**Cons:** Slightly different visual style',
             },
             useTransmissionGlobe: {
               value: TUNING_DEFAULTS.useTransmissionGlobe,
               label: 'Transmission Globe',
               hint: 'Use MeshTransmissionMaterial for globe instead of custom shader.\n\n**Pros:** Physical glass refraction, built-in roughness\n**Cons:** Heavier on GPU, may conflict with instanced rendering',
-            },
-            useTSLMaterials: {
-              value: TUNING_DEFAULTS.useTSLMaterials,
-              label: 'TSL Materials',
-              hint: 'Use TSL (Three.js Shading Language) materials for shards.\n\n**Pros:** WebGPU ready, node-based shaders\n**Cons:** Experimental, requires WebGPU for full benefits',
             },
           },
           { collapsed: false },
@@ -1141,6 +1126,20 @@ export function useDevControls(): DevControlsState {
     ),
 
     // ==========================================
+    // 6.5. SHARD SWARM
+    // ==========================================
+    'Shard Swarm': folder(
+      {
+        showShardShells: {
+          value: TUNING_DEFAULTS.showShardShells,
+          label: 'Show Shard Shells',
+          hint: 'Toggle outer shard shells and edge glow on/off.\n\n**Use case:** Validate trail visibility or isolate core visuals.',
+        },
+      },
+      { collapsed: false, order: 4.5 },
+    ),
+
+    // ==========================================
     // 7. DEBUG (consolidates Debug + Performance Monitor)
     // ==========================================
     Debug: folder(
@@ -1400,34 +1399,36 @@ export function useDevControls(): DevControlsState {
     ),
   }));
 
+  const applyPreset = useCallback(
+    (values: Partial<DevControlsState>) => {
+      set(sanitizePreset(values));
+    },
+    [set],
+  );
+
   // Store set function in ref for preset buttons
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   useEffect(() => {
-    setRef.current = set;
-  }, [set]);
+    setRef.current = applyPreset;
+  }, [applyPreset]);
 
   // Load last used settings on mount
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   const hasLoadedRef = useRef(false);
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   useEffect(() => {
     if (!hasLoadedRef.current) {
       hasLoadedRef.current = true;
       const presets = loadSavedPresets();
       if (presets.__last__) {
-        set(presets.__last__ as Partial<DevControlsState>);
+        applyPreset(presets.__last__ as Partial<DevControlsState>);
       }
     }
-  }, [set]);
+  }, [applyPreset]);
 
   // Ref to capture current controls for auto-save without dependency recreation
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   const controlsRef = useRef(controls);
   controlsRef.current = controls;
 
   // Auto-save current settings as "__last__" on change
   // Uses controlsRef to avoid callback recreation on every controls change
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   const saveLastSettings = useCallback(() => {
     const presets = loadSavedPresets();
     // Read from ref to get current values without dependency
@@ -1436,7 +1437,6 @@ export function useDevControls(): DevControlsState {
     savePresetsToStorage(presets);
   }, []);
 
-  // biome-ignore lint/correctness/useHookAtTopLevel: Conditional hook is intentional
   // biome-ignore lint/correctness/useExhaustiveDependencies: controls dependency is intentional - triggers effect when any control changes to debounce-save settings
   useEffect(() => {
     // Debounce saves - triggers when controls change but callback is stable
@@ -1444,6 +1444,29 @@ export function useDevControls(): DevControlsState {
     return () => clearTimeout(timeout);
   }, [controls, saveLastSettings]);
 
+  // Expose Leva controls to window for Playwright automation
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Expose set function for external control injection (e.g., Playwright tests)
+      window.__LEVA_SET__ = applyPreset;
+      // Expose getter for reading current values
+      window.__LEVA_GET__ = () => controls as unknown as DevControlsState;
+    }
+    return () => {
+      // Cleanup on unmount
+      if (typeof window !== 'undefined') {
+        delete window.__LEVA_SET__;
+        delete window.__LEVA_GET__;
+      }
+    };
+  }, [applyPreset, controls]);
+
   // Cast needed because Leva's options return string, but we know it's one of our union values
   return controls as unknown as DevControlsState;
 }
+
+/**
+ * `useDevControls` is compiled to either the enabled or disabled implementation.
+ * This avoids conditional hook calls while keeping dev tooling out of production builds.
+ */
+export const useDevControls = DEV_MODE_ENABLED ? useDevControlsEnabled : useDevControlsDisabled;

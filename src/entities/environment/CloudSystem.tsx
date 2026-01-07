@@ -14,7 +14,7 @@
  * - Local-space animations that don't fight parent rotation
  */
 
-import { Cloud, Clouds } from '@react-three/drei';
+import { Cloud, Clouds, Sparkles } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { memo, useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -70,19 +70,19 @@ function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
   return new THREE.Vector3(Math.cos(theta) * radiusAtY, y, Math.sin(theta) * radiusAtY);
 }
 
-// Cloud configurations - spherically distributed around the globe
-// LAYERS:
-// - Inner layer (radius 7-8): 6 clouds, closest to shards
-// - Middle layer (radius 9-10): 5 clouds
-// - Outer layer (radius 11-13): 4 clouds, furthest, largest
+// Cloud configurations - spherically distributed with extended depth
+// LAYERS (expanded for better spatial depth):
+// - Inner layer (radius 7-9): 6 clouds, moderate proximity
+// - Middle layer (radius 16-19): 5 clouds, midground depth
+// - Outer layer (radius 23-28): 4 clouds, near viewport boundaries
 export const CLOUD_CONFIGS: CloudConfig[] = [
-  // === INNER LAYER (radius 7-8) - 6 clouds, subtle and close ===
+  // === INNER LAYER (radius 7-9) - 6 clouds, lighter teals (closest to viewer) ===
   {
-    id: 'inner-pink-1',
+    id: 'inner-teal-1',
     sphereIndex: 0,
     layerTotal: 6,
-    radius: 7,
-    color: '#f8b4c4', // Soft pink
+    radius: 7.2,
+    color: '#7acade', // Light teal
     opacity: 0.35,
     orbitSpeed: 0.012,
     segments: 22,
@@ -95,11 +95,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.3,
   },
   {
-    id: 'inner-lavender-2',
+    id: 'inner-teal-2',
     sphereIndex: 1,
     layerTotal: 6,
-    radius: 7.5,
-    color: '#d4c4e8', // Soft lavender
+    radius: 7.9,
+    color: '#5fb8ce', // Medium light teal
     opacity: 0.32,
     orbitSpeed: 0.01,
     segments: 20,
@@ -112,11 +112,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.25,
   },
   {
-    id: 'inner-blue-3',
+    id: 'inner-teal-3',
     sphereIndex: 2,
     layerTotal: 6,
-    radius: 8,
-    color: '#a8d4e8', // Sky blue
+    radius: 8.6,
+    color: '#6fc3d9', // Bright teal
     opacity: 0.3,
     orbitSpeed: 0.014,
     segments: 18,
@@ -129,11 +129,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.2,
   },
   {
-    id: 'inner-coral-4',
+    id: 'inner-teal-4',
     sphereIndex: 3,
     layerTotal: 6,
-    radius: 7.2,
-    color: '#f8c8b8', // Soft coral
+    radius: 7.5,
+    color: '#5fb8ce', // Light teal
     opacity: 0.28,
     orbitSpeed: 0.011,
     segments: 16,
@@ -146,11 +146,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.22,
   },
   {
-    id: 'inner-cream-5',
+    id: 'inner-teal-5',
     sphereIndex: 4,
     layerTotal: 6,
-    radius: 7.8,
-    color: '#f8f0e8', // Warm cream
+    radius: 8.3,
+    color: '#7acade', // Pale teal
     opacity: 0.25,
     orbitSpeed: 0.009,
     segments: 15,
@@ -163,11 +163,11 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.18,
   },
   {
-    id: 'inner-mint-6',
+    id: 'inner-teal-6',
     sphereIndex: 5,
     layerTotal: 6,
-    radius: 7.3,
-    color: '#c8e8dc', // Soft mint
+    radius: 7.7,
+    color: '#6fc3d9', // Light teal
     opacity: 0.3,
     orbitSpeed: 0.013,
     segments: 17,
@@ -180,157 +180,157 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     breathAmount: 0.24,
   },
 
-  // === MIDDLE LAYER (radius 9-10) - 5 clouds ===
+  // === MIDDLE LAYER (radius 16-19) - 5 clouds, mid teals (midground depth) ===
   {
-    id: 'mid-peach-1',
+    id: 'mid-teal-1',
     sphereIndex: 0,
     layerTotal: 5,
-    radius: 9,
-    color: '#f8d4b8', // Warm peach
+    radius: 16,
+    color: '#4da6bd', // Mid teal
     opacity: 0.38,
     orbitSpeed: 0.008,
     segments: 24,
-    bounds: [6, 2, 4],
-    volume: 4,
-    fade: 16,
+    bounds: [8, 2.5, 5],
+    volume: 5,
+    fade: 20,
     layer: 'middle',
     bobSpeed: 0.08,
     bobAmount: 0.2,
     breathAmount: 0.35,
   },
   {
-    id: 'mid-mint-2',
+    id: 'mid-teal-2',
     sphereIndex: 1,
     layerTotal: 5,
-    radius: 9.5,
-    color: '#b8e8d4', // Soft mint
+    radius: 17,
+    color: '#3a96ae', // Teal cyan
     opacity: 0.35,
     orbitSpeed: 0.007,
     segments: 22,
-    bounds: [5.5, 1.8, 3.5],
-    volume: 3.5,
-    fade: 14,
+    bounds: [7.5, 2.2, 4.5],
+    volume: 4.5,
+    fade: 18,
     layer: 'middle',
     bobSpeed: 0.09,
     bobAmount: 0.18,
     breathAmount: 0.3,
   },
   {
-    id: 'mid-rose-3',
+    id: 'mid-teal-3',
     sphereIndex: 2,
     layerTotal: 5,
-    radius: 10,
-    color: '#e8c4d4', // Dusty rose
+    radius: 18,
+    color: '#2d7a8f', // Deep teal
     opacity: 0.32,
     orbitSpeed: 0.009,
     segments: 20,
-    bounds: [5, 1.5, 3],
-    volume: 3,
-    fade: 13,
+    bounds: [7, 2, 4],
+    volume: 4,
+    fade: 17,
     layer: 'middle',
     bobSpeed: 0.11,
     bobAmount: 0.16,
     breathAmount: 0.28,
   },
   {
-    id: 'mid-sage-4',
+    id: 'mid-teal-4',
     sphereIndex: 3,
     layerTotal: 5,
-    radius: 9.2,
-    color: '#c8dcc8', // Soft sage
+    radius: 16.5,
+    color: '#4da6bd', // Mid teal
     opacity: 0.3,
     orbitSpeed: 0.006,
     segments: 18,
-    bounds: [5, 1.5, 3],
-    volume: 3,
-    fade: 14,
+    bounds: [7, 2, 4],
+    volume: 4,
+    fade: 18,
     layer: 'middle',
     bobSpeed: 0.085,
     bobAmount: 0.19,
     breathAmount: 0.32,
   },
   {
-    id: 'mid-blush-5',
+    id: 'mid-teal-5',
     sphereIndex: 4,
     layerTotal: 5,
-    radius: 9.8,
-    color: '#f0d4d4', // Blush pink
+    radius: 17.5,
+    color: '#3a96ae', // Teal cyan
     opacity: 0.28,
     orbitSpeed: 0.0075,
     segments: 19,
-    bounds: [5.5, 1.6, 3.5],
-    volume: 3,
-    fade: 12,
+    bounds: [7.5, 2.2, 4.5],
+    volume: 4,
+    fade: 16,
     layer: 'middle',
     bobSpeed: 0.1,
     bobAmount: 0.17,
     breathAmount: 0.26,
   },
 
-  // === OUTER LAYER (radius 11-13) - 4 clouds, largest and most ethereal ===
+  // === OUTER LAYER (radius 23-28) - 4 clouds, dark navies (background) ===
   {
-    id: 'outer-mist-1',
+    id: 'outer-navy-1',
     sphereIndex: 0,
     layerTotal: 4,
-    radius: 11,
-    color: '#e8e4e0', // Warm mist
-    opacity: 0.4,
+    radius: 23,
+    color: '#152b4d', // Dark navy
+    opacity: 0.35,
     orbitSpeed: 0.005,
     segments: 28,
-    bounds: [8, 2.5, 5],
-    volume: 5,
-    fade: 20,
+    bounds: [10, 3, 6],
+    volume: 6,
+    fade: 25,
     layer: 'outer',
     bobSpeed: 0.04,
     bobAmount: 0.25,
     breathAmount: 0.4,
   },
   {
-    id: 'outer-pink-2',
+    id: 'outer-navy-2',
     sphereIndex: 1,
     layerTotal: 4,
-    radius: 12,
-    color: '#f8b4c4', // Soft pink
-    opacity: 0.35,
+    radius: 25,
+    color: '#1a3352', // Deep navy
+    opacity: 0.3,
     orbitSpeed: 0.004,
     segments: 26,
-    bounds: [7, 2, 4.5],
-    volume: 4.5,
-    fade: 18,
+    bounds: [9, 2.8, 5.5],
+    volume: 5.5,
+    fade: 23,
     layer: 'outer',
     bobSpeed: 0.05,
     bobAmount: 0.22,
     breathAmount: 0.35,
   },
   {
-    id: 'outer-lavender-3',
+    id: 'outer-navy-3',
     sphereIndex: 2,
     layerTotal: 4,
-    radius: 13,
-    color: '#d4c4e8', // Soft lavender
-    opacity: 0.3,
+    radius: 27,
+    color: '#0d2d45', // Dark teal navy
+    opacity: 0.28,
     orbitSpeed: 0.0045,
     segments: 25,
-    bounds: [7.5, 2.2, 5],
-    volume: 4,
-    fade: 19,
+    bounds: [9.5, 3, 6],
+    volume: 5.5,
+    fade: 24,
     layer: 'outer',
     bobSpeed: 0.045,
     bobAmount: 0.24,
     breathAmount: 0.38,
   },
   {
-    id: 'outer-peach-4',
+    id: 'outer-navy-4',
     sphereIndex: 3,
     layerTotal: 4,
-    radius: 11.5,
-    color: '#f8d4b8', // Warm peach
-    opacity: 0.32,
+    radius: 24,
+    color: '#152b4d', // Dark navy
+    opacity: 0.3,
     orbitSpeed: 0.0055,
     segments: 24,
-    bounds: [7, 2, 4],
-    volume: 4,
-    fade: 17,
+    bounds: [9, 2.8, 5.5],
+    volume: 5.5,
+    fade: 22,
     layer: 'outer',
     bobSpeed: 0.055,
     bobAmount: 0.2,
@@ -368,13 +368,13 @@ const AnimatedCloud = memo(function AnimatedCloud({
   const orbitAngleRef = useRef(0);
 
   // Animate position each frame (local-space, works with parent rotation)
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!cloudRef.current) return;
 
     const time = state.clock.elapsedTime + timeOffset.current;
 
     // Slow orbital drift around the Y axis
-    orbitAngleRef.current += config.orbitSpeed * baseSpeed * 0.016;
+    orbitAngleRef.current += config.orbitSpeed * baseSpeed * delta;
 
     // Apply orbit to direction
     _tempDirection.copy(initialDirection);
@@ -412,6 +412,15 @@ const AnimatedCloud = memo(function AnimatedCloud({
         volume={config.volume}
         color={config.color}
         fade={config.fade}
+      />
+      {/* Soft cloud flecks - subtle, slow-moving haze around the cloud volume */}
+      <Sparkles
+        count={3}
+        scale={config.bounds[0] * 1.25}
+        size={6}
+        speed={0.08}
+        opacity={0.15}
+        color={config.color}
       />
     </group>
   );

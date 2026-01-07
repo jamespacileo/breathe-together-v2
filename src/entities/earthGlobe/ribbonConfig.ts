@@ -94,6 +94,8 @@ export interface RibbonSystemConfig {
   globeSyncSpeed: number;
   /** Message separator for single-line display */
   messageSeparator: string;
+  /** Maximum number of resolved instances to render (performance guard) */
+  maxInstances?: number;
   zones: RibbonZone[];
   styles: {
     primary: RibbonStyle;
@@ -155,6 +157,7 @@ export const DEFAULT_CONFIG: RibbonSystemConfig = {
   baseScrollSpeed: 0.001,
   globeSyncSpeed: 0.0008,
   messageSeparator: '  ·  ',
+  maxInstances: 24,
   seed: null,
 
   zones: [

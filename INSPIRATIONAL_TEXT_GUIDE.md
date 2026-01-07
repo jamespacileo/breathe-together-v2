@@ -321,12 +321,19 @@ The component maintains the same RAF-based animation synced to UTC breathing cyc
 # Inspirational text rotation
 INSPIRATION_TEXT_ENABLED=true        # Enable feature (default: true)
 INSPIRATION_MESSAGE_DURATION=32000   # Milliseconds per message (default: 32000)
+INSPIRATION_BATCH_TTL_SECONDS=604800 # TTL for generated batches in KV (default: 7 days)
+INSPIRATION_HISTORY_MAX=50           # Max history entries stored in KV (default: 50)
+
+# Admin API protection
+# - In production, set via `wrangler secret put ADMIN_TOKEN`
+# - In local dev, if unset, admin routes are allowed only on localhost
+ADMIN_TOKEN=
 
 # LLM Configuration
 LLM_ENABLED=false                    # Enable LLM generation (default: false)
-LLM_PROVIDER=openai                  # Provider: openai | anthropic (default: openai)
+LLM_PROVIDER=gemini                  # Provider: openai | anthropic | gemini (default: gemini)
 LLM_API_KEY=                         # API key from provider
-LLM_MODEL=gpt-3.5-turbo              # Model ID (default: gpt-3.5-turbo)
+LLM_MODEL=gemini-2.0-flash           # Model ID (default varies by provider)
 LLM_MAX_TOKENS=2000                  # Max tokens (default: 2000)
 LLM_TEMPERATURE=0.7                  # Temperature (default: 0.7)
 ```
@@ -334,7 +341,8 @@ LLM_TEMPERATURE=0.7                  # Temperature (default: 0.7)
 ### Frontend Environment Variables
 
 ```bash
-VITE_PRESENCE_API_URL=http://localhost:8787  # Backend URL (default: localhost:8787)
+VITE_PRESENCE_API_URL=                      # Backend URL (default: same-origin via Vite proxy / Worker assets)
+VITE_ADMIN_TOKEN=                           # Optional: hardcode admin token for local admin UI (otherwise prompted)
 ```
 
 ## Testing

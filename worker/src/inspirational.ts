@@ -3,6 +3,7 @@
  * All users see the same message at the same time (UTC-synced)
  */
 
+import { getMessageDisplayTimeMs, INSPIRATIONAL_CONFIG } from './inspirationalConfig';
 import type {
   GlobalTextState,
   InspirationResponse,
@@ -21,13 +22,17 @@ const BATCH_PREFIX = 'inspiration:batch:';
 const OVERRIDE_PREFIX = 'inspiration:override:';
 const HISTORY_KEY = 'inspiration:history'; // Stores array of recent displays
 
-// ============================================================================
-// Defaults & Config
-// ============================================================================
+function cycleDurationMs(): number {
+  return INSPIRATIONAL_CONFIG.cycleDurationMs;
+}
 
-const CYCLES_PER_MESSAGE = 2; // 2 cycles = 32 seconds per message
-const CYCLE_DURATION_MS = 16 * 1000; // 16-second breathing cycle
-const MESSAGE_DISPLAY_TIME_MS = CYCLES_PER_MESSAGE * CYCLE_DURATION_MS;
+function cyclesPerMessage(): number {
+  return INSPIRATIONAL_CONFIG.cyclesPerMessage;
+}
+
+function messageDisplayTimeMs(): number {
+  return getMessageDisplayTimeMs();
+}
 
 // ============================================================================
 // Preset Message Batches
@@ -45,7 +50,7 @@ function createPresetBatches(): Record<string, MessageBatch> {
           id: 'intro-1',
           top: 'Welcome',
           bottom: 'To Breathe Together',
-          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          cyclesPerMessage: cyclesPerMessage(),
           authoredAt: Date.now(),
           source: 'preset',
         },
@@ -53,7 +58,7 @@ function createPresetBatches(): Record<string, MessageBatch> {
           id: 'intro-2',
           top: 'Breathing in',
           bottom: 'We breathe as one',
-          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          cyclesPerMessage: cyclesPerMessage(),
           authoredAt: Date.now(),
           source: 'preset',
         },
@@ -61,7 +66,7 @@ function createPresetBatches(): Record<string, MessageBatch> {
           id: 'intro-3',
           top: 'Presence',
           bottom: 'Connected across the world',
-          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          cyclesPerMessage: cyclesPerMessage(),
           authoredAt: Date.now(),
           source: 'preset',
         },
@@ -77,7 +82,7 @@ function createPresetBatches(): Record<string, MessageBatch> {
           id: 'ambient-1',
           top: 'Notice your breath',
           bottom: 'Without judgment',
-          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          cyclesPerMessage: cyclesPerMessage(),
           authoredAt: Date.now(),
           source: 'preset',
         },
@@ -85,7 +90,7 @@ function createPresetBatches(): Record<string, MessageBatch> {
           id: 'ambient-2',
           top: 'Each breath',
           bottom: 'Is a fresh beginning',
-          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          cyclesPerMessage: cyclesPerMessage(),
           authoredAt: Date.now(),
           source: 'preset',
         },
@@ -93,7 +98,7 @@ function createPresetBatches(): Record<string, MessageBatch> {
           id: 'ambient-3',
           top: 'In this moment',
           bottom: 'We are all together',
-          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          cyclesPerMessage: cyclesPerMessage(),
           authoredAt: Date.now(),
           source: 'preset',
         },
@@ -101,7 +106,7 @@ function createPresetBatches(): Record<string, MessageBatch> {
           id: 'ambient-4',
           top: 'Breathing teaches us',
           bottom: 'The rhythm of life',
-          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          cyclesPerMessage: cyclesPerMessage(),
           authoredAt: Date.now(),
           source: 'preset',
         },
@@ -109,7 +114,7 @@ function createPresetBatches(): Record<string, MessageBatch> {
           id: 'ambient-5',
           top: 'Your presence matters',
           bottom: 'You are connected',
-          cyclesPerMessage: CYCLES_PER_MESSAGE,
+          cyclesPerMessage: cyclesPerMessage(),
           authoredAt: Date.now(),
           source: 'preset',
         },
@@ -127,7 +132,7 @@ function createInitialState(): GlobalTextState {
     currentMessageIndex: 0,
     currentBatchId: 'preset:intro',
     batchStartTime: Date.now(),
-    nextRotationTime: Date.now() + MESSAGE_DISPLAY_TIME_MS,
+    nextRotationTime: Date.now() + messageDisplayTimeMs(),
     totalCycles: 0,
     lastUpdated: Date.now(),
   };
@@ -228,8 +233,8 @@ async function recordMessageDisplay(
     displayedAtISO: new Date().toISOString(),
   };
 
-  // Keep only last 50 entries (for memory efficiency in KV)
-  const updated = [entry, ...history].slice(0, 50);
+  // Keep only recent entries (for memory efficiency in KV)
+  const updated = [entry, ...history].slice(0, INSPIRATIONAL_CONFIG.historyMaxEntries);
   await kv.put(HISTORY_KEY, JSON.stringify(updated));
 }
 
@@ -266,7 +271,7 @@ export async function rotateMessage(
     await recordMessageDisplay(
       kv,
       currentMessage.id,
-      MESSAGE_DISPLAY_TIME_MS / 1000,
+      messageDisplayTimeMs() / 1000,
       currentMessage.source,
       currentMessage.metadata?.theme,
     );
@@ -282,7 +287,7 @@ export async function rotateMessage(
     // In production, could queue next batch here
   }
 
-  state.nextRotationTime = now + MESSAGE_DISPLAY_TIME_MS;
+  state.nextRotationTime = now + messageDisplayTimeMs();
   await saveGlobalState(kv, state);
 
   return { advanced: true, newState: state };
@@ -314,8 +319,8 @@ export async function getCurrentInspirationMessage(
       currentIndex: override.currentIndex,
       batchId: `override:${sessionId}`,
       override,
-      nextRotationTime: now + cyclesUntilNext * CYCLE_DURATION_MS,
-      cacheMaxAge: Math.min(cyclesUntilNext * CYCLE_DURATION_MS, 30000) / 1000,
+      nextRotationTime: now + cyclesUntilNext * cycleDurationMs(),
+      cacheMaxAge: Math.min(cyclesUntilNext * cycleDurationMs(), 30000) / 1000,
     };
   }
 
@@ -330,13 +335,13 @@ export async function getCurrentInspirationMessage(
         id: 'fallback',
         top: 'Welcome',
         bottom: 'To Breathe Together',
-        cyclesPerMessage: CYCLES_PER_MESSAGE,
+        cyclesPerMessage: cyclesPerMessage(),
         authoredAt: now,
         source: 'preset',
       },
       currentIndex: 0,
       batchId: 'fallback',
-      nextRotationTime: now + MESSAGE_DISPLAY_TIME_MS,
+      nextRotationTime: now + messageDisplayTimeMs(),
       cacheMaxAge: 30,
     };
   }

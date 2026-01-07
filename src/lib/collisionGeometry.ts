@@ -391,12 +391,13 @@ export function runComprehensiveCollisionTest(
   // Test at multiple breath phases (0 to 1, inclusive)
   const phases = Array.from({ length: phaseCount + 1 }, (_, i) => i / phaseCount);
 
-  let worstParticle: CollisionResult | null = null;
-  let worstParticlePhase = 0;
-  let worstGlobe: GlobeCollisionResult | null = null;
-  let worstGlobePhase = 0;
+  const firstPhase = phases[0] ?? 0;
+  let worstParticle = checkParticleCollisions(firstPhase, fullConfig);
+  let worstParticlePhase = firstPhase;
+  let worstGlobe = checkGlobeCollisions(firstPhase, fullConfig);
+  let worstGlobePhase = firstPhase;
 
-  for (const phase of phases) {
+  for (const phase of phases.slice(1)) {
     const particleResult = checkParticleCollisions(phase, fullConfig);
     const globeResult = checkGlobeCollisions(phase, fullConfig);
 
@@ -414,8 +415,8 @@ export function runComprehensiveCollisionTest(
   }
 
   return {
-    particle: { ...worstParticle!, worstPhase: worstParticlePhase },
-    globe: { ...worstGlobe!, worstPhase: worstGlobePhase },
+    particle: { ...worstParticle, worstPhase: worstParticlePhase },
+    globe: { ...worstGlobe, worstPhase: worstGlobePhase },
     phases,
     config: fullConfig,
   };
@@ -431,11 +432,17 @@ export function runTimeVaryingCollisionTest(
 ): { worst: CollisionResult; worstTime: number } {
   const fullConfig: CollisionTestConfig = { ...DEFAULT_CONFIG, ...config };
 
-  let worstResult: CollisionResult | null = null;
+  if (timePoints <= 0) {
+    throw new Error('timePoints must be > 0');
+  }
+
   let worstTime = 0;
 
   // Test across one wobble period (based on PERPENDICULAR_FREQUENCY = 0.35 Hz)
   const wobblePeriod = 1 / PERPENDICULAR_FREQUENCY;
+
+  const initialResult = checkParticleCollisions(breathPhase, { ...fullConfig, time: 0 });
+  let worstResult = initialResult;
 
   for (let i = 0; i < timePoints; i++) {
     const time = (i / timePoints) * wobblePeriod;
@@ -447,5 +454,5 @@ export function runTimeVaryingCollisionTest(
     }
   }
 
-  return { worst: worstResult!, worstTime };
+  return { worst: worstResult, worstTime };
 }

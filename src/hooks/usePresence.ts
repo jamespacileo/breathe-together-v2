@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 import { type CurrentUserOptions, generateMockPresence } from '../lib/mockPresence';
 import {
   type MoodId,
@@ -41,10 +42,6 @@ const DEFAULT_CONFIG: ServerConfig = {
 const CONFIG = {
   WS_RECONNECT_DELAY_MS: 3_000,
   WS_TIMEOUT_MS: 5_000,
-  STORAGE_KEYS: {
-    SESSION_ID: 'breathe-together:sessionId',
-    MOOD: 'breathe-together:mood',
-  },
 } as const;
 
 function generateSessionId(): string {
@@ -53,23 +50,23 @@ function generateSessionId(): string {
 
 function getSessionId(): string {
   if (typeof window === 'undefined') return generateSessionId();
-  let sessionId = localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_ID);
+  let sessionId = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
   if (!sessionId) {
     sessionId = generateSessionId();
-    localStorage.setItem(CONFIG.STORAGE_KEYS.SESSION_ID, sessionId);
+    localStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
   }
   return sessionId;
 }
 
 function getStoredMood(): MoodId {
   if (typeof window === 'undefined') return 'presence';
-  const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
+  const stored = localStorage.getItem(STORAGE_KEYS.MOOD);
   return validateMood(stored);
 }
 
 function storeMood(mood: MoodId): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(CONFIG.STORAGE_KEYS.MOOD, mood);
+    localStorage.setItem(STORAGE_KEYS.MOOD, mood);
   }
 }
 
@@ -112,6 +109,8 @@ export function usePresence(): UsePresenceResult {
   const wsRef = useRef<WebSocket | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAllowedRef = useRef(true);
 
   // Keep moodRef in sync with state
   moodRef.current = mood;
@@ -143,7 +142,12 @@ export function usePresence(): UsePresenceResult {
    * Uses moodRef to avoid recreating callback on mood changes
    */
   const connectWebSocket = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (!reconnectAllowedRef.current) return;
+    if (
+      wsRef.current?.readyState === WebSocket.OPEN ||
+      wsRef.current?.readyState === WebSocket.CONNECTING
+    )
+      return;
 
     try {
       const wsUrl = presenceApi.getWsUrl(sessionIdRef.current, moodRef.current);
@@ -152,6 +156,10 @@ export function usePresence(): UsePresenceResult {
       ws.onopen = () => {
         setIsConnected(true);
         setConnectionType('websocket');
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
       };
 
       ws.onmessage = (event) => {
@@ -164,8 +172,15 @@ export function usePresence(): UsePresenceResult {
       ws.onclose = () => {
         setIsConnected(false);
         wsRef.current = null;
+        if (!reconnectAllowedRef.current) return;
         // Attempt reconnect after delay
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
         reconnectTimeoutRef.current = setTimeout(() => {
+          // Double-check mounted state inside timeout to prevent race condition
+          // where timeout fires between cleanup setting ref to false and clearing timeout
+          if (!reconnectAllowedRef.current) return;
           connectWebSocket();
         }, CONFIG.WS_RECONNECT_DELAY_MS);
       };
@@ -241,14 +256,14 @@ export function usePresence(): UsePresenceResult {
   const startPolling = useCallback(() => {
     if (pollingIntervalRef.current) return;
 
-    maybeSendHeartbeat(mood, true);
+    maybeSendHeartbeat(moodRef.current, true);
 
     pollingIntervalRef.current = setInterval(() => {
-      maybeSendHeartbeat(mood);
+      maybeSendHeartbeat(moodRef.current);
     }, configRef.current.heartbeatIntervalMs);
 
     setConnectionType('polling');
-  }, [mood, maybeSendHeartbeat]);
+  }, [maybeSendHeartbeat]);
 
   /**
    * Update mood
@@ -273,6 +288,7 @@ export function usePresence(): UsePresenceResult {
    */
   useEffect(() => {
     let mounted = true;
+    reconnectAllowedRef.current = true;
 
     const init = async () => {
       // Fetch config with Zod validation
@@ -289,7 +305,7 @@ export function usePresence(): UsePresenceResult {
       if (configRef.current.supportsWebSocket && typeof WebSocket !== 'undefined') {
         connectWebSocket();
         // If WebSocket doesn't connect within timeout, fall back to polling
-        setTimeout(() => {
+        wsFallbackTimeoutRef.current = setTimeout(() => {
           if (mounted && wsRef.current?.readyState !== WebSocket.OPEN) {
             startPolling();
           }
@@ -303,6 +319,7 @@ export function usePresence(): UsePresenceResult {
 
     return () => {
       mounted = false;
+      reconnectAllowedRef.current = false;
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -314,6 +331,10 @@ export function usePresence(): UsePresenceResult {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
+      }
+      if (wsFallbackTimeoutRef.current) {
+        clearTimeout(wsFallbackTimeoutRef.current);
+        wsFallbackTimeoutRef.current = null;
       }
     };
   }, [connectWebSocket, startPolling]);

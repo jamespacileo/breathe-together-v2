@@ -36,8 +36,8 @@ export interface SoundDefinition {
   fadeOut: number;
   /** Phase to trigger on (0=inhale, 1=hold-in, 2=exhale, 3=hold-out) */
   triggerPhase?: number;
-  /** Breath synchronization configuration */
-  breathSync?: BreathSyncConfig;
+  /** Breath synchronization configuration (set to false to explicitly disable) */
+  breathSync?: BreathSyncConfig | false;
 }
 
 /**
