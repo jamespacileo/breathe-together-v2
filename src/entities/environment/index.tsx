@@ -13,6 +13,7 @@ import { ConstellationStars } from './ConstellationStars';
 import { EditorGrid } from './EditorGrid';
 import { NebulaBackdrop } from './NebulaBackdrop';
 import { ReflectiveFloor } from './ReflectiveFloor';
+import { StylizedMoon } from './StylizedMoon';
 import { StylizedSun } from './StylizedSun';
 import { SubtleLightRays } from './SubtleLightRays';
 
@@ -61,6 +62,14 @@ interface EnvironmentProps {
   sunIntensity?: number;
   /** Show sun debug gizmo @default false */
   showSunGizmo?: boolean;
+  /** Show stylized moon @default true */
+  showMoon?: boolean;
+  /** Moon size @default 4 */
+  moonSize?: number;
+  /** Moon intensity @default 1 */
+  moonIntensity?: number;
+  /** Show moon debug gizmo @default false */
+  showMoonGizmo?: boolean;
   /** Show constellation debug gizmos @default false */
   showConstellationGizmos?: boolean;
   /** Stage mode - editor-style view with grid floor @default false */
@@ -159,6 +168,10 @@ export function Environment({
   sunSize = 8,
   sunIntensity = 1,
   showSunGizmo = false,
+  showMoon = true,
+  moonSize = 4,
+  moonIntensity = 1,
+  showMoonGizmo = false,
   showConstellationGizmos = false,
   stageMode = false,
   showGridFloor = true,
@@ -310,6 +323,12 @@ export function Environment({
       {/* Stylized sun - positioned based on real astronomical calculations */}
       {/* Warm gradient with rays, breathing-synchronized pulsing */}
       {showSun && <StylizedSun size={sunSize} intensity={sunIntensity} showGizmo={showSunGizmo} />}
+
+      {/* Stylized moon - positioned based on real astronomical calculations */}
+      {/* Silver glow with accurate moon phase, breathing-synchronized pulsing */}
+      {showMoon && (
+        <StylizedMoon size={moonSize} intensity={moonIntensity} showGizmo={showMoonGizmo} />
+      )}
 
       {/* Warm ambient light - fills shadows softly */}
       <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />

@@ -12,6 +12,7 @@ import { DEV_MODE_ENABLED } from '../config/devMode';
 import { EarthGlobe } from '../entities/earthGlobe';
 import { EarthGlobeTransmission } from '../entities/earthGlobe/EarthGlobeTransmission';
 import { GeoMarkers } from '../entities/earthGlobe/GeoMarkers';
+import { GlobeGizmos } from '../entities/earthGlobe/GlobeGizmos';
 import { RibbonSystem } from '../entities/earthGlobe/RibbonSystem';
 import { Environment } from '../entities/environment';
 import { ConstellationGizmos } from '../entities/environment/ConstellationGizmos';
@@ -232,6 +233,22 @@ export function BreathingLevel({
         {DEV_MODE_ENABLED && devControls.showConstellationGizmos && (
           <ConstellationGizmos radius={25} />
         )}
+
+        {/* Globe Gizmos - poles, equator, orbit plane, day/night terminator */}
+        {DEV_MODE_ENABLED &&
+          (devControls.showGlobePoles ||
+            devControls.showGlobeEquator ||
+            devControls.showGlobeOrbitPlane ||
+            devControls.showGlobeTerminator ||
+            devControls.showGlobeAxialTilt) && (
+            <GlobeGizmos
+              showPoles={devControls.showGlobePoles}
+              showEquator={devControls.showGlobeEquator}
+              showOrbitPlane={devControls.showGlobeOrbitPlane}
+              showTerminator={devControls.showGlobeTerminator}
+              showAxialTilt={devControls.showGlobeAxialTilt}
+            />
+          )}
       </MomentumControls>
     </Suspense>
   );

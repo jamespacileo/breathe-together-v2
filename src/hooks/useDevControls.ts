@@ -57,9 +57,18 @@ export const TUNING_DEFAULTS = {
   sunSize: 8,
   sunIntensity: 0.85,
 
+  // Moon (dev-only)
+  showMoon: true,
+  moonSize: 4,
+  moonIntensity: 1,
+
   // Celestial Gizmos (dev-only)
   showSunGizmo: false,
+  showMoonGizmo: false,
   showConstellationGizmos: false,
+
+  // Celestial Labels (user-facing orientation helpers)
+  showCelestialLabels: true,
 
   // Colors - Background
   bgColorTop: '#f5f0e8',
@@ -129,6 +138,13 @@ export const TUNING_DEFAULTS = {
   maxShardGizmos: 50,
   showGizmoAxes: true,
   showGizmoLabels: false,
+
+  // Globe Gizmos (dev-only) - astronomical positioning helpers
+  showGlobePoles: false,
+  showGlobeEquator: false,
+  showGlobeOrbitPlane: false,
+  showGlobeTerminator: false,
+  showGlobeAxialTilt: false,
 
   // User tracking (dev-only)
   highlightCurrentUser: false,
@@ -210,9 +226,18 @@ export interface DevControlsState {
   sunSize: number;
   sunIntensity: number;
 
+  // Moon
+  showMoon: boolean;
+  moonSize: number;
+  moonIntensity: number;
+
   // Celestial Gizmos
   showSunGizmo: boolean;
+  showMoonGizmo: boolean;
   showConstellationGizmos: boolean;
+
+  // Celestial Labels
+  showCelestialLabels: boolean;
 
   // Colors - Background
   bgColorTop: string;
@@ -283,6 +308,13 @@ export interface DevControlsState {
   showGizmoAxes: boolean;
   showGizmoLabels: boolean;
 
+  // Globe Gizmos (astronomical positioning)
+  showGlobePoles: boolean;
+  showGlobeEquator: boolean;
+  showGlobeOrbitPlane: boolean;
+  showGlobeTerminator: boolean;
+  showGlobeAxialTilt: boolean;
+
   // User tracking
   highlightCurrentUser: boolean;
   highlightStyle: 'wireframe' | 'glow' | 'scale';
@@ -339,8 +371,13 @@ function getDefaultDevControls(): DevControlsState {
     constellationLineOpacity: TUNING_DEFAULTS.constellationLineOpacity,
     sunSize: TUNING_DEFAULTS.sunSize,
     sunIntensity: TUNING_DEFAULTS.sunIntensity,
+    showMoon: TUNING_DEFAULTS.showMoon,
+    moonSize: TUNING_DEFAULTS.moonSize,
+    moonIntensity: TUNING_DEFAULTS.moonIntensity,
     showSunGizmo: TUNING_DEFAULTS.showSunGizmo,
+    showMoonGizmo: TUNING_DEFAULTS.showMoonGizmo,
     showConstellationGizmos: TUNING_DEFAULTS.showConstellationGizmos,
+    showCelestialLabels: TUNING_DEFAULTS.showCelestialLabels,
     bgColorTop: TUNING_DEFAULTS.bgColorTop,
     bgColorHorizon: TUNING_DEFAULTS.bgColorHorizon,
     ambientLightColor: TUNING_DEFAULTS.ambientLightColor,
@@ -388,6 +425,11 @@ function getDefaultDevControls(): DevControlsState {
     maxShardGizmos: TUNING_DEFAULTS.maxShardGizmos,
     showGizmoAxes: TUNING_DEFAULTS.showGizmoAxes,
     showGizmoLabels: TUNING_DEFAULTS.showGizmoLabels,
+    showGlobePoles: TUNING_DEFAULTS.showGlobePoles,
+    showGlobeEquator: TUNING_DEFAULTS.showGlobeEquator,
+    showGlobeOrbitPlane: TUNING_DEFAULTS.showGlobeOrbitPlane,
+    showGlobeTerminator: TUNING_DEFAULTS.showGlobeTerminator,
+    showGlobeAxialTilt: TUNING_DEFAULTS.showGlobeAxialTilt,
     highlightCurrentUser: TUNING_DEFAULTS.highlightCurrentUser,
     highlightStyle: TUNING_DEFAULTS.highlightStyle,
     showPerfMonitor: TUNING_DEFAULTS.showPerfMonitor,
@@ -759,6 +801,32 @@ function useDevControlsEnabled(): DevControlsState {
               label: 'Sun Intensity',
               hint: 'Overall brightness/opacity of the sun. Higher values create more prominent glow.',
             },
+            showMoon: {
+              value: TUNING_DEFAULTS.showMoon,
+              label: 'Stylized Moon',
+              hint: 'Toggle stylized moon positioned based on real astronomical calculations. Shows accurate moon phase.',
+            },
+            moonSize: {
+              value: TUNING_DEFAULTS.moonSize,
+              min: 1,
+              max: 10,
+              step: 0.5,
+              label: 'Moon Size',
+              hint: 'Size of the moon disc and glow.\n\n**Typical range:** Small (2) → Medium (4) → Large (8)',
+            },
+            moonIntensity: {
+              value: TUNING_DEFAULTS.moonIntensity,
+              min: 0.2,
+              max: 2,
+              step: 0.1,
+              label: 'Moon Intensity',
+              hint: 'Overall brightness/opacity of the moon. Higher values create more prominent glow.',
+            },
+            showCelestialLabels: {
+              value: TUNING_DEFAULTS.showCelestialLabels,
+              label: 'Show Labels',
+              hint: 'Show minimal text labels for Sun, Moon, constellations, and cardinal directions.\n\n**Use case:** Help users orient themselves in the 3D sky.',
+            },
           },
           { collapsed: false },
         ),
@@ -1113,7 +1181,13 @@ function useDevControlsEnabled(): DevControlsState {
                   showShardWireframes: true,
                   showShardConnections: true,
                   showSunGizmo: true,
+                  showMoonGizmo: true,
                   showConstellationGizmos: true,
+                  showGlobePoles: true,
+                  showGlobeEquator: true,
+                  showGlobeOrbitPlane: true,
+                  showGlobeTerminator: true,
+                  showGlobeAxialTilt: true,
                 });
               }
             }),
@@ -1129,7 +1203,13 @@ function useDevControlsEnabled(): DevControlsState {
                   showShardWireframes: false,
                   showShardConnections: false,
                   showSunGizmo: false,
+                  showMoonGizmo: false,
                   showConstellationGizmos: false,
+                  showGlobePoles: false,
+                  showGlobeEquator: false,
+                  showGlobeOrbitPlane: false,
+                  showGlobeTerminator: false,
+                  showGlobeAxialTilt: false,
                 });
               }
             }),
@@ -1196,11 +1276,47 @@ function useDevControlsEnabled(): DevControlsState {
               label: 'Sun Gizmo',
               hint: 'Show debug gizmo for sun position and size.\n\n**Shows:** Wireframe sphere, axes helper, distance ring',
             },
+            showMoonGizmo: {
+              value: TUNING_DEFAULTS.showMoonGizmo,
+              label: 'Moon Gizmo',
+              hint: 'Show debug gizmo for moon position and size.\n\n**Shows:** Wireframe sphere, axes helper, distance ring',
+            },
             showConstellationGizmos: {
               value: TUNING_DEFAULTS.showConstellationGizmos,
               label: 'Constellation Gizmos',
               hint: 'Show debug gizmos for constellation stars.\n\n**Shows:** Celestial sphere wireframe, equatorial plane, pole markers',
             },
+            // Globe Positioning sub-folder
+            'Globe Positioning': folder(
+              {
+                showGlobePoles: {
+                  value: TUNING_DEFAULTS.showGlobePoles,
+                  label: 'North/South Poles',
+                  hint: 'Show pole markers (N/S) on the globe.\n\n**Use case:** Verify Earth orientation matches real-world positioning',
+                },
+                showGlobeEquator: {
+                  value: TUNING_DEFAULTS.showGlobeEquator,
+                  label: 'Equator Ring',
+                  hint: "Show equatorial plane ring around the globe.\n\n**Use case:** Visualize Earth's equatorial plane for geographical reference",
+                },
+                showGlobeOrbitPlane: {
+                  value: TUNING_DEFAULTS.showGlobeOrbitPlane,
+                  label: 'Orbit Plane',
+                  hint: 'Show simplified Earth-Sun orbit visualization.\n\n**Note:** This is a pedagogical simplification - shows relative sun direction, not actual orbital mechanics',
+                },
+                showGlobeTerminator: {
+                  value: TUNING_DEFAULTS.showGlobeTerminator,
+                  label: 'Day/Night Terminator',
+                  hint: 'Show the line between day and night based on real sun position.\n\n**Updates live:** Reflects actual UTC time',
+                },
+                showGlobeAxialTilt: {
+                  value: TUNING_DEFAULTS.showGlobeAxialTilt,
+                  label: 'Axial Tilt (23.4°)',
+                  hint: "Show Earth's axial tilt indicator.\n\n**Shows:** Reference vertical line vs actual tilted axis",
+                },
+              },
+              { collapsed: true },
+            ),
           },
           { collapsed: true },
         ),

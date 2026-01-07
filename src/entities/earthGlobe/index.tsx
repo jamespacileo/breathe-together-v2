@@ -25,6 +25,7 @@ import { color, float, vec3 } from 'three/tsl';
 import { MeshBasicNodeMaterial } from 'three/webgpu';
 
 import { useDisposeGeometries, useDisposeMaterials } from '../../hooks/useDisposeMaterials';
+import { calculateGMST } from '../../lib/astronomy';
 import { breathPhase } from '../breath/traits';
 import { AtmosphericParticles } from '../particle/AtmosphericParticles';
 import { useGlobeMaterialsTSL } from './GlobeMaterialTSL';
@@ -48,6 +49,13 @@ interface EarthGlobeProps {
   resolution?: number;
   /** Enable continuous Y-axis rotation @default true */
   enableRotation?: boolean;
+  /**
+   * Sync rotation with actual UTC time (GMST-based).
+   * When true, the globe rotation reflects the real Earth orientation.
+   * When false, uses a simple animation rotation.
+   * @default true
+   */
+  enableTimeSync?: boolean;
   /** Show atmosphere halo layers @default true */
   showAtmosphere?: boolean;
   /** Show cloudlet aura @default true */
@@ -70,6 +78,7 @@ export function EarthGlobe({
   radius = 1.5,
   resolution = 64,
   enableRotation = true,
+  enableTimeSync = true,
   showAtmosphere = true,
   showSparkles = true,
   showRing = true,
@@ -81,6 +90,9 @@ export function EarthGlobe({
   const ringRef = useRef<THREE.Mesh>(null);
   const atmosphereRefs = useRef<(THREE.Mesh | null)[]>([]);
   const world = useWorld();
+
+  // Track initial GMST for time-synced rotation
+  const initialGmstRef = useRef<number>(calculateGMST(new Date()));
 
   // Load earth texture using drei's useTexture hook
   const earthTexture = useTexture('/textures/earth-texture.png');
@@ -164,9 +176,20 @@ export function EarthGlobe({
         // Ring opacity animation skipped: TSL opacityNode is fixed, would need uniform
       }
 
-      // Slow rotation
+      // Earth rotation - time-synced or simple animation
       if (enableRotation) {
-        groupRef.current.rotation.y -= 0.0008;
+        if (enableTimeSync) {
+          // Time-accurate rotation using GMST (Greenwich Mean Sidereal Time)
+          // GMST tells us the current rotation angle of Earth relative to the stars
+          // The negative sign is because we want the texture to rotate with Earth,
+          // not the celestial sphere to rotate around Earth
+          const currentGmst = calculateGMST(new Date());
+          // Apply rotation relative to initial state to avoid jumps
+          groupRef.current.rotation.y = -(currentGmst - initialGmstRef.current);
+        } else {
+          // Simple animation rotation (original behavior)
+          groupRef.current.rotation.y -= 0.0008;
+        }
       }
 
       // Ring rotates slightly faster and tilted
