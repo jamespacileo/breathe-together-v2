@@ -69,7 +69,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             <p style={{ fontSize: '0.9rem', opacity: 0.8, marginBottom: '24px' }}>
               An unexpected error occurred. Please try reloading the page.
             </p>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <details
                 style={{
                   fontSize: '0.75rem',

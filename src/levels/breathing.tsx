@@ -17,8 +17,6 @@ import { Environment } from '../entities/environment';
 import { ConstellationGizmos } from '../entities/environment/ConstellationGizmos';
 import { AtmosphericParticles } from '../entities/particle/AtmosphericParticles';
 import { ParticleSwarm } from '../entities/particle/ParticleSwarm';
-import { RefractionPipeline } from '../entities/particle/RefractionPipeline';
-import { useBreathPhaseDescription } from '../hooks/useBreathPhaseDescription';
 import { useDevControls } from '../hooks/useDevControls';
 import { useInspirationInit } from '../hooks/useInspirationInit';
 import { useMoodAccentInjection } from '../hooks/useMoodAccentInjection';
@@ -28,7 +26,6 @@ import type { BreathingLevelProps } from '../types/sceneProps';
 
 /**
  * BreathingLevel - Core 3D meditation environment.
- * Supports optional legacy FBO refraction pipeline for frosted shards.
  *
  * This component handles ONLY the 3D scene content.
  * HTML UI is rendered separately via BreathingLevelUI (outside Canvas).
@@ -42,6 +39,8 @@ export function BreathingLevel({
   showParticles = true,
   showEnvironment = true,
 }: Partial<BreathingLevelProps> = {}) {
+  // If you hot-edit hook-heavy modules (e.g. `useDevControls`) React Fast Refresh can
+  // temporarily report hook-order mismatches; a full reload clears it.
   // Initialize inspirational text system (sets up ambient pool + welcome sequence)
   useInspirationInit();
 
@@ -59,18 +58,12 @@ export function BreathingLevel({
   // Inject mood-based accent colors into CSS variables for dynamic UI theming
   useMoodAccentInjection(mood);
 
-  // Accessibility - breath phase description for screen readers
-  // Note: phaseLabel available via useBreathPhaseDescription() for future A11y integration
-  // const { phaseLabel } = useBreathPhaseDescription();
-
   // React 19: Defer non-urgent updates to reduce stutter during state changes
   // These values control particle counts which are expensive to update
   const deferredAtmosphereDensity = useDeferredValue(atmosphereDensity);
   const deferredUsers = useDeferredValue(users);
 
-  const useLegacyRefractionPipeline =
-    devControls.useLegacyRefractionPipeline && devControls.shardMaterialType === 'frosted';
-  const usePostprocessing = devControls.usePostprocessingDoF && !useLegacyRefractionPipeline;
+  const usePostprocessing = devControls.usePostprocessingDoF;
 
   const sceneContent = (
     <>
@@ -132,8 +125,6 @@ export function BreathingLevel({
           baseShardSize={shardSize}
           highlightCurrentUser={devControls.highlightCurrentUser}
           highlightStyle={devControls.highlightStyle}
-          materialType={devControls.shardMaterialType}
-          refractionPipelineEnabled={useLegacyRefractionPipeline}
           showShardShells={devControls.showShardShells}
         />
       )}
@@ -201,21 +192,7 @@ export function BreathingLevel({
           />
         )}
 
-        {/* Legacy Refraction Pipeline - optional A/B comparison */}
-        {useLegacyRefractionPipeline ? (
-          <RefractionPipeline
-            ior={devControls.ior}
-            backfaceIntensity={devControls.glassDepth}
-            enableDepthOfField={devControls.enableDepthOfField}
-            focusDistance={devControls.focusDistance}
-            focalRange={devControls.focalRange}
-            maxBlur={devControls.maxBlur}
-          >
-            {sceneContent}
-          </RefractionPipeline>
-        ) : (
-          sceneContent
-        )}
+        {sceneContent}
 
         {/* Gizmo ECS entities - manages shape data in Koota for reuse by other systems */}
         {DEV_MODE_ENABLED && (
@@ -235,7 +212,6 @@ export function BreathingLevel({
         )}
 
         {/* Shape Gizmos - debug visualization for centroids and bounds */}
-        {/* Rendered outside RefractionPipeline to avoid distortion effects */}
         {DEV_MODE_ENABLED && (
           <ShapeGizmos
             showGlobeCentroid={devControls.showGlobeCentroid}
@@ -253,7 +229,6 @@ export function BreathingLevel({
         )}
 
         {/* Constellation Gizmos - star markers, constellation wireframes, labels */}
-        {/* Rendered outside RefractionPipeline to avoid depth-of-field blur */}
         {DEV_MODE_ENABLED && devControls.showConstellationGizmos && (
           <ConstellationGizmos radius={25} />
         )}

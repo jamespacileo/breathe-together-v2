@@ -9,20 +9,21 @@
  * - Diff-based reconciliation for minimal disruption
  * - Reconciles immediately when presence changes (no phase gating)
  *
- * Performance: Uses InstancedMesh for batched rendering (2 draw calls: shards + cores)
+ * Performance: Uses InstancedMesh for batched rendering (shards + glowing edges + trails)
  * Previously used separate Mesh objects (300 draw calls for 300 particles)
  */
 
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { type MoodId, RENDER_LAYERS } from '../../constants';
+import type { MoodId } from '../../constants';
 import { getFibonacciSpherePoint } from '../../lib/collisionGeometry';
 import { MONUMENT_VALLEY_PALETTE, NEON_MOOD_PALETTE } from '../../lib/colors';
 import { breathPhase, orbitRadius } from '../breath/traits';
-import { createShardMaterial, type ShardMaterialType } from './materials';
+import { createShardMaterial } from './materials';
+import { createEdgeMaterialTSL } from './ParticleEdgeMaterialTSL';
 import { moodCountsToUsers, type Slot, SlotManager, type User } from './SlotManager';
 import { computeSlotTargetDirections } from './swarmDistribution';
 import { createUsersSignature } from './swarmUsers';
@@ -94,58 +95,46 @@ export interface ParticleSwarmProps {
    */
   highlightStyle?: 'wireframe' | 'glow' | 'scale';
   /**
-   * Material type for shards.
-   * - 'frosted': Legacy refraction shader (requires RefractionPipeline)
-   * - 'frostedPhysical': Physical glass (pipeline-free replacement)
-   * - 'simple': MeshPhysicalMaterial (transparent, good performance)
-   * - 'transmission': drei MeshTransmissionMaterial (realistic glass)
-   * @default 'polished'
-   */
-  materialType?: ShardMaterialType;
-  /**
-   * Enable legacy refraction pipeline behavior for frosted shards.
-   * When false, refraction-specific layers are disabled.
-   * @default false
-   */
-  refractionPipelineEnabled?: boolean;
-  /**
-   * Toggle outer shard shells (useful for core visibility debugging)
+   * Toggle shard shells + edge glow visibility
    * @default true
    */
   showShardShells?: boolean;
 }
 
 /**
- * Per-instance state for physics simulation
+ * Per-instance state for physics simulation.
+ * Each shard maintains its own animation state for smooth, independent motion.
  */
 interface InstanceState {
-  /** Current direction (interpolated toward targetDirection) */
+  /** Current direction vector (unit vector, interpolated toward targetDirection) */
   direction: THREE.Vector3;
-  /** Target direction from Fibonacci redistribution */
+  /** Target direction from Fibonacci redistribution (unit vector) */
   targetDirection: THREE.Vector3;
-  /** Current mood for color tracking */
+  /** Current mood for color tracking (null when slot is empty) */
   currentMood: MoodId | null;
-  /** Current interpolated radius (lerp-smoothed) */
+  /** Current interpolated radius in world units (lerp-smoothed toward ECS orbitRadius) */
   currentRadius: number;
-  /** Phase offset for subtle wave effect (0-0.04 range, 4% max) */
+  /** Phase offset for subtle wave effect (0-0.04 range, creates staggered breathing) */
   phaseOffset: number;
-  /** Seed for ambient floating motion (unique per shard) */
+  /** Seed for ambient floating motion (0-1 range, unique per shard, deterministic) */
   ambientSeed: number;
-  /** Per-shard rotation speed multiplier X axis (0.7-1.3 range) */
+  /** Per-shard rotation speed multiplier X axis (0.7-1.3 range, creates variation) */
   rotationSpeedX: number;
-  /** Per-shard rotation speed multiplier Y axis (0.7-1.3 range) */
+  /** Per-shard rotation speed multiplier Y axis (0.7-1.3 range, creates variation) */
   rotationSpeedY: number;
-  /** Base scale offset for depth variation (0.85-1.15 range) */
+  /** Base scale offset for depth variation (0.85-1.15 range, adds visual depth) */
   baseScaleOffset: number;
-  /** Current orbit angle offset (radians, accumulates over time) */
+  /** Edge scale variation for less uniform wireframes (0.95-1.08 range) */
+  edgeScaleOffset: number;
+  /** Current orbit angle offset in radians (accumulates over time for drift) */
   orbitAngle: number;
-  /** Per-shard orbit speed (radians/second) */
+  /** Per-shard orbit speed in radians/second (ORBIT_BASE_SPEED ± variation) */
   orbitSpeed: number;
-  /** Seed for perpendicular wobble phase */
+  /** Seed for perpendicular wobble phase (0-2π range, creates unique wobble timing) */
   wobbleSeed: number;
-  /** Accumulated rotation X */
+  /** Accumulated rotation around X axis in radians (tumbling animation) */
   rotationX: number;
-  /** Accumulated rotation Y */
+  /** Accumulated rotation around Y axis in radians (tumbling animation) */
   rotationY: number;
 }
 
@@ -185,9 +174,12 @@ const PERPENDICULAR_FREQUENCY = 0.35;
 const MAX_PHASE_OFFSET = 0.04;
 
 /**
- * Inner glow core sizing (relative to shard scale)
+ * Edge glow sizing and trails
  */
-const CORE_SCALE_FACTOR = 0.55;
+const EDGE_SCALE = 1.12;
+const TRAIL_COUNT = 5;
+const GLOBE_VISUAL_SCALE = 1.35;
+const MAX_SHARD_SCALE = 1.2;
 
 /**
  * Reusable objects for animation loop (pre-allocated to avoid GC pressure)
@@ -204,73 +196,204 @@ const _tempAmbient = new THREE.Vector3();
 const _yAxis = new THREE.Vector3(0, 1, 0);
 const _tempLerpDir = new THREE.Vector3();
 
-const coreVertexShader = /* glsl */ `
-#include <common>
-varying vec3 vColor;
-varying float vSeed;
-varying vec3 vNormal;
-varying vec3 vViewPosition;
-
-attribute float instanceSeed;
-
-void main() {
-  #ifdef USE_INSTANCING
-    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-    vec3 transformedNormal = mat3(normalMatrix) * mat3(instanceMatrix) * normal;
-  #else
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    vec3 transformedNormal = normalMatrix * normal;
-  #endif
-
-  #ifdef USE_INSTANCING_COLOR
-    vColor = instanceColor;
-  #else
-    vColor = vec3(1.0);
-  #endif
-
-  vSeed = instanceSeed;
-  vNormal = normalize(transformedNormal);
-  vViewPosition = -mvPosition.xyz;
-
-  gl_Position = projectionMatrix * mvPosition;
+function getSlotScale(slot: Slot | null): number {
+  if (!slot) return 0;
+  return slot.state !== 'empty' ? slot.scale : 0;
 }
-`;
 
-const coreFragmentShader = /* glsl */ `
-uniform float time;
-uniform float breathPhase;
-uniform float coreFocus;
-uniform float intensity;
-uniform float debugSolid;
-uniform vec3 debugColor;
+function markInstanceColorNeedsUpdate(meshes: Array<THREE.InstancedMesh | null | undefined>) {
+  for (const mesh of meshes) {
+    if (mesh?.instanceColor) {
+      mesh.instanceColor.needsUpdate = true;
+    }
+  }
+}
 
-varying vec3 vColor;
-varying float vSeed;
-varying vec3 vNormal;
-varying vec3 vViewPosition;
+function markInstanceMatrixNeedsUpdate(meshes: Array<THREE.InstancedMesh | null | undefined>) {
+  for (const mesh of meshes) {
+    if (mesh) {
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+}
 
-void main() {
-  if (debugSolid > 0.5) {
-    gl_FragColor = vec4(debugColor, 1.0);
-    return;
+/**
+ * Compose and return a matrix from position/quaternion/scale for instanced rendering.
+ */
+function composeInstanceMatrix(
+  matrix: THREE.Matrix4,
+  position: THREE.Vector3,
+  quaternion: THREE.Quaternion,
+  scale: THREE.Vector3,
+): THREE.Matrix4 {
+  matrix.compose(position, quaternion, scale);
+  return matrix;
+}
+
+function setColorForIndex(
+  meshes: Array<THREE.InstancedMesh | null | undefined>,
+  index: number,
+  color: THREE.Color,
+) {
+  for (const mesh of meshes) {
+    mesh?.setColorAt(index, color);
+  }
+}
+
+function writeBaseInstanceMatrix({
+  mesh,
+  index,
+  state,
+  slotScale,
+  useStoredRotation,
+}: {
+  mesh: THREE.InstancedMesh;
+  index: number;
+  state: InstanceState;
+  slotScale: number;
+  useStoredRotation: boolean;
+}) {
+  _tempPosition.copy(state.direction).multiplyScalar(state.currentRadius);
+  if (useStoredRotation) {
+    _tempEuler.set(state.rotationX, state.rotationY, 0);
+    _tempQuaternion.setFromEuler(_tempEuler);
+  } else {
+    _tempQuaternion.identity();
   }
 
-  vec3 viewDir = normalize(vViewPosition);
-  float facing = clamp(dot(normalize(vNormal), viewDir), 0.0, 1.0);
-  float core = smoothstep(coreFocus, 1.0, facing);
-  core = pow(core, 1.35);
-  float pulse = 0.65 + 0.35 * sin(time * 1.25 + vSeed * 6.283185);
-  float breath = 1.0 + breathPhase * 0.25;
-  float shimmer = 0.85 + 0.15 * sin(time * 2.2 + vSeed * 3.1 + facing * 4.0);
-
-  vec3 glowColor = mix(vColor, vec3(1.0), 0.28);
-  float glow = core * pulse * breath * shimmer;
-  vec3 color = glowColor * intensity * glow;
-  float alpha = glow * 0.85;
-
-  gl_FragColor = vec4(color, alpha);
+  _tempScale.setScalar(slotScale * state.baseScaleOffset);
+  composeInstanceMatrix(_tempMatrix, _tempPosition, _tempQuaternion, _tempScale);
+  mesh.setMatrixAt(index, _tempMatrix);
 }
-`;
+
+function writeEdgeAndTrailsMatrix({
+  edgeMesh,
+  trailMeshes,
+  index,
+  state,
+  slotScale,
+  useStoredRotation,
+  setDefaultColors,
+  trailHistory,
+}: {
+  edgeMesh: THREE.InstancedMesh;
+  trailMeshes: Array<THREE.InstancedMesh | null>;
+  index: number;
+  state: InstanceState;
+  slotScale: number;
+  useStoredRotation: boolean;
+  setDefaultColors: boolean;
+  trailHistory: THREE.Matrix4[][];
+}) {
+  _tempPosition.copy(state.direction).multiplyScalar(state.currentRadius);
+  if (useStoredRotation) {
+    _tempEuler.set(state.rotationX, state.rotationY, 0);
+    _tempQuaternion.setFromEuler(_tempEuler);
+  } else {
+    _tempQuaternion.identity();
+  }
+
+  _tempScale.setScalar(slotScale * state.baseScaleOffset * state.edgeScaleOffset * EDGE_SCALE);
+  composeInstanceMatrix(_tempMatrix, _tempPosition, _tempQuaternion, _tempScale);
+  edgeMesh.setMatrixAt(index, _tempMatrix);
+
+  const history = trailHistory[index];
+  if (!history) return;
+
+  for (let t = 0; t < history.length; t++) {
+    history[t].copy(_tempMatrix);
+    const trailMesh = trailMeshes[t];
+    if (trailMesh) {
+      trailMesh.setMatrixAt(index, history[t]);
+      if (setDefaultColors) {
+        trailMesh.setColorAt(index, DEFAULT_COLOR);
+      }
+    }
+  }
+}
+
+function writeHaloInstanceMatrix({
+  haloMesh,
+  index,
+  state,
+  slotScale,
+  useStoredRotation,
+}: {
+  haloMesh: THREE.InstancedMesh;
+  index: number;
+  state: InstanceState;
+  slotScale: number;
+  useStoredRotation: boolean;
+}) {
+  _tempPosition.copy(state.direction).multiplyScalar(state.currentRadius);
+  if (useStoredRotation) {
+    _tempEuler.set(state.rotationX, state.rotationY, 0);
+    _tempQuaternion.setFromEuler(_tempEuler);
+  } else {
+    _tempQuaternion.identity();
+  }
+
+  _tempScale.setScalar(
+    slotScale * state.baseScaleOffset * state.edgeScaleOffset * EDGE_SCALE * 1.12,
+  );
+  composeInstanceMatrix(_tempMatrix, _tempPosition, _tempQuaternion, _tempScale);
+  haloMesh.setMatrixAt(index, _tempMatrix);
+}
+
+function initializeInstanceMatrices({
+  performanceCap,
+  slots,
+  states,
+  mesh,
+  edgeMesh,
+  haloMesh,
+  trailMeshes,
+  trailHistory,
+  useStoredRotation,
+  setDefaultColors,
+}: {
+  performanceCap: number;
+  slots: readonly Slot[];
+  states: InstanceState[];
+  mesh: THREE.InstancedMesh;
+  edgeMesh: THREE.InstancedMesh | null;
+  haloMesh: THREE.InstancedMesh | null;
+  trailMeshes: Array<THREE.InstancedMesh | null>;
+  trailHistory: THREE.Matrix4[][];
+  useStoredRotation: boolean;
+  setDefaultColors: boolean;
+}) {
+  for (let i = 0; i < performanceCap; i++) {
+    const state = states[i];
+    if (!state) continue;
+
+    const slot = i < slots.length ? slots[i] : null;
+    const slotScale = getSlotScale(slot);
+
+    writeBaseInstanceMatrix({ mesh, index: i, state, slotScale, useStoredRotation });
+
+    if (setDefaultColors) {
+      setColorForIndex([mesh, edgeMesh, haloMesh], i, DEFAULT_COLOR);
+    }
+
+    if (edgeMesh) {
+      writeEdgeAndTrailsMatrix({
+        edgeMesh,
+        trailMeshes,
+        index: i,
+        state,
+        slotScale,
+        useStoredRotation,
+        setDefaultColors,
+        trailHistory,
+      });
+    }
+
+    if (haloMesh) {
+      writeHaloInstanceMatrix({ haloMesh, index: i, state, slotScale, useStoredRotation });
+    }
+  }
+}
 
 /**
  * Normalize users input to User[] format
@@ -312,6 +435,7 @@ function createInstanceState(index: number, baseRadius: number, totalSlots: numb
     rotationSpeedX: 0.7 + rotSeedX * 0.6,
     rotationSpeedY: 0.7 + rotSeedY * 0.6,
     baseScaleOffset: 0.9 + scaleSeed * 0.2,
+    edgeScaleOffset: 0.96 + scaleSeed * 0.08,
     orbitAngle: 0,
     orbitSpeed: ORBIT_BASE_SPEED + (orbitSeed - 0.5) * 2 * ORBIT_SPEED_VARIATION,
     wobbleSeed: index * Math.E,
@@ -331,16 +455,17 @@ export function ParticleSwarm({
   performanceCap = 1000,
   highlightCurrentUser = false,
   highlightStyle = 'wireframe',
-  materialType = 'polished',
-  refractionPipelineEnabled = false,
   showShardShells = true,
 }: ParticleSwarmProps) {
   const world = useWorld();
   const instancedMeshRef = useRef<THREE.InstancedMesh>(null);
-  const coreMeshRef = useRef<THREE.InstancedMesh>(null);
+  const edgeMeshRef = useRef<THREE.InstancedMesh>(null);
+  const haloMeshRef = useRef<THREE.InstancedMesh>(null);
+  const trailMeshesRef = useRef<Array<THREE.InstancedMesh | null>>([]);
   const wireframeRef = useRef<THREE.LineSegments>(null);
   const glowMeshRef = useRef<THREE.Mesh>(null);
   const instanceStatesRef = useRef<InstanceState[]>([]);
+  const trailHistoryRef = useRef<THREE.Matrix4[][]>([]);
   const labelGroupRef = useRef<THREE.Group>(null);
 
   // Track current user's slot index (-1 if not found)
@@ -401,8 +526,10 @@ export function ParticleSwarm({
    * Shards must never penetrate the globe surface.
    */
   const minOrbitRadius = useMemo(() => {
-    // Hard limit: Globe collision prevention only
-    return globeRadius + shardSize + buffer;
+    // Hard limit: Keep shards outside the full visible globe (including atmosphere/glow)
+    const visualGlobeRadius = globeRadius * GLOBE_VISUAL_SCALE;
+    const maxShardExtent = shardSize * MAX_SHARD_SCALE;
+    return visualGlobeRadius + maxShardExtent + buffer;
   }, [globeRadius, shardSize, buffer]);
 
   /**
@@ -430,56 +557,48 @@ export function ParticleSwarm({
     return new THREE.IcosahedronGeometry(shardSize, 0);
   }, [shardSize]);
 
-  const coreGeometry = useMemo(() => {
-    return new THREE.SphereGeometry(shardSize, 16, 16);
-  }, [shardSize]);
-
   // Create shared material with instancing support
-  const materialVariant = useMemo(() => createShardMaterial(materialType), [materialType]);
-  const material = materialVariant.material;
-  const usesRefractionPipeline = materialVariant.usesRefractionPipeline;
-  const refractionEnabled = usesRefractionPipeline && refractionPipelineEnabled;
+  const material = useMemo(() => createShardMaterial(), []);
 
-  const coreMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        time: { value: 0 },
-        breathPhase: { value: 0 },
-        coreFocus: { value: 0.22 },
-        intensity: { value: 1.8 },
-        debugSolid: { value: 0 },
-        debugColor: { value: new THREE.Color(0xff00ff) },
-      },
-      vertexShader: coreVertexShader,
-      fragmentShader: coreFragmentShader,
-      transparent: true,
-      depthWrite: false,
-      depthTest: true,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-      defines: { USE_INSTANCING_COLOR: '' },
-    });
-  }, []);
+  const edgeMaterial = useMemo(
+    () =>
+      createEdgeMaterialTSL({
+        trailFade: 1.0,
+        baseOpacity: 1.05,
+        pulseStrength: 1.35,
+        glowBoost: 5.2,
+        depthFadePower: 0.95,
+        noiseAmount: 0.08,
+      }),
+    [],
+  );
+  const haloMaterial = useMemo(
+    () =>
+      createEdgeMaterialTSL({
+        trailFade: 0.5,
+        baseOpacity: 0.3,
+        pulseStrength: 1.05,
+        glowBoost: 2.6,
+        depthFadePower: 1.2,
+        noiseAmount: 0.06,
+      }),
+    [],
+  );
 
-  useEffect(() => {
-    if (!('uniforms' in coreMaterial)) return;
-    const uniforms = coreMaterial.uniforms as Record<string, { value: unknown }>;
-    if (showShardShells) {
-      coreMaterial.transparent = true;
-      coreMaterial.blending = THREE.AdditiveBlending;
-      coreMaterial.depthWrite = false;
-      coreMaterial.depthTest = true;
-      if ('debugSolid' in uniforms) uniforms.debugSolid.value = 0;
-    } else {
-      // Debug mode: make cores obvious even without bloom or shells
-      coreMaterial.transparent = false;
-      coreMaterial.blending = THREE.NormalBlending;
-      coreMaterial.depthWrite = false;
-      coreMaterial.depthTest = false;
-      if ('debugSolid' in uniforms) uniforms.debugSolid.value = 1;
-    }
-    coreMaterial.needsUpdate = true;
-  }, [showShardShells, coreMaterial]);
+  const trailMaterials = useMemo(
+    () =>
+      Array.from({ length: TRAIL_COUNT }, (_, index) =>
+        createEdgeMaterialTSL({
+          trailFade: 0.6 / (index + 1),
+          baseOpacity: 0.45,
+          pulseStrength: 1.1,
+          glowBoost: 2.4,
+          depthFadePower: 1.0,
+          noiseAmount: 0.08,
+        }),
+      ),
+    [],
+  );
 
   // Create wireframe geometry and material for user highlight
   const wireframeGeometry = useMemo(() => {
@@ -548,26 +667,27 @@ export function ParticleSwarm({
       mesh: THREE.InstancedMesh,
       slots: readonly Slot[],
       states: InstanceState[],
-      coreMesh?: THREE.InstancedMesh | null,
+      edgeMesh?: THREE.InstancedMesh | null,
+      haloMesh?: THREE.InstancedMesh | null,
+      trailMeshes: Array<THREE.InstancedMesh | null> = [],
     ) => {
+      const colorMeshes: Array<THREE.InstancedMesh | null | undefined> = [
+        mesh,
+        edgeMesh,
+        haloMesh,
+        ...trailMeshes,
+      ];
+
       for (let i = 0; i < slots.length && i < states.length; i++) {
         const slot = slots[i];
         const instanceState = states[i];
-        if (slot.mood && slot.mood !== instanceState.currentMood) {
-          const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
-          mesh.setColorAt(i, color);
-          if (coreMesh) {
-            coreMesh.setColorAt(i, color);
-          }
-          instanceState.currentMood = slot.mood;
-        }
+        if (!slot.mood || slot.mood === instanceState.currentMood) continue;
+        const color = MOOD_TO_COLOR[slot.mood] ?? DEFAULT_COLOR;
+        setColorForIndex(colorMeshes, i, color);
+        instanceState.currentMood = slot.mood;
       }
-      if (mesh.instanceColor) {
-        mesh.instanceColor.needsUpdate = true;
-      }
-      if (coreMesh?.instanceColor) {
-        coreMesh.instanceColor.needsUpdate = true;
-      }
+
+      markInstanceColorNeedsUpdate(colorMeshes);
     },
     [],
   );
@@ -600,7 +720,14 @@ export function ParticleSwarm({
       }
       updateCurrentUserSlot(slotManager);
       if (options.applyColors !== false) {
-        applySlotColors(mesh, slotManager.slots, instanceStatesRef.current, coreMeshRef.current);
+        applySlotColors(
+          mesh,
+          slotManager.slots,
+          instanceStatesRef.current,
+          edgeMeshRef.current,
+          haloMeshRef.current,
+          trailMeshesRef.current,
+        );
       }
 
       return stableCount;
@@ -613,23 +740,42 @@ export function ParticleSwarm({
 
   // Initialize instance states (only when instance count changes)
   useEffect(() => {
+    // Dispose old instance attributes before creating new ones
+    // (geometry.dispose() doesn't automatically dispose BufferAttributes in all Three.js versions)
+    const oldSeedAttr = geometry.getAttribute('instanceSeed');
+    const oldPulseAttr = geometry.getAttribute('instancePulse');
+    if (oldSeedAttr) {
+      geometry.deleteAttribute('instanceSeed');
+    }
+    if (oldPulseAttr) {
+      geometry.deleteAttribute('instancePulse');
+    }
+
     const states: InstanceState[] = [];
     const seeds = new Float32Array(performanceCap);
+    const pulses = new Float32Array(performanceCap);
+    const trails: THREE.Matrix4[][] = [];
     for (let i = 0; i < performanceCap; i++) {
       const state = createInstanceState(i, baseRadius, performanceCap);
       states.push(state);
       seeds[i] = (state.ambientSeed * 0.001) % 1;
+      pulses[i] = (state.ambientSeed * 0.37) % 1;
+      trails[i] = Array.from({ length: TRAIL_COUNT }, () => new THREE.Matrix4());
     }
     instanceStatesRef.current = states;
-    coreGeometry.setAttribute('instanceSeed', new THREE.InstancedBufferAttribute(seeds, 1));
+    trailHistoryRef.current = trails;
+    geometry.setAttribute('instanceSeed', new THREE.InstancedBufferAttribute(seeds, 1));
+    geometry.setAttribute('instancePulse', new THREE.InstancedBufferAttribute(pulses, 1));
     isInitializedRef.current = false;
-  }, [performanceCap, baseRadius, coreGeometry]);
+  }, [performanceCap, baseRadius, geometry]);
 
   // Initialize the InstancedMesh with current animation state
   // biome-ignore lint/correctness/useExhaustiveDependencies: geometry/material MUST be dependencies because r3f recreates the InstancedMesh when args change
   useEffect(() => {
     const mesh = instancedMeshRef.current;
-    const coreMesh = coreMeshRef.current;
+    const edgeMesh = edgeMeshRef.current;
+    const haloMesh = haloMeshRef.current;
+    const trailMeshes = trailMeshesRef.current;
     if (!mesh) return;
 
     const slotManager = slotManagerRef.current;
@@ -639,93 +785,45 @@ export function ParticleSwarm({
     const isInitialSetup = !isInitializedRef.current;
     isInitializedRef.current = true;
 
-    if (isInitialSetup) {
-      // INITIAL SETUP: Start with a fresh slot reconciliation
-      const usersForInit = latestUsersRef.current;
-      syncUsers(mesh, usersForInit, {
-        snapDirections: true,
-        forceRedistribute: true,
-        applyColors: false,
-      });
+    const usersForSetup = latestUsersRef.current;
+    syncUsers(mesh, usersForSetup, {
+      snapDirections: isInitialSetup,
+      forceRedistribute: true,
+      applyColors: false,
+    });
+    lastSyncedSignatureRef.current = createUsersSignature(usersForSetup);
 
-      lastSyncedSignatureRef.current = createUsersSignature(usersForInit);
+    initializeInstanceMatrices({
+      performanceCap,
+      slots: slotManager.slots,
+      states: instanceStatesRef.current,
+      mesh,
+      edgeMesh,
+      haloMesh,
+      trailMeshes,
+      trailHistory: trailHistoryRef.current,
+      useStoredRotation: !isInitialSetup,
+      setDefaultColors: isInitialSetup,
+    });
 
-      // Initialize instance matrices after snapping to target positions
-      _tempQuaternion.identity();
-      const slots = slotManager.slots;
-      const states = instanceStatesRef.current;
+    applySlotColors(
+      mesh,
+      slotManager.slots,
+      instanceStatesRef.current,
+      edgeMesh,
+      haloMesh,
+      trailMeshes,
+    );
 
-      for (let i = 0; i < performanceCap; i++) {
-        const state = states[i];
-        const slot = i < slots.length ? slots[i] : null;
-        const slotScale = slot && slot.state !== 'empty' ? slot.scale : 0;
-
-        if (state) {
-          _tempPosition.copy(state.direction).multiplyScalar(state.currentRadius);
-          _tempScale.setScalar(slotScale * state.baseScaleOffset);
-          _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
-          mesh.setMatrixAt(i, _tempMatrix);
-          mesh.setColorAt(i, DEFAULT_COLOR);
-          if (coreMesh) {
-            _tempScale.setScalar(slotScale * state.baseScaleOffset * CORE_SCALE_FACTOR);
-            _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
-            coreMesh.setMatrixAt(i, _tempMatrix);
-            coreMesh.setColorAt(i, DEFAULT_COLOR);
-          }
-        }
-      }
-    } else {
-      // REBUILD: Preserve current animation state for mesh recreation
-      // Use currentRadius and current slot states instead of resetting
-      const usersForRebuild = latestUsersRef.current;
-      syncUsers(mesh, usersForRebuild, {
-        snapDirections: false,
-        forceRedistribute: true,
-        applyColors: false,
-      });
-      lastSyncedSignatureRef.current = createUsersSignature(usersForRebuild);
-
-      const slots = slotManager.slots;
-      const states = instanceStatesRef.current;
-
-      for (let i = 0; i < performanceCap; i++) {
-        const state = states[i];
-        const slot = i < slots.length ? slots[i] : null;
-        const slotScale = slot && slot.state !== 'empty' ? slot.scale : 0;
-
-        if (state) {
-          // Use currentRadius (preserves breathing animation state)
-          _tempPosition.copy(state.direction).multiplyScalar(state.currentRadius);
-          _tempEuler.set(state.rotationX, state.rotationY, 0);
-          _tempQuaternion.setFromEuler(_tempEuler);
-          _tempScale.setScalar(slotScale * state.baseScaleOffset);
-          _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
-          mesh.setMatrixAt(i, _tempMatrix);
-          if (coreMesh) {
-            _tempScale.setScalar(slotScale * state.baseScaleOffset * CORE_SCALE_FACTOR);
-            _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
-            coreMesh.setMatrixAt(i, _tempMatrix);
-          }
-        }
-      }
-    }
-
-    applySlotColors(mesh, slotManager.slots, instanceStatesRef.current, coreMesh);
-
-    mesh.instanceMatrix.needsUpdate = true;
-    if (coreMesh) {
-      coreMesh.instanceMatrix.needsUpdate = true;
-      if (coreMesh.instanceColor) {
-        coreMesh.instanceColor.needsUpdate = true;
-      }
-    }
+    markInstanceMatrixNeedsUpdate([mesh, edgeMesh, haloMesh, ...trailMeshes]);
   }, [
     performanceCap,
     baseRadius,
     geometry,
-    coreGeometry,
     material,
-    coreMaterial,
+    edgeMaterial,
+    haloMaterial,
+    trailMaterials,
     applySlotColors,
     syncUsers,
   ]);
@@ -733,10 +831,17 @@ export function ParticleSwarm({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // Delete instance attributes before geometry disposal
+      // (geometry.dispose() doesn't automatically dispose BufferAttributes in all Three.js versions)
+      geometry.deleteAttribute('instanceSeed');
+      geometry.deleteAttribute('instancePulse');
       geometry.dispose();
-      coreGeometry.dispose();
       material.dispose();
-      coreMaterial.dispose();
+      edgeMaterial.dispose();
+      haloMaterial.dispose();
+      for (const trailMaterial of trailMaterials) {
+        trailMaterial.dispose();
+      }
       wireframeGeometry.dispose();
       wireframeMaterial.dispose();
       glowGeometry.dispose();
@@ -744,9 +849,10 @@ export function ParticleSwarm({
     };
   }, [
     geometry,
-    coreGeometry,
     material,
-    coreMaterial,
+    edgeMaterial,
+    haloMaterial,
+    trailMaterials,
     wireframeGeometry,
     wireframeMaterial,
     glowGeometry,
@@ -761,7 +867,9 @@ export function ParticleSwarm({
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Physics simulation requires multiple force calculations and slot lifecycle management
   useFrame((state, delta) => {
     const mesh = instancedMeshRef.current;
-    const coreMesh = coreMeshRef.current;
+    const edgeMesh = edgeMeshRef.current;
+    const haloMesh = haloMeshRef.current;
+    const trailMeshes = trailMeshesRef.current;
     const states = instanceStatesRef.current;
     const slotManager = slotManagerRef.current;
     if (!mesh || !slotManager || states.length === 0) return;
@@ -790,7 +898,7 @@ export function ParticleSwarm({
     }
 
     // Signal for E2E screenshot tests - fires once when shards become fully visible
-    // Wait for 1.0s of full visibility to ensure RefractionPipeline has initialized and rendered
+    // Wait for 1.0s of full visibility to ensure steady state
     if (
       !hasSignaledRef.current &&
       slotManager.fullyActiveCount > 0 &&
@@ -808,23 +916,36 @@ export function ParticleSwarm({
     // Update slot animations
     slotManager.updateAnimations(clampedDelta);
 
-    // Update shader uniforms (only if material needs them)
-    if ('uniforms' in material && material.uniforms) {
-      const uniforms = material.uniforms as Record<string, { value: unknown }>;
-      if (materialVariant.needsBreathPhaseUpdate && 'breathPhase' in uniforms) {
-        uniforms.breathPhase.value = currentBreathPhase;
+    // Edge materials handle their own timing/pulse.
+    const depthRange = Math.max(18, baseRadius * 12);
+
+    if ('userData' in edgeMaterial && edgeMaterial.userData) {
+      const edgeUniforms = edgeMaterial.userData as Record<string, { value: unknown }>;
+      if ('uTime' in edgeUniforms) {
+        edgeUniforms.uTime.value = time;
       }
-      if (materialVariant.needsTimeUpdate && 'time' in uniforms) {
-        uniforms.time.value = time;
+      if ('uDepthRange' in edgeUniforms) {
+        edgeUniforms.uDepthRange.value = depthRange;
       }
     }
-    if ('uniforms' in coreMaterial && coreMaterial.uniforms) {
-      const coreUniforms = coreMaterial.uniforms as Record<string, { value: unknown }>;
-      if ('time' in coreUniforms) {
-        coreUniforms.time.value = time;
+    if ('userData' in haloMaterial && haloMaterial.userData) {
+      const haloUniforms = haloMaterial.userData as Record<string, { value: unknown }>;
+      if ('uTime' in haloUniforms) {
+        haloUniforms.uTime.value = time;
       }
-      if ('breathPhase' in coreUniforms) {
-        coreUniforms.breathPhase.value = currentBreathPhase;
+      if ('uDepthRange' in haloUniforms) {
+        haloUniforms.uDepthRange.value = depthRange;
+      }
+    }
+    for (const trailMaterial of trailMaterials) {
+      if ('userData' in trailMaterial && trailMaterial.userData) {
+        const trailUniforms = trailMaterial.userData as Record<string, { value: unknown }>;
+        if ('uTime' in trailUniforms) {
+          trailUniforms.uTime.value = time;
+        }
+        if ('uDepthRange' in trailUniforms) {
+          trailUniforms.uDepthRange.value = depthRange;
+        }
       }
     }
 
@@ -856,8 +977,21 @@ export function ParticleSwarm({
         _tempScale.setScalar(0);
         _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
         mesh.setMatrixAt(i, _tempMatrix);
-        if (coreMesh) {
-          coreMesh.setMatrixAt(i, _tempMatrix);
+        if (edgeMesh) {
+          edgeMesh.setMatrixAt(i, _tempMatrix);
+        }
+        if (haloMesh) {
+          haloMesh.setMatrixAt(i, _tempMatrix);
+        }
+        const history = trailHistoryRef.current[i];
+        if (history) {
+          for (let t = 0; t < history.length; t++) {
+            history[t].copy(_tempMatrix);
+            const trailMesh = trailMeshes[t];
+            if (trailMesh) {
+              trailMesh.setMatrixAt(i, history[t]);
+            }
+          }
         }
         continue;
       }
@@ -929,19 +1063,51 @@ export function ParticleSwarm({
       // Compose and set matrix
       _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
       mesh.setMatrixAt(i, _tempMatrix);
-      if (coreMesh) {
-        _tempScale.setScalar(finalScale * CORE_SCALE_FACTOR);
+      if (edgeMesh) {
+        _tempScale.setScalar(finalScale * EDGE_SCALE * instanceState.edgeScaleOffset);
         _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
-        coreMesh.setMatrixAt(i, _tempMatrix);
+        edgeMesh.setMatrixAt(i, _tempMatrix);
+        const history = trailHistoryRef.current[i];
+        if (history) {
+          for (let t = history.length - 1; t >= 1; t--) {
+            history[t].copy(history[t - 1]);
+          }
+          history[0].copy(_tempMatrix);
+          for (let t = 0; t < history.length; t++) {
+            const trailMesh = trailMeshes[t];
+            if (trailMesh) {
+              _tempMatrix.copy(history[t]);
+              _tempMatrix.decompose(_tempPosition, _tempQuaternion, _tempScale);
+              _tempScale.multiplyScalar(1 - (t + 1) * 0.05);
+              _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
+              trailMesh.setMatrixAt(i, _tempMatrix);
+            }
+          }
+        }
+      }
+      if (haloMesh) {
+        _tempScale.setScalar(finalScale * EDGE_SCALE * instanceState.edgeScaleOffset * 1.12);
+        _tempMatrix.compose(_tempPosition, _tempQuaternion, _tempScale);
+        haloMesh.setMatrixAt(i, _tempMatrix);
       }
     }
 
     // Update instance count for rendering optimization
     mesh.count = Math.max(1, visibleCount);
     mesh.instanceMatrix.needsUpdate = true;
-    if (coreMesh) {
-      coreMesh.count = mesh.count;
-      coreMesh.instanceMatrix.needsUpdate = true;
+    if (edgeMesh) {
+      edgeMesh.count = mesh.count;
+      edgeMesh.instanceMatrix.needsUpdate = true;
+    }
+    if (haloMesh) {
+      haloMesh.count = mesh.count;
+      haloMesh.instanceMatrix.needsUpdate = true;
+    }
+    for (const trailMesh of trailMeshes) {
+      if (trailMesh) {
+        trailMesh.count = mesh.count;
+        trailMesh.instanceMatrix.needsUpdate = true;
+      }
     }
 
     // Update highlight position for current user
@@ -1019,73 +1185,77 @@ export function ParticleSwarm({
     }
   });
 
-  const applyRefractionLayer = useCallback(
-    (mesh?: THREE.InstancedMesh | null) => {
-      const target = mesh ?? instancedMeshRef.current;
-      if (!target) return;
-
-      target.renderOrder = 1;
-      if (refractionEnabled) {
-        target.layers.enable(RENDER_LAYERS.PARTICLES);
-      } else {
-        target.layers.disable(RENDER_LAYERS.PARTICLES);
-      }
-      target.userData.useRefraction = refractionEnabled;
-    },
-    [refractionEnabled],
-  );
-
-  useEffect(() => {
-    applyRefractionLayer();
-  }, [applyRefractionLayer]);
-
-  useLayoutEffect(() => {
-    const coreMesh = coreMeshRef.current;
-    if (!coreMesh || coreMesh.instanceColor) return;
-    coreMesh.setColorAt(0, DEFAULT_COLOR);
-    if (coreMesh.instanceColor) {
-      coreMesh.instanceColor.needsUpdate = true;
-    }
-    coreMaterial.needsUpdate = true;
-  }, [coreMaterial]);
-
-  const applyCoreRenderState = useCallback((mesh?: THREE.InstancedMesh | null) => {
-    const target = mesh ?? coreMeshRef.current;
+  const applyShardRenderState = useCallback((mesh?: THREE.InstancedMesh | null, order = 1) => {
+    const target = mesh ?? instancedMeshRef.current;
     if (!target) return;
 
-    target.renderOrder = 2;
-    target.layers.disable(RENDER_LAYERS.PARTICLES);
+    target.renderOrder = order;
+  }, []);
+
+  const applyEdgeRenderState = useCallback((mesh?: THREE.InstancedMesh | null, order = 2) => {
+    if (!mesh) return;
+    mesh.renderOrder = order;
   }, []);
 
   useEffect(() => {
-    applyCoreRenderState();
+    applyShardRenderState();
+    applyEdgeRenderState(edgeMeshRef.current, TRAIL_COUNT + 2);
+    applyEdgeRenderState(haloMeshRef.current, TRAIL_COUNT + 1);
+    trailMeshesRef.current.forEach((trailMesh, index) => {
+      if (trailMesh) {
+        applyEdgeRenderState(trailMesh, 2 + index);
+      }
+    });
     const wireframe = wireframeRef.current;
     const glowMesh = glowMeshRef.current;
     if (wireframe) {
-      wireframe.renderOrder = 3;
+      wireframe.renderOrder = TRAIL_COUNT + 3;
     }
     if (glowMesh) {
-      glowMesh.renderOrder = 3;
+      glowMesh.renderOrder = TRAIL_COUNT + 3;
     }
-  }, [applyCoreRenderState]);
+  }, [applyShardRenderState, applyEdgeRenderState]);
 
   return (
     <>
-      <instancedMesh
-        ref={coreMeshRef}
-        args={[coreGeometry, coreMaterial, performanceCap]}
-        frustumCulled={false}
-        name="Particle Swarm Core"
-        onUpdate={(mesh) => applyCoreRenderState(mesh)}
-      />
       <instancedMesh
         ref={instancedMeshRef}
         args={[geometry, material, performanceCap]}
         frustumCulled={false}
         name="Particle Swarm"
         visible={showShardShells}
-        onUpdate={(mesh) => applyRefractionLayer(mesh)}
+        onUpdate={(mesh) => applyShardRenderState(mesh, 1)}
       />
+      <instancedMesh
+        ref={edgeMeshRef}
+        args={[geometry, edgeMaterial, performanceCap]}
+        frustumCulled={false}
+        name="Particle Swarm Edges"
+        visible={showShardShells}
+        onUpdate={(mesh) => applyEdgeRenderState(mesh, TRAIL_COUNT + 2)}
+      />
+      <instancedMesh
+        ref={haloMeshRef}
+        args={[geometry, haloMaterial, performanceCap]}
+        frustumCulled={false}
+        name="Particle Swarm Halo"
+        visible={showShardShells}
+        onUpdate={(mesh) => applyEdgeRenderState(mesh, TRAIL_COUNT + 1)}
+      />
+      {trailMaterials.map((trailMaterial, index) => (
+        <instancedMesh
+          // biome-ignore lint/suspicious/noArrayIndexKey: Stable trail ordering
+          key={`trail-${index}`}
+          ref={(mesh) => {
+            trailMeshesRef.current[index] = mesh;
+          }}
+          args={[geometry, trailMaterial, performanceCap]}
+          frustumCulled={false}
+          name={`Particle Swarm Trail ${index + 1}`}
+          visible={showShardShells}
+          onUpdate={(mesh) => applyEdgeRenderState(mesh, 2 + index)}
+        />
+      ))}
       {/* Highlight elements for current user's shard */}
       {highlightCurrentUser && (
         <>

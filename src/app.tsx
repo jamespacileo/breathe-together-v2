@@ -1,9 +1,10 @@
 import { AdaptiveDpr, Stats, useTexture } from '@react-three/drei';
-import { Canvas, type ThreeToJSXElements } from '@react-three/fiber';
-import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
-import type * as THREE from 'three';
+import { Canvas, extend, type ThreeToJSXElements } from '@react-three/fiber';
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react';
+import * as THREE from 'three/webgpu';
 import { AudioProvider } from './audio';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { isVisualTestMode, VisualTestController } from './components/VisualTestController';
 import { BreathEntity } from './entities/breath';
 import { CameraRig } from './entities/camera/CameraRig';
 import { useViewport } from './hooks/useViewport';
@@ -13,9 +14,13 @@ import { KootaSystems } from './providers';
 // Lazy load admin panel (only loads when needed)
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
-// Extend R3F with Three.js types
+// Extend R3F with Three.js WebGPU types for TSL materials
+// biome-ignore lint/suspicious/noExplicitAny: THREE namespace requires any for extend()
+extend(THREE as any);
+
 declare module '@react-three/fiber' {
-  interface ThreeElements extends ThreeToJSXElements<typeof THREE> {}
+  // biome-ignore lint/suspicious/noExplicitAny: WebGPU THREE types don't fully match standard THREE
+  interface ThreeElements extends ThreeToJSXElements<any> {}
 }
 
 // Simple URL-based routing
@@ -45,15 +50,23 @@ export function App() {
     useTexture.preload('/textures/earth-texture.png');
   }, []);
 
-  // Disable antialias on mobile/tablet for 5-10% performance improvement
-  const glConfig = useMemo(
-    () => ({
-      antialias: !isMobile && !isTablet,
-      alpha: true,
-      localClippingEnabled: true,
-      // Reduce pixel ratio on mobile for better performance
-      pixelRatio: isMobile ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio,
-    }),
+  // Check for visual test mode (E2E deterministic rendering)
+  const visualTestMode = isVisualTestMode();
+
+  // Create WebGPURenderer with WebGL 2 fallback for Safari compatibility
+  // TSL materials require WebGPURenderer, but forceWebGL ensures broad browser support
+  const createRenderer = useCallback(
+    // biome-ignore lint/suspicious/noExplicitAny: R3F gl prop types don't include WebGPURenderer
+    async (props: any) => {
+      const renderer = new THREE.WebGPURenderer({
+        ...props,
+        antialias: !isMobile && !isTablet,
+        alpha: true,
+        forceWebGL: true, // WebGL 2 fallback for Safari
+      });
+      await renderer.init();
+      return renderer;
+    },
     [isMobile, isTablet],
   );
 
@@ -87,20 +100,23 @@ export function App() {
       {/* Shared event source - both Canvas and HTML UI are children */}
       <div ref={containerRef} className="relative w-full h-full">
         {/* 3D Canvas - receives events via eventSource, has pointer-events: none */}
-        {/* frameloop="always" keeps rendering smooth for continuous motion */}
+        {/* frameloop: 'always' for normal use, 'demand' for visual tests (manual control) */}
+        {/* gl: async WebGPURenderer with forceWebGL for TSL materials + Safari support */}
         <Canvas
           eventSource={containerRef}
           eventPrefix="client"
-          frameloop="always"
+          frameloop={visualTestMode ? 'demand' : 'always'}
           shadows={false}
           camera={{ position: [0, 0, 10], fov: 45 }}
-          gl={glConfig}
+          gl={createRenderer}
           dpr={isMobile ? [1, 2] : [1, 2]}
           className="!absolute inset-0"
         >
           {import.meta.env.DEV && <Stats />}
           <AdaptiveDpr pixelated />
           <CameraRig />
+          {/* Visual test controller for E2E deterministic rendering */}
+          {visualTestMode && <VisualTestController />}
           <KootaSystems breathSystemEnabled={true}>
             <AudioProvider>
               <BreathEntity />

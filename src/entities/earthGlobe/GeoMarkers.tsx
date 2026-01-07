@@ -10,17 +10,21 @@
  * - Occluded by objects in front (particle shards)
  * - Hidden when behind the globe
  * - Billboard behavior (always faces camera)
- * - Holographic Fresnel edge glow effect
+ * - Holographic Fresnel edge glow effect (TSL)
  * - Auto-rotation synced with EarthGlobe
  */
 
 import { Billboard, RoundedBox, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
-import type { Group, Mesh } from 'three';
+import { useEffect, useMemo, useRef } from 'react';
+import type { Group } from 'three';
 import * as THREE from 'three';
+import { add, color, float, mix, mul, sin, uniform } from 'three/tsl';
+import { MeshBasicNodeMaterial } from 'three/webgpu';
 
 import { COUNTRY_CENTROIDS, getCountryName, latLngToPosition } from '../../lib/countryCentroids';
+import { getMaterialUserData, setMaterialUserData } from '../../lib/three/materialUserData';
+import { createAbsoluteFresnelNode } from '../../lib/tsl/fresnel';
 
 /**
  * GeoMarkers component props
@@ -54,83 +58,76 @@ interface CountryMarkerProps {
   showName: boolean;
 }
 
+interface HolographicMaterialProps {
+  baseColor?: string;
+  glowColor?: string;
+}
+
 /**
- * Holographic material with Fresnel edge glow
+ * HolographicMaterial - TSL implementation with Fresnel edge glow
+ *
+ * Uses TSL nodes for WebGL2/WebGPU compatibility.
  */
 function HolographicMaterial({
   baseColor = '#ffffff',
   glowColor = '#7ec5c4',
-}: {
-  baseColor?: string;
-  glowColor?: string;
-}) {
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
+}: HolographicMaterialProps) {
+  const materialRef = useRef<MeshBasicNodeMaterial>(null);
 
-  const uniforms = useMemo(
-    () => ({
-      uTime: { value: 0 },
-      uBaseColor: { value: new THREE.Color(baseColor) },
-      uGlowColor: { value: new THREE.Color(glowColor) },
-      uOpacity: { value: 0.85 },
-      uFresnelPower: { value: 2.0 },
-    }),
-    [baseColor, glowColor],
-  );
+  // Create material with TSL nodes
+  const material = useMemo(() => {
+    // TSL Uniforms
+    const uTime = uniform(float(0));
+    const uOpacity = uniform(float(0.85));
 
+    // Fresnel effect for edge glow
+    const fresnel = createAbsoluteFresnelNode(2.0);
+
+    // Subtle pulse animation
+    const pulse = add(float(0.95), mul(float(0.05), sin(mul(uTime, float(2.0)))));
+
+    // Mix base color with glow at edges
+    const baseColorVec = color(baseColor);
+    const glowColorVec = color(glowColor);
+    const mixFactor = mul(fresnel, float(0.6));
+    const finalColor = mix(baseColorVec, glowColorVec, mixFactor);
+
+    // Final opacity with fresnel boost at edges
+    const alpha = add(mul(uOpacity, pulse), mul(fresnel, float(0.15)));
+
+    // Create material
+    const mat = new MeshBasicNodeMaterial();
+    mat.colorNode = finalColor;
+    mat.opacityNode = alpha;
+    mat.transparent = true;
+    mat.depthTest = true;
+    mat.depthWrite = false;
+    mat.side = THREE.DoubleSide;
+
+    // Store uniforms for animation
+    setMaterialUserData(mat, { uTime, uOpacity });
+
+    return mat;
+  }, [baseColor, glowColor]);
+
+  // Animate pulse
   useFrame((state) => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+    if (!materialRef.current) return;
+
+    const userData = getMaterialUserData<{ uTime?: { value: number } }>(materialRef.current);
+    if (userData?.uTime) {
+      userData.uTime.value = state.clock.elapsedTime;
     }
   });
 
-  return (
-    <shaderMaterial
-      ref={materialRef}
-      uniforms={uniforms}
-      transparent
-      depthTest={true}
-      depthWrite={false}
-      side={THREE.DoubleSide}
-      vertexShader={`
-        varying vec3 vNormal;
-        varying vec3 vViewPosition;
+  // GPU resource cleanup
+  useEffect(() => {
+    return () => {
+      material.dispose();
+    };
+  }, [material]);
 
-        void main() {
-          vNormal = normalize(normalMatrix * normal);
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          vViewPosition = -mvPosition.xyz;
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `}
-      fragmentShader={`
-        uniform float uTime;
-        uniform vec3 uBaseColor;
-        uniform vec3 uGlowColor;
-        uniform float uOpacity;
-        uniform float uFresnelPower;
-
-        varying vec3 vNormal;
-        varying vec3 vViewPosition;
-
-        void main() {
-          // Fresnel effect for edge glow
-          vec3 viewDir = normalize(vViewPosition);
-          float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), uFresnelPower);
-
-          // Subtle pulse animation
-          float pulse = 0.95 + 0.05 * sin(uTime * 2.0);
-
-          // Mix base color with glow at edges
-          vec3 color = mix(uBaseColor, uGlowColor, fresnel * 0.6);
-
-          // Final opacity with fresnel boost at edges
-          float alpha = uOpacity * pulse + fresnel * 0.15;
-
-          gl_FragColor = vec4(color, alpha);
-        }
-      `}
-    />
-  );
+  return <primitive object={material} ref={materialRef} attach="material" />;
 }
 
 /**
@@ -181,7 +178,6 @@ function CountBadge({ count, offsetX }: { count: number; offsetX: number }) {
 
 function CountryMarker({ countryCode, count, position, showName }: CountryMarkerProps) {
   const name = showName ? getCountryName(countryCode) : countryCode;
-  const meshRef = useRef<Mesh>(null);
 
   // Calculate dimensions based on text length
   const nameLength = name.length;
@@ -196,7 +192,7 @@ function CountryMarker({ countryCode, count, position, showName }: CountryMarker
 
   return (
     <Billboard follow={true} lockX={false} lockY={false} lockZ={false} position={position}>
-      <group ref={meshRef}>
+      <group>
         {/* Main badge background */}
         <MarkerBadge width={badgeWidth} height={badgeHeight} />
 

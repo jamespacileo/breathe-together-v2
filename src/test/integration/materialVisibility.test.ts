@@ -40,41 +40,41 @@ describe('Material Visibility Tests', () => {
       expect(maxOpacity).toBeLessThan(1.0); // Still see through
     });
 
-    it('frosted glass overlay has visible opacity range (uses VISUAL_OPACITY.FROSTED_GLASS)', () => {
-      // OUTCOME: Frosted glass effect is visible but not opaque
+    it('shard glass body has subtle opacity range (uses VISUAL_OPACITY.SHARD_GLASS)', () => {
+      // OUTCOME: Shard glass body is visible but not opaque
       const frostedGlassMaterial = new THREE.MeshPhongMaterial({
         color: '#ffffff',
         transparent: true,
-        opacity: VISUAL_OPACITY.FROSTED_GLASS,
+        opacity: VISUAL_OPACITY.SHARD_GLASS,
       });
 
-      expect(frostedGlassMaterial.opacity).toBeGreaterThan(0.5);
-      expect(frostedGlassMaterial.opacity).toBeLessThanOrEqual(1.0);
+      expect(frostedGlassMaterial.opacity).toBeGreaterThan(0.1);
+      expect(frostedGlassMaterial.opacity).toBeLessThanOrEqual(0.6);
       expect(frostedGlassMaterial.transparent).toBe(true);
     });
   });
 
   describe('Particle Material Opacity', () => {
-    it('particle swarm shards are never invisible (uses VISUAL_OPACITY.FROSTED_GLASS)', () => {
+    it('particle swarm shards are never invisible (uses VISUAL_OPACITY.SHARD_GLASS)', () => {
       // OUTCOME: All particles have visible opacity - uses actual constant
-      const particleOpacity = VISUAL_OPACITY.FROSTED_GLASS;
+      const particleOpacity = VISUAL_OPACITY.SHARD_GLASS;
 
-      expect(particleOpacity).toBeGreaterThan(0.5);
-      expect(particleOpacity).toBeLessThanOrEqual(1.0);
+      expect(particleOpacity).toBeGreaterThan(0.1);
+      expect(particleOpacity).toBeLessThanOrEqual(0.6);
     });
 
     it('mood-colored particles maintain visibility', () => {
       // OUTCOME: All mood colors are visible - using constant for all moods
-      const moodOpacity = VISUAL_OPACITY.FROSTED_GLASS;
+      const moodOpacity = VISUAL_OPACITY.SHARD_GLASS;
 
       // Verify the constant is suitable for all moods
-      expect(moodOpacity).toBeGreaterThan(0.5);
-      expect(moodOpacity).toBeLessThanOrEqual(1.0);
+      expect(moodOpacity).toBeGreaterThan(0.1);
+      expect(moodOpacity).toBeLessThanOrEqual(0.6);
     });
 
     it('atmospheric particles have subtle but visible opacity', () => {
       // OUTCOME: Background particles are visible
-      // Note: Atmospheric particles use a different opacity than frosted glass
+      // Note: Atmospheric particles use a different opacity than shard glass
       const atmosphericOpacity = 0.6; // This is set directly in AtmosphericParticles
 
       expect(atmosphericOpacity).toBeGreaterThan(0.3);
@@ -162,10 +162,10 @@ describe('Material Visibility Tests', () => {
       // OUTCOME: Transparency is intentional, not accidental - uses actual constants
       const transparentMaterials = [
         {
-          name: 'frosted-glass',
-          opacity: VISUAL_OPACITY.FROSTED_GLASS,
-          minExpected: 0.7,
-          maxExpected: 0.95,
+          name: 'shard-glass',
+          opacity: VISUAL_OPACITY.SHARD_GLASS,
+          minExpected: 0.1,
+          maxExpected: 0.6,
         },
         {
           name: 'atmosphere',
@@ -192,7 +192,7 @@ describe('Material Visibility Tests', () => {
       // OUTCOME: Prevents accidental invisible objects - uses actual constants
       const allOpacities = [
         VISUAL_OPACITY.GLOBE, // Globe
-        VISUAL_OPACITY.FROSTED_GLASS, // Particles
+        VISUAL_OPACITY.SHARD_GLASS, // Particles
         VISUAL_OPACITY.ATMOSPHERE, // Atmosphere
         ...CLOUD_CONFIGS.map((c) => c.opacity),
       ];
@@ -212,7 +212,7 @@ describe('Material Visibility Tests', () => {
         new THREE.MeshPhongMaterial({
           color: MONUMENT_VALLEY_PALETTE.gratitude,
           transparent: true,
-          opacity: VISUAL_OPACITY.FROSTED_GLASS,
+          opacity: VISUAL_OPACITY.SHARD_GLASS,
         }),
         new THREE.ShaderMaterial({
           uniforms: { color: { value: new THREE.Color('#ffffff') } },
@@ -276,13 +276,13 @@ describe('Material Visibility Tests', () => {
       expect(invalidGlobeOpacity).not.toBeGreaterThan(0); // This would fail
     });
 
-    it('detects if particle opacity drops below threshold (validates VISUAL_OPACITY.FROSTED_GLASS)', () => {
+    it('detects if particle opacity drops below threshold (validates VISUAL_OPACITY.SHARD_GLASS)', () => {
       // OUTCOME: Mutation test - particles should be visible
-      const validParticleOpacity = VISUAL_OPACITY.FROSTED_GLASS;
-      const tooLowOpacity = 0.1;
+      const validParticleOpacity = VISUAL_OPACITY.SHARD_GLASS;
+      const tooLowOpacity = 0.05;
 
-      expect(validParticleOpacity).toBeGreaterThan(0.5);
-      expect(tooLowOpacity).not.toBeGreaterThan(0.5); // This would fail
+      expect(validParticleOpacity).toBeGreaterThan(0.1);
+      expect(tooLowOpacity).not.toBeGreaterThan(0.1); // This would fail
     });
 
     it('detects if all cloud opacities become 0', () => {
@@ -300,7 +300,7 @@ describe('Material Visibility Tests', () => {
     it('VISUAL_OPACITY constants are valid ranges', () => {
       // OUTCOME: Constants themselves are correctly defined
       expect(VISUAL_OPACITY.GLOBE).toBe(1.0);
-      expect(VISUAL_OPACITY.FROSTED_GLASS).toBeGreaterThan(0.5);
+      expect(VISUAL_OPACITY.SHARD_GLASS).toBeGreaterThan(0.1);
       expect(VISUAL_OPACITY.ATMOSPHERE).toBeGreaterThan(0);
       expect(VISUAL_OPACITY.ATMOSPHERE).toBeLessThan(0.2);
       expect(VISUAL_OPACITY.CLOUD_MIN).toBeGreaterThan(0);
@@ -313,17 +313,21 @@ describe('Material Visibility Tests', () => {
       expect(VISUAL_COLORS.BACKGROUND_TOP).toMatch(hexPattern);
       expect(VISUAL_COLORS.BACKGROUND_MID).toMatch(hexPattern);
       expect(VISUAL_COLORS.GLOBE_BROWN).toMatch(hexPattern);
-      expect(VISUAL_COLORS.CLOUD_PINK).toMatch(hexPattern);
-      expect(VISUAL_COLORS.CLOUD_LAVENDER).toMatch(hexPattern);
+      expect(VISUAL_COLORS.CLOUD_TEAL_LIGHT).toMatch(hexPattern);
+      expect(VISUAL_COLORS.CLOUD_TEAL_MID).toMatch(hexPattern);
+      expect(VISUAL_COLORS.CLOUD_NAVY).toMatch(hexPattern);
     });
 
-    it('VISUAL_COLORS are warm (not cold blue)', () => {
-      // OUTCOME: Background/globe colors are warm tones
+    it('VISUAL_COLORS match intended temperature', () => {
+      // OUTCOME: Background is deep navy; globe brown remains warm
       const backgroundTop = new THREE.Color(VISUAL_COLORS.BACKGROUND_TOP);
       const globeBrown = new THREE.Color(VISUAL_COLORS.GLOBE_BROWN);
 
-      // Warm colors have r+g > b
-      expect(backgroundTop.r + backgroundTop.g).toBeGreaterThan(backgroundTop.b);
+      // Background is cool/deep navy (blue dominant)
+      expect(backgroundTop.b).toBeGreaterThan(backgroundTop.r);
+      expect(backgroundTop.b).toBeGreaterThan(backgroundTop.g);
+
+      // Globe brown is warm (r+g > b)
       expect(globeBrown.r + globeBrown.g).toBeGreaterThan(globeBrown.b);
     });
   });

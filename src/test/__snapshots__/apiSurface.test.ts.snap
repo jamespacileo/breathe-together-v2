@@ -43,7 +43,10 @@ exports[`API Surface Snapshot Tests > Core Library Exports > colors module expor
 [
   "MONUMENT_VALLEY_PALETTE",
   "MOOD_COLORS",
+  "NEON_MOOD_PALETTE",
   "getMonumentValleyMoodColor",
+  "getMoodAccentColor",
+  "getMoodAccentGlow",
   "getMoodColor",
 ]
 `;
@@ -58,6 +61,7 @@ exports[`API Surface Snapshot Tests > Core Library Exports > presenceApi exports
   "ServerConfigSchema",
   "UserSchema",
   "WsPresenceMessageSchema",
+  "getPresenceApiBaseUrl",
   "presenceApi",
   "validateMood",
 ]

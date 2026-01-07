@@ -1,14 +1,13 @@
 /**
  * PostProcessingEffects - @react-three/postprocessing based effects
  *
- * Replaces custom DoF implementation in RefractionPipeline with battle-tested
- * postprocessing library. Provides DepthOfField with bokeh simulation and optional Bloom.
+ * Uses a battle-tested postprocessing pipeline for DepthOfField (bokeh) and optional Bloom.
  *
  * Benefits over custom implementation:
  * - Better optimized DoF with proper bokeh shapes
  * - Easier to extend with additional effects (Bloom, N8AO, TiltShift)
  * - Cleaner separation of concerns (material vs post-processing)
- * - Reduced custom shader code (~100 lines vs 650 in RefractionPipeline)
+ * - Reduced custom shader code vs bespoke pipelines
  */
 
 import {

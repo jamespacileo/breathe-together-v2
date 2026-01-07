@@ -10,6 +10,7 @@
  * - 10k users × 15min avg session = ~$8/month
  */
 
+import { configureWorkerFromEnv } from './config';
 import { getEventStats, getRecentEvents, logJoin, logLeave, logMoodChange } from './events';
 import {
   getSimulatedMoodCounts,
@@ -57,8 +58,9 @@ export class BreathingRoom {
   private wsToSessionId: Map<WebSocket, string> = new Map();
   private broadcastInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(state: DurableObjectState) {
+  constructor(state: DurableObjectState, env: Record<string, unknown>) {
     this.state = state;
+    configureWorkerFromEnv(env);
   }
 
   /**

@@ -11,7 +11,7 @@
  * 3. Set LLM_API_KEY and LLM_PROVIDER
  */
 
-import type { GenerationRequest } from './llm-config';
+import type { GenerationRequest, LLMConfig } from './llm-config';
 import type { InspirationMessage, MessageBatch } from './types/inspirational';
 
 /**

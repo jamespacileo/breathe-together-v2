@@ -7,7 +7,7 @@
  * Usage:
  *   npm run screenshot              # Desktop viewport
  *   npm run screenshot:all          # All viewports
- *   LEVA_CONFIG='{"ior":1.8}' npm run screenshot
+ *   LEVA_CONFIG='{"bloomIntensity":1.2}' npm run screenshot
  *   SCREENSHOT_TAG="before" npm run screenshot
  */
 import { test } from '@playwright/test';

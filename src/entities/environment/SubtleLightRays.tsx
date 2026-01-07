@@ -1,20 +1,35 @@
 /**
- * SubtleLightRays - Gentle god rays / light shafts effect
+ * SubtleLightRays - Gentle god rays / light shafts effect using TSL
  *
- * Creates subtle diagonal light beams that slowly sweep across the scene,
- * giving a sense of ethereal, otherworldly atmosphere.
+ * Creates subtle diagonal light beams using TSL (Three.js Shading Language) nodes.
  *
- * These are NOT volumetric rays (expensive), but rather:
- * - Transparent gradient planes positioned at angles
- * - Animated opacity for gentle breathing effect
- * - Very subtle - users feel them more than see them
+ * Features:
+ * - MeshBasicNodeMaterial with TSL nodes
+ * - Animated opacity via uniform
+ * - GPU resource disposal
  *
- * Performance: Just 3 transparent planes, minimal GPU impact
+ * Performance: 3 transparent planes
  */
 
 import { useFrame } from '@react-three/fiber';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import {
+  add,
+  color,
+  float,
+  mul,
+  sin,
+  smoothstep,
+  sub,
+  abs as tslAbs,
+  uniform,
+  uv,
+  vec3,
+} from 'three/tsl';
+import { MeshBasicNodeMaterial } from 'three/webgpu';
+import { useDisposeOnUnmount } from '../../hooks/useDisposeOnUnmount';
+import { getMaterialUserData, setMaterialUserData } from '../../lib/three/materialUserData';
 
 interface SubtleLightRaysProps {
   /** Maximum opacity of rays @default 0.04 */
@@ -22,41 +37,6 @@ interface SubtleLightRaysProps {
   /** Enable light rays @default true */
   enabled?: boolean;
 }
-
-// Shader for gradient light ray
-const rayVertexShader = `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const rayFragmentShader = `
-  varying vec2 vUv;
-  uniform float uOpacity;
-  uniform float uTime;
-  uniform vec3 uColor;
-
-  void main() {
-    // Gradient from center outward (both X edges fade)
-    float gradientX = 1.0 - abs(vUv.x - 0.5) * 2.0;
-    gradientX = smoothstep(0.0, 0.8, gradientX);
-
-    // Gradient from bottom to top
-    float gradientY = smoothstep(0.0, 0.3, vUv.y) * smoothstep(1.0, 0.7, vUv.y);
-
-    // Combine gradients
-    float alpha = gradientX * gradientY;
-
-    // Very subtle noise variation along the ray
-    float noise = sin(vUv.y * 10.0 + uTime * 0.5) * 0.1 + 0.9;
-
-    alpha *= noise * uOpacity;
-
-    gl_FragColor = vec4(uColor, alpha);
-  }
-`;
 
 interface RayConfig {
   id: string;
@@ -103,34 +83,75 @@ const RAY_CONFIGS: RayConfig[] = [
   },
 ];
 
-const LightRay = memo(function LightRay({
+const LightRayTSL = memo(function LightRayTSL({
   config,
   baseOpacity,
 }: {
   config: RayConfig;
   baseOpacity: number;
 }) {
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const materialRef = useRef<MeshBasicNodeMaterial>(null);
   const meshRef = useRef<THREE.Mesh>(null);
 
   const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
   const material = useMemo(() => {
-    const color = new THREE.Color(config.color);
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        uOpacity: { value: baseOpacity * config.opacityMultiplier },
-        uTime: { value: config.phaseOffset },
-        uColor: { value: color },
-      },
-      vertexShader: rayVertexShader,
-      fragmentShader: rayFragmentShader,
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-    });
+    // TSL Uniforms
+    const uOpacity = uniform(float(baseOpacity * config.opacityMultiplier));
+    const uTime = uniform(float(config.phaseOffset));
+    const uColor = uniform(vec3(new THREE.Color(config.color)));
+
+    // UV coordinate node
+    const uvCoord = uv();
+
+    // ═══════════════════════════════════════════════════════════════
+    // Gradient X: Center outward (both X edges fade)
+    // GLSL: float gradientX = 1.0 - abs(vUv.x - 0.5) * 2.0;
+    //       gradientX = smoothstep(0.0, 0.8, gradientX);
+    // ═══════════════════════════════════════════════════════════════
+    const gradientXRaw = sub(float(1.0), mul(tslAbs(sub(uvCoord.x, float(0.5))), float(2.0)));
+    const gradientX = smoothstep(float(0.0), float(0.8), gradientXRaw);
+
+    // ═══════════════════════════════════════════════════════════════
+    // Gradient Y: Bottom to top
+    // GLSL: float gradientY = smoothstep(0.0, 0.3, vUv.y) * smoothstep(1.0, 0.7, vUv.y);
+    // ═══════════════════════════════════════════════════════════════
+    const gradientY = mul(
+      smoothstep(float(0.0), float(0.3), uvCoord.y),
+      smoothstep(float(1.0), float(0.7), uvCoord.y),
+    );
+
+    // ═══════════════════════════════════════════════════════════════
+    // Subtle noise variation along the ray
+    // GLSL: float noise = sin(vUv.y * 10.0 + uTime * 0.5) * 0.1 + 0.9;
+    // ═══════════════════════════════════════════════════════════════
+    const noiseValue = add(
+      mul(sin(add(mul(uvCoord.y, float(10.0)), mul(uTime, float(0.5)))), float(0.1)),
+      float(0.9),
+    );
+
+    // ═══════════════════════════════════════════════════════════════
+    // Combine gradients and noise
+    // GLSL: float alpha = gradientX * gradientY * noise * uOpacity;
+    // ═══════════════════════════════════════════════════════════════
+    const alpha = mul(mul(mul(gradientX, gradientY), noiseValue), uOpacity);
+
+    // Create TSL material
+    const mat = new MeshBasicNodeMaterial();
+    mat.colorNode = color(uColor);
+    mat.opacityNode = alpha;
+    mat.transparent = true;
+    mat.depthWrite = false;
+    mat.side = THREE.DoubleSide;
+    mat.blending = THREE.AdditiveBlending;
+
+    // Store uniforms for animation
+    setMaterialUserData(mat, { uOpacity, uTime, uColor });
+
+    return mat;
   }, [config, baseOpacity]);
+
+  useDisposeOnUnmount(geometry, material);
 
   // Animate ray opacity with gentle breathing
   useFrame((state) => {
@@ -138,19 +159,22 @@ const LightRay = memo(function LightRay({
 
     const time = state.clock.elapsedTime * config.speed + config.phaseOffset;
 
-    // Gentle pulsing opacity
-    const pulse = Math.sin(time) * 0.3 + 0.7; // 0.4 to 1.0
-    materialRef.current.uniforms.uOpacity.value = baseOpacity * config.opacityMultiplier * pulse;
-    materialRef.current.uniforms.uTime.value = state.clock.elapsedTime;
-  });
+    // Gentle pulsing opacity (0.4 to 1.0)
+    const pulse = Math.sin(time) * 0.3 + 0.7;
+    const targetOpacity = baseOpacity * config.opacityMultiplier * pulse;
 
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      geometry.dispose();
-      material.dispose();
-    };
-  }, [geometry, material]);
+    // Update uniforms via userData
+    const userData = getMaterialUserData<{
+      uOpacity?: { value: number };
+      uTime?: { value: number };
+    }>(materialRef.current);
+    if (userData?.uOpacity) {
+      userData.uOpacity.value = targetOpacity;
+    }
+    if (userData?.uTime) {
+      userData.uTime.value = state.clock.elapsedTime;
+    }
+  });
 
   return (
     <mesh
@@ -174,7 +198,7 @@ export const SubtleLightRays = memo(function SubtleLightRays({
   return (
     <group>
       {RAY_CONFIGS.map((config) => (
-        <LightRay key={config.id} config={config} baseOpacity={opacity} />
+        <LightRayTSL key={config.id} config={config} baseOpacity={opacity} />
       ))}
     </group>
   );

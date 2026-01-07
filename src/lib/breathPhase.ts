@@ -42,13 +42,25 @@ export interface PhaseInfo {
  * ```
  */
 export function calculatePhaseInfo(cycleTime: number): PhaseInfo {
+  // Calculate total cycle duration for edge case handling
+  const totalCycleDuration = PHASE_DURATIONS.reduce<number>((sum, d) => sum + d, 0);
+
+  // Edge case: If all phase durations are zero (misconfiguration), return safe defaults
+  if (totalCycleDuration <= 0) {
+    return { phaseIndex: 0, phaseProgress: 0, accumulatedTime: 0, phaseDuration: 1 };
+  }
+
+  // Normalize time so callers can pass a monotonically increasing clock.
+  const normalizedCycleTime =
+    ((cycleTime % totalCycleDuration) + totalCycleDuration) % totalCycleDuration;
+
   let accumulatedTime = 0;
   let phaseIndex = 0;
 
   // Find which phase we're in
   for (let i = 0; i < PHASE_DURATIONS.length; i++) {
     const duration = PHASE_DURATIONS[i] ?? 0;
-    if (cycleTime < accumulatedTime + duration) {
+    if (normalizedCycleTime < accumulatedTime + duration) {
       phaseIndex = i;
       break;
     }
@@ -56,7 +68,7 @@ export function calculatePhaseInfo(cycleTime: number): PhaseInfo {
   }
 
   const phaseDuration = PHASE_DURATIONS[phaseIndex] ?? 1;
-  const phaseTime = cycleTime - accumulatedTime;
+  const phaseTime = normalizedCycleTime - accumulatedTime;
   const phaseProgress = Math.min(1, Math.max(0, phaseTime / phaseDuration));
 
   return { phaseIndex, phaseProgress, accumulatedTime, phaseDuration };

@@ -5,11 +5,7 @@ import type { Page } from '@playwright/test';
  * These are the most commonly used controls for visual testing
  */
 export const COMMON_LEVA_CONTROLS = [
-  // Glass/Rendering
-  'ior',
-  'glassDepth',
   'usePostprocessingDoF',
-  'useLegacyRefractionPipeline',
 
   // Atmosphere
   'atmosphereParticleSize',
@@ -29,8 +25,7 @@ export const COMMON_LEVA_CONTROLS = [
   'ambientLightColor',
   'ambientLightIntensity',
 
-  // Shard Material
-  'shardMaterialType',
+  // Shard Swarm
   'showShardShells',
 
   // Colors

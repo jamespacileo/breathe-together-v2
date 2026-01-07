@@ -198,20 +198,19 @@ describe('presence', () => {
     it('adds a new sample', () => {
       const sessionId = 'abcd1234-uuid-here';
       const result = addSample(initialState, sessionId, 'gratitude', NOW);
-      const hash = sessionId.slice(0, 8); // 'abcd1234'
-      expect(result.samples[hash]).toBeDefined();
-      expect(result.samples[hash].mood).toBe('gratitude');
-      expect(result.samples[hash].ts).toBe(NOW);
+      // Worker stores full session ID (aligns with WebSocket presence IDs)
+      expect(result.samples[sessionId]).toBeDefined();
+      expect(result.samples[sessionId].mood).toBe('gratitude');
+      expect(result.samples[sessionId].ts).toBe(NOW);
     });
 
     it('updates existing sample', () => {
       const sessionId = 'abcd1234-uuid-here';
-      const hash = sessionId.slice(0, 8);
       const state1 = addSample(initialState, sessionId, 'gratitude', NOW);
       const state2 = addSample(state1, sessionId, 'release', NOW + 1000);
 
       expect(Object.keys(state2.samples)).toHaveLength(1);
-      expect(state2.samples[hash].mood).toBe('release');
+      expect(state2.samples[sessionId].mood).toBe('release');
     });
 
     it('recalculates counts', () => {

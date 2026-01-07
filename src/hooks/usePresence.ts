@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 import { type CurrentUserOptions, generateMockPresence } from '../lib/mockPresence';
 import {
   type MoodId,
@@ -41,10 +42,6 @@ const DEFAULT_CONFIG: ServerConfig = {
 const CONFIG = {
   WS_RECONNECT_DELAY_MS: 3_000,
   WS_TIMEOUT_MS: 5_000,
-  STORAGE_KEYS: {
-    SESSION_ID: 'breathe-together:sessionId',
-    MOOD: 'breathe-together:mood',
-  },
 } as const;
 
 function generateSessionId(): string {
@@ -53,23 +50,23 @@ function generateSessionId(): string {
 
 function getSessionId(): string {
   if (typeof window === 'undefined') return generateSessionId();
-  let sessionId = localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_ID);
+  let sessionId = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
   if (!sessionId) {
     sessionId = generateSessionId();
-    localStorage.setItem(CONFIG.STORAGE_KEYS.SESSION_ID, sessionId);
+    localStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
   }
   return sessionId;
 }
 
 function getStoredMood(): MoodId {
   if (typeof window === 'undefined') return 'presence';
-  const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.MOOD);
+  const stored = localStorage.getItem(STORAGE_KEYS.MOOD);
   return validateMood(stored);
 }
 
 function storeMood(mood: MoodId): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(CONFIG.STORAGE_KEYS.MOOD, mood);
+    localStorage.setItem(STORAGE_KEYS.MOOD, mood);
   }
 }
 
@@ -112,6 +109,7 @@ export function usePresence(): UsePresenceResult {
   const wsRef = useRef<WebSocket | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAllowedRef = useRef(true);
 
   // Keep moodRef in sync with state
@@ -180,6 +178,9 @@ export function usePresence(): UsePresenceResult {
           clearTimeout(reconnectTimeoutRef.current);
         }
         reconnectTimeoutRef.current = setTimeout(() => {
+          // Double-check mounted state inside timeout to prevent race condition
+          // where timeout fires between cleanup setting ref to false and clearing timeout
+          if (!reconnectAllowedRef.current) return;
           connectWebSocket();
         }, CONFIG.WS_RECONNECT_DELAY_MS);
       };
@@ -304,7 +305,7 @@ export function usePresence(): UsePresenceResult {
       if (configRef.current.supportsWebSocket && typeof WebSocket !== 'undefined') {
         connectWebSocket();
         // If WebSocket doesn't connect within timeout, fall back to polling
-        setTimeout(() => {
+        wsFallbackTimeoutRef.current = setTimeout(() => {
           if (mounted && wsRef.current?.readyState !== WebSocket.OPEN) {
             startPolling();
           }
@@ -330,6 +331,10 @@ export function usePresence(): UsePresenceResult {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
+      }
+      if (wsFallbackTimeoutRef.current) {
+        clearTimeout(wsFallbackTimeoutRef.current);
+        wsFallbackTimeoutRef.current = null;
       }
     };
   }, [connectWebSocket, startPolling]);

@@ -72,16 +72,16 @@ function getFibonacciSpherePoint(index: number, total: number): THREE.Vector3 {
 
 // Cloud configurations - spherically distributed with extended depth
 // LAYERS (expanded for better spatial depth):
-// - Inner layer (radius 10-12): 6 clouds, moderate proximity
+// - Inner layer (radius 7-9): 6 clouds, moderate proximity
 // - Middle layer (radius 16-19): 5 clouds, midground depth
 // - Outer layer (radius 23-28): 4 clouds, near viewport boundaries
 export const CLOUD_CONFIGS: CloudConfig[] = [
-  // === INNER LAYER (radius 10-12) - 6 clouds, lighter teals (closest to viewer) ===
+  // === INNER LAYER (radius 7-9) - 6 clouds, lighter teals (closest to viewer) ===
   {
     id: 'inner-teal-1',
     sphereIndex: 0,
     layerTotal: 6,
-    radius: 10,
+    radius: 7.2,
     color: '#7acade', // Light teal
     opacity: 0.35,
     orbitSpeed: 0.012,
@@ -98,7 +98,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-teal-2',
     sphereIndex: 1,
     layerTotal: 6,
-    radius: 10.8,
+    radius: 7.9,
     color: '#5fb8ce', // Medium light teal
     opacity: 0.32,
     orbitSpeed: 0.01,
@@ -115,7 +115,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-teal-3',
     sphereIndex: 2,
     layerTotal: 6,
-    radius: 11.5,
+    radius: 8.6,
     color: '#6fc3d9', // Bright teal
     opacity: 0.3,
     orbitSpeed: 0.014,
@@ -132,7 +132,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-teal-4',
     sphereIndex: 3,
     layerTotal: 6,
-    radius: 10.3,
+    radius: 7.5,
     color: '#5fb8ce', // Light teal
     opacity: 0.28,
     orbitSpeed: 0.011,
@@ -149,7 +149,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-teal-5',
     sphereIndex: 4,
     layerTotal: 6,
-    radius: 11.2,
+    radius: 8.3,
     color: '#7acade', // Pale teal
     opacity: 0.25,
     orbitSpeed: 0.009,
@@ -166,7 +166,7 @@ export const CLOUD_CONFIGS: CloudConfig[] = [
     id: 'inner-teal-6',
     sphereIndex: 5,
     layerTotal: 6,
-    radius: 10.5,
+    radius: 7.7,
     color: '#6fc3d9', // Light teal
     opacity: 0.3,
     orbitSpeed: 0.013,

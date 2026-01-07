@@ -15,15 +15,15 @@ const UI_SELECTORS = [
 const LEVA_CLASS_PREFIXES = ['leva', 'leva__'];
 const VELOCITY_MS_TO_S = 1000;
 
-function isElement(target: EventTarget | null): target is Element {
+function isElement(target: EventTarget | null | undefined): target is Element {
   return !!target && target instanceof Element;
 }
 
 function hasLevaClass(element: Element): boolean {
   if (!element.classList) return false;
-  for (const cls of element.classList) {
+  for (const className of element.classList) {
     for (const prefix of LEVA_CLASS_PREFIXES) {
-      if (cls.startsWith(prefix)) return true;
+      if (className.startsWith(prefix)) return true;
     }
   }
   return false;

@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { getPresenceApiBaseUrl } from '../lib/presenceApi';
 import type { InspirationMessage, InspirationResponse } from '../lib/types/inspirational';
 
 interface UseInspirationTextState {
@@ -14,6 +15,9 @@ interface UseInspirationTextState {
 }
 
 const DEFAULT_CACHE_DURATION_MS = 30000; // 30 seconds
+const MAX_RETRY_COUNT = 5;
+const INITIAL_RETRY_DELAY_MS = 1000;
+const MAX_RETRY_DELAY_MS = 30000;
 
 // In-memory cache to reduce API calls
 const messageCache = {
@@ -29,8 +33,8 @@ export function useInspirationText(sessionId?: string): UseInspirationTextState 
     nextRotationTime: Date.now(),
   });
 
-  // biome-ignore lint/suspicious/noExplicitAny: React timeout IDs are untyped in browser environment
-  const cacheTimeoutRef = useRef<any>(null);
+  const cacheTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef<number>(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -39,7 +43,7 @@ export function useInspirationText(sessionId?: string): UseInspirationTextState 
     async function fetchMessage() {
       try {
         const now = Date.now();
-        const apiBaseUrl = import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787';
+        const apiBaseUrl = getPresenceApiBaseUrl();
 
         // Check cache first
         if (messageCache.data && messageCache.expiresAt > now && !sessionId) {
@@ -88,6 +92,9 @@ export function useInspirationText(sessionId?: string): UseInspirationTextState 
             messageCache.expiresAt = now + data.cacheMaxAge * 1000;
           }
 
+          // Reset retry count on successful fetch
+          retryCountRef.current = 0;
+
           // Schedule next fetch
           const cacheExpiry = Math.max(data.cacheMaxAge * 1000, DEFAULT_CACHE_DURATION_MS);
           if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
@@ -96,16 +103,25 @@ export function useInspirationText(sessionId?: string): UseInspirationTextState 
       } catch (err) {
         if (isMounted) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          const hasExceededRetries = retryCountRef.current >= MAX_RETRY_COUNT;
           setState((prev) => ({
             ...prev,
             isLoading: false,
-            error: errorMessage,
+            error: hasExceededRetries ? `${errorMessage} (max retries exceeded)` : errorMessage,
           }));
-        }
 
-        // Retry on error with exponential backoff
-        if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
-        cacheTimeoutRef.current = setTimeout(fetchMessage, 5000);
+          // Retry on error with exponential backoff (only if mounted and under retry limit)
+          if (!hasExceededRetries) {
+            const delay = Math.min(
+              INITIAL_RETRY_DELAY_MS * 2 ** retryCountRef.current,
+              MAX_RETRY_DELAY_MS,
+            );
+            retryCountRef.current += 1;
+
+            if (cacheTimeoutRef.current) clearTimeout(cacheTimeoutRef.current);
+            cacheTimeoutRef.current = setTimeout(fetchMessage, delay);
+          }
+        }
       }
     }
 

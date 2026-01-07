@@ -27,18 +27,43 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo } from 'react';
 import type * as THREE from 'three';
 
 // TSL imports
-import { add, color, float, mix, mul, smoothstep, texture, uniform, uv, vec3 } from 'three/tsl';
+import {
+  add,
+  color,
+  float,
+  mix,
+  mul,
+  normalView,
+  smoothstep,
+  texture,
+  uniform,
+  uv,
+  vec3,
+} from 'three/tsl';
 import { MeshBasicNodeMaterial, MeshStandardNodeMaterial } from 'three/webgpu';
-
+import { useUniformValue } from '../../hooks/useUniformValue';
 // Shared TSL nodes - reusable shader patterns
 import {
   BREATHING_PRESETS,
   createAbsoluteFresnelNode,
   createBreathingLuminosityNode,
+  createBreathingOpacityNode,
   createBreathingPulseNode,
   createFresnelNode,
+  createValueNoiseNode,
   FRESNEL_PRESETS,
 } from '../../lib/tsl';
+
+type UniformWithValue<T> = { value: T };
+
+function setUniformValue<T>(uniformNode: unknown, value: T): void {
+  (uniformNode as UniformWithValue<T>).value = value;
+}
+
+function updateUniformValue<T>(uniformNode: unknown, updater: (current: T) => T): void {
+  const uniform = uniformNode as UniformWithValue<T>;
+  uniform.value = updater(uniform.value);
+}
 
 /**
  * Props for the TSL globe material
@@ -104,7 +129,6 @@ export const GlobeMaterialTSL = forwardRef<GlobeMaterialTSLRef, GlobeMaterialTSL
       );
 
       // Subtle top-down lighting using normalView
-      const { normalView } = require('three/tsl');
       const topLight = mul(smoothstep(float(-0.2), float(0.8), normalView.y), float(0.05));
       const topLightColor = vec3(0.98, 0.95, 0.92);
       const finalColor = add(colorWithRim, mul(topLightColor, topLight));
@@ -123,8 +147,7 @@ export const GlobeMaterialTSL = forwardRef<GlobeMaterialTSLRef, GlobeMaterialTSL
       ref,
       () => ({
         setBreathPhase: (phase: number) => {
-          // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-          (uBreathPhase as any).value = phase;
+          setUniformValue<number>(uBreathPhase, phase);
         },
         material,
       }),
@@ -132,10 +155,7 @@ export const GlobeMaterialTSL = forwardRef<GlobeMaterialTSLRef, GlobeMaterialTSL
     );
 
     // Update breath phase from props
-    useEffect(() => {
-      // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-      (uBreathPhase as any).value = breathPhase;
-    }, [breathPhase, uBreathPhase]);
+    useUniformValue(uBreathPhase, breathPhase);
 
     // Cleanup
     useEffect(() => {
@@ -197,19 +217,149 @@ export const GlowMaterialTSL = forwardRef<
     ref,
     () => ({
       setBreathPhase: (phase: number) => {
-        // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-        (uBreathPhase as any).value = phase;
+        setUniformValue<number>(uBreathPhase, phase);
       },
       material,
     }),
     [material, uBreathPhase],
   );
 
-  useEffect(() => {
-    // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-    (uBreathPhase as any).value = breathPhase;
-  }, [breathPhase, uBreathPhase]);
+  useUniformValue(uBreathPhase, breathPhase);
 
+  useEffect(() => {
+    return () => {
+      material.dispose();
+    };
+  }, [material]);
+
+  return <primitive object={material} attach="material" />;
+});
+
+/**
+ * Props for the mist material
+ */
+export interface MistMaterialTSLProps {
+  /** Mist color */
+  mistColor?: string;
+  /** Current breath phase (0-1) */
+  breathPhase?: number;
+}
+
+/**
+ * MistMaterialTSL - Animated noise haze layer
+ *
+ * Creates a subtle misty haze effect using multi-octave noise and breathing synchronization.
+ * Features:
+ * - Multi-octave value noise (3 layers at different frequencies)
+ * - Animated UV with time offset for drifting effect
+ * - Fresnel edge glow (softer than main globe fresnel)
+ * - Breathing modulation (0.6 to 1.0 range)
+ *
+ * GLSL equivalent (from earthGlobe/index.tsx):
+ * ```glsl
+ * float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 1.5);
+ * vec2 uv = vUv * 4.0 + time * 0.02;
+ * float n = noise(uv) * 0.5 + noise(uv * 2.0) * 0.3 + noise(uv * 4.0) * 0.2;
+ * float breath = 0.6 + breathPhase * 0.4;
+ * float alpha = fresnel * n * 0.15 * breath;
+ * ```
+ */
+export const MistMaterialTSL = forwardRef<
+  { setBreathPhase: (phase: number) => void; material: MeshBasicNodeMaterial | null },
+  MistMaterialTSLProps
+>(function MistMaterialTSL({ mistColor = '#f0ebe6', breathPhase = 0 }, ref) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Uniforms must be created once and updated via .value property, not recreated on prop changes
+  const uBreathPhase = useMemo(() => uniform(float(breathPhase)), []);
+  const uTime = useMemo(() => uniform(float(0)), []);
+
+  const material = useMemo(() => {
+    // ═══════════════════════════════════════════════════════════════
+    // Fresnel effect for edge glow (softer power than globe: 1.5)
+    // GLSL: float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 1.5);
+    // TSL: Use shared fresnel utility
+    // ═══════════════════════════════════════════════════════════════
+    const fresnel = createFresnelNode(1.5); // Softer power for mist
+
+    // ═══════════════════════════════════════════════════════════════
+    // Animated UV for drifting mist effect
+    // GLSL: vec2 uv = vUv * 4.0 + time * 0.02;
+    // ═══════════════════════════════════════════════════════════════
+    const uvCoord = uv();
+    const uvAnimated = add(mul(uvCoord, float(4.0)), mul(uTime, float(0.02)));
+
+    // ═══════════════════════════════════════════════════════════════
+    // Multi-octave noise (3 layers with decreasing amplitude)
+    // GLSL: float n = noise(uv) * 0.5 + noise(uv * 2.0) * 0.3 + noise(uv * 4.0) * 0.2;
+    // TSL: Use shared value noise utility
+    // ═══════════════════════════════════════════════════════════════
+    const n1 = createValueNoiseNode(uvAnimated); // First octave
+    const n2 = createValueNoiseNode(mul(uvAnimated, float(2.0))); // Second octave (2x frequency)
+    const n3 = createValueNoiseNode(mul(uvAnimated, float(4.0))); // Third octave (4x frequency)
+
+    // Combine octaves with decreasing weights
+    const noise = add(add(mul(n1, float(0.5)), mul(n2, float(0.3))), mul(n3, float(0.2)));
+
+    // ═══════════════════════════════════════════════════════════════
+    // Breathing modulation
+    // GLSL: float breath = 0.6 + breathPhase * 0.4;
+    // TSL: Use shared breathing opacity utility
+    // ═══════════════════════════════════════════════════════════════
+    const breath = createBreathingOpacityNode(uBreathPhase, 0.6, 1.0); // 0.6 to 1.0 range
+
+    // ═══════════════════════════════════════════════════════════════
+    // Combine all effects for final alpha
+    // GLSL: float alpha = fresnel * n * 0.15 * breath;
+    // ═══════════════════════════════════════════════════════════════
+    const alpha = mul(mul(mul(fresnel, noise), float(0.15)), breath);
+
+    // Create material
+    const mat = new MeshBasicNodeMaterial();
+    mat.colorNode = color(mistColor);
+    mat.opacityNode = alpha;
+    mat.transparent = true;
+    mat.depthWrite = false;
+    mat.side = 0; // FrontSide
+
+    return mat;
+  }, [mistColor, uBreathPhase, uTime]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      setBreathPhase: (phase: number) => {
+        setUniformValue<number>(uBreathPhase, phase);
+      },
+      material,
+    }),
+    [material, uBreathPhase],
+  );
+
+  // Update uniforms from props
+  useUniformValue(uBreathPhase, breathPhase);
+
+  // Animate time uniform
+  useEffect(() => {
+    let animationFrameId: number;
+    let lastTime = 0;
+
+    const animate = (time: number) => {
+      if (lastTime === 0) lastTime = time;
+      const delta = (time - lastTime) / 1000; // Convert to seconds
+      lastTime = time;
+
+      updateUniformValue<number>(uTime, (current) => current + delta);
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [uTime]);
+
+  // Cleanup
   useEffect(() => {
     return () => {
       material.dispose();
@@ -237,13 +387,14 @@ export function useGlobeMaterialsTSL(earthTexture: THREE.Texture) {
       BREATHING_PRESETS.subtle.intensity,
     );
     const litTexColor = mul(texColor.rgb, breathMod);
+
     const colorWithRim = mix(
       litTexColor,
       rimColor,
       mul(fresnel, float(FRESNEL_PRESETS.atmosphere.intensity)),
     );
 
-    const { normalView } = require('three/tsl');
+    // Subtle top-down lighting for mist volume
     const topLight = mul(smoothstep(float(-0.2), float(0.8), normalView.y), float(0.05));
     const topLightColor = vec3(0.98, 0.95, 0.92);
     const finalColor = add(colorWithRim, mul(topLightColor, topLight));
@@ -270,20 +421,67 @@ export function useGlobeMaterialsTSL(earthTexture: THREE.Texture) {
     return mat;
   }, [uBreathPhase]);
 
+  // Mist material using shared nodes
+  const uTime = useMemo(() => uniform(float(0)), []);
+  const mistMaterial = useMemo(() => {
+    const fresnel = createFresnelNode(1.5);
+    const uvCoord = uv();
+    const uvAnimated = add(mul(uvCoord, float(4.0)), mul(uTime, float(0.02)));
+
+    const n1 = createValueNoiseNode(uvAnimated);
+    const n2 = createValueNoiseNode(mul(uvAnimated, float(2.0)));
+    const n3 = createValueNoiseNode(mul(uvAnimated, float(4.0)));
+    const noise = add(add(mul(n1, float(0.5)), mul(n2, float(0.3))), mul(n3, float(0.2)));
+
+    const breath = createBreathingOpacityNode(uBreathPhase, 0.6, 1.0);
+    const alpha = mul(mul(mul(fresnel, noise), float(0.15)), breath);
+
+    const mat = new MeshBasicNodeMaterial();
+    mat.colorNode = color('#f0ebe6');
+    mat.opacityNode = alpha;
+    mat.transparent = true;
+    mat.depthWrite = false;
+    mat.side = 0;
+    return mat;
+  }, [uBreathPhase, uTime]);
+
+  // Animate time uniform for mist
+  useEffect(() => {
+    let animationFrameId: number;
+    let lastTime = 0;
+
+    const animate = (time: number) => {
+      if (lastTime === 0) lastTime = time;
+      const delta = (time - lastTime) / 1000;
+      lastTime = time;
+
+      updateUniformValue<number>(uTime, (current) => current + delta);
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [uTime]);
+
   // Cleanup
   useEffect(() => {
     return () => {
       globeMaterial.dispose();
       glowMaterial.dispose();
+      mistMaterial.dispose();
     };
-  }, [globeMaterial, glowMaterial]);
+  }, [globeMaterial, glowMaterial, mistMaterial]);
 
   return {
     globeMaterial,
     glowMaterial,
+    mistMaterial,
     updateBreathPhase: (phase: number) => {
-      // biome-ignore lint/suspicious/noExplicitAny: TSL uniform.value accepts number at runtime
-      (uBreathPhase as any).value = phase;
+      setUniformValue<number>(uBreathPhase, phase);
     },
   };
 }

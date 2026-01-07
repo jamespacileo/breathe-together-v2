@@ -10,6 +10,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { InspirationAdmin } from '../components/InspirationAdmin';
+import { ensureAdminToken } from '../lib/adminAuth';
+import { adminFetch } from '../lib/adminFetch';
+import { getPresenceApiBaseUrl } from '../lib/presenceApi';
 import { MOOD_COLORS } from '../styles/designTokens';
 
 type AdminTab = 'overview' | 'users' | 'events' | 'messages';
@@ -51,22 +54,22 @@ interface AdminStats {
 // API Helpers
 // =============================================================================
 
-const API_BASE = import.meta.env.VITE_PRESENCE_API_URL || 'http://localhost:8787';
+const API_BASE = getPresenceApiBaseUrl();
 
 async function fetchAdminUsers(): Promise<{ users: AdminUser[] }> {
-  const res = await fetch(`${API_BASE}/admin/users`);
+  const res = await adminFetch(`${API_BASE}/admin/users`);
   if (!res.ok) throw new Error('Failed to fetch users');
   return res.json();
 }
 
 async function fetchAdminEvents(limit = 50): Promise<{ events: AdminEvent[] }> {
-  const res = await fetch(`${API_BASE}/admin/events?limit=${limit}`);
+  const res = await adminFetch(`${API_BASE}/admin/events?limit=${limit}`);
   if (!res.ok) throw new Error('Failed to fetch events');
   return res.json();
 }
 
 async function fetchAdminStats(): Promise<AdminStats> {
-  const res = await fetch(`${API_BASE}/admin/stats`);
+  const res = await adminFetch(`${API_BASE}/admin/stats`);
   if (!res.ok) throw new Error('Failed to fetch stats');
   return res.json();
 }
@@ -141,6 +144,11 @@ export function AdminPanel() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fetch data');
     }
+  }, []);
+
+  // Prompt for admin token on first load (stored in localStorage)
+  useEffect(() => {
+    ensureAdminToken();
   }, []);
 
   // Initial fetch and polling

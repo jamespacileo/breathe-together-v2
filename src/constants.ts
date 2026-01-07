@@ -105,13 +105,11 @@ export const HOLD_OSCILLATION = {
 /**
  * THREE.js Render Layers for Selective Rendering
  *
- * Used by RefractionPipeline to render specific object groups per pass:
+ * Used to isolate environment, effects, and debug overlays when needed:
  * - ENVIRONMENT (0): Default layer for all scene objects
  * - GLOBE (1): Central EarthGlobe (reserved for future selective rendering)
- * - PARTICLES (2): ParticleSwarm shards - used for backface pass layer filtering
+ * - PARTICLES (2): ParticleSwarm shards (optional layer filtering)
  * - EFFECTS (3): AtmosphericParticles, sparkles (reserved for future use)
- *
- * Note: Background gradient is cached separately via envFBO caching, not layer-based.
  *
  * @see https://threejs.org/docs/#api/en/core/Layers
  */
@@ -171,8 +169,8 @@ export const VISUAL_OPACITY = {
   CLOUD_MAX: 0.5,
   /** Atmosphere overlay opacity (very subtle) */
   ATMOSPHERE: 0.08,
-  /** Frosted glass opacity (highly visible) */
-  FROSTED_GLASS: 0.9,
+  /** Shard glass body opacity (subtle, edges provide definition) */
+  SHARD_GLASS: 0.2,
   /** Globe main material (fully opaque) */
   GLOBE: 1.0,
 } as const;

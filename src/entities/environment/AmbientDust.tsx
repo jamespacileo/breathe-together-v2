@@ -1,22 +1,42 @@
 /**
- * AmbientDust - Subtle floating dust particles for depth and atmosphere
+ * AmbientDust - Subtle floating dust particles using TSL
  *
- * These are the "mastercraft" details users might not consciously notice,
- * but create a sense of living, breathing space.
+ * Uses InstancedMesh with billboarded quads (TSL).
+ * Per-instance attributes for opacity and sparkle phase.
  *
  * Features:
- * - Very subtle, nearly invisible floating particles
- * - Parallax movement (closer particles move faster)
- * - Gentle random drift with breathing synchronization
- * - Catch light occasionally for subtle sparkle
- *
- * Performance: Uses Points geometry with single draw call
+ * - Instanced billboarded quads (camera-facing)
+ * - Per-particle opacity and sparkle phase via instancedBufferAttribute
+ * - Soft circular particle mask with distance falloff
+ * - Subtle sparkle animation (rare, brief flashes)
+ * - Golden moonlit dust that turns white on sparkle
+ * - Additive blending for atmospheric depth
  */
 
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import {
+  add,
+  color,
+  float,
+  length,
+  mix,
+  mul,
+  pow,
+  sin,
+  smoothstep,
+  sub,
+  uniform,
+  uv,
+  vec3,
+} from 'three/tsl';
+import { MeshBasicNodeMaterial } from 'three/webgpu';
+
 import { RENDER_LAYERS } from '../../constants';
+import { useDisposeOnUnmount } from '../../hooks/useDisposeOnUnmount';
+import { getMaterialUserData, setMaterialUserData } from '../../lib/three/materialUserData';
+import { createInstanceAttributeNode, INSTANCE_ATTRIBUTES } from '../../lib/tsl/instancing';
 
 interface AmbientDustProps {
   /** Number of dust particles @default 80 */
@@ -29,83 +49,37 @@ interface AmbientDustProps {
   enabled?: boolean;
 }
 
-// Custom shader for dust with varying opacity and subtle sparkle
-const dustVertexShader = `
-  attribute float aOpacity;
-  attribute float aSparklePhase;
-  varying float vOpacity;
-  varying float vSparkle;
-  uniform float uTime;
-  uniform float uSize;
-
-  void main() {
-    vOpacity = aOpacity;
-
-    // Subtle sparkle effect - some particles catch light
-    float sparkle = sin(uTime * 2.0 + aSparklePhase * 6.28) * 0.5 + 0.5;
-    sparkle = pow(sparkle, 8.0); // Make sparkle rare and brief
-    vSparkle = sparkle * 0.3; // Max 30% extra brightness
-
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = uSize * (300.0 / -mvPosition.z);
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-const dustFragmentShader = `
-  varying float vOpacity;
-  varying float vSparkle;
-  uniform float uBaseOpacity;
-
-  void main() {
-    // Soft circular particle
-    vec2 center = gl_PointCoord - 0.5;
-    float dist = length(center);
-    if (dist > 0.5) discard;
-
-    // Soft falloff
-    float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-    alpha *= vOpacity * uBaseOpacity;
-
-    // Add sparkle
-    alpha += vSparkle * 0.5;
-
-    // Golden moonlit dust
-    vec3 color = vec3(0.98, 0.90, 0.60);
-
-    // Sparkle makes it whiter
-    color = mix(color, vec3(1.0), vSparkle);
-
-    gl_FragColor = vec4(color, alpha);
-  }
-`;
-
 export const AmbientDust = memo(function AmbientDust({
   count = 80,
   opacity = 0.225,
   size = 0.015,
   enabled = true,
 }: AmbientDustProps) {
-  const pointsRef = useRef<THREE.Points>(null);
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const materialRef = useRef<MeshBasicNodeMaterial>(null);
 
   // Store initial positions for drift calculation
   const initialPositions = useRef<Float32Array | null>(null);
 
   // Set layers on mount to exclude from DoF
   useEffect(() => {
-    if (pointsRef.current) {
-      pointsRef.current.layers.set(RENDER_LAYERS.EFFECTS);
+    if (meshRef.current) {
+      (meshRef.current as THREE.Object3D).layers.set(RENDER_LAYERS.EFFECTS);
     }
   }, []);
 
-  // Create geometry and attributes
-  const { geometry, positions, velocities } = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
+  // Create geometry (single quad, instanced)
+  const geometry = useMemo(() => {
+    // Use PlaneGeometry for each particle
+    return new THREE.PlaneGeometry(size, size);
+  }, [size]);
+
+  // Create instance data
+  const { positions, velocities, opacities, sparklePhases } = useMemo(() => {
     const pos = new Float32Array(count * 3);
+    const vel = new Float32Array(count * 3);
     const op = new Float32Array(count);
     const sp = new Float32Array(count);
-    const vel = new Float32Array(count * 3); // Drift velocities
 
     for (let i = 0; i < count; i++) {
       // Distribute in a wide, shallow volume
@@ -130,14 +104,11 @@ export const AmbientDust = memo(function AmbientDust({
       vel[i * 3 + 2] = (Math.random() - 0.5) * 0.005; // Z drift
     }
 
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute('aOpacity', new THREE.BufferAttribute(op, 1));
-    geo.setAttribute('aSparklePhase', new THREE.BufferAttribute(sp, 1));
-
     return {
-      geometry: geo,
       positions: pos,
       velocities: vel,
+      opacities: op,
+      sparklePhases: sp,
     };
   }, [count]);
 
@@ -146,33 +117,128 @@ export const AmbientDust = memo(function AmbientDust({
     initialPositions.current = new Float32Array(positions);
   }, [positions]);
 
-  // Create material
+  // Create TSL material
   const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uSize: { value: size * 100 },
-        uBaseOpacity: { value: opacity },
-      },
-      vertexShader: dustVertexShader,
-      fragmentShader: dustFragmentShader,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-  }, [size, opacity]);
+    // TSL Uniforms
+    const uTime = uniform(float(0));
+    const uBaseOpacity = uniform(float(opacity));
 
-  // Animate dust particles
+    // ═══════════════════════════════════════════════════════════════
+    // Per-instance attributes (opacity and sparkle phase)
+    // GLSL: attribute float aOpacity; attribute float aSparklePhase;
+    // ═══════════════════════════════════════════════════════════════
+    const instanceOpacity = createInstanceAttributeNode(INSTANCE_ATTRIBUTES.OPACITY);
+    const instanceSparklePhase = createInstanceAttributeNode(INSTANCE_ATTRIBUTES.SPARKLE_PHASE);
+
+    // ═══════════════════════════════════════════════════════════════
+    // Subtle sparkle effect - some particles catch light
+    // GLSL: float sparkle = sin(uTime * 2.0 + aSparklePhase * 6.28) * 0.5 + 0.5;
+    //       sparkle = pow(sparkle, 8.0);
+    // ═══════════════════════════════════════════════════════════════
+    const sparkleRaw = add(
+      mul(sin(add(mul(uTime, float(2.0)), mul(instanceSparklePhase, float(6.28)))), float(0.5)),
+      float(0.5),
+    );
+    const sparkle = pow(sparkleRaw, float(8.0)); // Make sparkle rare and brief
+    const vSparkle = mul(sparkle, float(0.3)); // Max 30% extra brightness
+
+    // ═══════════════════════════════════════════════════════════════
+    // Soft circular particle mask
+    // GLSL: vec2 center = gl_PointCoord - 0.5;
+    //       float dist = length(center);
+    //       if (dist > 0.5) discard;
+    // TSL: Use UV coordinates instead (0-1 range)
+    // ═══════════════════════════════════════════════════════════════
+    const uvCoord = uv();
+    const center = sub(uvCoord, float(0.5));
+    const dist = length(center);
+
+    // Discard outside circle using step (0 if dist > 0.5, 1 if dist <= 0.5)
+    const insideCircle = smoothstep(float(0.5), float(0.48), dist); // Slight feather
+
+    // ═══════════════════════════════════════════════════════════════
+    // Soft falloff for particle alpha
+    // GLSL: float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+    //       alpha *= vOpacity * uBaseOpacity;
+    //       alpha += vSparkle * 0.5;
+    // ═══════════════════════════════════════════════════════════════
+    const alphaFalloff = sub(float(1.0), smoothstep(float(0.0), float(0.5), dist));
+    const baseAlpha = mul(mul(alphaFalloff, instanceOpacity), uBaseOpacity);
+    const alpha = mul(add(baseAlpha, mul(vSparkle, float(0.5))), insideCircle);
+
+    // ═══════════════════════════════════════════════════════════════
+    // Golden moonlit dust that turns white on sparkle
+    // GLSL: vec3 color = vec3(0.98, 0.90, 0.60);
+    //       color = mix(color, vec3(1.0), vSparkle);
+    // ═══════════════════════════════════════════════════════════════
+    const dustColor = vec3(0.98, 0.9, 0.6);
+    const finalColor = mix(dustColor, vec3(1.0), vSparkle);
+
+    // Create material
+    const mat = new MeshBasicNodeMaterial();
+    mat.colorNode = color(finalColor);
+    mat.opacityNode = alpha;
+    mat.transparent = true;
+    mat.depthWrite = false;
+    mat.side = THREE.DoubleSide; // Billboard should be visible from both sides
+    mat.blending = THREE.AdditiveBlending;
+
+    // Store uniforms for animation
+    setMaterialUserData(mat, { uTime, uBaseOpacity });
+
+    return mat;
+  }, [opacity]);
+
+  useDisposeOnUnmount(geometry, material);
+
+  // Setup instanced mesh with per-instance attributes
+  useEffect(() => {
+    if (!meshRef.current) return;
+
+    const mesh = meshRef.current;
+
+    // Set instance transforms (positions only, billboarding handled by lookAt)
+    const matrix = new THREE.Matrix4();
+    for (let i = 0; i < count; i++) {
+      matrix.setPosition(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+      mesh.setMatrixAt(i, matrix);
+    }
+
+    // Add per-instance attributes for opacity and sparkle phase
+    mesh.geometry.setAttribute(
+      INSTANCE_ATTRIBUTES.OPACITY,
+      new THREE.InstancedBufferAttribute(opacities, 1),
+    );
+    mesh.geometry.setAttribute(
+      INSTANCE_ATTRIBUTES.SPARKLE_PHASE,
+      new THREE.InstancedBufferAttribute(sparklePhases, 1),
+    );
+
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [count, positions, opacities, sparklePhases]);
+
+  // Animate dust particles with drift and billboarding
   useFrame((state) => {
-    if (!pointsRef.current || !materialRef.current || !initialPositions.current) return;
+    if (!meshRef.current || !materialRef.current || !initialPositions.current) return;
 
     const time = state.clock.elapsedTime;
+    const mesh = meshRef.current;
+    const camera = state.camera;
 
     // Update time uniform for sparkle
-    materialRef.current.uniforms.uTime.value = time;
+    const userData = getMaterialUserData<{
+      uTime?: { value: number };
+      uBaseOpacity?: { value: number };
+    }>(materialRef.current);
+    if (userData?.uTime) {
+      userData.uTime.value = time;
+    }
 
-    // Update positions with gentle drift
-    const positionAttr = geometry.getAttribute('position') as THREE.BufferAttribute;
+    // Update positions with gentle drift and billboard rotation
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3(1, 1, 1);
 
     for (let i = 0; i < count; i++) {
       const baseX = initialPositions.current[i * 3];
@@ -188,26 +254,25 @@ export const AmbientDust = memo(function AmbientDust({
 
       const driftZ = Math.sin(time * 0.15 + i * 0.2) * velocities[i * 3 + 2] * 10;
 
-      positionAttr.setXYZ(i, baseX + driftX, baseY + driftY, baseZ + driftZ);
+      position.set(baseX + driftX, baseY + driftY, baseZ + driftZ);
+
+      // Billboard: Make particle face camera
+      quaternion.copy(camera.quaternion);
+
+      // Compose matrix
+      matrix.compose(position, quaternion, scale);
+      mesh.setMatrixAt(i, matrix);
     }
 
-    positionAttr.needsUpdate = true;
+    mesh.instanceMatrix.needsUpdate = true;
   });
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      geometry.dispose();
-      material.dispose();
-    };
-  }, [geometry, material]);
 
   if (!enabled) return null;
 
   return (
-    <points ref={pointsRef} geometry={geometry} frustumCulled={false}>
+    <instancedMesh ref={meshRef} args={[geometry, material, count]} frustumCulled={false}>
       <primitive object={material} ref={materialRef} attach="material" />
-    </points>
+    </instancedMesh>
   );
 });
 

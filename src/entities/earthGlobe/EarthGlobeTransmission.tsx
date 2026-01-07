@@ -13,7 +13,7 @@
  */
 
 import { MeshTransmissionMaterial, Ring, Sphere } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { type ThreeElements, useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -135,8 +135,7 @@ export function EarthGlobeTransmission({
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const atmosphereRefs = useRef<(THREE.Mesh | null)[]>([]);
-  // biome-ignore lint/suspicious/noExplicitAny: MeshTransmissionMaterial doesn't export instance type in @react-three/drei
-  const transmissionRef = useRef<any>(null);
+  const transmissionRef = useRef<ThreeElements['meshTransmissionMaterial'] | null>(null);
   const world = useWorld();
 
   // Create memoized atmosphere geometries and materials

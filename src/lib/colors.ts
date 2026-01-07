@@ -33,8 +33,8 @@ export function getMonumentValleyMoodColor(moodId: MoodId | '' | undefined): str
 }
 
 /**
- * Neon-saturated mood colors for vibrant shard inner glow
- * Used in RefractionPipeline for vivid mood-colored accents on glass shards
+ * Neon-saturated mood colors for vibrant shard accents
+ * Used for edge glow and UI highlights in the shard swarm
  */
 export const NEON_MOOD_PALETTE = {
   gratitude: '#ffbe0b', // Warm gold

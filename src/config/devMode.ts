@@ -12,4 +12,14 @@
  *
  * And ensure production builds have it false or undefined.
  */
-export const DEV_MODE_ENABLED = true;
+const devModeOverride = import.meta.env.VITE_DEV_MODE;
+
+/**
+ * Developer tools should be:
+ * - Enabled by default in dev (Fast Refresh workflows)
+ * - Disabled by default in prod (avoid shipping Leva/debug UI)
+ *
+ * You can override with `VITE_DEV_MODE=true|false`.
+ */
+export const DEV_MODE_ENABLED =
+  devModeOverride === 'true' ? true : devModeOverride === 'false' ? false : import.meta.env.DEV;

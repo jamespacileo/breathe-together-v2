@@ -269,6 +269,7 @@ export function SimpleGaiaUI({
   }, [setIsControlsOpen]);
 
   // Focus Mode: Fade out UI after inactivity
+  // Uses isControlsOpenRef to avoid re-registering listeners when controls toggle
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     const capture = true;
@@ -276,8 +277,8 @@ export function SimpleGaiaUI({
     const resetInactivity = () => {
       setIsVisible(true);
       clearTimeout(timeout);
-      // Only fade out if controls are closed
-      if (!isControlsOpen) {
+      // Only fade out if controls are closed (read from ref to avoid stale closure)
+      if (!isControlsOpenRef.current) {
         timeout = setTimeout(() => setIsVisible(false), 10000); // 10s for first-timers
       }
     };
@@ -300,7 +301,7 @@ export function SimpleGaiaUI({
       window.removeEventListener('keydown', resetInactivity);
       clearTimeout(timeout);
     };
-  }, [isControlsOpen]);
+  }, []);
 
   // Stop pointer/touch events from propagating to PresentationControls
   // Memoized to maintain stable reference

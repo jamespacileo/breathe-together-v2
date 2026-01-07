@@ -15,6 +15,21 @@
 import type { SoundCategory, SoundDefinition } from './types';
 
 /**
+ * Create a nature sound definition with shared defaults.
+ */
+function makeNatureSound(path: string): SoundDefinition {
+  return {
+    path,
+    category: 'nature',
+    loop: true,
+    baseVolume: 0.3,
+    fadeIn: 2,
+    fadeOut: 2,
+    breathSync: false,
+  };
+}
+
+/**
  * Sound registry with type-safe IDs
  *
  * Using `as const satisfies` provides:
@@ -112,75 +127,15 @@ export const SOUNDS = {
   // One active at a time, volume breathes with cycle
   // Files: public/audio/nature/
   // ─────────────────────────────────────────────────────
-  'nature/ocean': {
-    path: '/audio/nature/ocean.mp3',
-    category: 'nature',
-    loop: true,
-    baseVolume: -15,
-    fadeIn: 3,
-    fadeOut: 3,
-    breathSync: {
-      volumeMin: 0.7,
-      volumeMax: 1.0,
-      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
-    },
-  },
+  'nature/ocean': makeNatureSound('/audio/nature/ocean.mp3'),
 
-  'nature/forest': {
-    path: '/audio/nature/forest.mp3',
-    category: 'nature',
-    loop: true,
-    baseVolume: -15,
-    fadeIn: 3,
-    fadeOut: 3,
-    breathSync: {
-      volumeMin: 0.7,
-      volumeMax: 1.0,
-      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
-    },
-  },
+  'nature/forest': makeNatureSound('/audio/nature/forest.mp3'),
 
-  'nature/rain': {
-    path: '/audio/nature/rain.mp3',
-    category: 'nature',
-    loop: true,
-    baseVolume: -15,
-    fadeIn: 3,
-    fadeOut: 3,
-    breathSync: {
-      volumeMin: 0.7,
-      volumeMax: 1.0,
-      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
-    },
-  },
+  'nature/rain': makeNatureSound('/audio/nature/rain.mp3'),
 
-  'nature/wind': {
-    path: '/audio/nature/wind.mp3',
-    category: 'nature',
-    loop: true,
-    baseVolume: -15,
-    fadeIn: 3,
-    fadeOut: 3,
-    breathSync: {
-      volumeMin: 0.7,
-      volumeMax: 1.0,
-      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
-    },
-  },
+  'nature/wind': makeNatureSound('/audio/nature/wind.mp3'),
 
-  'nature/night': {
-    path: '/audio/nature/night.mp3',
-    category: 'nature',
-    loop: true,
-    baseVolume: -15,
-    fadeIn: 3,
-    fadeOut: 3,
-    breathSync: {
-      volumeMin: 0.7,
-      volumeMax: 1.0,
-      phaseVolumes: [0.85, 1.0, 0.85, 0.7],
-    },
-  },
+  'nature/night': makeNatureSound('/audio/nature/night.mp3'),
 
   // ─────────────────────────────────────────────────────
   // TRANSITION CHIMES (optional)

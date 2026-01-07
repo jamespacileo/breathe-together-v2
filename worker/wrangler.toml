@@ -33,6 +33,21 @@ new_classes = ["BreathingRoom"]
 [triggers]
 crons = ["* * * * *"]
 
+# ----------------------------------------------------------------------------
+# Environment Variables (dev defaults)
+# ----------------------------------------------------------------------------
+#
+# Use `wrangler secret put ADMIN_TOKEN` for production.
+#
+# [vars]
+# ADMIN_TOKEN = "dev-admin-token"
+# SIMULATION_ENABLED = "true"
+# SIMULATION_BASE_USER_COUNT = "42"
+# INSPIRATION_TEXT_ENABLED = "true"
+# INSPIRATION_MESSAGE_DURATION = "32000"
+# INSPIRATION_BATCH_TTL_SECONDS = "604800"
+# INSPIRATION_HISTORY_MAX = "50"
+
 # ============================================================================
 # Cost Comparison (see COST_ANALYSIS.md for details)
 # ============================================================================

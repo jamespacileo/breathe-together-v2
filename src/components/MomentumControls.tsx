@@ -68,6 +68,115 @@ interface MomentumControlsProps {
   children?: React.ReactNode;
 }
 
+type DragMemoState = { oldY: number; oldX: number; isUi: boolean };
+
+function restoreTouchAction(
+  cursorTarget: HTMLElement | null,
+  touchActionRef: React.RefObject<string | null>,
+) {
+  if (!cursorTarget) return;
+  if (touchActionRef.current === null) return;
+  cursorTarget.style.touchAction = touchActionRef.current;
+  touchActionRef.current = null;
+}
+
+function updateCursorStyle({
+  cursorTarget,
+  cursor,
+  down,
+}: {
+  cursorTarget: HTMLElement | null;
+  cursor: boolean;
+  down: boolean;
+}) {
+  if (!cursor || !cursorTarget) return;
+  cursorTarget.style.cursor = down ? 'grabbing' : 'grab';
+}
+
+function updateTouchActionStyle({
+  cursorTarget,
+  touchActionRef,
+  down,
+}: {
+  cursorTarget: HTMLElement | null;
+  touchActionRef: React.RefObject<string | null>;
+  down: boolean;
+}) {
+  if (!cursorTarget) return;
+
+  if (down) {
+    if (touchActionRef.current === null) {
+      touchActionRef.current = cursorTarget.style.touchAction;
+    }
+    cursorTarget.style.touchAction = 'none';
+    return;
+  }
+
+  restoreTouchAction(cursorTarget, touchActionRef);
+}
+
+function getOrInitDragState({
+  memo,
+  event,
+  animationTarget,
+}: {
+  memo: unknown;
+  event: unknown;
+  animationTarget: [number, number, number];
+}): DragMemoState {
+  const existing = memo as DragMemoState | undefined;
+  if (existing) return existing;
+
+  const target = getDomEventTarget(event);
+  const isUi = isUiEventTarget(target);
+  const [oldY, oldX] = animationTarget;
+  return { oldY, oldX, isUi };
+}
+
+function computeReleaseTarget({
+  newX,
+  newY,
+  vx,
+  vy,
+  size,
+  speed,
+  momentum,
+  velocityMultiplier,
+  timeConstant,
+  minVelocityThreshold,
+  rAzimuth,
+  rPolar,
+}: {
+  newX: number;
+  newY: number;
+  vx: number;
+  vy: number;
+  size: { width: number; height: number };
+  speed: number;
+  momentum: number;
+  velocityMultiplier: number;
+  timeConstant: number;
+  minVelocityThreshold: number;
+  rAzimuth: [number, number];
+  rPolar: [number, number];
+}) {
+  const { deltaX, deltaY, hasMomentumX, hasMomentumY } = calculateMomentumDelta({
+    velocity: [vx, vy],
+    size,
+    speed,
+    momentum,
+    velocityMultiplier,
+    timeConstant,
+    minVelocityThreshold,
+    maxMomentum: IOS_DEFAULTS.maxMomentum,
+  });
+
+  const targetX = MathUtils.clamp(newX + (hasMomentumX ? deltaX : 0), ...rAzimuth);
+  const targetY = MathUtils.clamp(newY + (hasMomentumY ? deltaY : 0), ...rPolar);
+
+  return { targetX, targetY };
+}
+
 /**
  * MomentumControls - PresentationControls with iOS-style momentum scrolling
  *
@@ -215,40 +324,22 @@ export function MomentumControls({
       },
       onDrag: ({ down, delta: [dx, dy], velocity: [vx, vy], memo, event, last }) => {
         if (!enabled) return memo;
-        let dragState = memo as { oldY: number; oldX: number; isUi: boolean } | undefined;
-        if (!dragState) {
-          const target = getDomEventTarget(event);
-          const isUi = isUiEventTarget(target);
-          const [oldY, oldX] = animation.current.target;
-          dragState = { oldY, oldX, isUi };
-        }
+        const dragState = getOrInitDragState({
+          memo,
+          event,
+          animationTarget: animation.current.target,
+        });
 
         if (dragState.isUi) {
-          if (last && touchActionRef.current !== null && cursorTarget) {
-            cursorTarget.style.touchAction = touchActionRef.current;
-            touchActionRef.current = null;
-          }
+          if (last) restoreTouchAction(cursorTarget, touchActionRef);
           return dragState;
         }
 
         // Initialize memo with current rotation on drag start
         const { oldY, oldX } = dragState;
 
-        if (cursor && cursorTarget) {
-          cursorTarget.style.cursor = down ? 'grabbing' : 'grab';
-        }
-
-        if (cursorTarget) {
-          if (down) {
-            if (touchActionRef.current === null) {
-              touchActionRef.current = cursorTarget.style.touchAction;
-            }
-            cursorTarget.style.touchAction = 'none';
-          } else if (touchActionRef.current !== null) {
-            cursorTarget.style.touchAction = touchActionRef.current;
-            touchActionRef.current = null;
-          }
-        }
+        updateCursorStyle({ cursorTarget, cursor, down });
+        updateTouchActionStyle({ cursorTarget, touchActionRef, down });
 
         // Calculate new rotation from drag delta
         const newX = MathUtils.clamp(oldX + (dx / size.width) * Math.PI * speed, ...rAzimuth);
@@ -260,28 +351,20 @@ export function MomentumControls({
           animation.current.damping = damping;
         } else {
           // On release: apply iOS-style momentum based on velocity
-          const { deltaX, deltaY, hasMomentumX, hasMomentumY } = calculateMomentumDelta({
-            velocity: [vx, vy],
+          const { targetX, targetY } = computeReleaseTarget({
+            newX,
+            newY,
+            vx,
+            vy,
             size,
             speed,
             momentum,
             velocityMultiplier,
             timeConstant,
             minVelocityThreshold,
-            maxMomentum: IOS_DEFAULTS.maxMomentum,
+            rAzimuth,
+            rPolar,
           });
-
-          let targetX = newX;
-          let targetY = newY;
-
-          if (hasMomentumX) {
-            targetX = MathUtils.clamp(newX + deltaX, ...rAzimuth);
-          }
-
-          if (hasMomentumY) {
-            targetY = MathUtils.clamp(newY + deltaY, ...rPolar);
-          }
-
           animation.current.target = [targetY, targetX, 0];
           // Use slightly higher damping during momentum coast for natural deceleration
           animation.current.damping = damping * 1.5;

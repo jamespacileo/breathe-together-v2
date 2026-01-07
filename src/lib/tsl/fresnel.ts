@@ -5,7 +5,7 @@
  * At grazing angles (looking at edges), surfaces appear brighter.
  *
  * This effect is used throughout the app for:
- * - Soft rim glow on particles (FrostedGlassMaterial)
+ * - Soft rim glow on particles
  * - Atmospheric glow on the globe
  * - Light ray fadeout
  */
@@ -80,7 +80,7 @@ export function createInvertedFresnelNode(power = 3.0): ShaderNodeObject<Node> {
  * Preset fresnel configurations for common use cases
  */
 export const FRESNEL_PRESETS = {
-  /** Soft diffuse glow - FrostedGlassMaterial default */
+  /** Soft diffuse glow for glassy rim highlights */
   frostedGlass: { power: 2.5, intensity: 0.25 },
   /** Tight atmospheric halo - Globe glow */
   atmosphere: { power: 4.0, intensity: 0.18 },

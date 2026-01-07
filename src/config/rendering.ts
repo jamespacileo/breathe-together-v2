@@ -1,124 +1,51 @@
 /**
  * Rendering Configuration
  *
- * Feature flags and configuration for shader/material rendering modes.
- * This allows gradual migration to TSL while maintaining GLSL fallbacks.
+ * Configuration for the TSL (Three.js Shading Language) rendering system.
  *
- * ## Migration Strategy
+ * ## Architecture
  *
- * 1. **Phase 1 (Current)**: GLSL production, TSL experimental
- *    - `useTSL: false` - Use GLSL ShaderMaterial for all production materials
- *    - TSL materials available for testing but not default
+ * All materials use TSL (Three.js Shading Language) which compiles to:
+ * - WebGL 2 (GLSL) for broad browser compatibility
+ * - WebGPU (WGSL) when native WebGPU support matures
  *
- * 2. **Phase 2**: TSL opt-in
- *    - Set `useTSL: true` to use TSL materials
- *    - Falls back to GLSL if TSL compilation fails
+ * The app uses WebGPURenderer with forceWebGL: true to get the benefits of
+ * TSL's node-based material system while maintaining WebGL 2 compatibility
+ * for Safari and other browsers without native WebGPU support.
  *
- * 3. **Phase 3**: TSL default
- *    - TSL is production default
- *    - GLSL kept as fallback for edge cases
+ * ## Browser Support
  *
- * ## WebGPU Support
- *
- * TSL materials compile to both WebGL2 (GLSL) and WebGPU (WGSL).
- * WebGPU can be enabled when browser support is mature:
- * - Chrome 113+, Edge 113+, Firefox 121+, Safari 17.4+
- *
- * @see docs/shader-architecture-review.md for full migration plan
+ * - All modern browsers via WebGL 2 fallback
+ * - Chrome 113+, Edge 113+, Firefox 121+, Safari 17.4+ will use native WebGPU
+ *   once forceWebGL is set to false
  */
 
 /**
- * Rendering feature flags
+ * Rendering configuration options
  */
 export interface RenderingConfig {
   /**
-   * Enable TSL (Three.js Shading Language) materials
+   * Force WebGL 2 backend instead of native WebGPU
    *
-   * When true, use TSL-based materials that compile to both WebGL2 and WebGPU.
-   * When false, use traditional GLSL ShaderMaterial.
+   * When true, WebGPURenderer uses WebGL 2 backend (broad compatibility)
+   * When false, WebGPURenderer uses native WebGPU (better performance)
    *
-   * @default false - GLSL is still production default
+   * @default true - WebGL 2 for Safari and broader compatibility
    */
-  useTSL: boolean;
-
-  /**
-   * Force WebGPU renderer
-   *
-   * When true and browser supports WebGPU, use WebGPURenderer.
-   * When false, use WebGLRenderer with TSL compiling to GLSL.
-   *
-   * Note: Requires useTSL: true to have any effect.
-   *
-   * @default false - WebGL2 is still default
-   */
-  forceWebGPU: boolean;
-
-  /**
-   * Enable experimental features
-   *
-   * These are features that are still in development and may not be stable.
-   */
-  experimental: {
-    /**
-     * Use TSL refraction pipeline
-     *
-     * The 4-pass refraction pipeline is complex. This enables a TSL version
-     * which is still being developed.
-     *
-     * @default false
-     */
-    tslRefractionPipeline: boolean;
-
-    /**
-     * Use TSL background gradient
-     *
-     * Enable the TSL version of BackgroundGradient.
-     *
-     * @default false
-     */
-    tslBackgroundGradient: boolean;
-
-    /**
-     * Use TSL globe materials
-     *
-     * Enable TSL materials for EarthGlobe.
-     *
-     * @default false
-     */
-    tslGlobeMaterials: boolean;
-
-    /**
-     * Use TSL particle materials
-     *
-     * Enable TSL materials for ParticleSwarm (FrostedGlassMaterial).
-     *
-     * @default false
-     */
-    tslParticleMaterials: boolean;
-  };
+  forceWebGL: boolean;
 }
 
 /**
  * Default rendering configuration
  *
- * Production-safe defaults with TSL disabled until proven stable.
+ * Uses WebGL 2 backend for maximum browser compatibility.
  */
 export const DEFAULT_RENDERING_CONFIG: RenderingConfig = {
-  useTSL: false,
-  forceWebGPU: false,
-  experimental: {
-    tslRefractionPipeline: false,
-    tslBackgroundGradient: false,
-    tslGlobeMaterials: false,
-    tslParticleMaterials: false,
-  },
+  forceWebGL: true,
 };
 
 /**
  * Current rendering configuration
- *
- * This can be modified at runtime for A/B testing or development.
- * In production, this should match DEFAULT_RENDERING_CONFIG.
  */
 let currentConfig: RenderingConfig = { ...DEFAULT_RENDERING_CONFIG };
 
@@ -132,36 +59,13 @@ export function getRenderingConfig(): Readonly<RenderingConfig> {
 /**
  * Update rendering configuration
  *
- * Typically called during app initialization or for A/B testing.
- *
  * @param updates Partial config updates to merge
  */
 export function updateRenderingConfig(updates: Partial<RenderingConfig>): void {
   currentConfig = {
     ...currentConfig,
     ...updates,
-    experimental: {
-      ...currentConfig.experimental,
-      ...(updates.experimental || {}),
-    },
   };
-}
-
-/**
- * Enable all TSL features (for testing)
- *
- * Enables TSL materials across the app. Use for development/testing only.
- */
-export function enableAllTSL(): void {
-  updateRenderingConfig({
-    useTSL: true,
-    experimental: {
-      tslRefractionPipeline: false, // Keep disabled - most complex
-      tslBackgroundGradient: true,
-      tslGlobeMaterials: true,
-      tslParticleMaterials: true,
-    },
-  });
 }
 
 /**
@@ -172,33 +76,12 @@ export function resetRenderingConfig(): void {
 }
 
 /**
- * Check if TSL should be used for a specific feature
+ * Check if native WebGPU should be used
  *
- * @param feature The experimental feature to check
- * @returns true if TSL should be used for this feature
+ * @returns true if native WebGPU renderer should be used (forceWebGL is false)
  */
-export function shouldUseTSL(feature: keyof RenderingConfig['experimental']): boolean {
-  const config = getRenderingConfig();
-
-  // Master switch must be on
-  if (!config.useTSL) {
-    return false;
-  }
-
-  // Check specific feature flag
-  return config.experimental[feature];
-}
-
-/**
- * Check if WebGPU renderer should be used
- *
- * @returns true if WebGPU renderer should be attempted
- */
-export function shouldUseWebGPU(): boolean {
-  const config = getRenderingConfig();
-
-  // Both TSL and forceWebGPU must be enabled
-  return config.useTSL && config.forceWebGPU;
+export function shouldUseNativeWebGPU(): boolean {
+  return !currentConfig.forceWebGL;
 }
 
 /**
@@ -207,12 +90,8 @@ export function shouldUseWebGPU(): boolean {
 export function logRenderingConfig(): void {
   const config = getRenderingConfig();
   console.group('🎨 Rendering Configuration');
-  console.log('TSL Materials:', config.useTSL ? '✅ Enabled' : '❌ Disabled');
-  console.log('WebGPU Renderer:', config.forceWebGPU ? '✅ Forced' : '❌ WebGL2');
-  console.group('Experimental Features:');
-  for (const [key, value] of Object.entries(config.experimental)) {
-    console.log(`  ${key}:`, value ? '✅' : '❌');
-  }
-  console.groupEnd();
+  console.log('Renderer: WebGPURenderer');
+  console.log('Backend:', config.forceWebGL ? 'WebGL 2 (fallback)' : 'Native WebGPU');
+  console.log('Materials: TSL (Three.js Shading Language)');
   console.groupEnd();
 }

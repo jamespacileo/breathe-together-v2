@@ -2,11 +2,13 @@ import { Environment as DreiEnvironment, Stars } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import * as THREE from 'three';
+import { useSunDirection } from '../../hooks/useSunDirection';
 import { useViewport } from '../../hooks/useViewport';
 import { AmbientDust } from './AmbientDust';
 import { BackgroundGradient } from './BackgroundGradient';
 import { BreathSparkles } from './BreathSparkles';
 import { CloudSystem } from './CloudSystem';
+import { ConstellationGizmos } from './ConstellationGizmos';
 import { ConstellationStars } from './ConstellationStars';
 import { EditorGrid } from './EditorGrid';
 import { NebulaBackdrop } from './NebulaBackdrop';
@@ -175,6 +177,7 @@ export function Environment({
 }: EnvironmentProps = {}) {
   const { scene, gl } = useThree();
   const { isMobile, isTablet } = useViewport();
+  const sunDir = useSunDirection(15); // Distance doesn't matter for directional light as long as we use position or normal
 
   // Reduce star count on mobile/tablet for better performance
   const starsCount = isMobile ? 150 : isTablet ? 300 : 500;
@@ -299,6 +302,8 @@ export function Environment({
         />
       )}
 
+      {showConstellationGizmos && <ConstellationGizmos />}
+
       {/* Soft nebula backdrop - subtle galaxy haze behind constellations */}
       {showNebulae && <NebulaBackdrop />}
 
@@ -309,9 +314,9 @@ export function Environment({
       {/* Warm ambient light - fills shadows softly */}
       <ambientLight intensity={ambientLightIntensity} color={ambientLightColor} />
 
-      {/* Key light - warm golden from upper right (sunrise/sunset feel) */}
+      {/* Key light - synchronized with stylized sun (sunrise/sunset feel) */}
       <directionalLight
-        position={[10, 15, 5]}
+        position={[sunDir.x, sunDir.y, sunDir.z]}
         intensity={keyLightIntensity}
         color={keyLightColor}
         castShadow={false}
