@@ -289,6 +289,34 @@ button:focus-visible {
 }
 
 /* =============================================================================
+   LEVA DEV CONTROLS PANEL
+   ============================================================================= */
+
+/**
+ * Leva Panel Z-Index Override
+ * Ensures Leva dev controls are always above other UI elements
+ * including Perf monitor, noise overlay (9999), and vignette (9998)
+ */
+.leva__root {
+  z-index: 100000 !important;
+}
+
+/* =============================================================================
+   R3F-PERF MONITOR
+   ============================================================================= */
+
+/**
+ * Perf Monitor Z-Index Override
+ * r3f-perf defaults to a very high z-index (99999)
+ * Set it lower than Leva so dev controls are always accessible
+ */
+.performance-monitor,
+[class*="Performance"],
+[class*="perf"] {
+  z-index: 9990 !important;
+}
+
+/* =============================================================================
    CSS ICOSAHEDRON ANIMATIONS
    ============================================================================= */
 
