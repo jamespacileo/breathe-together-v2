@@ -1,0 +1,43 @@
+# Cloudflare Worker configuration for PR Tracking Dashboard
+# See: https://developers.cloudflare.com/workers/wrangler/configuration/
+
+name = "pr-tracking-dashboard"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Development settings
+[dev]
+port = 8788
+local_protocol = "http"
+
+# KV Namespace for caching PR data and push subscriptions
+# Create with: wrangler kv:namespace create PR_CACHE
+[[kv_namespaces]]
+binding = "PR_CACHE"
+id = "placeholder-create-with-wrangler"
+preview_id = "placeholder-create-with-wrangler-preview"
+
+# Durable Objects for WebSocket connections and real-time state
+[durable_objects]
+bindings = [
+  { name = "PR_TRACKER", class_name = "PRTracker" }
+]
+
+# Migrations for Durable Objects
+[[migrations]]
+tag = "v1"
+new_classes = ["PRTracker"]
+
+# Environment variables (non-secret)
+[vars]
+GITHUB_OWNER = "jamespacileo"
+GITHUB_REPO = "breathe-together-v2"
+CLOUDFLARE_PROJECT = "breathe-together-v2"
+# Note: CLOUDFLARE_ACCOUNT_ID should be set as a secret for dashboard links
+
+# Secrets (set via wrangler secret put):
+# - GITHUB_TOKEN: GitHub personal access token with repo scope
+# - GITHUB_WEBHOOK_SECRET: Secret for verifying webhook signatures
+# - VAPID_PUBLIC_KEY: Public key for web push
+# - VAPID_PRIVATE_KEY: Private key for web push
+# - CLOUDFLARE_ACCOUNT_ID: Your CF account ID for dashboard links
